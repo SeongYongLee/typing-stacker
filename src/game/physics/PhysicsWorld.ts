@@ -18,7 +18,7 @@ import {
 } from '../config.ts'
 import { halfExtentY } from '../shapes.ts'
 import type { BodySnapshot, ItemVariant, PrimitiveShape, Vec2 } from '../types/game.ts'
-import { isEscaped } from './collapseDetector.ts'
+import { isEscaped, isOutOfSight } from './collapseDetector.ts'
 
 /**
  * WASM 초기화는 프로세스에 딱 한 번이어야 한다.
@@ -70,6 +70,8 @@ interface TrackedBody {
   impacted: boolean
   /** 감쇠를 크게 걸어 잠가둔 상태인지 */
   anchored: boolean
+  /** 이탈로 이미 세어둔 물건인지. 날아가는 동안 중복으로 세지 않기 위한 표시 */
+  lost: boolean
   /**
    * 한 번이라도 자리를 잃은 적이 있는지.
    * 되돌리지 않는다 — 흔들린 스택은 계속 불안정한 것으로 취급한다.
@@ -202,6 +204,7 @@ class PhysicsWorld {
       impacted: false,
       anchored: false,
       dislodged: false,
+      lost: false,
       restX: x,
       restY: ARENA.spawnY,
     })
@@ -220,15 +223,26 @@ class PhysicsWorld {
     }
 
     const settled: SettleEvent[] = []
-    const escapedHandles: number[] = []
+    const goneHandles: number[] = []
+    let escaped = 0
     let quake = 0
 
     for (const [handle, entry] of this.tracked) {
       const { x, y } = entry.body.translation()
+
+      // 화면 밖으로 완전히 나갔으면 이제 치운다
+      if (isOutOfSight(x, y)) {
+        goneHandles.push(handle)
+        continue
+      }
+
       if (isEscaped(x, y)) {
-        // 세계에서 치워야 한다. 남겨두면 계속 떨어지면서 매 프레임 이탈로 잡혀
-        // 목숨 3개가 한순간에 다 날아간다.
-        escapedHandles.push(handle)
+        // 이탈은 물건당 한 번만 센다. 매 프레임 세면 목숨 3개가 한순간에 날아간다.
+        // 바디는 남겨서 테두리 밖으로 날아가는 모습이 계속 그려지게 한다.
+        if (!entry.lost) {
+          entry.lost = true
+          escaped += 1
+        }
         continue
       }
 
@@ -295,7 +309,7 @@ class PhysicsWorld {
       }
     }
 
-    for (const handle of escapedHandles) {
+    for (const handle of goneHandles) {
       const entry = this.tracked.get(handle)
       if (entry !== undefined) {
         this.world.removeRigidBody(entry.body)
@@ -303,7 +317,7 @@ class PhysicsWorld {
       }
     }
 
-    return { settled, escaped: escapedHandles.length, quake }
+    return { settled, escaped, quake }
   }
 
   snapshots(): BodySnapshot[] {

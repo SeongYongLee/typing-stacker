@@ -11,4 +11,15 @@ function isEscaped(x: number, y: number): boolean {
   return y < ARENA.killY || Math.abs(x) > ARENA.halfWidth
 }
 
-export { isEscaped }
+/**
+ * 이탈로 판정된 물건도 바로 치우지 않는다 — 테두리 밖으로 튕겨 날아가는 모습이
+ * 캔버스에 그려져야 "저게 떨어져서 목숨이 깎였다"가 눈에 남는다.
+ * 이 여유까지 넘어가면 화면에서 완전히 사라진 것으로 보고 세계에서 지운다.
+ */
+const DESPAWN_MARGIN = 4
+
+function isOutOfSight(x: number, y: number): boolean {
+  return y < ARENA.killY - DESPAWN_MARGIN || Math.abs(x) > ARENA.halfWidth + DESPAWN_MARGIN
+}
+
+export { isEscaped, isOutOfSight }

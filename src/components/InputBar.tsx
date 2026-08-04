@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import type { SubmitFeedback } from '../game/core/GameEngine.ts'
+import type { RunStats } from '../game/types/game.ts'
 import type { HangulInput } from '../hooks/useHangulInput.ts'
+import { Combo, Lives } from './Vitals.tsx'
 
 interface InputBarProps {
   input: HangulInput
   feedback: SubmitFeedback | null
+  stats: RunStats
 }
 
 const UNDERLINE = '#2e3448'
@@ -62,7 +65,19 @@ const labelStyle: CSSProperties = {
   flexShrink: 0,
 }
 
-function InputBar({ input, feedback }: InputBarProps) {
+/**
+ * 목숨 · 입력칸 · 콤보를 한 줄에 둔다.
+ * 양옆을 1fr로 잡아서 가운데 입력칸은 내용 폭과 무관하게 정확히 화면 중앙에 온다.
+ */
+const rowStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr auto 1fr',
+  alignItems: 'center',
+  gap: 28,
+  width: '100%',
+}
+
+function InputBar({ input, feedback, stats }: InputBarProps) {
   const fieldRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLDivElement | null>(null)
 
@@ -114,30 +129,38 @@ function InputBar({ input, feedback }: InputBarProps) {
 
   return (
     <div style={wrapStyle}>
-      <div ref={fieldRef} style={{ width: 'min(420px, 60%)', position: 'relative' }}>
-        <input
-          ref={input.ref}
-          style={inputStyle}
-          value={input.value}
-          onChange={input.onChange}
-          onKeyDown={input.onKeyDown}
-          onCompositionStart={input.onCompositionStart}
-          onCompositionEnd={input.onCompositionEnd}
-          autoFocus
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          aria-label="단어 입력"
-        />
-        <div
-          ref={underlineRef}
-          style={{
-            height: 2,
-            marginTop: 4,
-            background: input.composing ? UNDERLINE_COMPOSING : UNDERLINE,
-            transition: 'background 120ms',
-          }}
-        />
+      <div style={rowStyle}>
+        <div style={{ justifySelf: 'end' }}>
+          <Lives lives={stats.lives} />
+        </div>
+        <div ref={fieldRef} style={{ width: 'min(420px, 34vw)', position: 'relative' }}>
+          <input
+            ref={input.ref}
+            style={inputStyle}
+            value={input.value}
+            onChange={input.onChange}
+            onKeyDown={input.onKeyDown}
+            onCompositionStart={input.onCompositionStart}
+            onCompositionEnd={input.onCompositionEnd}
+            autoFocus
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            aria-label="단어 입력"
+          />
+          <div
+            ref={underlineRef}
+            style={{
+              height: 2,
+              marginTop: 4,
+              background: input.composing ? UNDERLINE_COMPOSING : UNDERLINE,
+              transition: 'background 120ms',
+            }}
+          />
+        </div>
+        <div style={{ justifySelf: 'start' }}>
+          <Combo combo={stats.combo} />
+        </div>
       </div>
       <FeedbackChip feedback={feedback} />
     </div>

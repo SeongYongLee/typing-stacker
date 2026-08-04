@@ -1,0 +1,42 @@
+:root {
+  --bg: #0d0f16;
+  --bg-panel: #151824;
+  --border: #262b3d;
+  --text: #b6bdd4;
+  --text-dim: #6a7290;
+  --text-strong: #f2f4fb;
+  --accent: #ffcf5c;
+  --accent-dim: #8a6d1f;
+  --danger: #ff6b6b;
+  --ok: #6bffb0;
+
+  --sans: system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  font: 16px/1.45 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  overflow: hidden;
+  user-select: none;
+}
+
+#root {
+  height: 100svh;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}

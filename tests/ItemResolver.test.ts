@@ -32,16 +32,31 @@ describe('resolveItem', () => {
     expect(hiddenCount).toBeLessThan(results.length)
   })
 
+  it('히든 변형이 없는 단어는 항상 기본 변형만 나온다', () => {
+    const noHidden = WORDS.filter((entry) => !entry.variants.some((v) => v.hidden))
+    expect(noHidden.length).toBeGreaterThan(0)
+    const rng = createRng(31)
+    for (const entry of noHidden) {
+      for (let i = 0; i < 60; i += 1) {
+        expect(resolveItem(entry.word, rng).hidden).toBe(false)
+      }
+    }
+  })
+
   it('히든은 기본 변형과 도형이 다르다 — 쌓기 난이도가 실제로 바뀐다', () => {
+    let checked = 0
     for (const entry of WORDS) {
       const base = entry.variants[0]
       expect(base).toBeDefined()
-      const hidden = entry.variants.filter((item) => item.hidden)
-      expect(hidden.length).toBeGreaterThan(0)
-      for (const item of hidden) {
-        expect(JSON.stringify(item.shape)).not.toBe(JSON.stringify(base!.shape))
+      for (const item of entry.variants.filter((v) => v.hidden)) {
+        expect(
+          JSON.stringify(item.shape),
+          `${item.id}의 도형이 기본과 같다`,
+        ).not.toBe(JSON.stringify(base!.shape))
+        checked += 1
       }
     }
+    expect(checked).toBeGreaterThan(0)
   })
 
   it('기본 변형은 hidden이 아니고 히든은 점수 보너스를 가진다', () => {
@@ -51,5 +66,9 @@ describe('resolveItem', () => {
         expect(item.scoreBonus).toBeGreaterThan(0)
       }
     }
+  })
+
+  it('단어 풀이 동시 낙하 상한보다 넉넉하다 — 중복 없이 스폰할 수 있어야 한다', () => {
+    expect(WORDS.length).toBeGreaterThanOrEqual(12)
   })
 })

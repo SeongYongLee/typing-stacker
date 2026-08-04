@@ -3,18 +3,39 @@ interface Vec2 {
   readonly y: number
 }
 
-type ShapeDef =
+type PrimitiveShape =
   | { readonly kind: 'circle'; readonly radius: number }
   | { readonly kind: 'box'; readonly hw: number; readonly hh: number }
   | { readonly kind: 'capsule'; readonly halfHeight: number; readonly radius: number }
   | { readonly kind: 'polygon'; readonly points: readonly Vec2[] }
 
+/** 물건 하나를 이루는 조각. 망치처럼 오목한 실루엣은 조각 여러 개로 만든다. */
+interface ShapePart {
+  readonly shape: PrimitiveShape
+  readonly offset: Vec2
+  readonly rotation?: number
+}
+
+type ShapeDef =
+  | PrimitiveShape
+  | { readonly kind: 'compound'; readonly parts: readonly ShapePart[] }
+
+/** 물건의 겉모습. 스티커 이미지가 있으면 그것을, 없으면 이모지를 쓴다. */
+type ItemArt =
+  | { readonly kind: 'sprite'; readonly src: string }
+  | { readonly kind: 'emoji'; readonly char: string }
+
 interface ItemVariant {
   readonly id: string
   readonly label: string
-  readonly emoji: string
+  readonly art: ItemArt
   readonly color: string
   readonly shape: ShapeDef
+  /**
+   * 그림을 그릴 크기. 보통 shape의 외접 사각형과 같지만, 스티커는 실루엣을
+   * 단순화하는 과정에서 콜라이더가 살짝 안쪽으로 들어오므로 원래 그림 크기를 따로 둔다.
+   */
+  readonly artBounds: { readonly hw: number; readonly hh: number }
   readonly friction: number
   readonly restitution: number
   readonly density: number
@@ -71,11 +92,18 @@ interface RunStats {
   readonly stackCount: number
   readonly maxHeight: number
   readonly missedWords: number
+  /** 남은 목숨. 물건이 받침대를 벗어날 때마다 하나 줄어든다 */
+  readonly lives: number
+  readonly combo: number
+  readonly maxCombo: number
   readonly hiddenFound: readonly string[]
 }
 
 export type {
   Vec2,
+  ItemArt,
+  PrimitiveShape,
+  ShapePart,
   ShapeDef,
   ItemVariant,
   WordEntry,

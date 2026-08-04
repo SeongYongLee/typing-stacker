@@ -1,32 +1,139 @@
-# React + TypeScript + Vite
+# 타자 스태커
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+한글 타자게임과 물리 쌓기를 합친 웹 게임. 좌우에서 내려오는 단어를 타이핑하면, 그 단어에 해당하는 물건이 가운데 받침대 위로 떨어져 쌓인다.
 
-Currently, two official plugins are available:
+**핵심 규칙은 Enter 하나다.** Enter를 누른 순간 입력이 확정되고, 그 순간의 조준 화살표 위치로 물건이 곧바로 떨어진다. 그래서 "단어가 바닥에 닿기 전에 빨리 쳐야 한다"와 "원하는 위치에 떨구려면 타이핑 완료 시점을 맞춰야 한다"가 정면으로 충돌한다. 어떤 물건이 나올지는 Enter를 누른 뒤에야 알 수 있고, 낮은 확률로 모양이 다른 히든 변형이 나온다.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+받침대에는 **양옆 벽이 없다.** 물건이 받침대를 벗어나면 목숨이 하나 줄고, 목숨 3개가 다 떨어지면 끝난다. 콤보는 단어를 맞출 때마다 오르고 목숨을 잃을 때만 초기화된다.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+pnpm install
+pnpm dev        # http://localhost:5173
+pnpm test       # 단위 테스트 71개
+pnpm typecheck
+pnpm lint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+데스크톱 가로 화면 + 물리 키보드 전용이다. 타자게임이므로 모바일은 지원하지 않는다.
+
+---
+
+# AI 활용 내역
+
+이 저장소는 **Claude Code(Opus 5)와의 대화 한 세션**으로 만들어졌다. 사람이 기획·규칙 판단·실기 플레이 검증을 하고, AI가 설계 제안과 구현·테스트·디버깅을 담당했다.
+
+| 도구 | 용도 |
+|---|---|
+| Claude Code (Opus 5) | 기획 문답, 아키텍처 설계, 전체 구현, 테스트 작성, 자체 플레이 검증 |
+| ChatGPT (이미지 생성) | 물건 스티커 아트 10종 (`public/items/`) |
+
+## 1. AI에게 준 상시 지시 사항
+
+개별 요청과 별개로, 세션 전체에 걸쳐 유지된 규약이다. 코드 전반의 모양이 여기서 나왔다.
+
+- **명확하지 않은 스펙은 구현하기 전에 질문한다.** 코드를 쓰기 전에 갈림길을 선택지로 제시하게 했다.
+- **계획을 먼저 세우고 승인 후 구현한다.** 첫 코드가 나오기 전에 플랜 문서를 작성·검토했다.
+- **컴포넌트는 named export를 쓰고 파일 하단에서 모아 export 한다.**
+- **불필요한 코멘트를 남기지 않는다.** 함수명으로 드러나는 것, 섹션 레이블, 제거된 코드에 대한 설명은 쓰지 않는다. 대신 **"왜"를 설명하는 코멘트는 남긴다** — 이 저장소의 코멘트 대부분이 "이렇게 안 하면 무엇이 깨지는지"를 적고 있다.
+- **효과가 없던 변경은 롤백한 뒤 다른 방법을 시도한다.** 안 되는 코드를 남겨 복잡도를 쌓지 않는다.
+- **코드 수정 후 lint·typecheck를 돌려 정리한다.**
+- 모든 설명과 문서는 한국어로.
+
+## 2. AI가 설계한 구조와 그 판단 근거
+
+```
+src/
+  game/
+    core/         GameLoop(rAF 루프), GameEngine(조립 루트, 상태 소유)
+    systems/      ── DOM·canvas·물리 의존성 0. 순수 TS ──
+                  WordSpawner  좌우 레인 스폰/낙하/바닥선 판정
+                  TypingJudge  입력 → 활성 단어 매칭
+                  Aimer        화살표 위치 (삼각파, 등속)
+                  ItemResolver 단어 → 물건 + 히든 롤
+                  ScoreManager 점수/콤보
+                  Difficulty   경과 시간 → 스폰 간격·낙하 속도
+                  Rng          mulberry32 시드 난수
+    physics/      PhysicsWorld(Rapier), collapseDetector(이탈 판정)
+    renderer/     ArenaRenderer(Canvas 2D)
+    data/         words.ts, sprites.generated.ts(스크립트가 생성)
+    shapes.ts     도형 크기 계산, 스프라이트 실루엣 → 충돌 도형
+    config.ts     아레나 좌표계와 밸런스 상수
+  components/     TypingLane, InputBar, Hud, StackArena
+  screens/        TitleScreen, GameScreen, ResultScreen
+  hooks/          useGameEngine, useHangulInput
+scripts/
+  prepare-sprites.cjs   스티커 → 크롭·축소·실루엣 분해 (빌드타임)
+tests/            순수 시스템 + 물리 단위 테스트 71개
+```
+
+**React는 껍데기다.** 게임 상태는 `GameEngine`이 소유하고 프레임마다 스냅샷을 콜백으로 밀어주며, React는 그것만 그린다. 게임 루프를 React 렌더 주기에 묶지 않기 위한 것이다.
+
+**렌더링을 둘로 나눴다.** 낙하 단어·입력창·HUD는 DOM, 가운데 아레나만 Canvas다. 낙하 단어에는 물리가 필요 없고(y좌표만 감소), 한글 IME는 실제 `<input>` 엘리먼트가 반드시 있어야 한다. 물리가 필요한 곳은 아레나 안뿐이다.
+
+**`game/systems/`와 `game/data/`는 의존성이 0이다.** node 환경에서 캔버스 없이 테스트가 전부 돌아간다. 난수는 전부 `Rng`를 주입받아서 같은 시드면 단어 순서와 히든 결과가 재현된다. 시간도 루프가 주입하는 delta로만 흐른다. 이 셋은 나중에 1대1 멀티에서 서버가 같은 로직을 돌려 검증하고, 양쪽에 같은 단어가 같은 순서로 내려오는 매치를 만들기 위한 경계다. 멀티 자체는 선행 구현하지 않았다.
+
+### 기술 선택은 근거를 요구해서 골랐다
+
+AI가 npm 레지스트리에서 실제 릴리스 날짜와 주간 다운로드를 조회해 비교한 뒤 결정했다.
+
+- **Phaser 4 대신 React + Rapier2D.** 이 게임이 그릴 것은 도형 몇십 개와 텍스트뿐이라 게임 엔진의 애셋 로더·씬 관리에서 얻을 게 없고, 한글 입력창은 어차피 DOM을 얹어야 한다.
+- **matter-js 대신 Rapier2D.** ① 이 게임에서 무너짐이 곧 승패라 스태킹 안정성이 공정성 그 자체다 ② Rapier는 결정론적이어서 멀티에서 리플레이 검증과 분쟁 방지에 유리하다 ③ matter-js는 2년 넘게 릴리스가 없다.
+  - 대가도 기록해둔다: Rapier는 예제가 훨씬 적고 수박게임류 클론 사례는 대부분 matter-js다. 실제로 이 빌드에 `convexDecomposition`이 없어서 오목 도형 분해를 직접 만들어야 했다.
+
+## 3. 방향을 바꾼 주요 프롬프트
+
+**"그냥 스프라이트 자체를 경계선으로 두면 안되는걸까? 너무 부정확해서"**
+처음에는 스티커의 볼록껍질(10점)을 충돌 도형으로 썼다. 그러니 비행기 날개 사이나 번개 지그재그처럼 오목한 부분이 메워져 빈 공간에서 부딪혔다. 이 한마디로 방향이 바뀌어 `scripts/prepare-sprites.cjs`가 나왔다 — 알파 마스크의 윤곽선을 추적하고(Moore 이웃), Douglas–Peucker로 단순화하고, 오목한 꼭짓점을 대각선으로 잘라 볼록 조각들로 분해한다. 지금은 10개 스프라이트 전부 조각 면적 합이 실루엣과 100% 일치하는 것을 스크립트가 검증하고 어긋나면 중단한다.
+
+**"콤보 시스템을 생각했어, 목숨을 3개로 늘리고, 물건이 떨어질때마다 목숨을 줄이자, 목숨이 줄어진 시점에 콤보가 초기화 되는거야"**
+그때까지 "물건 하나가 받침대를 벗어나면 즉시 종료"였는데, 실측해보니 중앙에 정확히 조준해도 2~3개에서 끝나 실력이 개입할 여지가 없었다. 목숨 3개는 그 문제를 규칙 차원에서 풀었고, 동시에 콤보가 끊기는 기준을 하나로 만들었다. 오타나 놓친 단어로는 콤보가 끊기지 않는다 — 지켜야 할 것이 하나여야 플레이어가 헷갈리지 않고, 그 하나가 이 게임의 본질인 쌓기다. 적용 후 같은 봇으로 3개 → **13~17개**가 됐다.
+
+**"정말 무거운 애들은 떨어지면 최대한 고정하고, 떨어져서 닿았을때 맵에 지진효과를 내는게 어때"**
+무거운 물건을 떨어뜨려 스택을 잠그는 전략이 생겼다. 착지하면 감쇠를 크게 걸어 고정하고, 스택이 무너지기 시작하면 잠금이 풀리며 다시 흔들릴 수 있게 되돌아간다.
+
+**"물건의 실제 사이즈에 맞게 polygon이 이루어졌으면 좋겠어"**
+물건끼리의 크기 순서를 실제 물건 기준으로 다시 잡았다. 다만 실제 센티미터를 그대로 쓰면 우산이 받침대보다 넓어지고 연필은 시뮬레이션이 안 될 만큼 얇아져서, 비율만 지키고 절대 크기는 눌렀다. 그 판단 근거는 `src/game/data/words.ts` 상단에 적혀 있다.
+
+**"콤보는 일단 빼두자"** (초반)
+"물건이 붙는 순간 Enter를 눌러 저스트 판정" 아이디어까지 나왔지만, 판정 윈도우와 실패 패널티를 실제 플레이 감각 없이 정하기 어려워 접었다. 나중에 위의 목숨/콤보 설계로 다시 돌아왔다. 보류했던 저스트 판정 아이디어와 되살릴 때의 근거는 `CLAUDE.md` 백로그에 남겼다.
+
+## 4. AI가 스스로 검증한 방법
+
+브라우저를 열 수 없는 환경이라, **headless Chrome을 playwright-core로 구동해 실제로 게임을 플레이하고 스크린샷을 확인**했다. 나중에는 화살표가 중앙을 지날 때 Enter를 치는 봇을 만들어 밸런스를 수치로 측정했다. 자동화가 조준을 읽을 수 있도록 DOM에 `data-aim`·`data-word`·`data-lane`을 노출했다(프로덕션 동작에는 영향 없음).
+
+이 방식으로 AI가 직접 잡은 버그들:
+
+- **React StrictMode가 이펙트를 두 번 실행해 Rapier WASM이 이중 초기화**되고, 먼저 만든 World가 낡은 모듈을 붙들어 게임이 첫 프레임에 멈추던 문제. 간헐적이어서 스택 트레이스를 두 번 받아 특정했다.
+- 실루엣 분해에서 나온 **바늘처럼 얇은 조각이 물리 엔진에서 퇴화 도형**이 되어 콜라이더 생성이 실패하던 문제. 바운딩 박스만 보는 필터로는 대각선으로 누운 삼각형을 놓쳐서, 면적÷최장대각선으로 실제 두께를 재도록 고쳤다.
+- **펼친 우산의 실루엣이 돔 모양이라 바퀴처럼 굴러** 받침대를 벗어나던 문제. 물건 위치를 프레임마다 찍어보고 회전 감쇠 부족으로 특정했다.
+- 이탈한 물건을 세계에서 치우지 않으면 **매 프레임 이탈로 잡혀 목숨 3개가 한순간에 날아가는** 문제.
+
+테스트에는 밸런스 불변식도 넣었다. **빈 받침대 중앙에 떨궜을 때 저절로 떨어지는 물건이 있으면 안 된다** — 20개 단어 28개 변형 전부에 대해 검사하며, 이 테스트가 우산 문제를 잡았다. **조준 범위는 항상 `받침대 반폭 − 가장 큰 물건의 반폭` 이하여야 한다**는 관계도 테스트가 지킨다.
+
+## 5. AI가 하지 않은 것
+
+- 스티커 아트 원본 10종 (ChatGPT 이미지 생성)
+- 게임 기획과 규칙 결정 — 목숨/콤보 설계, 이탈 시 종료, 히든의 의미, 콤보 보류 판단 전부 사람
+- **한글 IME 실기 검증.** headless 브라우저로는 IME를 재현할 수 없어 AI가 원리적으로 확인할 수 없는 영역이다. macOS Chrome이 조립 확정 Enter에 대해 keydown을 `isComposing` true/false로 **두 번** 보내고, 그 두 번째 Enter가 방금 비운 입력창을 제출해 성공 피드백을 "(빈 입력) ✗"로 덮어쓰는 것은 사람이 직접 플레이하다 발견했다. 대응은 `src/hooks/useHangulInput.ts`에 있다.
+
+---
+
+## 스프라이트 파이프라인
+
+`scripts/prepare-sprites.cjs`는 원본 스티커 PNG를 받아
+
+1. 불투명 픽셀 경계로 크롭하고 큰 변을 256px로 축소
+2. 알파 마스크의 윤곽선을 추적해 실루엣 폴리곤을 뽑고 단순화
+3. 오목한 꼭짓점을 대각선으로 잘라 볼록 조각들로 분해 — Rapier는 오목 폴리곤을 받지 못한다
+4. 조각 면적 합이 실루엣과 맞는지, 모든 조각이 볼록한지 검증하고 어긋나면 중단
+
+한 뒤 `public/items/*.png`와 `src/game/data/sprites.generated.ts`를 만든다. Node에 이미지 라이브러리가 없어서 headless Chrome을 이미지 처리기로 쓴다.
+
+```bash
+node scripts/prepare-sprites.cjs
+SPRITE_SRC=~/Downloads/새폴더 node scripts/prepare-sprites.cjs
+```
+
+## 현재 상태
+
+싱글 모드는 플레이 가능하다. 단어 20개 중 7개가 스티커 아트를 쓰고 나머지는 이모지로 그려지는데, 아트가 더 준비되면 파이프라인에 넣어 교체하면 된다. 1대1 멀티는 다음 작업이고, 남은 과제와 판단 근거는 `CLAUDE.md`에 정리해뒀다.

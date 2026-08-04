@@ -1,4 +1,10 @@
-import { AIM_HALF_RANGE, DROP_COOLDOWN_MS } from '../config.ts'
+import {
+  AIM_HALF_RANGE,
+  DROP_COOLDOWN_MS,
+  LIVES,
+  QUAKE_DURATION,
+  QUAKE_MAX_AMPLITUDE,
+} from '../config.ts'
 import { WORDS } from '../data/words.ts'
 import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
@@ -14,6 +20,9 @@ import { GameLoop } from './GameLoop.ts'
 
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
 const COLLAPSE_VIEW_SEC = 1.3
+
+/** 히든 등장 연출 길이 */
+const HIDDEN_REVEAL_SEC = 1.8
 
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
@@ -31,6 +40,8 @@ interface GameState {
   readonly aimNormalized: number
   readonly stats: RunStats
   readonly feedback: SubmitFeedback | null
+  /** 판이 새로 시작될 때마다 올라간다. UI가 입력창을 초기화하는 신호 */
+  readonly runSeq: number
 }
 
 interface PendingDrop {
@@ -54,6 +65,12 @@ class GameEngine {
 
   private sinceLastDrop = Number.POSITIVE_INFINITY
   private collapseTimer = 0
+  private hiddenReveal: { variant: ItemVariant; elapsed: number } | null = null
+  private quakeLeft = 0
+  private quakeStrength = 0
+  private quakePhase = 0
+  private lives = LIVES
+  private runSeq = 0
   private readonly dropQueue: PendingDrop[] = []
 
   private renderer: ArenaRenderer | null = null
@@ -97,7 +114,12 @@ class GameEngine {
     this.feedback = null
     this.sinceLastDrop = Number.POSITIVE_INFINITY
     this.collapseTimer = 0
+    this.lives = LIVES
+    this.hiddenReveal = null
+    this.quakeLeft = 0
+    this.quakeStrength = 0
     this.dropQueue.length = 0
+    this.runSeq += 1
     this.rng = createRng(this.seed)
     this.spawner = new WordSpawner(this.rng, WORDS)
     this.aimer = new Aimer(AIM_HALF_RANGE)
@@ -143,9 +165,13 @@ class GameEngine {
     }
 
     this.spawner.remove(result.word.id)
+    this.score.onWordMatched()
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     const variant = resolveItem(result.word.word, this.rng)
     this.queueDrop(variant, this.aimer.worldX)
+    if (variant.hidden) {
+      this.hiddenReveal = { variant, elapsed: 0 }
+    }
 
     this.feedback = {
       seq: this.feedbackSeq,
@@ -164,6 +190,33 @@ class GameEngine {
     this.physics.dispose()
   }
 
+  private advanceQuake(dt: number): void {
+    this.quakePhase += dt
+    if (this.quakeLeft > 0) {
+      this.quakeLeft = Math.max(this.quakeLeft - dt, 0)
+    }
+  }
+
+  /** 충격 세기를 흔들림으로 바꾼다. 세기는 0~1로 눌러 화면이 과하게 튀지 않게 한다 */
+  private applyQuake(impact: number): void {
+    if (impact <= 0) {
+      return
+    }
+    const strength = Math.min(impact / 30, 1)
+    if (strength > this.quakeStrength || this.quakeLeft <= 0) {
+      this.quakeStrength = strength
+    }
+    this.quakeLeft = QUAKE_DURATION
+  }
+
+  private get quakeAmplitude(): number {
+    if (this.quakeLeft <= 0) {
+      return 0
+    }
+    const decay = this.quakeLeft / QUAKE_DURATION
+    return QUAKE_MAX_AMPLITUDE * this.quakeStrength * decay * decay
+  }
+
   private queueDrop(variant: ItemVariant, x: number): void {
     if (this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       this.physics.spawnItem(variant, x)
@@ -175,9 +228,12 @@ class GameEngine {
   }
 
   private readonly update = (dt: number): void => {
+    this.advanceQuake(dt)
+
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
-      this.physics.step(dt)
+      const result = this.physics.step(dt)
+      this.applyQuake(result.quake)
       if (this.collapseTimer >= COLLAPSE_VIEW_SEC) {
         this.phase = 'over'
         this.loop.stop()
@@ -193,6 +249,13 @@ class GameEngine {
     this.elapsed += dt
     this.sinceLastDrop += dt
 
+    if (this.hiddenReveal !== null) {
+      this.hiddenReveal.elapsed += dt
+      if (this.hiddenReveal.elapsed >= HIDDEN_REVEAL_SEC) {
+        this.hiddenReveal = null
+      }
+    }
+
     const difficulty = difficultyAt(this.elapsed)
     this.aimer.update(dt, difficulty.aimSpeed)
     this.spawner.update(dt, difficulty)
@@ -205,24 +268,41 @@ class GameEngine {
       }
     }
 
-    const { settled, escaped } = this.physics.step(dt)
+    const { settled, escaped, quake } = this.physics.step(dt)
+    this.applyQuake(quake)
     for (const event of settled) {
       this.score.onSettled(event.variant, event.topY)
     }
 
-    if (escaped) {
-      this.phase = 'collapsing'
-      this.collapseTimer = 0
+    if (escaped > 0) {
+      this.lives = Math.max(this.lives - escaped, 0)
+      // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
+      this.score.onLifeLost()
+      if (this.lives === 0) {
+        this.phase = 'collapsing'
+        this.collapseTimer = 0
+      }
     }
 
     this.emit()
   }
 
   private readonly render = (): void => {
+    const reveal = this.hiddenReveal
     this.renderer?.draw({
       bodies: this.physics.snapshots(),
       aimX: this.aimer.worldX,
       showAim: this.phase === 'playing',
+      hiddenReveal:
+        reveal === null
+          ? null
+          : {
+              label: reveal.variant.label,
+              art: reveal.variant.art,
+              progress: reveal.elapsed / HIDDEN_REVEAL_SEC,
+            },
+      quake: this.quakeAmplitude,
+      quakePhase: this.quakePhase,
     })
   }
 
@@ -232,8 +312,9 @@ class GameEngine {
       elapsed: this.elapsed,
       words: [...this.spawner.words],
       aimNormalized: this.aimer.normalized,
-      stats: this.score.stats(this.spawner.missedCount),
+      stats: this.score.stats(this.spawner.missedCount, this.lives),
       feedback: this.feedback,
+      runSeq: this.runSeq,
     })
   }
 }

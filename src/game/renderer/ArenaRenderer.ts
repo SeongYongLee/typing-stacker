@@ -1,29 +1,64 @@
-import { ARENA } from '../config.ts'
-import type { BodySnapshot, ShapeDef } from '../types/game.ts'
+import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
+import type { Bounds } from '../shapes.ts'
+import type {
+  BodySnapshot,
+  ItemArt,
+  PrimitiveShape,
+  ShapeDef,
+  ShapePart,
+} from '../types/game.ts'
+
+interface HiddenReveal {
+  readonly label: string
+  readonly art: ItemArt
+  /** 0 → 1 */
+  readonly progress: number
+}
 
 interface ArenaRenderState {
   readonly bodies: readonly BodySnapshot[]
   readonly aimX: number
   readonly showAim: boolean
+  readonly hiddenReveal: HiddenReveal | null
+  /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
+  readonly quake: number
+  /** 흔들림 위상 — 프레임마다 흐르는 시간 */
+  readonly quakePhase: number
 }
 
 const COLORS = {
   frame: '#262b3d',
-  frameEdge: '#3a4160',
   platform: '#4a5171',
   platformTop: '#6b74a0',
   aim: '#ffcf5c',
   aimTrack: 'rgba(255, 207, 92, 0.16)',
   danger: 'rgba(255, 107, 107, 0.5)',
+  hidden: '#ffcf5c',
 } as const
 
-/** 월드 y 범위: killY(이탈선)부터 아레나 천장까지 */
+const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
+/**
+ * index.css의 --sans와 같은 스택.
+ * canvas의 font는 CSS 변수를 해석하지 못하고, 해석에 실패하면 대입 자체가 무시되어
+ * 직전 폰트(고스트 이모지 크기)가 그대로 남는다 — 그래서 값을 여기에 펼쳐 쓴다.
+ */
+const UI_FONT = "system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
+/** 이모지 글리프를 이 크기로 한 번 재고, 실제 도형 크기에 맞춰 늘려 그린다 */
+const GLYPH_BASE = 100
+
 const WORLD_HEIGHT = ARENA.height - ARENA.killY
 const WORLD_WIDTH = ARENA.halfWidth * 2
+
+interface GlyphMetrics {
+  readonly width: number
+  readonly height: number
+}
 
 class ArenaRenderer {
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
+  private readonly glyphCache = new Map<string, GlyphMetrics>()
+  private readonly imageCache = new Map<string, HTMLImageElement>()
   private scale = 1
   private cssWidth = 0
   private cssHeight = 0
@@ -46,14 +81,29 @@ class ArenaRenderer {
     this.canvas.width = Math.round(rect.width * dpr)
     this.canvas.height = Math.round(rect.height * dpr)
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    this.scale = Math.min(rect.width / WORLD_WIDTH, rect.height / WORLD_HEIGHT)
+    // 캔버스는 레인 뒤까지 넓게 깔리지만 아레나는 가운데 폭 안에 머문다 —
+    // 남는 좌우 공간은 튕겨 나간 물건과 히든 연출이 잘리지 않게 쓰인다
+    const arenaWidth = Math.min(rect.width, ARENA_SCREEN_MAX_WIDTH)
+    this.scale = Math.min(arenaWidth / WORLD_WIDTH, rect.height / WORLD_HEIGHT)
   }
 
   draw(state: ArenaRenderState): void {
     const { ctx } = this
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
 
+    ctx.save()
+    if (state.quake > 0) {
+      // 결정론적 흔들림 — 두 주파수를 겹쳐 규칙적으로 보이지 않게 한다
+      const amp = state.quake * this.scale
+      const t = state.quakePhase
+      ctx.translate(Math.sin(t * 47) * amp, Math.cos(t * 31) * amp * 0.7)
+    }
+
     this.drawFrame()
+    // 히든 연출은 배경에 깔린다 — 쌓인 물건을 가리지 않아야 한다
+    if (state.hiddenReveal !== null) {
+      this.drawHiddenReveal(state.hiddenReveal)
+    }
     this.drawPlatform()
     if (state.showAim) {
       this.drawAim(state.aimX)
@@ -61,6 +111,19 @@ class ArenaRenderer {
     for (const body of state.bodies) {
       this.drawBody(body)
     }
+    ctx.restore()
+  }
+
+  /** 스프라이트는 비동기로 로드되므로 준비된 것만 그린다 */
+  private image(src: string): HTMLImageElement | null {
+    const cached = this.imageCache.get(src)
+    if (cached !== undefined) {
+      return cached.complete && cached.naturalWidth > 0 ? cached : null
+    }
+    const img = new Image()
+    img.src = src
+    this.imageCache.set(src, img)
+    return null
   }
 
   private toScreenX(worldX: number): number {
@@ -85,7 +148,6 @@ class ArenaRenderer {
     ctx.strokeRect(left, top, right - left, bottom - top)
     ctx.restore()
 
-    // 이탈선 — 이 아래로 내려가면 게임오버
     ctx.save()
     ctx.strokeStyle = COLORS.danger
     ctx.lineWidth = 2
@@ -136,40 +198,164 @@ class ArenaRenderer {
     ctx.restore()
   }
 
+  /** 히든이 나왔을 때 아레나 배경에 이름과 링을 깔아준다 */
+  private drawHiddenReveal(reveal: HiddenReveal): void {
+    const { ctx } = this
+    const t = Math.min(Math.max(reveal.progress, 0), 1)
+    // 앞의 12%는 밝아지고, 뒤의 40%는 사라진다
+    const alpha = t < 0.12 ? t / 0.12 : t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1
+    if (alpha <= 0) {
+      return
+    }
+
+    const cx = this.toScreenX(0)
+    const cy = this.toScreenY(ARENA.height * 0.52)
+    const unit = this.scale
+
+    ctx.save()
+    ctx.globalAlpha = alpha
+
+    for (let i = 0; i < 2; i += 1) {
+      const ringT = Math.min(t * 1.6 - i * 0.18, 1)
+      if (ringT <= 0) continue
+      ctx.beginPath()
+      ctx.arc(cx, cy, unit * (0.3 + ringT * 1.7), 0, Math.PI * 2)
+      ctx.strokeStyle = COLORS.hidden
+      ctx.globalAlpha = alpha * (1 - ringT) * 0.5
+      ctx.lineWidth = 2
+      ctx.stroke()
+    }
+
+    ctx.globalAlpha = alpha * 0.2
+    const ghost = unit * (1.3 + t * 0.5)
+    if (reveal.art.kind === 'sprite') {
+      const img = this.image(reveal.art.src)
+      if (img !== null) {
+        const ratio = img.naturalWidth / img.naturalHeight
+        const w = ratio >= 1 ? ghost : ghost * ratio
+        const h = ratio >= 1 ? ghost / ratio : ghost
+        ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h)
+      }
+    } else {
+      ctx.font = `${ghost}px ${EMOJI_FONT}`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(reveal.art.char, cx, cy)
+    }
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = COLORS.hidden
+    ctx.font = `700 ${Math.max(16, unit * 0.34)}px ${UI_FONT}`
+    ctx.fillText(reveal.label, cx, cy + ghost * 0.62)
+    ctx.font = `${Math.max(10, unit * 0.16)}px ${UI_FONT}`
+    ctx.globalAlpha = alpha * 0.75
+    ctx.fillText('HIDDEN', cx, cy + ghost * 0.62 + Math.max(16, unit * 0.32))
+
+    ctx.restore()
+  }
+
   private drawBody(body: BodySnapshot): void {
     const { ctx } = this
+    const { shape } = body.variant
+
     ctx.save()
     ctx.translate(this.toScreenX(body.x), this.toScreenY(body.y))
     // 월드는 y가 위로 +, 캔버스는 아래로 + 이므로 회전 방향을 뒤집는다
     ctx.rotate(-body.rotation)
 
-    ctx.fillStyle = body.variant.color
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'
-    ctx.lineWidth = 1.5
-    this.tracePath(body.variant.shape)
-    ctx.fill()
-    ctx.stroke()
+    const drawn = this.drawArt(body.variant.art, body.variant.artBounds)
 
-    const size = this.emojiSize(body.variant.shape)
-    ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(body.variant.emoji, 0, 0)
-
+    // 그림이 아직 로드되지 않았으면 충돌 도형만이라도 보여준다
+    if (!drawn) {
+      ctx.fillStyle = body.variant.color
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)'
+      ctx.lineWidth = 1.5
+      ctx.globalAlpha = 0.55
+      for (const part of this.partsOf(shape)) {
+        this.tracePart(part)
+        ctx.fill()
+        ctx.stroke()
+      }
+    }
     ctx.restore()
   }
 
-  private tracePath(shape: ShapeDef): void {
+  /** 그림을 물건의 원래 크기에 맞춰 그린다 — 보이는 것과 부딪히는 것이 같아야 한다 */
+  private drawArt(art: ItemArt, bounds: Bounds): boolean {
+    const { ctx } = this
+    const targetWidth = bounds.hw * 2 * this.scale
+    const targetHeight = bounds.hh * 2 * this.scale
+
+    if (art.kind === 'sprite') {
+      const img = this.image(art.src)
+      if (img === null) {
+        return false
+      }
+      ctx.drawImage(img, -targetWidth / 2, -targetHeight / 2, targetWidth, targetHeight)
+      return true
+    }
+
+    const metrics = this.glyphMetrics(art.char)
+    ctx.save()
+    ctx.scale(targetWidth / metrics.width, targetHeight / metrics.height)
+    ctx.font = `${GLYPH_BASE}px ${EMOJI_FONT}`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(art.char, 0, 0)
+    ctx.restore()
+    return true
+  }
+
+  private glyphMetrics(emoji: string): GlyphMetrics {
+    const cached = this.glyphCache.get(emoji)
+    if (cached !== undefined) {
+      return cached
+    }
+    const { ctx } = this
+    ctx.save()
+    ctx.font = `${GLYPH_BASE}px ${EMOJI_FONT}`
+    ctx.textBaseline = 'middle'
+    const measured = ctx.measureText(emoji)
+    ctx.restore()
+
+    const height =
+      measured.actualBoundingBoxAscent + measured.actualBoundingBoxDescent || GLYPH_BASE
+    const metrics: GlyphMetrics = {
+      width: measured.width || GLYPH_BASE,
+      height,
+    }
+    this.glyphCache.set(emoji, metrics)
+    return metrics
+  }
+
+  private partsOf(shape: ShapeDef): readonly ShapePart[] {
+    if (shape.kind === 'compound') {
+      return shape.parts
+    }
+    return [{ shape, offset: { x: 0, y: 0 } }]
+  }
+
+  private tracePart(part: ShapePart): void {
     const { ctx, scale } = this
     ctx.beginPath()
+    // 캔버스 y축이 뒤집혀 있으므로 오프셋의 y도 뒤집는다
+    const ox = part.offset.x * scale
+    const oy = -part.offset.y * scale
+    this.traceShape(part.shape, ox, oy)
+  }
+
+  private traceShape(shape: PrimitiveShape, ox: number, oy: number): void {
+    const { ctx, scale } = this
     switch (shape.kind) {
       case 'circle':
-        ctx.arc(0, 0, shape.radius * scale, 0, Math.PI * 2)
+        ctx.arc(ox, oy, shape.radius * scale, 0, Math.PI * 2)
         break
       case 'box':
         ctx.rect(
-          -shape.hw * scale,
-          -shape.hh * scale,
+          ox - shape.hw * scale,
+          oy - shape.hh * scale,
           shape.hw * 2 * scale,
           shape.hh * 2 * scale,
         )
@@ -177,19 +363,18 @@ class ArenaRenderer {
       case 'capsule': {
         const r = shape.radius * scale
         const h = shape.halfHeight * scale
-        ctx.moveTo(-r, -h)
-        ctx.lineTo(-r, h)
-        ctx.arc(0, h, r, Math.PI, 0, true)
-        ctx.lineTo(r, -h)
-        ctx.arc(0, -h, r, 0, Math.PI, true)
+        ctx.moveTo(ox - r, oy - h)
+        ctx.lineTo(ox - r, oy + h)
+        ctx.arc(ox, oy + h, r, Math.PI, 0, true)
+        ctx.lineTo(ox + r, oy - h)
+        ctx.arc(ox, oy - h, r, 0, Math.PI, true)
         ctx.closePath()
         break
       }
       case 'polygon': {
         shape.points.forEach((point, index) => {
-          // 캔버스 y축이 뒤집혀 있으므로 y에 -1을 곱한다
-          const x = point.x * scale
-          const y = -point.y * scale
+          const x = ox + point.x * scale
+          const y = oy - point.y * scale
           if (index === 0) {
             ctx.moveTo(x, y)
           } else {
@@ -201,23 +386,7 @@ class ArenaRenderer {
       }
     }
   }
-
-  private emojiSize(shape: ShapeDef): number {
-    switch (shape.kind) {
-      case 'circle':
-        return shape.radius * 1.5 * this.scale
-      case 'box':
-        return Math.min(shape.hw, shape.hh) * 2.1 * this.scale
-      case 'capsule':
-        return shape.radius * 2.4 * this.scale
-      case 'polygon': {
-        const hw = Math.max(...shape.points.map((p) => Math.abs(p.x)))
-        const hh = Math.max(...shape.points.map((p) => Math.abs(p.y)))
-        return Math.min(hw, hh) * 1.9 * this.scale
-      }
-    }
-  }
 }
 
 export { ArenaRenderer }
-export type { ArenaRenderState }
+export type { ArenaRenderState, HiddenReveal }

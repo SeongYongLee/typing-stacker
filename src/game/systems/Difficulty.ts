@@ -4,17 +4,17 @@ import type { DifficultyLevel } from '../types/game.ts'
 const RAMP_SECONDS = 180
 
 const EASY: DifficultyLevel = {
-  spawnInterval: 3.2,
+  spawnInterval: 1.6,
   fallDuration: 9,
   aimSpeed: 0.42,
-  maxConcurrent: 3,
+  maxConcurrent: 5,
 }
 
 const HARD: DifficultyLevel = {
-  spawnInterval: 1.3,
+  spawnInterval: 0.75,
   fallDuration: 4.6,
   aimSpeed: 0.74,
-  maxConcurrent: 6,
+  maxConcurrent: 8,
 }
 
 function lerp(from: number, to: number, t: number): number {

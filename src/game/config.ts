@@ -4,21 +4,45 @@
  * 렌더러가 px로 환산한다.
  */
 const ARENA = {
-  halfWidth: 3.2,
-  height: 7,
+  // 월드를 좁게 잡을수록 같은 캔버스에서 물건이 크게 보인다.
+  // 받침대 밖으로 0.7씩 여유를 두어, 굴러떨어질 공간은 남기면서
+  // 빈 공간이 화면을 낭비하지 않게 했다.
+  halfWidth: 2.7,
+  height: 5.2,
   /** 받침대 윗면 높이 */
   platformTop: 0.8,
-  platformHalfWidth: 1.2,
+  /**
+   * 받침대 반폭.
+   * 양옆에 벽이 없으니 미끄러진 물건을 받아줄 것은 받침대 폭뿐이다.
+   * 좁게 잡으면 한 칸 폭 탑을 쌓다가 살짝 미끄러지는 것만으로 즉사해서,
+   * 실력과 무관하게 두세 개에서 끝난다.
+   */
+  platformHalfWidth: 2,
   platformHalfHeight: 0.25,
   /** 물건이 생성되는 높이 */
-  spawnY: 6.2,
+  spawnY: 4.6,
   /** 이 높이보다 아래로 내려간 물건은 이탈로 본다 */
   killY: -0.8,
-  gravity: -9.81,
+  /**
+   * 지구 중력(-9.81)보다 약하게 잡았다.
+   * 스폰 높이에서 받침대까지는 3m가 넘는데, 실제 중력이면 착지 속도가 8m/s를 넘어
+   * 이미 쌓아둔 물건을 밀어내고 스택이 두세 개에서 무너진다.
+   * 약한 중력은 낙하가 눈으로 읽히게 만들고 조준할 시간도 준다.
+   */
+  gravity: -7,
 } as const
 
-/** 화살표가 훑는 범위. 받침대보다 살짝 넓어서 과감한 조준은 빗나갈 수 있다. */
-const AIM_HALF_RANGE = ARENA.platformHalfWidth * 1.15
+/** 가장 큰 물건(비행기)의 반폭. tests/shapes.test.ts가 이 값을 지킨다 */
+const MAX_ITEM_HALF_WIDTH = 0.55
+
+/**
+ * 화살표가 훑는 범위.
+ *
+ * 받침대 반폭에서 가장 큰 물건의 반폭을 뺀 값이다. 즉 어느 타이밍에 Enter를 쳐도
+ * 물건은 받침대 위에 온전히 얹힌다. 조준 실수 하나로 즉사하지 않아야 하고,
+ * 그래야 무너짐이 조준이 아니라 순수하게 쌓기 실패에서만 나온다.
+ */
+const AIM_HALF_RANGE = ARENA.platformHalfWidth - MAX_ITEM_HALF_WIDTH
 
 /** 물건을 연달아 쏟아내 물리를 망가뜨리는 것만 막는 최소 간격 */
 const DROP_COOLDOWN_MS = 300
@@ -29,22 +53,75 @@ const HIDDEN_CHANCE = 0.14
 const SETTLE_SPEED = 0.35
 const SETTLE_HOLD_SEC = 0.35
 
+/** 물건이 받침대를 벗어날 때마다 하나씩 줄고, 0이 되면 끝이다 */
+const LIVES = 3
+
 const SCORE = {
   perItem: 100,
   perHeightMeter: 220,
+  /** 콤보 1당 배수 증가분 */
+  comboStep: 0.1,
+  /** 배수 상한 */
+  comboMaxMultiplier: 3,
 } as const
 
 const WORD = {
-  slotsPerSide: 3,
+  slotsPerSide: 4,
 } as const
+
+/**
+ * 아레나를 화면에 그릴 때의 최대 폭(px).
+ * 캔버스 자체는 낙하 레인 뒤까지 화면 전체에 깔린다 — 튕겨 날아간 물건과 히든 연출이
+ * 받침대 영역을 벗어나도 보여야 하기 때문이다. 아레나(점선 틀)는 이 폭을 넘지 않으므로
+ * GameScreen의 가운데 열과 렌더러가 같은 값을 본다.
+ */
+const ARENA_SCREEN_MAX_WIDTH = 480
+
+/**
+ * 이 밀도 이상이면 "무거운 물건"이다.
+ * 착지한 뒤에는 감쇠를 크게 걸어 웬만한 충격에 밀리지 않게 잠근다 —
+ * 무거운 걸 떨어뜨려 스택을 고정시키는 것이 하나의 전략이 된다.
+ */
+const HEAVY_DENSITY = 1.8
+const ANCHOR_LINEAR_DAMPING = 7
+const ANCHOR_ANGULAR_DAMPING = 9
+
+/** 무거운 물건이 이 속도 이상으로 부딪히면 화면이 흔들린다 */
+const QUAKE_MIN_SPEED = 3.5
+const QUAKE_DURATION = 0.45
+/** 흔들림 최대 진폭 (월드 단위) */
+const QUAKE_MAX_AMPLITUDE = 0.16
+/**
+ * 자리를 잡은 무거운 물건이 여기서 이만큼(월드 단위) 밀려나면 자리를 잃은 것으로 본다.
+ * 그 순간 잠금이 풀리고 지진 판정도 되살아나서, 다시 부딪히면 또 흔들린다.
+ * 얹힌 물건이 눌려 생기는 미세한 떨림으로는 넘지 못하고, 무너지기 시작할 때만 넘는 거리다.
+ */
+const QUAKE_REARM_DISTANCE = 0.4
+/**
+ * 자리를 잃은 물건이 다시 부딪힐 때는 이 속도만 넘어도 흔들린다.
+ * 무너질 때의 낙하는 스택 한 칸 높이라 처음 떨어질 때만큼 빨라지지 않는데,
+ * 그래도 무거운 것이 쏟아지는 순간이니 화면은 흔들려야 한다.
+ */
+const QUAKE_REIMPACT_SPEED = 2.2
 
 export {
   ARENA,
   AIM_HALF_RANGE,
+  MAX_ITEM_HALF_WIDTH,
   DROP_COOLDOWN_MS,
   HIDDEN_CHANCE,
   SETTLE_SPEED,
   SETTLE_HOLD_SEC,
   SCORE,
+  LIVES,
   WORD,
+  ARENA_SCREEN_MAX_WIDTH,
+  HEAVY_DENSITY,
+  ANCHOR_LINEAR_DAMPING,
+  ANCHOR_ANGULAR_DAMPING,
+  QUAKE_MIN_SPEED,
+  QUAKE_DURATION,
+  QUAKE_MAX_AMPLITUDE,
+  QUAKE_REARM_DISTANCE,
+  QUAKE_REIMPACT_SPEED,
 }

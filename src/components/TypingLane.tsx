@@ -30,12 +30,14 @@ function TypingLane({ words, side }: TypingLaneProps) {
   const mine = words.filter((word) => word.side === side)
 
   return (
-    <div style={laneStyle}>
+    <div style={laneStyle} data-lane={side}>
       {mine.map((word) => {
         const missed = word.state === 'missed'
         return (
           <div
             key={word.id}
+            data-word={word.word}
+            data-state={word.state}
             style={{
               ...chipBase,
               top: `${word.y * 100}%`,

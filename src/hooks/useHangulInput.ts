@@ -10,6 +10,8 @@ interface HangulInput {
   readonly ref: RefObject<HTMLInputElement | null>
   readonly value: string
   readonly composing: boolean
+  /** 글자가 실제로 들어오거나 지워질 때마다 올라간다 — 입력칸 타격 연출의 트리거 */
+  readonly tapSeq: number
   readonly onChange: (event: ChangeEvent<HTMLInputElement>) => void
   readonly onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
   readonly onCompositionStart: () => void
@@ -36,6 +38,7 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
   const ref = useRef<HTMLInputElement | null>(null)
   const [value, setValue] = useState('')
   const [composing, setComposing] = useState(false)
+  const [tapSeq, setTapSeq] = useState(0)
   const swallow = useRef(false)
 
   const clear = useCallback(() => {
@@ -57,6 +60,7 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
         return
       }
       setValue(event.currentTarget.value)
+      setTapSeq((seq) => seq + 1)
     },
     [],
   )
@@ -88,8 +92,13 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
       const text = element.value
       const composingNow = event.nativeEvent.isComposing
 
-      // 조립 중인데 value가 비어있으면 아직 확정된 글자가 없다는 뜻이므로 흘린다
-      if (composingNow && text.length === 0) {
+      /*
+       * 빈 입력은 제출하지 않는다.
+       * 한글 IME는 조립 확정 Enter를 한 번 더 흘려보내는데(macOS Chrome에서
+       * keydown Enter가 isComposing=true / false로 두 번 온다), 그 두 번째 Enter가
+       * 방금 비운 입력창을 제출해 성공 피드백을 "(빈 입력) ✗"로 덮어쓴다.
+       */
+      if (text.trim().length === 0) {
         return
       }
 
@@ -106,6 +115,7 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
     ref,
     value,
     composing,
+    tapSeq,
     onChange,
     onKeyDown,
     onCompositionStart,

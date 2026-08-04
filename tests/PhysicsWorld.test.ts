@@ -1,10 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import {
-  PhysicsWorld,
-  halfExtentY,
-  type SettleEvent,
-} from '../src/game/physics/PhysicsWorld.ts'
+import { PhysicsWorld, type SettleEvent } from '../src/game/physics/PhysicsWorld.ts'
 import { isEscaped } from '../src/game/physics/collapseDetector.ts'
+import { halfExtentY } from '../src/game/shapes.ts'
 import { ARENA } from '../src/game/config.ts'
 import { WORDS, WORD_BY_TEXT } from '../src/game/data/words.ts'
 import type { ItemVariant } from '../src/game/types/game.ts'
@@ -21,14 +18,14 @@ function variantOf(word: string, hidden = false): ItemVariant {
 function simulate(
   world: PhysicsWorld,
   seconds: number,
-): { settled: SettleEvent[]; escaped: boolean } {
+): { settled: SettleEvent[]; escaped: number } {
   const dt = 1 / 60
   const settled: SettleEvent[] = []
-  let escaped = false
+  let escaped = 0
   for (let t = 0; t < seconds; t += dt) {
     const result = world.step(dt)
     settled.push(...result.settled)
-    escaped = escaped || result.escaped
+    escaped += result.escaped
   }
   return { settled, escaped }
 }
@@ -45,7 +42,7 @@ describe('PhysicsWorld', () => {
     world.spawnItem(variantOf('벽돌'), 0)
     const { settled, escaped } = simulate(world, 5)
 
-    expect(escaped).toBe(false)
+    expect(escaped).toBe(0)
     expect(settled).toHaveLength(1)
     // 받침대 윗면 위에 자기 두께만큼 얹혀 있어야 한다
     const brick = variantOf('벽돌')
@@ -59,7 +56,9 @@ describe('PhysicsWorld', () => {
     // 받침대 반폭(1.2)을 훨씬 넘는 지점
     world.spawnItem(variantOf('벽돌'), ARENA.halfWidth - 0.2)
     const { escaped } = simulate(world, 5)
-    expect(escaped).toBe(true)
+    expect(escaped).toBe(1)
+    // 이탈한 물건은 세계에서 치워진다 — 남겨두면 매 프레임 이탈로 잡혀 목숨이 한꺼번에 날아간다
+    expect(world.itemCount).toBe(0)
   })
 
   it('물건을 여러 개 쌓으면 위로 올라간다', () => {
@@ -84,7 +83,7 @@ describe('PhysicsWorld', () => {
         world.reset()
         world.spawnItem(variant, 0)
         const { settled, escaped } = simulate(world, 8)
-        expect(escaped, `${variant.id}가 받침대에서 굴러떨어졌다`).toBe(false)
+        expect(escaped, `${variant.id}가 받침대에서 굴러떨어졌다`).toBe(0)
         expect(settled, `${variant.id}가 멈추지 않았다`).toHaveLength(1)
       }
     }

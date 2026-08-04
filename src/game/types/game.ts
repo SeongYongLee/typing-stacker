@@ -63,7 +63,8 @@ interface BodySnapshot {
   readonly settled: boolean
 }
 
-type GamePhase = 'title' | 'playing' | 'over'
+/** collapsing은 무너지는 장면을 잠깐 보여주는 구간 — 결과 화면이 그 위를 덮기 전에 */
+type GamePhase = 'title' | 'playing' | 'collapsing' | 'over'
 
 interface RunStats {
   readonly score: number

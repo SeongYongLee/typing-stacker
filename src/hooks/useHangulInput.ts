@@ -1,0 +1,119 @@
+import { useCallback, useRef, useState } from 'react'
+import type {
+  ChangeEvent,
+  CompositionEvent,
+  KeyboardEvent,
+  RefObject,
+} from 'react'
+
+interface HangulInput {
+  readonly ref: RefObject<HTMLInputElement | null>
+  readonly value: string
+  readonly composing: boolean
+  readonly onChange: (event: ChangeEvent<HTMLInputElement>) => void
+  readonly onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
+  readonly onCompositionStart: () => void
+  readonly onCompositionEnd: (event: CompositionEvent<HTMLInputElement>) => void
+  readonly clear: () => void
+  readonly focus: () => void
+}
+
+/**
+ * 한글 IME 입력 훅.
+ *
+ * 핵심 문제: 조립 중에 Enter를 누르면 브라우저가 그 Enter를 조립 확정에 써버리고
+ * keydown의 isComposing이 true로 온다. 흔히 쓰는 `if (isComposing) return` 가드를
+ * 넣으면 "사과" 입력 후 Enter를 두 번 눌러야 제출된다. 이 게임에서 Enter 타이밍은
+ * 곧 조준이므로 첫 Enter가 먹히지 않으면 조준이 어긋난다 — 그래서 가드를 두지 않고
+ * isComposing이어도 Enter를 받아들이고 그 시점의 DOM value를 제출값으로 쓴다.
+ *
+ * 그 대가로 제출 직후 조립 확정이 값을 되살려 놓는 문제가 생기는데,
+ * `swallow` 플래그로 그 뒷정리 이벤트를 삼킨다. 플래그는 compositionend에서
+ * 풀지 않고 "사용자가 다음 키를 누를 때"만 푼다 — input과 compositionend의
+ * 발생 순서가 브라우저마다 달라서, 순서에 의존하지 않는 유일한 기준점이 keydown이다.
+ */
+function useHangulInput(onSubmit: (text: string) => void): HangulInput {
+  const ref = useRef<HTMLInputElement | null>(null)
+  const [value, setValue] = useState('')
+  const [composing, setComposing] = useState(false)
+  const swallow = useRef(false)
+
+  const clear = useCallback(() => {
+    if (ref.current !== null) {
+      ref.current.value = ''
+    }
+    setValue('')
+  }, [])
+
+  const focus = useCallback(() => {
+    ref.current?.focus()
+  }, [])
+
+  const onChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      if (swallow.current) {
+        event.currentTarget.value = ''
+        setValue('')
+        return
+      }
+      setValue(event.currentTarget.value)
+    },
+    [],
+  )
+
+  const onCompositionStart = useCallback(() => {
+    setComposing(true)
+  }, [])
+
+  const onCompositionEnd = useCallback((event: CompositionEvent<HTMLInputElement>) => {
+    setComposing(false)
+    if (swallow.current) {
+      event.currentTarget.value = ''
+      setValue('')
+      return
+    }
+    setValue(event.currentTarget.value)
+  }, [])
+
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Enter') {
+        // 사용자가 실제로 다음 입력을 시작했다 — 뒷정리 대기 상태를 푼다
+        swallow.current = false
+        return
+      }
+
+      event.preventDefault()
+      const element = event.currentTarget
+      const text = element.value
+      const composingNow = event.nativeEvent.isComposing
+
+      // 조립 중인데 value가 비어있으면 아직 확정된 글자가 없다는 뜻이므로 흘린다
+      if (composingNow && text.length === 0) {
+        return
+      }
+
+      onSubmit(text)
+      element.value = ''
+      setValue('')
+      // 조립 중이었다면 확정 이벤트가 뒤따라오므로 그것만 삼킬 준비를 한다
+      swallow.current = composingNow
+    },
+    [onSubmit],
+  )
+
+  return {
+    ref,
+    value,
+    composing,
+    onChange,
+    onKeyDown,
+    onCompositionStart,
+    onCompositionEnd,
+    clear,
+    focus,
+  }
+}
+
+export { useHangulInput }
+export type { HangulInput }

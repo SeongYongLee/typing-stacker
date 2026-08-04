@@ -5,16 +5,16 @@
  */
 const ARENA = {
   halfWidth: 3.2,
-  height: 9,
+  height: 7,
   /** 받침대 윗면 높이 */
   platformTop: 0.8,
   platformHalfWidth: 1.2,
-  platformHalfHeight: 0.15,
+  platformHalfHeight: 0.25,
   /** 물건이 생성되는 높이 */
-  spawnY: 8.4,
+  spawnY: 6.2,
   /** 이 높이보다 아래로 내려간 물건은 이탈로 본다 */
-  killY: -0.6,
-  gravity: -14,
+  killY: -0.8,
+  gravity: -9.81,
 } as const
 
 /** 화살표가 훑는 범위. 받침대보다 살짝 넓어서 과감한 조준은 빗나갈 수 있다. */

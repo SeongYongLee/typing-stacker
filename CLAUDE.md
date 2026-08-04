@@ -2,6 +2,25 @@
 
 한글 타자게임 + 물리 쌓기. 싱글 모드가 돌아가는 상태이고 1대1 멀티가 다음 작업이다.
 
+## 작업 문서 운영 (필수)
+
+이 프로젝트는 **Obsidian 볼트를 기준 문서로 함께 운영한다.** 이 파일에는 구현 관점(밟은 함정, 제약)이 남고, 볼트에는 기획 근거와 작업 이력이 남는다.
+
+- 진입점: `~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Obsidian/Projects/Typing Stacker/00_Index.md`
+- URI: `obsidian://open?vault=Obsidian&file=Projects%2FTyping%20Stacker%2F00_Index`
+
+작업을 재개할 때 그 진입점을 먼저 읽고, **의미 있는 변화가 생기면 해당 노트를 갱신한다.**
+
+| 바뀐 것 | 갱신할 노트 |
+|---|---|
+| 규칙·기획 결정 | `01_Planning` |
+| 커밋 / 잡은 버그 / 밸런스 측정 | `02_Work_History` |
+| 구조·의존성 경계·파이프라인 | `03_Architecture` |
+| 새 과제·리스크 / 백로그 해소 | `04_Backlog` |
+| 현재 상태 요약, `Last updated` | `00_Index` + 볼트 루트 `Typing Stacker.md` |
+
+노트에는 코드가 이미 말해주는 것을 옮겨 적지 않는다. **결정의 이유, 버린 방법, 측정한 숫자**를 남긴다. 특히 밸런스 측정값은 표로 누적해 "어디까지 시도해봤는지"가 보이게 한다.
+
 ## 기술 스택
 
 - React 19 + TypeScript 6 (strict, noUncheckedIndexedAccess) + Vite 8

@@ -76,6 +76,12 @@ interface TrackedBody {
   readonly body: RigidBody
   readonly variant: ItemVariant
   readonly owner: OwnerId
+  /**
+   * 양쪽이 합의한 물건 식별자.
+   * Rapier 핸들은 클라이언트마다 제각각이라 권위 키프레임을 맞추는 기준이 될 수 없다 —
+   * 핸들로 맞추면 게스트가 로컬에서 만든 물건과 대응되지 않아 물건이 두 배로 늘어난다.
+   */
+  readonly itemId: number
   readonly heavy: boolean
   settleTimer: number
   settled: boolean
@@ -118,6 +124,17 @@ function polygonThickness(points: readonly Vec2[]): number {
     }
   }
   return longest === 0 ? 0 : Math.abs(doubleArea) / longest
+}
+
+/** 권위 키프레임이 준 자리로 바디를 옮긴다. 속도까지 지워야 튀지 않는다 */
+function place(
+  entry: TrackedBody,
+  frame: { x: number; y: number; rotation: number },
+): void {
+  entry.body.setTranslation({ x: frame.x, y: frame.y }, true)
+  entry.body.setRotation(frame.rotation, true)
+  entry.body.setLinvel({ x: 0, y: 0 }, true)
+  entry.body.setAngvel(0, true)
 }
 
 /** 만들 수 없는 도형이면 null을 준다 — 호출부가 그 조각을 건너뛴다 */
@@ -168,8 +185,11 @@ class PhysicsWorld {
     return this.tracked.size
   }
 
-  /** owner는 물건을 쌓은 사람이다. 이탈했을 때 목숨을 잃는 주체가 된다 */
-  spawnItem(variant: ItemVariant, x: number, owner: OwnerId): void {
+  /**
+   * owner는 물건을 쌓은 사람이다 — 이탈했을 때 목숨을 잃는 주체가 된다.
+   * itemId는 양쪽이 합의한 식별자로, 권위 키프레임을 맞추는 기준이다.
+   */
+  spawnItem(variant: ItemVariant, x: number, owner: OwnerId, itemId = 0): number {
     const bodyDesc = RigidBodyDesc.dynamic()
       .setTranslation(x, ARENA.spawnY)
       .setLinearDamping(LINEAR_DAMPING)
@@ -212,6 +232,7 @@ class PhysicsWorld {
       body,
       variant,
       owner,
+      itemId,
       heavy: variant.density >= HEAVY_DENSITY,
       settleTimer: 0,
       settled: false,
@@ -223,6 +244,7 @@ class PhysicsWorld {
       restX: x,
       restY: ARENA.spawnY,
     })
+    return body.handle
   }
 
   step(dt: number): StepResult {
@@ -351,6 +373,99 @@ class PhysicsWorld {
       })
     }
     return result
+  }
+
+  /**
+   * 모든 물건이 멈춰 있는가.
+   * 턴제 대전에서 "떨군 물건이 자리를 잡았는지"를 판단해 턴을 넘기는 데 쓴다.
+   */
+  isQuiet(): boolean {
+    for (const entry of this.tracked.values()) {
+      const velocity = entry.body.linvel()
+      if (Math.hypot(velocity.x, velocity.y) >= SETTLE_SPEED) {
+        return false
+      }
+      if (Math.abs(entry.body.angvel()) >= 1) {
+        return false
+      }
+    }
+    return true
+  }
+
+  /**
+   * 지금 상태를 네트워크로 보낼 수 있는 형태로 뽑는다.
+   * 방장이 턴 끝에 한 번 보내는 권위 키프레임이다 — 매 프레임 흘리지 않는다.
+   */
+  frames(): {
+    itemId: number
+    variantId: string
+    owner: OwnerId
+    x: number
+    y: number
+    rotation: number
+  }[] {
+    const result = []
+    for (const entry of this.tracked.values()) {
+      const { x, y } = entry.body.translation()
+      result.push({
+        itemId: entry.itemId,
+        variantId: entry.variant.id,
+        owner: entry.owner,
+        x,
+        y,
+        rotation: entry.body.rotation(),
+      })
+    }
+    return result
+  }
+
+  /**
+   * 방장이 보낸 권위 상태로 맞춘다.
+   * 양쪽이 각자 물리를 돌리므로 턴 안에서 조금씩 어긋나는데, 턴이 끝날 때 여기서 되돌린다.
+   * 없는 물건은 만들고, 방장에게 없는 물건은 지운다 — 방장이 본 것이 사실이다.
+   */
+  applyFrames(
+    frames: readonly {
+      itemId: number
+      variantId: string
+      owner: OwnerId
+      x: number
+      y: number
+      rotation: number
+    }[],
+    lookup: (variantId: string) => ItemVariant | undefined,
+  ): void {
+    const wanted = new Map(frames.map((frame) => [frame.itemId, frame]))
+
+    // 방장에게 없는 물건은 지운다 — 방장이 본 것이 사실이다
+    for (const [handle, entry] of [...this.tracked]) {
+      if (!wanted.has(entry.itemId)) {
+        this.world.removeRigidBody(entry.body)
+        this.tracked.delete(handle)
+      }
+    }
+
+    const mine = new Map<number, TrackedBody>()
+    for (const entry of this.tracked.values()) {
+      mine.set(entry.itemId, entry)
+    }
+
+    for (const frame of frames) {
+      const existing = mine.get(frame.itemId)
+      if (existing !== undefined) {
+        place(existing, frame)
+        continue
+      }
+      const variant = lookup(frame.variantId)
+      if (variant === undefined) {
+        continue
+      }
+      const handle = this.spawnItem(variant, frame.x, frame.owner, frame.itemId)
+      const spawned = this.tracked.get(handle)
+      if (spawned !== undefined) {
+        place(spawned, frame)
+      }
+    }
   }
 
   reset(): void {

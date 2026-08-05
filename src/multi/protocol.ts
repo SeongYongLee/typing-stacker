@@ -47,6 +47,8 @@ type ToGuest =
       readonly word: string
       readonly aimX: number
       readonly variantId: string
+      /** 양쪽이 같은 물건으로 취급하도록 방장이 매기는 번호 */
+      readonly itemId: number
     }
   | { readonly t: 'suggested'; readonly by: PlayerId; readonly word: string }
   | { readonly t: 'turn'; readonly current: PlayerId }
@@ -58,7 +60,8 @@ type ToGuest =
 type Message = ToHost | ToGuest
 
 interface BodyFrame {
-  readonly handle: number
+  /** 양쪽이 합의한 물건 식별자. Rapier 핸들은 클라이언트마다 달라 기준이 될 수 없다 */
+  readonly itemId: number
   readonly variantId: string
   readonly owner: PlayerId
   readonly x: number
@@ -118,7 +121,8 @@ function parseMessage(raw: unknown): Message | null {
         !isShortString(raw['by'], 64) ||
         !isShortString(raw['word'], 20) ||
         !isFiniteNumber(raw['aimX']) ||
-        !isShortString(raw['variantId'], 40)
+        !isShortString(raw['variantId'], 40) ||
+        !isFiniteNumber(raw['itemId'])
       )
         return null
       return {
@@ -127,6 +131,7 @@ function parseMessage(raw: unknown): Message | null {
         word: raw['word'],
         aimX: raw['aimX'],
         variantId: raw['variantId'],
+        itemId: raw['itemId'],
       }
     case 'suggested':
       if (!isShortString(raw['by'], 64) || !isShortString(raw['word'], 20)) return null
@@ -177,7 +182,7 @@ function parsePlayers(raw: readonly unknown[]): PlayerInfo[] {
 function parseBodyFrame(raw: unknown): BodyFrame | null {
   if (!isRecord(raw)) return null
   if (
-    !isFiniteNumber(raw['handle']) ||
+    !isFiniteNumber(raw['itemId']) ||
     !isShortString(raw['variantId'], 40) ||
     !isShortString(raw['owner'], 64) ||
     !isFiniteNumber(raw['x']) ||
@@ -187,7 +192,7 @@ function parseBodyFrame(raw: unknown): BodyFrame | null {
     return null
   }
   return {
-    handle: raw['handle'],
+    itemId: raw['itemId'],
     variantId: raw['variantId'],
     owner: raw['owner'],
     x: raw['x'],

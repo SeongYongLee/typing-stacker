@@ -318,4 +318,13 @@ const WORDS: readonly WordEntry[] = [
 
 const WORD_BY_TEXT = new Map(WORDS.map((entry) => [entry.word, entry]))
 
-export { WORDS, WORD_BY_TEXT }
+/**
+ * id로 변형을 찾는 길.
+ * 멀티에서 히든 롤은 방장만 굴리고 결과를 id로 보낸다 — 양쪽이 각자 굴리면
+ * 난수 소비 순서가 어긋나는 순간 서로 다른 물건을 쌓게 된다.
+ */
+const VARIANT_BY_ID = new Map(
+  WORDS.flatMap((entry) => entry.variants.map((item) => [item.id, item] as const)),
+)
+
+export { WORDS, WORD_BY_TEXT, VARIANT_BY_ID }

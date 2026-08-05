@@ -83,12 +83,26 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     const parsed = parseMessage({
       t: 'sync',
       bodies: [
-        { handle: 1, variantId: 'octopus', owner: 'a', x: 0, y: 1, rotation: 0 },
-        { handle: 2, variantId: 'octopus', owner: 'a', x: 'nope', y: 1, rotation: 0 },
+        { itemId: 1, variantId: 'octopus', owner: 'a', x: 0, y: 1, rotation: 0 },
+        { itemId: 2, variantId: 'octopus', owner: 'a', x: 'nope', y: 1, rotation: 0 },
         null,
       ],
     })
     expect(parsed?.t === 'sync' && parsed.bodies).toHaveLength(1)
+  })
+
+  it('dropped는 itemId까지 있어야 통과한다 — 양쪽이 같은 물건으로 취급하는 기준이다', () => {
+    const full = {
+      t: 'dropped',
+      by: 'a',
+      word: '문어',
+      aimX: 0.2,
+      variantId: 'octopus',
+      itemId: 3,
+    }
+    expect(parseMessage(full)).toEqual(full)
+    const { itemId: _omitted, ...missing } = full
+    expect(parseMessage(missing)).toBeNull()
   })
 
   it('over의 winner는 null이 될 수 있다 (무승부)', () => {

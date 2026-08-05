@@ -74,9 +74,16 @@ type JudgeResult =
   | { readonly kind: 'miss'; readonly input: string }
 
 /** 물리 바디 하나를 렌더러에 넘기기 위한 스냅샷 */
+/**
+ * 물건을 쌓은 사람. 멀티에서 물건이 받침대를 벗어나면 **주인**의 목숨이 깎이므로,
+ * 물리 층이 물건마다 이 값을 들고 있어야 한다. 싱글은 주인이 하나뿐이다.
+ */
+type OwnerId = string
+
 interface BodySnapshot {
   readonly handle: number
   readonly variant: ItemVariant
+  readonly owner: OwnerId
   readonly x: number
   readonly y: number
   readonly rotation: number
@@ -111,6 +118,7 @@ export type {
   FallingWord,
   DifficultyLevel,
   JudgeResult,
+  OwnerId,
   BodySnapshot,
   GamePhase,
   RunStats,

@@ -1,6 +1,12 @@
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
-import type { BodySnapshot, PrimitiveShape, ShapeDef, ShapePart } from '../types/game.ts'
+import type {
+  BodySnapshot,
+  OwnerId,
+  PrimitiveShape,
+  ShapeDef,
+  ShapePart,
+} from '../types/game.ts'
 
 interface HiddenReveal {
   readonly label: string
@@ -27,6 +33,12 @@ interface ArenaRenderState {
   readonly quake: number
   /** 흔들림 위상 — 프레임마다 흐르는 시간 */
   readonly quakePhase: number
+  /**
+   * 주인별 표시 색. 멀티에서만 넘긴다.
+   * 물건이 벗어나면 **주인**의 목숨이 깎이므로 누구 것인지 보이지 않으면
+   * 하트가 왜 깎였는지 알 수 없다. 싱글은 주인이 하나뿐이라 null로 두고 그리지 않는다.
+   */
+  readonly ownerColors: ReadonlyMap<OwnerId, string> | null
 }
 
 const COLORS = {
@@ -104,7 +116,7 @@ class ArenaRenderer {
       this.drawAim(state.aimX)
     }
     for (const body of state.bodies) {
-      this.drawBody(body)
+      this.drawBody(body, state.ownerColors)
     }
     // 대기 중인 물건은 쌓인 것들 위에 그린다 — 곧 떨어질 것이 가려지면 안 된다
     for (const [box, row] of this.layoutPending(state.pending)) {
@@ -330,7 +342,10 @@ class ArenaRenderer {
     ctx.restore()
   }
 
-  private drawBody(body: BodySnapshot): void {
+  private drawBody(
+    body: BodySnapshot,
+    ownerColors: ReadonlyMap<OwnerId, string> | null,
+  ): void {
     const { ctx } = this
     const { shape } = body.variant
 
@@ -350,6 +365,19 @@ class ArenaRenderer {
       for (const part of this.partsOf(shape)) {
         this.tracePart(part)
         ctx.fill()
+        ctx.stroke()
+      }
+    }
+
+    // 주인 표시는 그림 위에 얹는다 — 아래에 깔면 스프라이트가 덮어버린다
+    const ownerColor = ownerColors?.get(body.owner)
+    if (ownerColor !== undefined) {
+      ctx.globalAlpha = body.settled ? 0.9 : 1
+      ctx.strokeStyle = ownerColor
+      ctx.lineWidth = 2.5
+      ctx.lineJoin = 'round'
+      for (const part of this.partsOf(shape)) {
+        this.tracePart(part)
         ctx.stroke()
       }
     }

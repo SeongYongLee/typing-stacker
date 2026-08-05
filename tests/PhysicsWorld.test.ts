@@ -2,9 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { PhysicsWorld, type SettleEvent } from '../src/game/physics/PhysicsWorld.ts'
 import { isEscaped } from '../src/game/physics/collapseDetector.ts'
 import { halfExtentY, shapeBounds } from '../src/game/shapes.ts'
-import { ARENA } from '../src/game/config.ts'
+import { ARENA, SOLO_OWNER } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
-import type { ItemVariant } from '../src/game/types/game.ts'
+import type { ItemVariant, OwnerId } from '../src/game/types/game.ts'
 
 /**
  * 쌓기 기준 물건 — 넓고 납작하며 마찰이 큰 것을 고른다.
@@ -38,14 +38,14 @@ function anyVariant(): ItemVariant {
 function simulate(
   world: PhysicsWorld,
   seconds: number,
-): { settled: SettleEvent[]; escaped: number } {
+): { settled: SettleEvent[]; escaped: OwnerId[] } {
   const dt = 1 / 60
   const settled: SettleEvent[] = []
-  let escaped = 0
+  const escaped: OwnerId[] = []
   for (let t = 0; t < seconds; t += dt) {
     const result = world.step(dt)
     settled.push(...result.settled)
-    escaped += result.escaped
+    escaped.push(...result.escaped)
   }
   return { settled, escaped }
 }
@@ -59,10 +59,10 @@ describe('PhysicsWorld', () => {
 
   it('받침대 가운데로 떨어진 물건은 안정적으로 멈춘다', () => {
     world.reset()
-    world.spawnItem(stackable(), 0)
+    world.spawnItem(stackable(), 0, SOLO_OWNER)
     const { settled, escaped } = simulate(world, 5)
 
-    expect(escaped).toBe(0)
+    expect(escaped).toEqual([])
     expect(settled).toHaveLength(1)
     // 받침대 윗면 위에 자기 두께만큼 얹혀 있어야 한다
     const item = stackable()
@@ -74,9 +74,9 @@ describe('PhysicsWorld', () => {
   it('받침대 밖으로 떨어진 물건은 이탈로 잡힌다', () => {
     world.reset()
     // 받침대 반폭을 훨씬 넘는 지점
-    world.spawnItem(stackable(), ARENA.halfWidth - 0.2)
+    world.spawnItem(stackable(), ARENA.halfWidth - 0.2, SOLO_OWNER)
     const { escaped } = simulate(world, 5)
-    expect(escaped).toBe(1)
+    expect(escaped).toEqual([SOLO_OWNER])
     // 이탈한 물건은 세계에서 치워진다 — 남겨두면 매 프레임 이탈로 잡혀 목숨이 한꺼번에 날아간다
     expect(world.itemCount).toBe(0)
   })
@@ -87,7 +87,7 @@ describe('PhysicsWorld', () => {
     const thickness = halfExtentY(item.shape) * 2
     const heights: number[] = []
     for (let i = 0; i < 4; i += 1) {
-      world.spawnItem(item, 0)
+      world.spawnItem(item, 0, SOLO_OWNER)
       const { settled } = simulate(world, 4)
       expect(settled).toHaveLength(1)
       heights.push(settled[0]!.topY)
@@ -106,9 +106,9 @@ describe('PhysicsWorld', () => {
     for (const entry of WORDS) {
       for (const variant of entry.variants) {
         world.reset()
-        world.spawnItem(variant, 0)
+        world.spawnItem(variant, 0, SOLO_OWNER)
         const { settled, escaped } = simulate(world, 8)
-        expect(escaped, `${variant.id}가 받침대에서 굴러떨어졌다`).toBe(0)
+        expect(escaped, `${variant.id}가 받침대에서 굴러떨어졌다`).toEqual([])
         expect(settled, `${variant.id}가 멈추지 않았다`).toHaveLength(1)
       }
     }
@@ -116,7 +116,7 @@ describe('PhysicsWorld', () => {
 
   it('reset은 모든 물건을 치운다', () => {
     world.reset()
-    world.spawnItem(stackable(), 0)
+    world.spawnItem(stackable(), 0, SOLO_OWNER)
     simulate(world, 3)
     expect(world.itemCount).toBe(1)
     world.reset()
@@ -124,9 +124,43 @@ describe('PhysicsWorld', () => {
     expect(world.snapshots()).toHaveLength(0)
   })
 
+  it('이탈은 떨어뜨린 사람이 아니라 물건 주인을 돌려준다', () => {
+    world.reset()
+    // 두 사람이 각자 물건을 쌓은 뒤, 한쪽 물건만 받침대 밖에 떨군다
+    world.spawnItem(stackable(), 0, 'plum')
+    simulate(world, 3)
+    world.spawnItem(stackable(), ARENA.halfWidth - 0.2, 'sage')
+    const { escaped } = simulate(world, 5)
+
+    // 벗어난 것은 sage의 물건이므로 sage만 대가를 진다
+    expect(escaped).toEqual(['sage'])
+  })
+
+  it('같은 사람의 물건이 둘 떨어지면 두 번 집계된다', () => {
+    world.reset()
+    world.spawnItem(stackable(), ARENA.halfWidth - 0.2, 'plum')
+    world.spawnItem(stackable(), -(ARENA.halfWidth - 0.2), 'plum')
+    const { escaped } = simulate(world, 6)
+    expect(escaped).toEqual(['plum', 'plum'])
+  })
+
+  it('스냅샷에 주인이 담긴다 — 화면에서 누구 물건인지 구분해야 한다', () => {
+    world.reset()
+    world.spawnItem(anyVariant(), 0, 'plum')
+    simulate(world, 1)
+    expect(world.snapshots()[0]?.owner).toBe('plum')
+  })
+
+  it('안착 이벤트에도 주인이 담긴다', () => {
+    world.reset()
+    world.spawnItem(stackable(), 0, 'sage')
+    const { settled } = simulate(world, 5)
+    expect(settled[0]?.owner).toBe('sage')
+  })
+
   it('스냅샷은 렌더러가 필요한 값을 모두 담는다', () => {
     world.reset()
-    world.spawnItem(anyVariant(), 0.3)
+    world.spawnItem(anyVariant(), 0.3, SOLO_OWNER)
     simulate(world, 1)
     const snapshots = world.snapshots()
     expect(snapshots).toHaveLength(1)

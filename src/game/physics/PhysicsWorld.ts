@@ -17,7 +17,13 @@ import {
   SETTLE_SPEED,
 } from '../config.ts'
 import { halfExtentY } from '../shapes.ts'
-import type { BodySnapshot, ItemVariant, PrimitiveShape, Vec2 } from '../types/game.ts'
+import type {
+  BodySnapshot,
+  ItemVariant,
+  OwnerId,
+  PrimitiveShape,
+  Vec2,
+} from '../types/game.ts'
 import { isEscaped, isOutOfSight } from './collapseDetector.ts'
 
 /**
@@ -49,13 +55,19 @@ const ANGULAR_DAMPING = 2.4
 
 interface SettleEvent {
   readonly variant: ItemVariant
+  readonly owner: OwnerId
   readonly topY: number
 }
 
 interface StepResult {
   readonly settled: readonly SettleEvent[]
-  /** 이번 스텝에 받침대를 벗어난 물건 수. 그만큼 목숨이 줄어든다 */
-  readonly escaped: number
+  /**
+   * 이번 스텝에 받침대를 벗어난 물건들의 **주인**.
+   * 개수가 아니라 주인을 돌려주는 이유는, 떨어뜨린 사람이 아니라 쌓은 사람이
+   * 목숨을 잃기 때문이다 — 그래서 상대 물건을 밀어내는 것이 공격이 된다.
+   * 같은 사람의 물건이 둘 떨어지면 같은 값이 두 번 들어온다.
+   */
+  readonly escaped: readonly OwnerId[]
   /** 무거운 물건이 부딪힌 세기. 0이면 아무 일도 없었다 */
   readonly quake: number
 }
@@ -63,6 +75,7 @@ interface StepResult {
 interface TrackedBody {
   readonly body: RigidBody
   readonly variant: ItemVariant
+  readonly owner: OwnerId
   readonly heavy: boolean
   settleTimer: number
   settled: boolean
@@ -155,7 +168,8 @@ class PhysicsWorld {
     return this.tracked.size
   }
 
-  spawnItem(variant: ItemVariant, x: number): void {
+  /** owner는 물건을 쌓은 사람이다. 이탈했을 때 목숨을 잃는 주체가 된다 */
+  spawnItem(variant: ItemVariant, x: number, owner: OwnerId): void {
     const bodyDesc = RigidBodyDesc.dynamic()
       .setTranslation(x, ARENA.spawnY)
       .setLinearDamping(LINEAR_DAMPING)
@@ -197,6 +211,7 @@ class PhysicsWorld {
     this.tracked.set(body.handle, {
       body,
       variant,
+      owner,
       heavy: variant.density >= HEAVY_DENSITY,
       settleTimer: 0,
       settled: false,
@@ -224,7 +239,7 @@ class PhysicsWorld {
 
     const settled: SettleEvent[] = []
     const goneHandles: number[] = []
-    let escaped = 0
+    const escaped: OwnerId[] = []
     let quake = 0
 
     for (const [handle, entry] of this.tracked) {
@@ -241,7 +256,7 @@ class PhysicsWorld {
         // 바디는 남겨서 테두리 밖으로 날아가는 모습이 계속 그려지게 한다.
         if (!entry.lost) {
           entry.lost = true
-          escaped += 1
+          escaped.push(entry.owner)
         }
         continue
       }
@@ -301,6 +316,7 @@ class PhysicsWorld {
           }
           settled.push({
             variant: entry.variant,
+            owner: entry.owner,
             topY: y + halfExtentY(entry.variant.shape),
           })
         }
@@ -327,6 +343,7 @@ class PhysicsWorld {
       result.push({
         handle,
         variant: entry.variant,
+        owner: entry.owner,
         x,
         y,
         rotation: entry.body.rotation(),

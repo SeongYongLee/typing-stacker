@@ -2,6 +2,7 @@ import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
   LIVES,
+  SOLO_OWNER,
   QUAKE_DURATION,
   QUAKE_MAX_AMPLITUDE,
   WORD,
@@ -276,7 +277,7 @@ class GameEngine {
 
   private queueDrop(variant: ItemVariant, x: number): void {
     if (this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
-      this.physics.spawnItem(variant, x)
+      this.physics.spawnItem(variant, x, SOLO_OWNER)
       this.sinceLastDrop = 0
       return
     }
@@ -328,7 +329,7 @@ class GameEngine {
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
       if (next !== undefined) {
-        this.physics.spawnItem(next.variant, next.x)
+        this.physics.spawnItem(next.variant, next.x, SOLO_OWNER)
         this.sinceLastDrop = 0
       }
     }
@@ -339,8 +340,8 @@ class GameEngine {
       this.score.onSettled(event.variant, event.topY)
     }
 
-    if (escaped > 0) {
-      this.lives = Math.max(this.lives - escaped, 0)
+    if (escaped.length > 0) {
+      this.lives = Math.max(this.lives - escaped.length, 0)
       // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
       this.score.onLifeLost()
       if (this.lives === 0) {
@@ -373,6 +374,8 @@ class GameEngine {
             },
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
+      // 싱글은 주인이 하나뿐이라 구분해 그릴 것이 없다
+      ownerColors: null,
     })
   }
 

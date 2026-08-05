@@ -59,6 +59,13 @@ const SETTLE_HOLD_SEC = 0.35
 /** 물건이 받침대를 벗어날 때마다 하나씩 줄고, 0이 되면 끝이다 */
 const LIVES = 3
 
+/**
+ * 싱글에서 쓰는 주인 식별자.
+ * 물리 층은 물건마다 주인을 들고 있어야 한다 — 멀티에서 물건이 벗어나면
+ * 떨어뜨린 사람이 아니라 쌓은 사람의 목숨이 깎이기 때문이다. 싱글은 주인이 하나뿐이다.
+ */
+const SOLO_OWNER = 'solo'
+
 const SCORE = {
   perItem: 100,
   perHeightMeter: 220,
@@ -117,6 +124,7 @@ export {
   SETTLE_HOLD_SEC,
   SCORE,
   LIVES,
+  SOLO_OWNER,
   WORD,
   ARENA_SCREEN_MAX_WIDTH,
   HEAVY_DENSITY,

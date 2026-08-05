@@ -50,6 +50,13 @@ const AIM_HALF_RANGE = ARENA.platformHalfWidth - MAX_ITEM_HALF_WIDTH
 /** 물건을 연달아 쏟아내 물리를 망가뜨리는 것만 막는 최소 간격 */
 const DROP_COOLDOWN_MS = 300
 
+/**
+ * 놓친 단어가 아레나 위에서 기다리는 시간.
+ * 단어 하나를 치는 데 1.1~1.5초가 걸리므로 이 길이면 두세 개를 맞혀 상쇄할 수 있다.
+ * 더 짧으면 손쓸 수 없고, 더 길면 놓쳐도 별일 아닌 것이 된다.
+ */
+const PENDING_DELAY = 4.5
+
 const HIDDEN_CHANCE = 0.14
 
 /** 안정화 판정: 이 속도 아래로 이만큼 유지되면 착지 완료로 본다 */
@@ -112,6 +119,7 @@ export {
   AIM_HALF_RANGE,
   MAX_ITEM_HALF_WIDTH,
   DROP_COOLDOWN_MS,
+  PENDING_DELAY,
   HIDDEN_CHANCE,
   SETTLE_SPEED,
   SETTLE_HOLD_SEC,

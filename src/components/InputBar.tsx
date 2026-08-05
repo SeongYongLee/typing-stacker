@@ -175,6 +175,8 @@ function FeedbackChip({ feedback }: { feedback: SubmitFeedback | null }) {
           {feedback.hidden && ' ★'}
         </span>
       )}
+      {/* 대기 중인 물건을 막았다는 것은 점수보다 중요한 정보다 */}
+      {feedback.canceled && <span style={{ color: '#6bffb0' }}> · 상쇄</span>}
     </span>
   )
 }

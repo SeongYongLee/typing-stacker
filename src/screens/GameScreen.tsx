@@ -205,8 +205,8 @@ function LifeLossNotice({ remaining }: { remaining: number }) {
 function StageUpNotice({ stage, total }: { stage: number; total: number }) {
   const maxed = stage >= total
   return (
-    // 조준 화살표가 지나는 맨 윗줄은 비워둔다
-    <Notice top="12%">
+    // 위쪽은 조준 화살표와 예고 상자의 자리다 — 알림은 그 아래에 뜬다
+    <Notice top="44%">
       <span style={{ ...noticeHeadStyle, color: '#ffcf5c' }}>{`${stage}단계`}</span>
       <span style={noticeLineStyle}>
         {maxed ? '최고 난이도 — 여기서 더 빨라지지 않는다' : '단어가 더 빨리, 더 많이 내려온다'}

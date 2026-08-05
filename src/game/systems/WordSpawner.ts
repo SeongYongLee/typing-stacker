@@ -28,8 +28,10 @@ class WordSpawner {
     return this.missed
   }
 
-  update(dt: number, difficulty: DifficultyLevel): void {
+  /** 이번 프레임에 바닥선에 닿은 단어들을 돌려준다 — 호출부가 그 대가를 매긴다 */
+  update(dt: number, difficulty: DifficultyLevel): readonly FallingWord[] {
     const fallSpeed = 1 / difficulty.fallDuration
+    const justMissed: FallingWord[] = []
 
     for (const word of this.list) {
       if (word.state === 'active') {
@@ -38,6 +40,7 @@ class WordSpawner {
           word.y = 1
           word.state = 'missed'
           this.missed += 1
+          justMissed.push(word)
         }
       } else {
         word.fade -= dt / FADE_SECONDS
@@ -50,6 +53,8 @@ class WordSpawner {
       this.timer = 0
       this.spawn(difficulty)
     }
+
+    return justMissed
   }
 
   /** 타이핑으로 맞춘 단어를 즉시 제거한다 (fade 없이) */

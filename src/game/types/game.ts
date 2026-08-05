@@ -65,6 +65,8 @@ interface DifficultyLevel {
   readonly fallDuration: number
   readonly aimSpeed: number
   readonly maxConcurrent: number
+  /** 놓친 단어가 떨어지기까지 기다려주는 시간(초). 단계가 오르면 짧아진다 */
+  readonly pendingDelay: number
 }
 
 type JudgeResult =

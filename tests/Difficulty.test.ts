@@ -16,6 +16,8 @@ describe('difficultyAt', () => {
     expect(end.fallDuration).toBeLessThan(start.fallDuration)
     expect(end.aimSpeed).toBeGreaterThan(start.aimSpeed)
     expect(end.maxConcurrent).toBeGreaterThan(start.maxConcurrent)
+    // 놓친 단어를 구할 여유도 함께 줄어든다
+    expect(end.pendingDelay).toBeLessThan(start.pendingDelay)
   })
 
   it('한 단계 안에서는 값이 변하지 않는다', () => {
@@ -39,6 +41,7 @@ describe('difficultyAt', () => {
       expect(current.fallDuration).toBeLessThanOrEqual(previous.fallDuration)
       expect(current.aimSpeed).toBeGreaterThanOrEqual(previous.aimSpeed)
       expect(current.maxConcurrent).toBeGreaterThanOrEqual(previous.maxConcurrent)
+      expect(current.pendingDelay).toBeLessThanOrEqual(previous.pendingDelay)
       previous = current
     }
   })

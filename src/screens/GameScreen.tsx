@@ -63,6 +63,11 @@ function GameScreen({ engine, state }: GameScreenProps) {
     (previous, next) => previous > next && next > 0,
   )
   const stageUp = useMomentNotice(state.difficulty.stage, (previous, next) => next > previous)
+  // 규칙을 배우는 순간은 처음 놓쳤을 때다. 그 뒤로는 알고 있으니 알리지 않는다
+  const firstMiss = useMomentNotice(
+    state.stats.missedWords,
+    (previous, next) => next > previous && next === 1,
+  )
   const collapsing = state.phase === 'collapsing'
 
   return (
@@ -81,6 +86,7 @@ function GameScreen({ engine, state }: GameScreenProps) {
             {stageUp !== null && (
               <StageUpNotice key={stageUp.seq} stage={stageUp.value} total={state.difficulty.total} />
             )}
+            {firstMiss !== null && <FirstMissNotice key={firstMiss.seq} />}
             {lifeLost !== null && (
               <LifeLossNotice key={lifeLost.seq} remaining={lifeLost.value} />
             )}
@@ -197,6 +203,16 @@ function LifeLossNotice({ remaining }: { remaining: number }) {
           ? `마지막 목숨 ${remaining}개 — 하나 더 잃으면 끝난다`
           : `남은 목숨 ${remaining}개 · ${LIVES}개를 다 잃으면 끝난다`}
       </span>
+    </Notice>
+  )
+}
+
+/** 처음 놓쳤을 때만. 예고 상자를 어떻게 없애는지 그 자리에서 알려준다 */
+function FirstMissNotice() {
+  return (
+    <Notice top="30%">
+      <span style={{ ...noticeHeadStyle, fontSize: 26, color: '#ff6b6b' }}>놓쳤다</span>
+      <span style={noticeLineStyle}>위에 뜬 단어를 다시 치면 막는다</span>
     </Notice>
   )
 }

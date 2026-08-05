@@ -2,8 +2,12 @@
  * 놓친 단어는 사라지지 않고 **아레나 위에서 기다리는 물건**이 된다.
  *
  * 바로 떨어뜨리면 놓친 순간 대응할 방법이 없다. 뿌요뿌요의 예고 가비지처럼
- * 잠깐 머리 위에 떠 있게 해서, 그 사이에 단어를 맞히면 하나를 상쇄한다.
+ * 잠깐 머리 위에 떠 있게 해서, 그 사이에 **그 단어를 다시 치면** 막을 수 있다.
  * 그래야 "타이핑을 놓친 대가"가 생기면서도 만회할 여지가 남는다.
+ *
+ * 아무 단어로나 막히게 하면 놓친 대가가 너무 가볍다 — 내려오는 단어를 치던 손이
+ * 저절로 방어가 되므로 놓쳤다는 사실 자체가 잊힌다. 놓친 단어를 다시 쳐야 하면
+ * 새로 내려오는 단어와 손이 경합해서, 놓친 것이 실제 부담으로 남는다.
  *
  * 놓친 단어에 아무 대가가 없던 것이 이 게임이 쉬웠던 가장 큰 이유였다 —
  * 물건이 안 떨어지니 스택이 오히려 안전해져서, 천천히 치는 것이 유리했다.
@@ -50,18 +54,23 @@ class PendingQueue {
   }
 
   /**
-   * 하나를 상쇄한다. **가장 임박한 것**을 지운다 —
-   * 곧 떨어질 것을 막는 것이 플레이어에게 가장 이득이고, 눈에도 그렇게 보인다.
+   * 그 단어를 직접 쳐서 막는다. 아무 단어로나 막히지 않으므로 놓친 것을 실제로 만회해야 한다.
+   *
+   * 같은 단어가 둘 이상 기다리고 있으면 **가장 임박한 것**을 지운다 —
+   * 곧 떨어질 것을 막는 것이 플레이어에게 이득이고, 눈에도 그렇게 보인다.
    */
-  cancelOne(): PendingItem | null {
-    if (this.list.length === 0) {
-      return null
-    }
-    let target = 0
-    for (let i = 1; i < this.list.length; i += 1) {
-      if (this.list[i]!.remaining < this.list[target]!.remaining) {
+  cancelByWord(word: string): PendingItem | null {
+    let target = -1
+    for (let i = 0; i < this.list.length; i += 1) {
+      if (this.list[i]!.word !== word) {
+        continue
+      }
+      if (target === -1 || this.list[i]!.remaining < this.list[target]!.remaining) {
         target = i
       }
+    }
+    if (target === -1) {
+      return null
     }
     const [canceled] = this.list.splice(target, 1)
     return canceled ?? null

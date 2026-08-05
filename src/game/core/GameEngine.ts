@@ -2,7 +2,6 @@ import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
   LIVES,
-  PENDING_DELAY,
   QUAKE_DURATION,
   QUAKE_MAX_AMPLITUDE,
   WORD,
@@ -183,8 +182,30 @@ class GameEngine {
       return
     }
 
-    const result = judgeInput(this.spawner.words, text)
     this.feedbackSeq += 1
+
+    /*
+     * 낙하 중인 단어보다 예고 상자를 먼저 본다.
+     * 같은 단어가 양쪽에 있을 수 있는데(놓친 뒤 그 단어가 다시 내려온 경우),
+     * 그때 플레이어의 의도는 곧 떨어질 것을 막는 쪽이다. 급한 것부터 처리한다.
+     */
+    const canceled = this.pending.cancelByWord(text.trim())
+    if (canceled !== null) {
+      // 막은 것도 정확히 쳐낸 단어다 — 콤보와 타수에 들어간다
+      this.score.onWordMatched(canceled.word)
+      this.feedback = {
+        seq: this.feedbackSeq,
+        text: canceled.word,
+        ok: true,
+        itemLabel: null,
+        hidden: false,
+        canceled: true,
+      }
+      this.emit()
+      return
+    }
+
+    const result = judgeInput(this.spawner.words, text)
 
     if (result.kind === 'miss') {
       this.feedback = {
@@ -201,8 +222,6 @@ class GameEngine {
 
     this.spawner.remove(result.word.id)
     this.score.onWordMatched(result.word.word)
-    // 어떤 단어를 맞혀도 대기 중인 물건 하나를 상쇄한다 — 정상 플레이가 곧 방어다
-    const canceled = this.pending.cancelOne()
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     const variant = resolveItem(result.word.word, this.rng)
     this.queueDrop(variant, this.aimer.worldX)
@@ -216,7 +235,7 @@ class GameEngine {
       ok: true,
       itemLabel: variant.label,
       hidden: variant.hidden,
-      canceled: canceled !== null,
+      canceled: false,
     }
     this.emit()
   }
@@ -298,7 +317,7 @@ class GameEngine {
     this.aimer.update(dt, difficulty.aimSpeed)
     // 놓친 단어는 사라지지 않고 아레나 위에서 기다리는 물건이 된다
     for (const word of this.spawner.update(dt, difficulty)) {
-      this.pending.add(word.word, laneX(word), PENDING_DELAY)
+      this.pending.add(word.word, laneX(word), difficulty.pendingDelay)
     }
 
     // 기다림이 끝난 것은 서 있던 자리에서 그대로 떨어진다

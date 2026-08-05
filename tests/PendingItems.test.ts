@@ -24,24 +24,35 @@ describe('PendingQueue', () => {
     expect(queue.size).toBe(0)
   })
 
-  it('상쇄는 가장 임박한 것부터 지운다', () => {
+  it('그 단어를 쳐야 막힌다 — 다른 단어로는 지워지지 않는다', () => {
     const queue = new PendingQueue()
-    queue.add('느긋한', 0, 5)
-    queue.add('급한', 0, 1)
-    queue.add('중간', 0, 3)
+    queue.add('사과', 0, 4)
+    queue.add('번개', 0, 4)
 
-    expect(queue.cancelOne()?.word).toBe('급한')
-    expect(queue.cancelOne()?.word).toBe('중간')
-    expect(queue.cancelOne()?.word).toBe('느긋한')
-    expect(queue.cancelOne()).toBeNull()
+    expect(queue.cancelByWord('우산')).toBeNull()
+    expect(queue.size).toBe(2)
+
+    expect(queue.cancelByWord('번개')?.word).toBe('번개')
+    expect(queue.size).toBe(1)
+    expect(queue.items[0]!.word).toBe('사과')
+  })
+
+  it('같은 단어가 둘 기다리면 임박한 것부터 막는다', () => {
+    const queue = new PendingQueue()
+    queue.add('사과', 0, 5)
+    queue.add('사과', 0, 1)
+
+    expect(queue.cancelByWord('사과')?.remaining).toBeCloseTo(1)
+    expect(queue.cancelByWord('사과')?.remaining).toBeCloseTo(5)
+    expect(queue.cancelByWord('사과')).toBeNull()
   })
 
   it('시간이 흐른 뒤에도 임박한 순서를 다시 판단한다', () => {
     const queue = new PendingQueue()
-    queue.add('먼저', 0, 3)
-    queue.update(2) // 먼저: 1초 남음
-    queue.add('나중', 0, 0.5)
-    expect(queue.cancelOne()?.word).toBe('나중')
+    queue.add('사과', 0, 3)
+    queue.update(2.5) // 0.5초 남음
+    queue.add('사과', 0, 2)
+    expect(queue.cancelByWord('사과')?.remaining).toBeCloseTo(0.5)
   })
 
   it('총 대기 시간을 남겨둬서 게이지를 그릴 수 있다', () => {

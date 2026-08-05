@@ -59,7 +59,11 @@ function TitleScreen({ onStart, ready }: TitleScreenProps) {
             위치로 물건이 떨어진다.
           </li>
           <li>어떤 물건이 나올지는 Enter를 누른 뒤에 알 수 있다.</li>
-          <li>단어가 바닥선에 닿으면 더 이상 입력할 수 없다.</li>
+          <li>
+            단어가 바닥선에 닿으면 그 단어가 아레나 위에서 기다린다.{' '}
+            <strong style={{ color: '#ffcf5c' }}>같은 단어를 다시 치면</strong> 막고, 시간이
+            지나면 물건이 되어 떨어진다.
+          </li>
           <li>
             받침대에는 양옆 벽이 없다. 물건이 쏠려서 받침대를 벗어나면{' '}
             <strong style={{ color: '#ff6b6b' }}>목숨이 하나</strong> 줄어든다.

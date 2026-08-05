@@ -93,6 +93,8 @@ interface RunStats {
   readonly lives: number
   readonly combo: number
   readonly maxCombo: number
+  /** 분당 타수(두벌식 키 수 기준). 맞춘 단어만 세고 경과 시간으로 나눈다 */
+  readonly kpm: number
   readonly hiddenFound: readonly string[]
 }
 

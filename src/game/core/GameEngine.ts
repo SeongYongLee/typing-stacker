@@ -165,7 +165,7 @@ class GameEngine {
     }
 
     this.spawner.remove(result.word.id)
-    this.score.onWordMatched()
+    this.score.onWordMatched(result.word.word)
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     const variant = resolveItem(result.word.word, this.rng)
     this.queueDrop(variant, this.aimer.worldX)
@@ -312,7 +312,7 @@ class GameEngine {
       elapsed: this.elapsed,
       words: [...this.spawner.words],
       aimNormalized: this.aimer.normalized,
-      stats: this.score.stats(this.spawner.missedCount, this.lives),
+      stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,
       runSeq: this.runSeq,
     })

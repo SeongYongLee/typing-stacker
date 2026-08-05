@@ -1,5 +1,6 @@
 import { ARENA, SCORE } from '../config.ts'
 import type { ItemVariant, RunStats } from '../types/game.ts'
+import { countKeystrokes, keystrokesPerMinute } from './TypingSpeed.ts'
 
 /**
  * 점수와 콤보.
@@ -14,6 +15,7 @@ class ScoreManager {
   private maxHeight = 0
   private combo = 0
   private maxCombo = 0
+  private keystrokes = 0
   private readonly hidden = new Set<string>()
 
   /** 콤보 배수. 물건이 멈출 때 그 시점의 배수가 점수에 곱해진다 */
@@ -21,12 +23,17 @@ class ScoreManager {
     return Math.min(1 + this.combo * SCORE.comboStep, SCORE.comboMaxMultiplier)
   }
 
-  /** 낙하 중인 단어를 맞췄을 때 */
-  onWordMatched(): void {
+  /**
+   * 낙하 중인 단어를 맞췄을 때.
+   * 타수는 **맞춘 단어만** 센다 — 오타를 쳐도 분모(경과 시간)는 흐르므로
+   * 정확하게 치지 못하면 속도가 저절로 떨어진다.
+   */
+  onWordMatched(word: string): void {
     this.combo += 1
     if (this.combo > this.maxCombo) {
       this.maxCombo = this.combo
     }
+    this.keystrokes += countKeystrokes(word)
   }
 
   /** 물건이 받침대를 벗어나 목숨이 줄었을 때 */
@@ -49,7 +56,7 @@ class ScoreManager {
     }
   }
 
-  stats(missedWords: number, lives: number): RunStats {
+  stats(missedWords: number, lives: number, elapsedSec: number): RunStats {
     return {
       score: this.score,
       stackCount: this.stackCount,
@@ -58,6 +65,7 @@ class ScoreManager {
       lives,
       combo: this.combo,
       maxCombo: this.maxCombo,
+      kpm: keystrokesPerMinute(this.keystrokes, elapsedSec),
       hiddenFound: [...this.hidden],
     }
   }
@@ -68,6 +76,7 @@ class ScoreManager {
     this.maxHeight = 0
     this.combo = 0
     this.maxCombo = 0
+    this.keystrokes = 0
     this.hidden.clear()
   }
 }

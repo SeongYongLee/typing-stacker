@@ -23,7 +23,8 @@ function Hud({ stats, elapsed }: HudProps) {
       <Metric label="쌓기" value={`${stats.stackCount}개`} />
       <Metric label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
       <Metric label="놓친 단어" value={`${stats.missedWords}개`} />
-      <div style={{ marginLeft: 'auto' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 28 }}>
+        <Metric label="타수" value={`${stats.kpm}타`} />
         <Metric label="경과" value={formatTime(elapsed)} />
       </div>
     </div>

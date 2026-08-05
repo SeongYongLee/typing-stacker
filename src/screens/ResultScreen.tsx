@@ -66,6 +66,7 @@ function ResultScreen({ stats, onRestart }: ResultScreenProps) {
           <Row label="쌓은 물건" value={`${stats.stackCount}개`} />
           <Row label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
           <Row label="최고 콤보" value={`x${stats.maxCombo}`} />
+          <Row label="타수" value={`${stats.kpm}타/분`} />
           <Row label="놓친 단어" value={`${stats.missedWords}개`} />
         </dl>
 

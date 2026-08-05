@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { SubmitFeedback } from '../game/core/GameEngine.ts'
 import type { RunStats } from '../game/types/game.ts'
 import type { HangulInput } from '../hooks/useHangulInput.ts'
+import { play } from './animate.ts'
 import { Combo, Lives } from './Vitals.tsx'
 
 interface InputBarProps {
@@ -14,25 +15,6 @@ interface InputBarProps {
 const UNDERLINE = '#2e3448'
 const UNDERLINE_COMPOSING = '#8a6d1f'
 const DANGER = '#ff6b6b'
-
-/**
- * 연출은 상태로 들고 있지 않고 그 자리에서 재생한다 —
- * 엔진이 매 프레임 리렌더를 밀어넣으므로 애니메이션을 렌더에 묶으면 계속 끊긴다.
- * 진행 중인 애니메이션은 지우고 새로 시작해서, 빠르게 두드릴 때 변형이 겹치지 않게 한다.
- */
-function play(
-  element: HTMLElement | null,
-  keyframes: Keyframe[],
-  options: KeyframeAnimationOptions,
-): void {
-  if (element === null || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    return
-  }
-  for (const running of element.getAnimations()) {
-    running.cancel()
-  }
-  element.animate(keyframes, options)
-}
 
 const wrapStyle: CSSProperties = {
   position: 'relative',

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import { LIVES } from '../game/config.ts'
 
 interface TitleScreenProps {
   onStart: () => void
@@ -59,7 +60,14 @@ function TitleScreen({ onStart, ready }: TitleScreenProps) {
           </li>
           <li>어떤 물건이 나올지는 Enter를 누른 뒤에 알 수 있다.</li>
           <li>단어가 바닥선에 닿으면 더 이상 입력할 수 없다.</li>
-          <li>받침대에는 양옆 벽이 없다. 쏠려서 떨어지면 그대로 끝이다.</li>
+          <li>
+            받침대에는 양옆 벽이 없다. 물건이 쏠려서 받침대를 벗어나면{' '}
+            <strong style={{ color: '#ff6b6b' }}>목숨이 하나</strong> 줄어든다.
+          </li>
+          <li>
+            목숨은 <strong style={{ color: '#ff6b6b' }}>{LIVES}개(♥♥♥)</strong>. 다 잃으면
+            게임이 끝난다.
+          </li>
         </ul>
 
         <button

@@ -9,7 +9,12 @@ import { WORDS } from '../data/words.ts'
 import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
-import { difficultyAt } from '../systems/Difficulty.ts'
+import {
+  difficultyAt,
+  stageIndexAt,
+  stageProgressAt,
+  STAGE_COUNT,
+} from '../systems/Difficulty.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
@@ -42,6 +47,16 @@ interface GameState {
   readonly feedback: SubmitFeedback | null
   /** 판이 새로 시작될 때마다 올라간다. UI가 입력창을 초기화하는 신호 */
   readonly runSeq: number
+  readonly difficulty: DifficultyProgress
+}
+
+/** 상단에 "몇 단계"와 "다음 단계까지"를 그리기 위한 값 */
+interface DifficultyProgress {
+  /** 1부터 시작하는 표시용 단계 번호 */
+  readonly stage: number
+  readonly total: number
+  /** 지금 단계가 얼마나 찼는지 (0~1). 최대 단계에서는 1로 고정 */
+  readonly progress: number
 }
 
 interface PendingDrop {
@@ -315,9 +330,14 @@ class GameEngine {
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,
       runSeq: this.runSeq,
+      difficulty: {
+        stage: stageIndexAt(this.elapsed) + 1,
+        total: STAGE_COUNT,
+        progress: stageProgressAt(this.elapsed),
+      },
     })
   }
 }
 
 export { GameEngine }
-export type { GameState, SubmitFeedback }
+export type { DifficultyProgress, GameState, SubmitFeedback }

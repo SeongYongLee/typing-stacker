@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import { LIVES } from '../game/config.ts'
 import type { RunStats } from '../game/types/game.ts'
 
 interface ResultScreenProps {
@@ -40,7 +41,7 @@ function ResultScreen({ stats, onRestart }: ResultScreenProps) {
     <div style={rootStyle}>
       <div style={panelStyle}>
         <p style={{ color: '#ff6b6b', fontSize: 14, letterSpacing: '0.12em' }}>
-          받침대를 벗어났다
+          목숨 {LIVES}개를 모두 잃었다
         </p>
         <div
           style={{

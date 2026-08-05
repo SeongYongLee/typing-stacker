@@ -1,35 +1,59 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useGameEngine } from './hooks/useGameEngine.ts'
+import { useMatchSession } from './hooks/useMatchSession.ts'
 import { GameScreen } from './screens/GameScreen.tsx'
+import { LobbyScreen } from './screens/LobbyScreen.tsx'
+import { MatchScreen } from './screens/MatchScreen.tsx'
 import { ResultScreen } from './screens/ResultScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 
-function App() {
-  const { engine, state } = useGameEngine()
+/** 지금 어느 화면에 있는지. 싱글과 대전은 서로 다른 엔진을 쓴다 */
+type Route = 'title' | 'solo' | 'lobby'
 
-  const start = useCallback(() => {
+function App() {
+  const [route, setRoute] = useState<Route>('title')
+  const { engine, state } = useGameEngine()
+  const match = useMatchSession()
+
+  const startSolo = useCallback(() => {
     if (engine === null) {
       return
     }
     // 판마다 단어 순서가 달라지도록 시드를 새로 뽑는다
     engine.reseed(Date.now() >>> 0)
     engine.startRun()
+    setRoute('solo')
   }, [engine])
 
-  if (engine === null || state === null) {
-    return <TitleScreen onStart={start} ready={false} />
+  const backToTitle = useCallback(() => {
+    match.leave()
+    setRoute('title')
+  }, [match])
+
+  if (route === 'lobby') {
+    const phase = match.phase
+    if (phase?.kind === 'playing' && match.state !== null) {
+      return (
+        <MatchScreen engine={phase.engine} state={match.state} onLeave={backToTitle} />
+      )
+    }
+    return <LobbyScreen phase={phase} onOpen={match.open} onBack={backToTitle} />
   }
 
-  if (state.phase === 'title') {
-    return <TitleScreen onStart={start} ready />
+  if (route === 'title' || engine === null || state === null) {
+    return (
+      <TitleScreen
+        onStart={startSolo}
+        onMultiplayer={() => setRoute('lobby')}
+        ready={engine !== null && state !== null}
+      />
+    )
   }
 
   return (
     <div style={{ position: 'relative', height: '100%' }}>
       <GameScreen engine={engine} state={state} />
-      {state.phase === 'over' && (
-        <ResultScreen stats={state.stats} onRestart={start} />
-      )}
+      {state.phase === 'over' && <ResultScreen stats={state.stats} onRestart={startSolo} />}
     </div>
   )
 }

@@ -126,6 +126,27 @@ describe('MatchState — N명 (2명은 특수 케이스가 아니다)', () => {
   })
 })
 
+describe('MatchState.setTurn — 순서는 방장이 정한 것을 따른다', () => {
+  it('알려준 사람에게 차례를 옮긴다', () => {
+    const match = new MatchState(players('a', 'b', 'c'), 3)
+    expect(match.setTurn('c')).toBe(true)
+    expect(match.currentPlayer).toBe('c')
+  })
+
+  it('모르는 사람이면 무시한다 — 상대가 보낸 값을 그대로 믿지 않는다', () => {
+    const match = new MatchState(players('a', 'b'), 3)
+    expect(match.setTurn('침입자')).toBe(false)
+    expect(match.currentPlayer).toBe('a')
+  })
+
+  it('탈락자에게는 옮기지 않는다', () => {
+    const match = new MatchState(players('a', 'b', 'c'), 1)
+    match.loseLife('b')
+    expect(match.setTurn('b')).toBe(false)
+    expect(match.currentPlayer).toBe('a')
+  })
+})
+
 describe('MatchState.snapshot', () => {
   it('화면이 필요한 값을 한 번에 담는다', () => {
     const match = new MatchState(players('a', 'b'), 3)

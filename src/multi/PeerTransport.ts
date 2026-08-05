@@ -33,9 +33,15 @@ function rtcConfig(hideIp: boolean): RTCConfiguration | undefined {
   return hideIp ? { iceTransportPolicy: 'relay' } : undefined
 }
 
-/** PeerJS 에러 종류를 사용자에게 할 말로 옮긴다 */
-function toFailure(type: string, role: 'host' | 'guest'): TransportFailure {
+/**
+ * PeerJS 에러 종류를 사용자에게 할 말로 옮긴다.
+ * hideIp를 함께 보는 이유는 같은 증상(경로가 안 열림)이 relay 강제 때문일 수 있어서다.
+ */
+function toFailure(type: string, role: 'host' | 'guest', hideIp: boolean): TransportFailure {
   switch (type) {
+    case 'connect-timeout':
+      // 방은 찾았는데 미디어 경로가 안 열린 것이다 — "방이 없다"와 구분해야 한다
+      return failure(hideIp ? 'relayBlocked' : 'peerLost')
     case 'unavailable-id':
       return failure('codeTaken')
     case 'peer-unavailable':
@@ -66,6 +72,7 @@ class PeerTransport implements Transport {
     isHost: boolean,
     roomCode: string | null,
     onEvent: (event: TransportEvent) => void,
+    hideIp: boolean,
   ) {
     this.peer = peer
     this.isHost = isHost
@@ -76,7 +83,7 @@ class PeerTransport implements Transport {
       if (this.closed) return
       this.onEvent({
         kind: 'error',
-        failure: toFailure(error.type ?? 'unknown', isHost ? 'host' : 'guest'),
+        failure: toFailure(error.type ?? 'unknown', isHost ? 'host' : 'guest', hideIp),
       })
     })
 
@@ -106,10 +113,10 @@ class PeerTransport implements Transport {
       const peer = new Peer(ID_PREFIX + code, { config: rtcConfig(hideIp) })
       try {
         await waitForOpen(peer)
-        return new PeerTransport(peer, true, code, options.onEvent)
+        return new PeerTransport(peer, true, code, options.onEvent, hideIp)
       } catch (error) {
         peer.destroy()
-        lastError = toFailure(errorType(error), 'host')
+        lastError = toFailure(errorType(error), 'host', hideIp)
         // 코드 충돌이 아니면 다시 뽑아도 같은 결과다
         if (lastError.kind !== 'codeTaken') {
           throw lastError
@@ -127,16 +134,16 @@ class PeerTransport implements Transport {
       await waitForOpen(peer)
     } catch (error) {
       peer.destroy()
-      throw toFailure(errorType(error), 'guest')
+      throw toFailure(errorType(error), 'guest', hideIp)
     }
 
-    const transport = new PeerTransport(peer, false, code, options.onEvent)
+    const transport = new PeerTransport(peer, false, code, options.onEvent, hideIp)
     const connection = peer.connect(ID_PREFIX + code, { reliable: true })
     try {
-      await waitForConnection(connection)
+      await waitForConnection(peer, connection)
     } catch (error) {
       peer.destroy()
-      throw toFailure(errorType(error), 'guest')
+      throw toFailure(errorType(error), 'guest', hideIp)
     }
     transport.register(connection)
     return transport
@@ -244,16 +251,28 @@ function waitForOpen(peer: Peer, timeoutMs = 12000): Promise<void> {
   })
 }
 
-function waitForConnection(connection: DataConnection, timeoutMs = 15000): Promise<void> {
+/**
+ * 연결이 열리기를 기다린다.
+ *
+ * Peer의 에러도 함께 듣는 이유는 **없는 방 코드일 때 peer-unavailable이 연결이 아니라
+ * Peer 쪽으로 오기** 때문이다. 연결만 보고 있으면 시한이 먼저 끝나 "경로가 안 열렸다"로
+ * 잘못 안내하게 된다 — 오타는 가장 흔한 실수라서 조치가 정확해야 한다.
+ */
+function waitForConnection(
+  peer: Peer,
+  connection: DataConnection,
+  timeoutMs = 15000,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup()
-      reject({ type: 'peer-unavailable' })
+      reject({ type: 'connect-timeout' })
     }, timeoutMs)
     const cleanup = () => {
       clearTimeout(timer)
       connection.off('open', onOpen)
       connection.off('error', onError)
+      peer.off('error', onError)
     }
     const onOpen = () => {
       cleanup()
@@ -265,6 +284,7 @@ function waitForConnection(connection: DataConnection, timeoutMs = 15000): Promi
     }
     connection.on('open', onOpen)
     connection.on('error', onError)
+    peer.on('error', onError)
   })
 }
 

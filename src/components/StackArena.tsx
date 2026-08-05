@@ -1,8 +1,16 @@
 import { useEffect, useRef } from 'react'
-import type { GameEngine } from '../game/core/GameEngine.ts'
+/**
+ * 캔버스를 붙이고 크기를 알려주는 것만 필요하다.
+ * 싱글(GameEngine)과 대전(MatchEngine)이 같은 아레나를 쓰므로 구조로만 받는다.
+ */
+interface ArenaHost {
+  attachCanvas(canvas: HTMLCanvasElement): void
+  detachCanvas(): void
+  handleResize(): void
+}
 
 interface StackArenaProps {
-  engine: GameEngine
+  engine: ArenaHost
 }
 
 /**

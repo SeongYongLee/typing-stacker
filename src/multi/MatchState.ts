@@ -99,6 +99,22 @@ class MatchState {
   }
 
   /**
+   * 방장이 알려준 차례로 맞춘다.
+   *
+   * 게스트가 스스로 nextTurn을 돌리지 않는 이유는 순서가 한 곳에서만 정해져야 하기 때문이다 —
+   * 탈락이 끼면 "다음 사람"이 양쪽에서 달라질 수 있고, 그러면 둘이 서로 자기 차례라고 믿는다.
+   * 모르는 사람이나 탈락자를 가리키면 무시한다.
+   */
+  setTurn(id: PlayerId): boolean {
+    const index = this.order.findIndex((player) => player.id === id)
+    if (index < 0 || !this.isAlive(id)) {
+      return false
+    }
+    this.turnIndex = index
+    return true
+  }
+
+  /**
    * 지금 턴 주인이 탈락했다면 살아있는 사람에게 턴을 옮긴다.
    * 자기 물건이 무너져 스스로 탈락하는 경우가 있어 하트를 깎은 뒤 불러야 한다.
    */

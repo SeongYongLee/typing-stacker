@@ -4,6 +4,7 @@ import { LIVES } from '../game/config.ts'
 
 interface TitleScreenProps {
   onStart: () => void
+  onMultiplayer: () => void
   ready: boolean
 }
 
@@ -23,7 +24,7 @@ const ruleStyle: CSSProperties = {
   maxWidth: 460,
 }
 
-function TitleScreen({ onStart, ready }: TitleScreenProps) {
+function TitleScreen({ onStart, onMultiplayer, ready }: TitleScreenProps) {
   useEffect(() => {
     if (!ready) {
       return
@@ -89,7 +90,27 @@ function TitleScreen({ onStart, ready }: TitleScreenProps) {
             cursor: ready ? 'pointer' : 'default',
           }}
         >
-          {ready ? '시작 (Enter)' : '물리 엔진 준비 중…'}
+          {ready ? '혼자 하기 (Enter)' : '물리 엔진 준비 중…'}
+        </button>
+
+        <button
+          type="button"
+          onClick={onMultiplayer}
+          disabled={!ready}
+          style={{
+            display: 'block',
+            margin: '12px auto 0',
+            padding: '13px 34px',
+            fontSize: 16,
+            fontWeight: 600,
+            borderRadius: 10,
+            border: '1px solid #48507a',
+            background: 'transparent',
+            color: ready ? '#b6bdd4' : '#4a5171',
+            cursor: ready ? 'pointer' : 'default',
+          }}
+        >
+          1대1 대전
         </button>
       </div>
     </div>

@@ -41,6 +41,12 @@ interface TransportHandlers {
 type TransportFailureKind =
   /** 그 방 코드로 기다리는 사람이 없다 */
   | 'roomNotFound'
+  /**
+   * 방은 찾았는데 P2P 경로가 열리지 않았다.
+   * IP를 가리려고 TURN 경유를 강제하면 공용 TURN이 막힌 망에서 이렇게 된다 —
+   * "방이 없다"와 전혀 다른 상황이라 안내도 달라야 한다.
+   */
+  | 'relayBlocked'
   /** 방이 정원을 채웠다 */
   | 'roomFull'
   /** 방 코드가 이미 누군가 쓰고 있다 (방장 쪽) */
@@ -63,6 +69,8 @@ interface TransportFailure {
 
 const FAILURE_TEXT: Record<TransportFailureKind, string> = {
   roomNotFound: '그 코드로 기다리는 방이 없다. 코드를 다시 확인해보자.',
+  relayBlocked:
+    '방은 찾았는데 연결 경로가 열리지 않았다. IP를 가리는 모드가 막힌 망일 수 있다 — 직접 연결로 다시 시도해보자.',
   roomFull: '방이 이미 꽉 찼다.',
   codeTaken: '방 코드가 겹쳤다. 다시 만들면 된다.',
   brokerUnreachable:

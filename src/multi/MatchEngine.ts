@@ -193,6 +193,20 @@ class MatchEngine {
     }
   }
 
+  /**
+   * 검사용 — 지금 아레나에 있는 물건들.
+   * 대전은 두 쪽의 상태가 어긋나면 승패가 갈리므로, 자동 검증이 양쪽을 대조할 통로가 필요하다.
+   */
+  debugBodies(): { itemId: number; variantId: string; owner: string; x: number; y: number }[] {
+    return this.physics.frames().map((frame) => ({
+      itemId: frame.itemId,
+      variantId: frame.variantId,
+      owner: frame.owner,
+      x: frame.x,
+      y: frame.y,
+    }))
+  }
+
   dispose(): void {
     this.loop.stop()
     this.renderer = null
@@ -314,7 +328,10 @@ class MatchEngine {
         }
         break
       case 'turn':
+        // 순서는 방장이 정한 것을 그대로 따른다. 스스로 굴리면 탈락이 끼었을 때
+        // 양쪽이 서로 자기 차례라고 믿게 된다
         if (!this.transport.isHost) {
+          this.match.setTurn(message.current)
           this.resolving = false
           this.suggestion = null
           this.emit()

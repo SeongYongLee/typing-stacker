@@ -36,9 +36,9 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+      # Pages 사이트 자체는 미리 켜져 있어야 한다(Settings → Pages → Source: GitHub Actions).
+      # Actions 토큰으로는 사이트를 만들 수 없어서 enablement 옵션은 여기서 쓸 수 없다.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:

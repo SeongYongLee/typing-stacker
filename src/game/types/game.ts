@@ -20,15 +20,12 @@ type ShapeDef =
   | PrimitiveShape
   | { readonly kind: 'compound'; readonly parts: readonly ShapePart[] }
 
-/** 물건의 겉모습. 스티커 이미지가 있으면 그것을, 없으면 이모지를 쓴다. */
-type ItemArt =
-  | { readonly kind: 'sprite'; readonly src: string }
-  | { readonly kind: 'emoji'; readonly char: string }
-
 interface ItemVariant {
   readonly id: string
   readonly label: string
-  readonly art: ItemArt
+  /** 스티커 이미지 경로 (public 기준) */
+  readonly sprite: string
+  /** 그림이 아직 로드되지 않았을 때 도형을 채우는 색 */
   readonly color: string
   readonly shape: ShapeDef
   /**
@@ -101,7 +98,6 @@ interface RunStats {
 
 export type {
   Vec2,
-  ItemArt,
   PrimitiveShape,
   ShapePart,
   ShapeDef,

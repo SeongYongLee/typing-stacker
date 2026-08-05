@@ -298,7 +298,7 @@ class GameEngine {
           ? null
           : {
               label: reveal.variant.label,
-              art: reveal.variant.art,
+              sprite: reveal.variant.sprite,
               progress: reveal.elapsed / HIDDEN_REVEAL_SEC,
             },
       quake: this.quakeAmplitude,

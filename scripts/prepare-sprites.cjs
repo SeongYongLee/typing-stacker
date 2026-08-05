@@ -10,28 +10,55 @@
  * 메워져서 빈 공간에서 부딪힌다. 그래서 껍질이 아니라 실루엣을 쓴다.
  *
  * 사용법: node scripts/prepare-sprites.cjs
- *   SPRITE_SRC 환경변수로 원본 폴더를 바꿀 수 있다.
+ *   SPRITE_ROOT 환경변수로 원본 폴더들의 상위 경로를 바꿀 수 있다.
+ *
+ * 새 아트가 오면 SOURCES에 폴더와 [파일명, 이름] 쌍을 추가하고 다시 돌린다.
+ * 파일명은 생성기가 붙인 것을 그대로 쓰고, 이름이 게임에서 쓰는 식별자다.
  */
 const fs = require('fs')
 const path = require('path')
 const { chromium } = require('playwright-core')
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const SRC_DIR = process.env.SPRITE_SRC ?? path.join(process.env.HOME, 'Downloads', '이미지 1탄')
+const SRC_ROOT = process.env.SPRITE_ROOT ?? path.join(process.env.HOME, 'Downloads')
 const OUT_DIR = path.join(__dirname, '..', 'public', 'items')
 
-const FILES = [
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_24 (1).png', 'airplane'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_24 (2).png', 'bento'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_24 (3).png', 'bolt'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_25 (4).png', 'clover-four'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_25 (5).png', 'clover-three'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_26 (6).png', 'snail-curled'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_26 (7).png', 'snail'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_27 (8).png', 'umbrella'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_28 (9).png', 'umbrella-folded'],
-  ['ChatGPT Image 2026년 8월 4일 오후 10_51_28 (10).png', 'laptop'],
+const SOURCES = [
+  {
+    dir: '이미지 1탄-ver2',
+    items: [
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_44 (1).png', 'airplane'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_44 (2).png', 'bento'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_45 (3).png', 'bolt'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_45 (4).png', 'clover-four'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_46 (5).png', 'clover-three'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_46 (6).png', 'snail-curled'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_46 (7).png', 'snail'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_47 (8).png', 'umbrella'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_47 (9).png', 'umbrella-folded'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_07_47 (10).png', 'laptop'],
+    ],
+  },
+  {
+    dir: '이미지 2탄',
+    items: [
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_09 (1).png', 'laptop-closed'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_10 (2).png', 'leaf'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_10 (3).png', 'leaf-maple'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_11 (4).png', 'sausage'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_12 (5).png', 'octopus'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_12 (6).png', 'iced-drink'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_12 (7).png', 'cocktail'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_13 (8).png', 'pizza-box'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_14 (9).png', 'pizza-slice'],
+      ['ChatGPT Image 2026년 8월 4일 오후 11_25_14 (10).png', 'tumbler'],
+    ],
+  },
 ]
+
+const FILES = SOURCES.flatMap(({ dir, items }) =>
+  items.map(([file, name]) => [path.join(dir, file), name]),
+)
 
 const ALPHA_THRESHOLD = 100
 const MAX_SIZE = 256
@@ -424,7 +451,7 @@ async function main() {
 
   const summary = []
   for (const [file, name] of FILES) {
-    const buffer = fs.readFileSync(path.join(SRC_DIR, file))
+    const buffer = fs.readFileSync(path.join(SRC_ROOT, file))
     const dataUrl = 'data:image/png;base64,' + buffer.toString('base64')
     const result = await page.evaluate(processInPage, [
       dataUrl,

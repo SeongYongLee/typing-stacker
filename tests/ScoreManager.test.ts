@@ -1,21 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { ScoreManager } from '../src/game/systems/ScoreManager.ts'
 import { ARENA, SCORE } from '../src/game/config.ts'
-import { WORD_BY_TEXT } from '../src/game/data/words.ts'
+import { WORDS } from '../src/game/data/words.ts'
 import type { ItemVariant } from '../src/game/types/game.ts'
 
-function variantOf(word: string, hidden: boolean): ItemVariant {
-  const entry = WORD_BY_TEXT.get(word)
-  if (entry === undefined) throw new Error(`no entry: ${word}`)
-  const found = entry.variants.find((item) => item.hidden === hidden)
-  if (found === undefined) throw new Error(`no variant: ${word} hidden=${hidden}`)
-  return found
+/**
+ * 특정 물건 이름에 묶지 않는다 — 아트가 교체되면 단어 테이블이 통째로 바뀌므로,
+ * 점수 규칙 테스트는 "기본 변형 하나"와 "히든 변형 하나"만 있으면 된다.
+ */
+function anyVariant(hidden: boolean): ItemVariant {
+  for (const entry of WORDS) {
+    const found = entry.variants.find((item) => item.hidden === hidden)
+    if (found !== undefined) return found
+  }
+  throw new Error(`hidden=${hidden} 변형이 테이블에 없다`)
 }
 
 describe('ScoreManager', () => {
   it('물건이 멈추면 개수와 기본 점수가 오른다', () => {
     const score = new ScoreManager()
-    score.onSettled(variantOf('사과', false), ARENA.platformTop)
+    score.onSettled(anyVariant(false), ARENA.platformTop)
     const stats = score.stats(0, 3)
     expect(stats.stackCount).toBe(1)
     expect(stats.score).toBe(SCORE.perItem)
@@ -23,13 +27,13 @@ describe('ScoreManager', () => {
 
   it('높이가 갱신될 때만 높이 보너스를 준다', () => {
     const score = new ScoreManager()
-    const apple = variantOf('사과', false)
+    const item = anyVariant(false)
 
-    score.onSettled(apple, ARENA.platformTop + 1)
+    score.onSettled(item, ARENA.platformTop + 1)
     const afterFirst = score.stats(0, 3).score
 
     // 더 낮은 곳에 멈춘 물건은 높이 보너스를 받지 못한다
-    score.onSettled(apple, ARENA.platformTop + 0.5)
+    score.onSettled(item, ARENA.platformTop + 0.5)
     const afterSecond = score.stats(0, 3).score
 
     expect(afterFirst).toBe(SCORE.perItem + SCORE.perHeightMeter)
@@ -39,31 +43,31 @@ describe('ScoreManager', () => {
 
   it('받침대 아래에서 멈춰도 높이는 음수가 되지 않는다', () => {
     const score = new ScoreManager()
-    score.onSettled(variantOf('사과', false), ARENA.platformTop - 5)
+    score.onSettled(anyVariant(false), ARENA.platformTop - 5)
     expect(score.stats(0, 3).maxHeight).toBe(0)
   })
 
   it('히든 물건은 보너스 점수와 발견 목록에 반영된다', () => {
     const score = new ScoreManager()
-    const hiddenApple = variantOf('사과', true)
-    score.onSettled(hiddenApple, ARENA.platformTop)
+    const hidden = anyVariant(true)
+    score.onSettled(hidden, ARENA.platformTop)
     const stats = score.stats(0, 3)
-    expect(stats.score).toBe(SCORE.perItem + hiddenApple.scoreBonus)
-    expect(stats.hiddenFound).toEqual([hiddenApple.label])
+    expect(stats.score).toBe(SCORE.perItem + hidden.scoreBonus)
+    expect(stats.hiddenFound).toEqual([hidden.label])
   })
 
   it('같은 히든을 또 찾아도 목록에는 한 번만 남는다', () => {
     const score = new ScoreManager()
-    const hiddenApple = variantOf('사과', true)
-    score.onSettled(hiddenApple, ARENA.platformTop)
-    score.onSettled(hiddenApple, ARENA.platformTop)
+    const hidden = anyVariant(true)
+    score.onSettled(hidden, ARENA.platformTop)
+    score.onSettled(hidden, ARENA.platformTop)
     expect(score.stats(0, 3).hiddenFound).toHaveLength(1)
     expect(score.stats(0, 3).stackCount).toBe(2)
   })
 
   it('미스 개수는 그대로 전달만 한다 — 감점은 없다', () => {
     const score = new ScoreManager()
-    score.onSettled(variantOf('사과', false), ARENA.platformTop)
+    score.onSettled(anyVariant(false), ARENA.platformTop)
     expect(score.stats(7, 3).missedWords).toBe(7)
     expect(score.stats(7, 3).score).toBe(SCORE.perItem)
   })
@@ -83,7 +87,7 @@ describe('ScoreManager', () => {
     score.onWordMatched()
     score.onWordMatched()
     // 물건이 멈추거나 미스가 나도 콤보는 유지된다
-    score.onSettled(variantOf('사과', false), ARENA.platformTop)
+    score.onSettled(anyVariant(false), ARENA.platformTop)
     expect(score.stats(9, 3).combo).toBe(2)
 
     score.onLifeLost()
@@ -94,11 +98,11 @@ describe('ScoreManager', () => {
 
   it('콤보 배수가 착지 점수에 곱해진다', () => {
     const plain = new ScoreManager()
-    plain.onSettled(variantOf('사과', false), ARENA.platformTop)
+    plain.onSettled(anyVariant(false), ARENA.platformTop)
 
     const combod = new ScoreManager()
     for (let i = 0; i < 5; i += 1) combod.onWordMatched()
-    combod.onSettled(variantOf('사과', false), ARENA.platformTop)
+    combod.onSettled(anyVariant(false), ARENA.platformTop)
 
     expect(combod.multiplier).toBeCloseTo(1 + 5 * SCORE.comboStep)
     expect(combod.stats(0, 3).score).toBeGreaterThan(plain.stats(0, 3).score)
@@ -118,7 +122,7 @@ describe('ScoreManager', () => {
   it('reset은 모든 상태를 되돌린다', () => {
     const score = new ScoreManager()
     score.onWordMatched()
-    score.onSettled(variantOf('사과', true), ARENA.platformTop + 3)
+    score.onSettled(anyVariant(true), ARENA.platformTop + 3)
     score.reset()
     const stats = score.stats(0, 3)
     expect(stats).toMatchObject({

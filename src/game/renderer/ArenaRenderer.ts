@@ -1,16 +1,10 @@
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
-import type {
-  BodySnapshot,
-  ItemArt,
-  PrimitiveShape,
-  ShapeDef,
-  ShapePart,
-} from '../types/game.ts'
+import type { BodySnapshot, PrimitiveShape, ShapeDef, ShapePart } from '../types/game.ts'
 
 interface HiddenReveal {
   readonly label: string
-  readonly art: ItemArt
+  readonly sprite: string
   /** 0 → 1 */
   readonly progress: number
 }
@@ -36,28 +30,19 @@ const COLORS = {
   hidden: '#ffcf5c',
 } as const
 
-const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
 /**
  * index.css의 --sans와 같은 스택.
  * canvas의 font는 CSS 변수를 해석하지 못하고, 해석에 실패하면 대입 자체가 무시되어
  * 직전 폰트(고스트 이모지 크기)가 그대로 남는다 — 그래서 값을 여기에 펼쳐 쓴다.
  */
 const UI_FONT = "system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
-/** 이모지 글리프를 이 크기로 한 번 재고, 실제 도형 크기에 맞춰 늘려 그린다 */
-const GLYPH_BASE = 100
 
 const WORLD_HEIGHT = ARENA.height - ARENA.killY
 const WORLD_WIDTH = ARENA.halfWidth * 2
 
-interface GlyphMetrics {
-  readonly width: number
-  readonly height: number
-}
-
 class ArenaRenderer {
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
-  private readonly glyphCache = new Map<string, GlyphMetrics>()
   private readonly imageCache = new Map<string, HTMLImageElement>()
   private scale = 1
   private cssWidth = 0
@@ -228,19 +213,12 @@ class ArenaRenderer {
 
     ctx.globalAlpha = alpha * 0.2
     const ghost = unit * (1.3 + t * 0.5)
-    if (reveal.art.kind === 'sprite') {
-      const img = this.image(reveal.art.src)
-      if (img !== null) {
-        const ratio = img.naturalWidth / img.naturalHeight
-        const w = ratio >= 1 ? ghost : ghost * ratio
-        const h = ratio >= 1 ? ghost / ratio : ghost
-        ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h)
-      }
-    } else {
-      ctx.font = `${ghost}px ${EMOJI_FONT}`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(reveal.art.char, cx, cy)
+    const img = this.image(reveal.sprite)
+    if (img !== null) {
+      const ratio = img.naturalWidth / img.naturalHeight
+      const w = ratio >= 1 ? ghost : ghost * ratio
+      const h = ratio >= 1 ? ghost / ratio : ghost
+      ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h)
     }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -265,7 +243,7 @@ class ArenaRenderer {
     // 월드는 y가 위로 +, 캔버스는 아래로 + 이므로 회전 방향을 뒤집는다
     ctx.rotate(-body.rotation)
 
-    const drawn = this.drawArt(body.variant.art, body.variant.artBounds)
+    const drawn = this.drawSprite(body.variant.sprite, body.variant.artBounds)
 
     // 그림이 아직 로드되지 않았으면 충돌 도형만이라도 보여준다
     if (!drawn) {
@@ -283,51 +261,15 @@ class ArenaRenderer {
   }
 
   /** 그림을 물건의 원래 크기에 맞춰 그린다 — 보이는 것과 부딪히는 것이 같아야 한다 */
-  private drawArt(art: ItemArt, bounds: Bounds): boolean {
-    const { ctx } = this
-    const targetWidth = bounds.hw * 2 * this.scale
-    const targetHeight = bounds.hh * 2 * this.scale
-
-    if (art.kind === 'sprite') {
-      const img = this.image(art.src)
-      if (img === null) {
-        return false
-      }
-      ctx.drawImage(img, -targetWidth / 2, -targetHeight / 2, targetWidth, targetHeight)
-      return true
+  private drawSprite(src: string, bounds: Bounds): boolean {
+    const img = this.image(src)
+    if (img === null) {
+      return false
     }
-
-    const metrics = this.glyphMetrics(art.char)
-    ctx.save()
-    ctx.scale(targetWidth / metrics.width, targetHeight / metrics.height)
-    ctx.font = `${GLYPH_BASE}px ${EMOJI_FONT}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(art.char, 0, 0)
-    ctx.restore()
+    const width = bounds.hw * 2 * this.scale
+    const height = bounds.hh * 2 * this.scale
+    this.ctx.drawImage(img, -width / 2, -height / 2, width, height)
     return true
-  }
-
-  private glyphMetrics(emoji: string): GlyphMetrics {
-    const cached = this.glyphCache.get(emoji)
-    if (cached !== undefined) {
-      return cached
-    }
-    const { ctx } = this
-    ctx.save()
-    ctx.font = `${GLYPH_BASE}px ${EMOJI_FONT}`
-    ctx.textBaseline = 'middle'
-    const measured = ctx.measureText(emoji)
-    ctx.restore()
-
-    const height =
-      measured.actualBoundingBoxAscent + measured.actualBoundingBoxDescent || GLYPH_BASE
-    const metrics: GlyphMetrics = {
-      width: measured.width || GLYPH_BASE,
-      height,
-    }
-    this.glyphCache.set(emoji, metrics)
-    return metrics
   }
 
   private partsOf(shape: ShapeDef): readonly ShapePart[] {

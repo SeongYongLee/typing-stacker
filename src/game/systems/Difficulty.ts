@@ -14,7 +14,11 @@ const HARD: DifficultyLevel = {
   spawnInterval: 0.75,
   fallDuration: 4.6,
   aimSpeed: 0.74,
-  maxConcurrent: 8,
+  /**
+   * 단어 풀이 13개다. 활성 단어의 글자 중복을 막으므로 상한이 풀 크기에 가까우면
+   * 화면이 거의 전체 어휘로 채워져 스폰이 막히고 플레이도 단조로워진다.
+   */
+  maxConcurrent: 7,
 }
 
 function lerp(from: number, to: number, t: number): number {

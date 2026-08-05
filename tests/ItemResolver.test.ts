@@ -26,7 +26,11 @@ describe('resolveItem', () => {
 
   it('히든이 나오기도 하고 안 나오기도 한다', () => {
     const rng = createRng(2024)
-    const results = Array.from({ length: 600 }, () => resolveItem('사과', rng))
+    const withHidden = WORDS.find((entry) => entry.variants.some((v) => v.hidden))
+    expect(withHidden).toBeDefined()
+    const results = Array.from({ length: 600 }, () =>
+      resolveItem(withHidden!.word, rng),
+    )
     const hiddenCount = results.filter((item) => item.hidden).length
     expect(hiddenCount).toBeGreaterThan(0)
     expect(hiddenCount).toBeLessThan(results.length)

@@ -37,7 +37,8 @@ function variant(input: VariantInput): ItemVariant {
   return {
     id: input.id,
     label: input.label,
-    sprite: `/items/${input.sprite}.png`,
+    // GitHub Pages는 저장소 이름을 경로로 붙이므로 루트 절대 경로로 두면 404가 된다
+    sprite: `${import.meta.env.BASE_URL}items/${input.sprite}.png`,
     color: input.color,
     shape: spriteShape(input.sprite, input.size),
     artBounds: spriteBounds(input.sprite, input.size),

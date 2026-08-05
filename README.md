@@ -1,17 +1,22 @@
 # 타자 스태커
 
+[![CI](https://github.com/SeongYongLee/typing-stacker/actions/workflows/ci.yml/badge.svg)](https://github.com/SeongYongLee/typing-stacker/actions/workflows/ci.yml)
+
+**▶ 플레이: https://seongyonglee.github.io/typing-stacker/** (데스크톱 · 물리 키보드)
+
 한글 타자게임과 물리 쌓기를 합친 웹 게임. 좌우에서 내려오는 단어를 타이핑하면, 그 단어에 해당하는 물건이 가운데 받침대 위로 떨어져 쌓인다.
 
 **핵심 규칙은 Enter 하나다.** Enter를 누른 순간 입력이 확정되고, 그 순간의 조준 화살표 위치로 물건이 곧바로 떨어진다. 그래서 "단어가 바닥에 닿기 전에 빨리 쳐야 한다"와 "원하는 위치에 떨구려면 타이핑 완료 시점을 맞춰야 한다"가 정면으로 충돌한다. 어떤 물건이 나올지는 Enter를 누른 뒤에야 알 수 있고, 낮은 확률로 모양이 다른 히든 변형이 나온다.
 
-받침대에는 **양옆 벽이 없다.** 물건이 받침대를 벗어나면 목숨이 하나 줄고, 목숨 3개가 다 떨어지면 끝난다. 콤보는 단어를 맞출 때마다 오르고 목숨을 잃을 때만 초기화된다.
+받침대에는 **양옆 벽이 없다.** 물건이 받침대를 벗어나면 목숨이 하나 줄고, 목숨 3개가 다 떨어지면 끝난다. 콤보는 단어를 맞출 때마다 오르고 목숨을 잃을 때만 초기화된다. 타자게임이므로 분당 타수도 함께 보여준다 — 맞춘 단어의 두벌식 키 수를 경과 시간으로 나눈 값이다.
 
 ```bash
 pnpm install
 pnpm dev        # http://localhost:5173
-pnpm test       # 단위 테스트 71개
+pnpm test       # 단위 테스트 78개
 pnpm typecheck
 pnpm lint
+pnpm build
 ```
 
 데스크톱 가로 화면 + 물리 키보드 전용이다. 타자게임이므로 모바일은 지원하지 않는다.
@@ -50,7 +55,8 @@ src/
                   TypingJudge  입력 → 활성 단어 매칭
                   Aimer        화살표 위치 (삼각파, 등속)
                   ItemResolver 단어 → 물건 + 히든 롤
-                  ScoreManager 점수/콤보
+                  ScoreManager 점수/콤보/타수 집계
+                  TypingSpeed  한글 → 두벌식 키 수, 분당 타수 환산
                   Difficulty   경과 시간 → 스폰 간격·낙하 속도
                   Rng          mulberry32 시드 난수
     physics/      PhysicsWorld(Rapier), collapseDetector(이탈 판정)
@@ -63,7 +69,7 @@ src/
   hooks/          useGameEngine, useHangulInput
 scripts/
   prepare-sprites.cjs   스티커 → 크롭·축소·실루엣 분해 (빌드타임)
-tests/            순수 시스템 + 물리 단위 테스트 71개
+tests/            순수 시스템 + 물리 단위 테스트 78개
 ```
 
 **React는 껍데기다.** 게임 상태는 `GameEngine`이 소유하고 프레임마다 스냅샷을 콜백으로 밀어주며, React는 그것만 그린다. 게임 루프를 React 렌더 주기에 묶지 않기 위한 것이다.
@@ -137,3 +143,5 @@ SPRITE_ROOT=~/Downloads node scripts/prepare-sprites.cjs
 ## 현재 상태
 
 싱글 모드는 플레이 가능하다. 물건은 전부 스티커 아트이고(20종, 단어 13개), 이모지는 쓰지 않는다. 아트가 더 준비되면 파이프라인에 넣고 단어를 늘리면 된다. 1대1 멀티는 다음 작업이고, 남은 과제와 판단 근거는 `CLAUDE.md`에 정리해뒀다.
+
+`main`에 푸시하면 GitHub Actions가 typecheck·테스트를 돌린 뒤 GitHub Pages로 배포한다. Pages는 저장소 이름을 경로로 붙이므로 빌드에서만 `base`를 바꾸고, 런타임에서 만드는 스프라이트 경로는 `import.meta.env.BASE_URL`을 앞에 붙인다 — 로컬 개발 서버는 계속 루트로 뜬다.

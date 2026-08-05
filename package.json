@@ -2,7 +2,9 @@
   "name": "typing-stacker",
   "private": true,
   "version": "0.0.0",
+  "description": "한글 타자게임 + 물리 쌓기. Enter 하나가 입력 확정과 조준을 동시에 한다",
   "type": "module",
+  "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

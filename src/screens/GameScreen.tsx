@@ -120,6 +120,7 @@ function useMomentNotice(
   const [notice, setNotice] = useState<Moment | null>(null)
   const previous = useRef(value)
   const seq = useRef(0)
+  const timer = useRef(0)
 
   useEffect(() => {
     const moment = isMoment(previous.current, value)
@@ -129,11 +130,22 @@ function useMomentNotice(
     }
     seq.current += 1
     setNotice({ seq: seq.current, value })
-    const timer = setTimeout(() => setNotice(null), NOTICE_MS)
-    return () => clearTimeout(timer)
+    /*
+     * 사라지는 타이머를 value에 매달지 않는다.
+     *
+     * 정리 함수로 되돌리면 **표시 중에 값이 또 바뀔 때** 그 타이머가 지워진다.
+     * 그 변화가 알릴 일이 아니면(놓친 단어가 1 → 2처럼) 새 타이머도 걸리지 않아
+     * 알림이 화면에 영원히 남는다. 게다가 연출 애니메이션에는 fill이 없어서
+     * 끝나면 opacity 1로 되돌아오므로, 남은 알림은 흐려지지도 않고 그대로 보인다.
+     * 타이머의 주인은 알림 자신이다 — 새 알림이 뜰 때만 교체된다.
+     */
+    clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setNotice(null), NOTICE_MS)
     // isMoment는 매 렌더 새로 만들어지므로 의존성에서 뺀다 — 값이 바뀔 때만 판정한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   return notice
 }
@@ -157,7 +169,10 @@ function Notice({
         { opacity: 1, transform: 'none', offset: 0.72 },
         { opacity: 0, transform: 'translateY(-8px)' },
       ],
-      { duration: NOTICE_MS, easing: 'ease-out' },
+      // fill을 두지 않으면 애니메이션이 끝난 뒤 기본 스타일(opacity 1)로 되돌아온다.
+      // 알림을 지우는 쪽이 한 번이라도 어긋나면 그대로 화면에 박혀버리므로,
+      // 쉬는 자리를 "사라진 상태"로 둔다
+      { duration: NOTICE_MS, easing: 'ease-out', fill: 'forwards' },
     )
   }, [])
 

@@ -1,0 +1,227 @@
+/**
+ * 대전 메시지 규약.
+ *
+ * P2P라서 서버가 걸러주지 않는다 — **상대가 보낸 것은 전부 거짓일 수 있다**는 전제로
+ * 스키마와 값 범위를 여기서 검증한다. 규칙 검증(내 턴인지, 그 단어가 실제로 있었는지)은
+ * 상태를 아는 MatchState가 맡는다.
+ *
+ * 토폴로지는 스타다. 방장이 허브이고 모든 메시지가 방장을 거쳐 재분배되므로
+ * 순서가 하나로 정해진다. 2명이든 N명이든 같은 구조다.
+ */
+
+/** 한 방에 들어올 수 있는 인원. 늘리기만 하면 N명이 된다 */
+const MAX_PLAYERS = 2
+
+/** 방 코드 길이. 짧으면 무작위 대입으로 남의 방에 들어올 수 있다 */
+const ROOM_CODE_LENGTH = 8
+
+/** 사람이 읽고 불러줄 코드라 0/O, 1/l 처럼 헷갈리는 글자는 뺀다 */
+const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
+
+const NICKNAME_MAX = 12
+
+type PlayerId = string
+
+interface PlayerInfo {
+  readonly id: PlayerId
+  readonly nickname: string
+}
+
+/** 참가자 → 방장 */
+type ToHost =
+  | { readonly t: 'hello'; readonly nickname: string }
+  /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
+  | { readonly t: 'drop'; readonly word: string; readonly aimX: number }
+  /** 상대 턴에 단어를 지목한다 (강제력 없음) */
+  | { readonly t: 'suggest'; readonly word: string }
+
+/** 방장 → 참가자 */
+type ToGuest =
+  | { readonly t: 'welcome'; readonly you: PlayerId; readonly players: readonly PlayerInfo[] }
+  | { readonly t: 'full' }
+  | { readonly t: 'start'; readonly seed: number; readonly players: readonly PlayerInfo[] }
+  /** 누가 무엇을 떨궜는지. 양쪽이 같은 물건을 같은 자리에 만들기 위한 것 */
+  | {
+      readonly t: 'dropped'
+      readonly by: PlayerId
+      readonly word: string
+      readonly aimX: number
+      readonly variantId: string
+    }
+  | { readonly t: 'suggested'; readonly by: PlayerId; readonly word: string }
+  | { readonly t: 'turn'; readonly current: PlayerId }
+  | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[] }
+  /** 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다 */
+  | { readonly t: 'sync'; readonly bodies: readonly BodyFrame[] }
+  | { readonly t: 'over'; readonly winner: PlayerId | null }
+
+type Message = ToHost | ToGuest
+
+interface BodyFrame {
+  readonly handle: number
+  readonly variantId: string
+  readonly owner: PlayerId
+  readonly x: number
+  readonly y: number
+  readonly rotation: number
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isShortString(value: unknown, max: number): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= max
+}
+
+function sanitizeNickname(raw: unknown): string {
+  if (typeof raw !== 'string') {
+    return '이름없음'
+  }
+  // 줄바꿈·제어문자가 섞이면 화면이 깨진다. 길이도 잘라야 레이아웃이 버틴다
+  const cleaned = raw.replace(/[\p{Cc}\p{Cf}]/gu, '').trim()
+  return cleaned.length === 0 ? '이름없음' : cleaned.slice(0, NICKNAME_MAX)
+}
+
+/**
+ * 상대에게서 온 값을 신뢰하기 전에 통과시켜야 하는 문. 모르는 메시지는 버린다.
+ * 단어가 실제로 화면에 있었는지 같은 규칙 검증은 여기서 하지 않는다 — 상태를 봐야 한다.
+ */
+function parseMessage(raw: unknown): Message | null {
+  if (!isRecord(raw) || typeof raw['t'] !== 'string') {
+    return null
+  }
+
+  switch (raw['t']) {
+    case 'hello':
+      return { t: 'hello', nickname: sanitizeNickname(raw['nickname']) }
+    case 'drop':
+      if (!isShortString(raw['word'], 20) || !isFiniteNumber(raw['aimX'])) return null
+      return { t: 'drop', word: raw['word'], aimX: raw['aimX'] }
+    case 'suggest':
+      if (!isShortString(raw['word'], 20)) return null
+      return { t: 'suggest', word: raw['word'] }
+    case 'welcome':
+      if (!isShortString(raw['you'], 64) || !Array.isArray(raw['players'])) return null
+      return { t: 'welcome', you: raw['you'], players: parsePlayers(raw['players']) }
+    case 'full':
+      return { t: 'full' }
+    case 'start':
+      if (!isFiniteNumber(raw['seed']) || !Array.isArray(raw['players'])) return null
+      return { t: 'start', seed: raw['seed'], players: parsePlayers(raw['players']) }
+    case 'dropped':
+      if (
+        !isShortString(raw['by'], 64) ||
+        !isShortString(raw['word'], 20) ||
+        !isFiniteNumber(raw['aimX']) ||
+        !isShortString(raw['variantId'], 40)
+      )
+        return null
+      return {
+        t: 'dropped',
+        by: raw['by'],
+        word: raw['word'],
+        aimX: raw['aimX'],
+        variantId: raw['variantId'],
+      }
+    case 'suggested':
+      if (!isShortString(raw['by'], 64) || !isShortString(raw['word'], 20)) return null
+      return { t: 'suggested', by: raw['by'], word: raw['word'] }
+    case 'turn':
+      if (!isShortString(raw['current'], 64)) return null
+      return { t: 'turn', current: raw['current'] }
+    case 'lives': {
+      if (!Array.isArray(raw['lives'])) return null
+      const lives: [PlayerId, number][] = []
+      for (const entry of raw['lives']) {
+        if (!Array.isArray(entry) || entry.length !== 2) continue
+        const [id, count] = entry
+        if (!isShortString(id, 64) || !isFiniteNumber(count)) continue
+        lives.push([id, Math.max(0, Math.floor(count))])
+      }
+      return { t: 'lives', lives }
+    }
+    case 'sync': {
+      if (!Array.isArray(raw['bodies'])) return null
+      const bodies: BodyFrame[] = []
+      for (const entry of raw['bodies']) {
+        const frame = parseBodyFrame(entry)
+        if (frame !== null) bodies.push(frame)
+      }
+      return { t: 'sync', bodies }
+    }
+    case 'over': {
+      const winner = raw['winner']
+      if (winner !== null && !isShortString(winner, 64)) return null
+      return { t: 'over', winner: winner as PlayerId | null }
+    }
+    default:
+      return null
+  }
+}
+
+function parsePlayers(raw: readonly unknown[]): PlayerInfo[] {
+  const players: PlayerInfo[] = []
+  for (const entry of raw) {
+    if (!isRecord(entry) || !isShortString(entry['id'], 64)) continue
+    players.push({ id: entry['id'], nickname: sanitizeNickname(entry['nickname']) })
+    if (players.length >= MAX_PLAYERS) break
+  }
+  return players
+}
+
+function parseBodyFrame(raw: unknown): BodyFrame | null {
+  if (!isRecord(raw)) return null
+  if (
+    !isFiniteNumber(raw['handle']) ||
+    !isShortString(raw['variantId'], 40) ||
+    !isShortString(raw['owner'], 64) ||
+    !isFiniteNumber(raw['x']) ||
+    !isFiniteNumber(raw['y']) ||
+    !isFiniteNumber(raw['rotation'])
+  ) {
+    return null
+  }
+  return {
+    handle: raw['handle'],
+    variantId: raw['variantId'],
+    owner: raw['owner'],
+    x: raw['x'],
+    y: raw['y'],
+    rotation: raw['rotation'],
+  }
+}
+
+/** 방 코드. Rng를 주입받아 테스트에서 재현할 수 있게 한다 */
+function createRoomCode(next: () => number): string {
+  let code = ''
+  for (let i = 0; i < ROOM_CODE_LENGTH; i += 1) {
+    const index = Math.floor(next() * ROOM_CODE_ALPHABET.length)
+    code += ROOM_CODE_ALPHABET[Math.min(index, ROOM_CODE_ALPHABET.length - 1)]
+  }
+  return code
+}
+
+function isRoomCode(value: string): boolean {
+  if (value.length !== ROOM_CODE_LENGTH) return false
+  for (const char of value) {
+    if (!ROOM_CODE_ALPHABET.includes(char)) return false
+  }
+  return true
+}
+
+export {
+  MAX_PLAYERS,
+  ROOM_CODE_LENGTH,
+  ROOM_CODE_ALPHABET,
+  NICKNAME_MAX,
+  parseMessage,
+  sanitizeNickname,
+  createRoomCode,
+  isRoomCode,
+}
+export type { PlayerId, PlayerInfo, ToHost, ToGuest, Message, BodyFrame }

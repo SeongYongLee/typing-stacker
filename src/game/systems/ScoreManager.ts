@@ -39,6 +39,16 @@ class ScoreManager {
     this.keystrokes += countKeystrokes(word)
   }
 
+  /**
+   * 재료를 붙여 물건을 만들어냈을 때.
+   * 운으로 만난 히든보다 값을 더 쳐준다 — 합성은 자리를 만들고 재료를 고른
+   * 결과이지 운이 아니다.
+   */
+  onCrafted(variant: ItemVariant): void {
+    this.hidden.add(variant.label)
+    this.score += SCORE.craftBonus + variant.scoreBonus
+  }
+
   /** 물건이 받침대를 벗어나 목숨이 줄었을 때 */
   onLifeLost(): void {
     this.combo = 0

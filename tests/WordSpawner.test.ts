@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { WordSpawner } from '../src/game/systems/WordSpawner.ts'
 import { createRng } from '../src/game/systems/Rng.ts'
-import { difficultyAt } from '../src/game/systems/Difficulty.ts'
+import { DIFFICULTY } from '../src/game/systems/Difficulty.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { WORD } from '../src/game/config.ts'
 
-function run(spawner: WordSpawner, seconds: number, elapsedStart = 0): void {
+function run(spawner: WordSpawner, seconds: number): void {
   const dt = 1 / 60
   for (let t = 0; t < seconds; t += dt) {
-    spawner.update(dt, difficultyAt(elapsedStart + t))
+    spawner.update(dt, DIFFICULTY)
   }
 }
 
 describe('WordSpawner', () => {
   it('첫 업데이트에 바로 첫 단어가 나온다', () => {
     const spawner = new WordSpawner(createRng(1), WORDS)
-    spawner.update(1 / 60, difficultyAt(0))
+    spawner.update(1 / 60, DIFFICULTY)
     expect(spawner.words).toHaveLength(1)
   })
 
@@ -23,7 +23,7 @@ describe('WordSpawner', () => {
     const spawner = new WordSpawner(createRng(42), WORDS)
     const dt = 1 / 60
     for (let t = 0; t < 240; t += dt) {
-      spawner.update(dt, difficultyAt(t))
+      spawner.update(dt, DIFFICULTY)
       const active = spawner.words.filter((word) => word.state === 'active')
       const texts = active.map((word) => word.word)
       expect(new Set(texts).size).toBe(texts.length)
@@ -34,7 +34,7 @@ describe('WordSpawner', () => {
     const spawner = new WordSpawner(createRng(7), WORDS)
     const dt = 1 / 60
     for (let t = 0; t < 240; t += dt) {
-      spawner.update(dt, difficultyAt(t))
+      spawner.update(dt, DIFFICULTY)
       for (const side of ['left', 'right'] as const) {
         const slots = spawner.words
           .filter((word) => word.state === 'active' && word.side === side)
@@ -51,10 +51,9 @@ describe('WordSpawner', () => {
     const spawner = new WordSpawner(createRng(3), WORDS)
     const dt = 1 / 60
     for (let t = 0; t < 240; t += dt) {
-      const difficulty = difficultyAt(t)
-      spawner.update(dt, difficulty)
+      spawner.update(dt, DIFFICULTY)
       const active = spawner.words.filter((word) => word.state === 'active')
-      expect(active.length).toBeLessThanOrEqual(difficulty.maxConcurrent)
+      expect(active.length).toBeLessThanOrEqual(DIFFICULTY.maxConcurrent)
     }
   })
 
@@ -100,7 +99,7 @@ describe('WordSpawner', () => {
     spawner.reset()
     expect(spawner.words).toHaveLength(0)
     expect(spawner.missedCount).toBe(0)
-    spawner.update(1 / 60, difficultyAt(0))
+    spawner.update(1 / 60, DIFFICULTY)
     expect(spawner.words).toHaveLength(1)
   })
 })

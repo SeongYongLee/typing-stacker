@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { GameEngine, type GameState } from '../game/core/GameEngine.ts'
+import { loadCollection, saveCollection } from '../storage/collection.ts'
 
 interface UseGameEngine {
   readonly engine: GameEngine | null
@@ -20,13 +21,15 @@ function useGameEngine(): UseGameEngine {
 
     // 시드 자체는 매 세션 달라야 하므로 경계에서만 시간을 쓴다.
     // 시드가 정해진 뒤로는 모든 난수가 재현 가능하다 (1대1 멀티 대비).
-    void GameEngine.create(Date.now() >>> 0).then((instance) => {
+    // 도감은 판을 넘어 남는다. 저장소를 아는 것은 이 경계뿐이다
+    void GameEngine.create(Date.now() >>> 0, loadCollection()).then((instance) => {
       if (disposed) {
         instance.dispose()
         return
       }
       created = instance
       instance.onStateChange(setState)
+      instance.onCollectionChange(saveCollection)
       setEngine(instance)
     })
 

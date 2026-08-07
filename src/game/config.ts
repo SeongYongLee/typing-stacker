@@ -60,6 +60,16 @@ const SETTLE_HOLD_SEC = 0.35
 const LIVES = 3
 
 /**
+ * 목숨을 잃은 뒤 이만큼은 더 깎이지 않는다.
+ *
+ * 탑이 무너지면 물건이 하나씩 떨어지는 게 아니라 우수수 쏟아진다. 이탈을 각각 세면
+ * 한 번의 무너짐으로 목숨 3개가 다 날아가서, 목숨이 3개인 의미가 사라진다.
+ * 이 시간은 그 연쇄를 한 번의 실수로 묶어준다 — 쏟아지는 것이 끝날 만큼은 되고,
+ * 다시 쌓기 시작할 때까지 남을 만큼 길지는 않은 값이다.
+ */
+const INVULNERABLE_SEC = 2
+
+/**
  * 싱글에서 쓰는 주인 식별자.
  * 물리 층은 물건마다 주인을 들고 있어야 한다 — 멀티에서 물건이 벗어나면
  * 떨어뜨린 사람이 아니라 쌓은 사람의 목숨이 깎이기 때문이다. 싱글은 주인이 하나뿐이다.
@@ -82,6 +92,8 @@ const SCORE = {
    * 구분되어야 한다.
    */
   accuracyFloor: 0.4,
+  /** 합성으로 만들어낸 물건에 얹는 점수 */
+  craftBonus: 260,
 } as const
 
 const WORD = {
@@ -133,6 +145,7 @@ export {
   SETTLE_HOLD_SEC,
   SCORE,
   LIVES,
+  INVULNERABLE_SEC,
   SOLO_OWNER,
   WORD,
   ARENA_SCREEN_MAX_WIDTH,

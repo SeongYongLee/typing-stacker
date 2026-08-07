@@ -1,6 +1,7 @@
 import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
+  INVULNERABLE_SEC,
   LIVES,
   SOLO_OWNER,
   QUAKE_DURATION,
@@ -10,14 +11,12 @@ import { WORDS } from '../data/words.ts'
 import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
-import {
-  difficultyAt,
-  stageIndexAt,
-  stageProgressAt,
-  STAGE_COUNT,
-} from '../systems/Difficulty.ts'
+import { DIFFICULTY } from '../systems/Difficulty.ts'
+import { RECIPES } from '../data/recipes.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
+import { findMerge } from '../systems/Merger.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
+import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
@@ -49,16 +48,15 @@ interface GameState {
   readonly feedback: SubmitFeedback | null
   /** 판이 새로 시작될 때마다 올라간다. UI가 입력창을 초기화하는 신호 */
   readonly runSeq: number
-  readonly difficulty: DifficultyProgress
-}
-
-/** 상단에 "몇 단계"와 "다음 단계까지"를 그리기 위한 값 */
-interface DifficultyProgress {
-  /** 1부터 시작하는 표시용 단계 번호 */
-  readonly stage: number
-  readonly total: number
-  /** 지금 단계가 얼마나 찼는지 (0~1). 최대 단계에서는 1로 고정 */
-  readonly progress: number
+  /**
+   * 남은 무적 시간의 비율(1 → 방금 깎였다, 0 → 무적 아님).
+   * 하트에 씌우는 베리어가 이 값으로 옅어진다.
+   */
+  readonly invulnerable: number
+  /** 지금까지 도감에 모은 히든 물건 id */
+  readonly collected: readonly string[]
+  /** 그중 이번 판에 처음 만난 것 */
+  readonly freshlyCollected: readonly string[]
 }
 
 interface PendingDrop {
@@ -76,6 +74,9 @@ class GameEngine {
   private readonly physics: PhysicsWorld
   private readonly loop = new GameLoop()
   private readonly score = new ScoreManager()
+  private readonly collection: Collection
+  /** 도감에 새 칸이 채워졌을 때. 바깥이 저장을 맡는다 */
+  private onDiscover: ((ids: readonly string[]) => void) | null = null
   private rng: Rng
   private spawner: WordSpawner
   private aimer = new Aimer(AIM_HALF_RANGE)
@@ -93,23 +94,31 @@ class GameEngine {
   private quakeStrength = 0
   private quakePhase = 0
   private lives = LIVES
+  /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
+  private invulnerableLeft = 0
   private runSeq = 0
   private readonly dropQueue: PendingDrop[] = []
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: GameState) => void) | null = null
 
-  private constructor(physics: PhysicsWorld, seed: number) {
+  private constructor(physics: PhysicsWorld, seed: number, known: readonly string[]) {
     this.physics = physics
     this.seed = seed
+    this.collection = new Collection(known)
     this.rng = createRng(seed)
     this.spawner = new WordSpawner(this.rng, WORDS)
     this.loop.setCallbacks(this.update, this.render)
   }
 
-  static async create(seed: number): Promise<GameEngine> {
+  static async create(seed: number, known: readonly string[] = []): Promise<GameEngine> {
     const physics = await PhysicsWorld.create()
-    return new GameEngine(physics, seed)
+    return new GameEngine(physics, seed, known)
+  }
+
+  /** 도감이 늘어날 때마다 부른다. 저장은 바깥(브라우저를 아는 쪽)이 한다 */
+  onCollectionChange(listener: (ids: readonly string[]) => void): void {
+    this.onDiscover = listener
   }
 
   onStateChange(listener: (state: GameState) => void): void {
@@ -138,6 +147,7 @@ class GameEngine {
     this.sinceLastDrop = Number.POSITIVE_INFINITY
     this.collapseTimer = 0
     this.lives = LIVES
+    this.invulnerableLeft = 0
     this.hiddenReveal = null
     this.quakeLeft = 0
     this.quakeStrength = 0
@@ -147,6 +157,7 @@ class GameEngine {
     this.spawner = new WordSpawner(this.rng, WORDS)
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
+    this.collection.startRun()
     this.physics.reset()
     this.loop.start()
     this.emit()
@@ -195,6 +206,7 @@ class GameEngine {
     this.queueDrop(variant, this.aimer.worldX)
     if (variant.hidden) {
       this.hiddenReveal = { variant, elapsed: 0 }
+      this.discover(variant)
     }
 
     this.feedback = {
@@ -272,6 +284,9 @@ class GameEngine {
 
     this.elapsed += dt
     this.sinceLastDrop += dt
+    if (this.invulnerableLeft > 0) {
+      this.invulnerableLeft = Math.max(this.invulnerableLeft - dt, 0)
+    }
 
     if (this.hiddenReveal !== null) {
       this.hiddenReveal.elapsed += dt
@@ -280,10 +295,9 @@ class GameEngine {
       }
     }
 
-    const difficulty = difficultyAt(this.elapsed)
-    this.aimer.update(dt, difficulty.aimSpeed)
+    this.aimer.update(dt, DIFFICULTY.aimSpeed)
     // 놓친 단어는 그냥 사라진다. 대가는 점수에서만 치른다(ScoreManager.accuracy)
-    this.spawner.update(dt, difficulty)
+    this.spawner.update(dt, DIFFICULTY)
 
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
@@ -299,8 +313,15 @@ class GameEngine {
       this.score.onSettled(event.variant, event.topY)
     }
 
-    if (escaped.length > 0) {
-      this.lives = Math.max(this.lives - escaped.length, 0)
+    this.tryMerge()
+
+    /*
+     * 무너짐 한 번은 이탈 여러 개를 만든다. 그것을 각각 세면 목숨 3개가 한순간에
+     * 사라지므로, 한 번 깎인 뒤에는 잠깐 무적으로 둔다 — 개수가 아니라 **사건**을 센다.
+     */
+    if (escaped.length > 0 && this.invulnerableLeft <= 0) {
+      this.lives = Math.max(this.lives - 1, 0)
+      this.invulnerableLeft = INVULNERABLE_SEC
       // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
       this.score.onLifeLost()
       if (this.lives === 0) {
@@ -310,6 +331,35 @@ class GameEngine {
     }
 
     this.emit()
+  }
+
+  /**
+   * 닿아 있는 재료가 레시피를 이루면 합친다.
+   *
+   * 한 프레임에 하나만 합치는 이유는 재료가 겹칠 수 있어서다. 하나를 합친 뒤
+   * 남은 것으로 다음 프레임에 다시 판단하면 규칙이 단순하고, 화면에서도
+   * 연쇄가 한 번에 하나씩 터지는 것으로 보인다.
+   */
+  private tryMerge(): void {
+    const match = findMerge(this.physics.contactGraph(), RECIPES)
+    if (match === null) {
+      return
+    }
+    const created = this.physics.mergeItems(match.itemIds, match.recipe.result, SOLO_OWNER)
+    if (created === null) {
+      return
+    }
+    // 합성으로 얻은 것도 히든이다 — 운으로 만난 것과 같은 자리에서 알린다
+    this.hiddenReveal = { variant: match.recipe.result, elapsed: 0 }
+    this.score.onCrafted(match.recipe.result)
+    this.discover(match.recipe.result)
+  }
+
+  /** 히든을 만났다. 운으로 나왔든 합성으로 만들었든 도감은 같이 센다 */
+  private discover(variant: ItemVariant): void {
+    if (this.collection.add(variant.id)) {
+      this.onDiscover?.(this.collection.ids)
+    }
   }
 
   private readonly render = (): void => {
@@ -342,14 +392,12 @@ class GameEngine {
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,
       runSeq: this.runSeq,
-      difficulty: {
-        stage: stageIndexAt(this.elapsed) + 1,
-        total: STAGE_COUNT,
-        progress: stageProgressAt(this.elapsed),
-      },
+      invulnerable: this.invulnerableLeft / INVULNERABLE_SEC,
+      collected: this.collection.ids,
+      freshlyCollected: this.collection.freshIds,
     })
   }
 }
 
 export { GameEngine }
-export type { DifficultyProgress, GameState, SubmitFeedback }
+export type { GameState, SubmitFeedback }

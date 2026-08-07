@@ -1,76 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import {
-  difficultyAt,
-  stageIndexAt,
-  stageProgressAt,
-  RAMP_SECONDS,
-  STAGE_COUNT,
-  STAGE_SECONDS,
-} from '../src/game/systems/Difficulty.ts'
+import { DIFFICULTY } from '../src/game/systems/Difficulty.ts'
+import { WORD } from '../src/game/config.ts'
+import { WORDS } from '../src/game/data/words.ts'
 
-describe('difficultyAt', () => {
-  it('단계가 오르면 단어가 더 자주, 더 빨리 내려온다', () => {
-    const start = difficultyAt(0)
-    const end = difficultyAt(RAMP_SECONDS)
-    expect(end.spawnInterval).toBeLessThan(start.spawnInterval)
-    expect(end.fallDuration).toBeLessThan(start.fallDuration)
-    expect(end.aimSpeed).toBeGreaterThan(start.aimSpeed)
-    expect(end.maxConcurrent).toBeGreaterThan(start.maxConcurrent)
+/**
+ * 난이도는 고정값 하나다. 시간에 따라 오르지 않으므로 곡선을 검사할 것이 없고,
+ * 대신 이 값이 다른 규칙과 어긋나지 않는지만 지킨다 — 여기가 깨지면 스폰이 막히거나
+ * 단어가 화면에 앉을 자리를 못 찾는다.
+ */
+describe('DIFFICULTY', () => {
+  it('동시 낙하 상한이 레인 칸 수를 넘지 않는다', () => {
+    expect(DIFFICULTY.maxConcurrent).toBeLessThanOrEqual(WORD.slotsPerSide * 2)
   })
 
-  it('한 단계 안에서는 값이 변하지 않는다', () => {
-    expect(difficultyAt(0)).toEqual(difficultyAt(STAGE_SECONDS - 0.01))
-    expect(difficultyAt(STAGE_SECONDS)).not.toEqual(difficultyAt(STAGE_SECONDS - 0.01))
+  it('동시 낙하 상한이 단어 풀보다 작다 — 같으면 스폰이 막힌다', () => {
+    // 활성 단어의 중복을 막으므로 상한이 풀 크기에 닿으면 고를 단어가 남지 않는다
+    expect(DIFFICULTY.maxConcurrent).toBeLessThan(WORDS.length)
   })
 
-  it('마지막 단계에 닿으면 더 이상 오르지 않는다', () => {
-    expect(difficultyAt(RAMP_SECONDS * 10)).toEqual(difficultyAt(RAMP_SECONDS))
+  it('단어를 칠 시간이 있다 — 낙하 시간이 스폰 간격보다 넉넉하다', () => {
+    expect(DIFFICULTY.fallDuration).toBeGreaterThan(DIFFICULTY.spawnInterval * 2)
   })
 
-  it('음수 시간에도 첫 단계로 고정된다', () => {
-    expect(difficultyAt(-50)).toEqual(difficultyAt(0))
-  })
-
-  it('단조롭게 변한다', () => {
-    let previous = difficultyAt(0)
-    for (let t = 1; t <= RAMP_SECONDS + STAGE_SECONDS; t += 1) {
-      const current = difficultyAt(t)
-      expect(current.spawnInterval).toBeLessThanOrEqual(previous.spawnInterval)
-      expect(current.fallDuration).toBeLessThanOrEqual(previous.fallDuration)
-      expect(current.aimSpeed).toBeGreaterThanOrEqual(previous.aimSpeed)
-      expect(current.maxConcurrent).toBeGreaterThanOrEqual(previous.maxConcurrent)
-      previous = current
-    }
-  })
-})
-
-describe('stageIndexAt', () => {
-  it('STAGE_SECONDS마다 한 단계 오른다', () => {
-    expect(stageIndexAt(0)).toBe(0)
-    expect(stageIndexAt(STAGE_SECONDS - 0.01)).toBe(0)
-    expect(stageIndexAt(STAGE_SECONDS)).toBe(1)
-    expect(stageIndexAt(STAGE_SECONDS * 3)).toBe(3)
-  })
-
-  it('마지막 단계에서 멈춘다', () => {
-    expect(stageIndexAt(STAGE_SECONDS * 100)).toBe(STAGE_COUNT - 1)
-  })
-})
-
-describe('stageProgressAt', () => {
-  it('단계 안에서 0에서 1로 찬다', () => {
-    expect(stageProgressAt(0)).toBe(0)
-    expect(stageProgressAt(STAGE_SECONDS / 2)).toBeCloseTo(0.5)
-    expect(stageProgressAt(STAGE_SECONDS - 0.001)).toBeGreaterThan(0.99)
-  })
-
-  it('단계가 오르면 다시 0에서 시작한다', () => {
-    expect(stageProgressAt(STAGE_SECONDS)).toBe(0)
-  })
-
-  // 최대 단계에서 게이지가 비면 "아직 오를 것이 남았다"로 잘못 읽힌다
-  it('마지막 단계에서는 꽉 찬 채로 남는다', () => {
-    expect(stageProgressAt(RAMP_SECONDS)).toBe(1)
-    expect(stageProgressAt(RAMP_SECONDS + 500)).toBe(1)
+  it('화살표는 왕복하는 데 걸리는 시간이 사람이 읽을 수 있는 범위다', () => {
+    const roundTrip = 2 / DIFFICULTY.aimSpeed
+    expect(roundTrip).toBeGreaterThan(2)
+    expect(roundTrip).toBeLessThan(8)
   })
 })

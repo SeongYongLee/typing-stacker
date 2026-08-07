@@ -5,6 +5,7 @@ import { LIVES } from '../game/config.ts'
 interface TitleScreenProps {
   onStart: () => void
   onMultiplayer: () => void
+  onCollection: () => void
   ready: boolean
 }
 
@@ -24,7 +25,7 @@ const ruleStyle: CSSProperties = {
   maxWidth: 460,
 }
 
-function TitleScreen({ onStart, onMultiplayer, ready }: TitleScreenProps) {
+function TitleScreen({ onStart, onMultiplayer, onCollection, ready }: TitleScreenProps) {
   useEffect(() => {
     if (!ready) {
       return
@@ -60,6 +61,10 @@ function TitleScreen({ onStart, onMultiplayer, ready }: TitleScreenProps) {
             위치로 물건이 떨어진다.
           </li>
           <li>어떤 물건이 나올지는 Enter를 누른 뒤에 알 수 있다.</li>
+          <li>
+            <strong style={{ color: '#ffcf5c' }}>정해진 재료가 서로 닿으면 합쳐진다.</strong>{' '}
+            합치면 자리가 넓어지고 히든 물건이 도감에 남는다.
+          </li>
           <li>
             단어를 놓쳐도 쌓기는 방해받지 않는다. 다만{' '}
             <strong style={{ color: '#ffcf5c' }}>정확도</strong>가 내려가 최종 점수가 깎인다.
@@ -110,6 +115,25 @@ function TitleScreen({ onStart, onMultiplayer, ready }: TitleScreenProps) {
           }}
         >
           1대1 대전
+        </button>
+
+        <button
+          type="button"
+          onClick={onCollection}
+          style={{
+            display: 'block',
+            margin: '12px auto 0',
+            padding: '13px 34px',
+            fontSize: 16,
+            fontWeight: 600,
+            borderRadius: 10,
+            border: '1px solid #48507a',
+            background: 'transparent',
+            color: '#b6bdd4',
+            cursor: 'pointer',
+          }}
+        >
+          도감
         </button>
       </div>
     </div>

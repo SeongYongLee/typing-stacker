@@ -17,6 +17,7 @@ import {
   SETTLE_SPEED,
 } from '../config.ts'
 import { halfExtentY } from '../shapes.ts'
+import type { ContactGraph, TouchNode } from '../systems/Merger.ts'
 import type {
   BodySnapshot,
   ItemVariant,
@@ -190,8 +191,22 @@ class PhysicsWorld {
    * itemId는 양쪽이 합의한 식별자로, 권위 키프레임을 맞추는 기준이다.
    */
   spawnItem(variant: ItemVariant, x: number, owner: OwnerId, itemId = 0): number {
+    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId)
+  }
+
+  /**
+   * 자리를 지정해 물건을 만든다. 합성 결과가 재료들이 있던 자리에서 태어나야
+   * "저것들이 합쳐졌다"로 보이기 때문에 낙하 지점과 분리해 둔다.
+   */
+  spawnItemAt(
+    variant: ItemVariant,
+    x: number,
+    y: number,
+    owner: OwnerId,
+    itemId = 0,
+  ): number {
     const bodyDesc = RigidBodyDesc.dynamic()
-      .setTranslation(x, ARENA.spawnY)
+      .setTranslation(x, y)
       .setLinearDamping(LINEAR_DAMPING)
       .setAngularDamping(ANGULAR_DAMPING)
       // 높은 곳에서 떨어지는 얇은 물건이 받침대를 뚫고 지나가는 것을 막는다
@@ -242,9 +257,89 @@ class PhysicsWorld {
       dislodged: false,
       lost: false,
       restX: x,
-      restY: ARENA.spawnY,
+      restY: y,
     })
     return body.handle
+  }
+
+  /**
+   * 지금 무엇이 무엇에 닿아 있는지.
+   *
+   * 물건 하나가 콜라이더 여러 개로 이루어질 수 있으므로(오목한 실루엣은 볼록
+   * 조각들로 나눠 붙인다) 조각끼리의 접촉을 바디 단위로 접어서 돌려준다.
+   * 이탈이 확정된 물건은 뺀다 — 떨어져 나가는 중에 스쳤다고 합쳐지면
+   * 플레이어가 이유를 알 수 없다.
+   */
+  contactGraph(): ContactGraph {
+    const nodes: TouchNode[] = []
+    const seen = new Set<string>()
+    const edges: [number, number][] = []
+
+    for (const [handle, entry] of this.tracked) {
+      if (entry.lost) {
+        continue
+      }
+      nodes.push({ itemId: handle, variantId: entry.variant.id })
+    }
+    const live = new Set(nodes.map((node) => node.itemId))
+
+    for (const handle of live) {
+      const entry = this.tracked.get(handle)
+      if (entry === undefined) {
+        continue
+      }
+      for (let i = 0; i < entry.body.numColliders(); i += 1) {
+        const collider = entry.body.collider(i)
+        this.world.contactPairsWith(collider, (other) => {
+          const otherHandle = other.parent()?.handle
+          if (otherHandle === undefined || otherHandle === handle || !live.has(otherHandle)) {
+            return
+          }
+          const key = handle < otherHandle ? `${handle}:${otherHandle}` : `${otherHandle}:${handle}`
+          if (seen.has(key)) {
+            return
+          }
+          seen.add(key)
+          edges.push([handle, otherHandle])
+        })
+      }
+    }
+
+    return { nodes, edges }
+  }
+
+  /**
+   * 재료를 치우고 그 자리에 결과물을 놓는다.
+   *
+   * 자리는 재료들의 **무게중심**이다. 가장 아래 재료 위에 얹으면 결과물이
+   * 위로 솟구쳐 탑을 밀어내고, 가장 위에 두면 허공에서 떨어진다.
+   * 속도를 물려주지 않는 것도 같은 이유다 — 합성이 스택을 흔드는 사건이 되면
+   * 합치기가 보상이 아니라 위험이 된다.
+   */
+  mergeItems(handles: readonly number[], result: ItemVariant, owner: OwnerId): number | null {
+    const entries = handles
+      .map((handle) => this.tracked.get(handle))
+      .filter((entry): entry is TrackedBody => entry !== undefined)
+    if (entries.length !== handles.length || entries.length === 0) {
+      return null
+    }
+
+    let sumX = 0
+    let sumY = 0
+    for (const entry of entries) {
+      const position = entry.body.translation()
+      sumX += position.x
+      sumY += position.y
+    }
+    const x = sumX / entries.length
+    const y = sumY / entries.length
+
+    for (const entry of entries) {
+      this.tracked.delete(entry.body.handle)
+      this.world.removeRigidBody(entry.body)
+    }
+
+    return this.spawnItemAt(result, x, y, owner)
   }
 
   step(dt: number): StepResult {

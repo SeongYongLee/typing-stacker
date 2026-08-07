@@ -62,7 +62,6 @@ function GameScreen({ engine, state }: GameScreenProps) {
     state.stats.lives,
     (previous, next) => previous > next && next > 0,
   )
-  const stageUp = useMomentNotice(state.difficulty.stage, (previous, next) => next > previous)
   // 규칙을 배우는 순간은 처음 놓쳤을 때다. 그 뒤로는 알고 있으니 알리지 않는다
   const firstMiss = useMomentNotice(
     state.stats.missedWords,
@@ -72,7 +71,7 @@ function GameScreen({ engine, state }: GameScreenProps) {
 
   return (
     <div style={rootStyle} onPointerDown={focus}>
-      <Hud stats={state.stats} elapsed={state.elapsed} difficulty={state.difficulty} />
+      <Hud stats={state.stats} elapsed={state.elapsed} />
 
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
@@ -83,9 +82,6 @@ function GameScreen({ engine, state }: GameScreenProps) {
             style={{ position: 'relative', minHeight: 0 }}
             data-aim={state.aimNormalized.toFixed(3)}
           >
-            {stageUp !== null && (
-              <StageUpNotice key={stageUp.seq} stage={stageUp.value} total={state.difficulty.total} />
-            )}
             {firstMiss !== null && <FirstMissNotice key={firstMiss.seq} />}
             {lifeLost !== null && (
               <LifeLossNotice key={lifeLost.seq} remaining={lifeLost.value} />
@@ -228,20 +224,6 @@ function FirstMissNotice() {
     <Notice top="30%">
       <span style={{ ...noticeHeadStyle, fontSize: 26, color: '#ff6b6b' }}>놓쳤다</span>
       <span style={noticeLineStyle}>쌓기는 그대로 간다 — 정확도가 내려가 점수만 깎인다</span>
-    </Notice>
-  )
-}
-
-/** 게이지가 꽉 차 난이도가 실제로 바뀐 순간 */
-function StageUpNotice({ stage, total }: { stage: number; total: number }) {
-  const maxed = stage >= total
-  return (
-    // 위쪽은 조준 화살표와 예고 상자의 자리다 — 알림은 그 아래에 뜬다
-    <Notice top="44%">
-      <span style={{ ...noticeHeadStyle, color: '#ffcf5c' }}>{`${stage}단계`}</span>
-      <span style={noticeLineStyle}>
-        {maxed ? '최고 난이도 — 여기서 더 빨라지지 않는다' : '단어가 더 빨리, 더 많이 내려온다'}
-      </span>
     </Notice>
   )
 }

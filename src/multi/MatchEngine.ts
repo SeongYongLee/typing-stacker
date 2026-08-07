@@ -4,7 +4,7 @@ import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
 import { Aimer } from '../game/systems/Aimer.ts'
-import { difficultyAt } from '../game/systems/Difficulty.ts'
+import { DIFFICULTY } from '../game/systems/Difficulty.ts'
 import { resolveItem } from '../game/systems/ItemResolver.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
@@ -384,11 +384,10 @@ class MatchEngine {
     }
 
     this.elapsed += dt
-    const difficulty = difficultyAt(this.elapsed)
-    this.aimer.update(dt, difficulty.aimSpeed)
+    this.aimer.update(dt, DIFFICULTY.aimSpeed)
     // 단어 밭은 양쪽이 같은 시드로 굴린다. 프레임 간격이 달라 위치는 조금씩 어긋나지만
     // 나오는 단어와 순서는 같다 — 대전에 필요한 것은 "같은 선택지"뿐이다
-    this.spawner.update(dt, difficulty)
+    this.spawner.update(dt, DIFFICULTY)
 
     const { escaped } = this.physics.step(dt)
 

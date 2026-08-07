@@ -29,32 +29,23 @@ const CODE_RETRY_LIMIT = 5
 /**
  * ICE 서버 목록을 직접 준다.
  *
- * PeerJS 기본 목록에는 **사라진 호스트**(eu-0/us-0.turn.peerjs.com)가 들어 있다.
- * 실기 로그에서 후보마다 `701`(호스트 조회 실패)이 쏟아지며 수집이 늘어졌다.
+ * PeerJS 기본 목록에는 **사라진 호스트**(eu-0/us-0.turn.peerjs.com)가 들어 있어
+ * 후보마다 `701`(호스트 조회 실패)이 쏟아지고 수집이 늘어졌다.
  *
- * STUN만으로는 부족하다는 것도 로그로 확인됐다 — 양쪽이 host·srflx 후보를 모으고
- * `ICE checking`까지 갔는데 짝이 지어지지 않았다. 같은 기기의 두 창은 mDNS 후보를
- * 해석해야 하고 srflx끼리는 라우터의 헤어핀 NAT이 필요한데, 둘 다 막히면 남는 길이 없다.
- * 그래서 중계(TURN)를 마지막 수단으로 둔다.
+ * STUN만 둔다. 중계(TURN)를 넣어봤지만 쓸 수 있는 공용 무료 TURN이 없었다 —
+ * openrelay.metered.ca는 실기에서 모든 주소가 701이고, 셸에서 확인해도 TURN 포트
+ * (3478·443)가 응답하지 않는다. 죽은 주소를 목록에 두면 연결마다 실패 조회로 몇 초를
+ * 버리고 로그만 어지럽힌다.
  *
- * 정책은 기본값('all')이라 **직접 붙을 수 있으면 중계를 타지 않는다** — 평소에는 서로
- * IP가 보이고, 직접 경로가 아예 없을 때만 중계로 우회한다.
- * openrelay는 공용 무료 서버라 언제든 사라질 수 있다(peerjs 것이 그렇게 됐다).
- * 대전이 중요해지면 자체 coturn이나 유료 TURN으로 갈아야 한다.
+ * 그래서 **직접 경로가 없는 두 사람은 아직 붙지 못한다.** 같은 기기의 두 창(mDNS 해석
+ * 실패)과 대칭 NAT이 그런 경우다. 그 둘을 확인하려면 `?loopback=1`(규칙·화면)과
+ * 같은 망의 두 기기(실제 연결)를 쓴다. 중계가 정말 필요해지면 자체 coturn을 띄워야 한다.
+ *
+ * 운영자가 다른 STUN을 둘 둔 이유는 하나가 조용히 사라져도 대전이 죽지 않게 하려는
+ * 것이다 — peerjs TURN이 그렇게 사라졌고, 그것을 알아채는 데 오래 걸렸다.
  */
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
-  {
-    // UDP가 막힌 망에서는 443/tcp나 turns만 통과한다 — 포트 변형을 함께 둔다
-    urls: [
-      'turn:openrelay.metered.ca:80',
-      'turn:openrelay.metered.ca:443',
-      'turn:openrelay.metered.ca:443?transport=tcp',
-      'turns:openrelay.metered.ca:443',
-    ],
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
 ]
 
 /**

@@ -54,23 +54,19 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, ready }: TitleScree
         </h1>
         <p style={{ color: '#6a7290', marginTop: 10 }}>타자게임 + 쌓기</p>
 
+        {/*
+          규칙은 넷만 남긴다. 합성·도감·정확도처럼 나중에 알아도 되는 것은
+          그 순간 화면에서 알려주므로, 시작 전에는 손이 무엇을 해야 하는지와
+          무엇을 잃는지만 있으면 된다.
+        */}
         <ul style={ruleStyle}>
           <li>좌우에서 내려오는 한글 단어를 타이핑한다.</li>
           <li>
             <strong style={{ color: '#ffcf5c' }}>Enter를 누른 순간</strong>의 화살표
             위치로 물건이 떨어진다.
           </li>
-          <li>어떤 물건이 나올지는 Enter를 누른 뒤에 알 수 있다.</li>
           <li>
-            <strong style={{ color: '#ffcf5c' }}>정해진 재료가 서로 닿으면 합쳐진다.</strong>{' '}
-            합치면 자리가 넓어지고 히든 물건이 도감에 남는다.
-          </li>
-          <li>
-            단어를 놓쳐도 쌓기는 방해받지 않는다. 다만{' '}
-            <strong style={{ color: '#ffcf5c' }}>정확도</strong>가 내려가 최종 점수가 깎인다.
-          </li>
-          <li>
-            받침대에는 양옆 벽이 없다. 물건이 쏠려서 받침대를 벗어나면{' '}
+            물건이 쏠려서 받침대를 벗어나면{' '}
             <strong style={{ color: '#ff6b6b' }}>목숨이 하나</strong> 줄어든다.
           </li>
           <li>

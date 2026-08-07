@@ -6,6 +6,7 @@ import type { RunStats } from '../game/types/game.ts'
 interface ResultScreenProps {
   stats: RunStats
   onRestart: () => void
+  onHome: () => void
 }
 
 const rootStyle: CSSProperties = {
@@ -26,7 +27,7 @@ const panelStyle: CSSProperties = {
   textAlign: 'center',
 }
 
-function ResultScreen({ stats, onRestart }: ResultScreenProps) {
+function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter') {
@@ -84,21 +85,39 @@ function ResultScreen({ stats, onRestart }: ResultScreenProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onRestart}
-          style={{
-            padding: '12px 34px',
-            fontSize: 16,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: '1px solid #48507a',
-            background: '#ffcf5c',
-            color: '#1a1405',
-          }}
-        >
-          다시 하기 (Enter)
-        </button>
+        <div style={{ display: 'grid', gap: 10, justifyItems: 'center' }}>
+          <button
+            type="button"
+            onClick={onRestart}
+            style={{
+              padding: '12px 34px',
+              fontSize: 16,
+              fontWeight: 600,
+              borderRadius: 10,
+              border: '1px solid #48507a',
+              background: '#ffcf5c',
+              color: '#1a1405',
+            }}
+          >
+            다시 하기 (Enter)
+          </button>
+          {/* 판이 끝났을 때 도감을 보거나 대전으로 갈 길이 없으면 새로고침밖에 없다 */}
+          <button
+            type="button"
+            onClick={onHome}
+            style={{
+              padding: '11px 30px',
+              fontSize: 15,
+              fontWeight: 600,
+              borderRadius: 10,
+              border: '1px solid #48507a',
+              background: 'transparent',
+              color: '#b6bdd4',
+            }}
+          >
+            처음으로
+          </button>
+        </div>
       </div>
     </div>
   )

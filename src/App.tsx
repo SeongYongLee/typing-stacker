@@ -80,7 +80,13 @@ function App() {
   return (
     <div style={{ position: 'relative', height: '100%' }}>
       <GameScreen engine={engine} state={state} />
-      {state.phase === 'over' && <ResultScreen stats={state.stats} onRestart={startSolo} />}
+      {state.phase === 'over' && (
+        <ResultScreen
+          stats={state.stats}
+          onRestart={startSolo}
+          onHome={() => setRoute('title')}
+        />
+      )}
     </div>
   )
 }

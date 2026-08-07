@@ -30,6 +30,13 @@ interface ArenaRenderState {
    * 하트가 왜 깎였는지 알 수 없다. 싱글은 주인이 하나뿐이라 null로 두고 그리지 않는다.
    */
   readonly ownerColors: ReadonlyMap<OwnerId, string> | null
+  /**
+   * 화면이 올려다보는 높이. 탑이 자라면 이 값이 커져 시야가 따라 올라간다.
+   * 이것이 없으면 탑이 스폰 높이에 닿는 순간 새 물건이 탑 속에 생긴다.
+   */
+  readonly cameraY: number
+  /** 쌓인 것들의 꼭대기. 조준선이 여기까지 내려와 어디에 떨어질지 가리킨다 */
+  readonly stackTop: number
 }
 
 const COLORS = {
@@ -86,6 +93,7 @@ class ArenaRenderer {
 
   draw(state: ArenaRenderState): void {
     const { ctx } = this
+    this.cameraY = state.cameraY
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
 
     ctx.save()
@@ -103,7 +111,7 @@ class ArenaRenderer {
     }
     this.drawPlatform()
     if (state.showAim) {
-      this.drawAim(state.aimX)
+      this.drawAim(state.aimX, state.stackTop)
     }
     for (const body of state.bodies) {
       this.drawBody(body, state.ownerColors)
@@ -128,15 +136,25 @@ class ArenaRenderer {
     return this.cssWidth / 2 + worldX * this.scale
   }
 
+  private cameraY = 0
+
   private toScreenY(worldY: number): number {
-    return this.cssHeight - (worldY - ARENA.killY) * this.scale
+    return this.cssHeight - (worldY - ARENA.killY - this.cameraY) * this.scale
   }
 
   private drawFrame(): void {
     const { ctx } = this
     const left = this.toScreenX(-ARENA.halfWidth)
     const right = this.toScreenX(ARENA.halfWidth)
-    const top = this.toScreenY(ARENA.height)
+    /*
+     * 틀의 윗변은 시야에 붙여 둔다.
+     *
+     * 월드 좌표로 그리면 카메라가 올라갈 때 틀이 통째로 화면 아래로 흘러내려,
+     * 탑이 높아진 순간 좌우 경계가 사라진다. 어디까지가 아레나인지는 높이와
+     * 무관하게 늘 보여야 한다. 아래의 붉은 선(이탈선)은 반대로 월드에 속하므로
+     * 카메라가 올라가면 발밑으로 멀어지는 것이 맞다.
+     */
+    const top = this.toScreenY(ARENA.height + this.cameraY)
     const bottom = this.toScreenY(ARENA.killY)
 
     ctx.save()
@@ -169,11 +187,12 @@ class ArenaRenderer {
     ctx.fillRect(left, top, width, Math.max(2, height * 0.16))
   }
 
-  private drawAim(worldX: number): void {
+  private drawAim(worldX: number, stackTop: number): void {
     const { ctx } = this
     const x = this.toScreenX(worldX)
-    const top = this.toScreenY(ARENA.height)
-    const trackBottom = this.toScreenY(ARENA.platformTop)
+    const top = this.toScreenY(ARENA.height + this.cameraY)
+    // 조준선은 쌓인 것의 꼭대기에서 끝난다 — 실제로 물건이 닿을 자리다
+    const trackBottom = this.toScreenY(stackTop)
 
     ctx.save()
     ctx.strokeStyle = COLORS.aimTrack
@@ -212,7 +231,9 @@ class ArenaRenderer {
      * 이름이 가려진다 — 히든이 나온 순간이 가장 반가운데 그때 이름을 못 읽으면 헛일이다.
      * 스택은 아래에서 자라고 화살표는 맨 위를 지나므로 그 사이가 유일하게 비어 있는 띠다.
      */
-    const cy = this.toScreenY(ARENA.height * 0.74)
+    // 히든 연출은 배경 자막이지 월드에 놓인 물건이 아니다 —
+    // 카메라를 더해 시야에 붙여두지 않으면 탑이 높아졌을 때 화면 밖으로 흘러내린다
+    const cy = this.toScreenY(ARENA.height * 0.74 + this.cameraY)
     const unit = this.scale
 
     ctx.save()

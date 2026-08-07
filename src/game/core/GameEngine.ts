@@ -17,6 +17,7 @@ import { RECIPES } from '../data/recipes.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
 import { findMerge } from '../systems/Merger.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
+import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
@@ -94,6 +95,8 @@ class GameEngine {
   private quakeLeft = 0
   private quakeStrength = 0
   private quakePhase = 0
+  /** 지금 화면이 올려다보는 높이. 탑을 따라 부드럽게 올라간다 */
+  private cameraY = 0
   private lives = LIVES
   /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
   private invulnerableLeft = 0
@@ -159,6 +162,7 @@ class GameEngine {
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
+    this.cameraY = 0
     this.physics.reset()
     this.loop.start()
     this.emit()
@@ -256,7 +260,7 @@ class GameEngine {
 
   private queueDrop(variant: ItemVariant, x: number): void {
     if (this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
-      this.physics.spawnItem(variant, x, SOLO_OWNER)
+      this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER)
       this.sinceLastDrop = 0
       return
     }
@@ -269,6 +273,7 @@ class GameEngine {
 
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
+      this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
       const result = this.physics.step(dt)
       this.applyQuake(result.quake)
       if (this.collapseTimer >= COLLAPSE_VIEW_SEC) {
@@ -285,6 +290,7 @@ class GameEngine {
 
     this.elapsed += dt
     this.sinceLastDrop += dt
+    this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
     if (this.invulnerableLeft > 0) {
       this.invulnerableLeft = Math.max(this.invulnerableLeft - dt, 0)
     }
@@ -303,7 +309,7 @@ class GameEngine {
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
       if (next !== undefined) {
-        this.physics.spawnItem(next.variant, next.x, SOLO_OWNER)
+        this.physics.spawnItemAt(next.variant, next.x, spawnYFor(this.cameraY), SOLO_OWNER)
         this.sinceLastDrop = 0
       }
     }
@@ -383,6 +389,8 @@ class GameEngine {
             },
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
+      cameraY: this.cameraY,
+      stackTop: this.physics.stackTop(),
       // 싱글은 주인이 하나뿐이라 구분해 그릴 것이 없다
       ownerColors: null,
     })
@@ -392,7 +400,9 @@ class GameEngine {
     this.listener?.({
       phase: this.phase,
       elapsed: this.elapsed,
-      words: [...this.spawner.words],
+      // 스포너가 목록을 바꿀 때 새 배열로 갈아치우므로 여기서 또 복사하지 않는다 —
+      // 매 프레임 복사하면 GC가 주기적으로 돌아 화면이 살짝 멈춘다
+      words: this.spawner.words,
       aimNormalized: this.aimer.normalized,
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,

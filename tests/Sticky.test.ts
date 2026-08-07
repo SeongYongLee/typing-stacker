@@ -177,6 +177,41 @@ describe('끈적함 — 닿으면 붙는다', () => {
   })
 })
 
+describe('stackTop — 카메라가 보는 높이', () => {
+  it('낙하 중인 물건은 세지 않는다 — 세면 물건마다 화면이 출렁인다', () => {
+    world.reset()
+    const before = world.stackTop()
+    // 방금 스폰된 물건은 스폰 높이(4.6)에 떠 있다
+    world.spawnItem(BLOCK, 0, SOLO_OWNER)
+    run(0.2)
+    expect(world.stackTop()).toBe(before)
+  })
+
+  it('자리를 잡으면 그때 올라간다', () => {
+    world.reset()
+    world.spawnItem(BLOCK, 0, SOLO_OWNER)
+    run(4)
+    expect(world.stackTop()).toBeGreaterThan(ARENA.platformTop)
+  })
+
+  it('빈 받침대에서는 받침대 윗면이다', () => {
+    world.reset()
+    expect(world.stackTop()).toBe(ARENA.platformTop)
+  })
+
+  it('쌓을수록 높아진다', () => {
+    world.reset()
+    world.spawnItemAt(BLOCK, 0, ARENA.platformTop + 0.4, SOLO_OWNER)
+    run(2.5)
+    const one = world.stackTop()
+    const base = world.frames()[0]
+    if (base === undefined) throw new Error('받침이 남지 않았다')
+    world.spawnItemAt(BLOCK, base.x, base.y + 0.45, SOLO_OWNER)
+    run(2.5)
+    expect(world.stackTop()).toBeGreaterThan(one)
+  })
+})
+
 describe('무게 — 지진은 실제 질량으로 판정한다', () => {
   it('가장 큰 물건은 무거운 축에 든다 — 비행기가 조용하면 눈과 어긋난다', () => {
     expect(massOf(find('airplane'))).toBeGreaterThanOrEqual(HEAVY_MASS)

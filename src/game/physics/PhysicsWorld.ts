@@ -610,6 +610,31 @@ class PhysicsWorld {
    * 모든 물건이 멈춰 있는가.
    * 턴제 대전에서 "떨군 물건이 자리를 잡았는지"를 판단해 턴을 넘기는 데 쓴다.
    */
+  /**
+   * **자리를 잡은** 것들의 꼭대기 높이. 아무것도 없으면 받침대 윗면이다.
+   *
+   * 낙하 중인 물건을 세면 안 된다. 물건은 스폰 높이에서 생기므로, 세는 순간
+   * 꼭대기가 스폰 높이로 튀어 카메라가 따라 올라갔다가 착지하면 되돌아온다 —
+   * 낮은 탑에서도 물건 하나마다 화면이 위아래로 출렁인다.
+   *
+   * 이탈이 확정된 물건도 세지 않는다. 튕겨 날아가는 중인 것에 카메라가 끌려가면
+   * 남은 탑이 보이지 않는다. (한 번 자리를 잡은 물건은 무너지는 중에도 계속 세므로,
+   * 탑이 쏟아지는 동안 시야가 갑자기 바닥으로 내려앉지는 않는다.)
+   */
+  stackTop(): number {
+    let top: number = ARENA.platformTop
+    for (const entry of this.tracked.values()) {
+      if (entry.lost || !entry.settled) {
+        continue
+      }
+      const height = entry.body.translation().y + halfExtentY(entry.variant.shape)
+      if (height > top) {
+        top = height
+      }
+    }
+    return top
+  }
+
   isQuiet(): boolean {
     for (const entry of this.tracked.values()) {
       const velocity = entry.body.linvel()

@@ -22,7 +22,11 @@ const ARENA = {
    */
   platformHalfWidth: 1.85,
   platformHalfHeight: 0.25,
-  /** 물건이 생성되는 높이 */
+  /**
+   * 물건이 생성되는 높이. 카메라가 올라가면 이만큼 위에서 계속 떨어진다.
+   * 탑이 이 높이에 닿으면 새 물건이 탑 속에 생겨 서로를 밀어내므로,
+   * 카메라 없이는 여기가 곧 게임의 천장이었다.
+   */
   spawnY: 4.6,
   /** 이 높이보다 아래로 내려간 물건은 이탈로 본다 */
   killY: -0.8,
@@ -34,6 +38,20 @@ const ARENA = {
    */
   gravity: -7,
 } as const
+
+/**
+ * 탑 꼭대기 위로 남겨두는 여유. 이보다 좁아지면 카메라가 따라 올라간다.
+ *
+ * 조준 화살표와 낙하 구간이 들어갈 만큼은 되어야 한다 — 붙자마자 닿을 만큼
+ * 좁으면 무엇을 어디에 떨구는지 볼 시간이 없다.
+ */
+const CAMERA_HEADROOM = 2.6
+
+/**
+ * 카메라가 목표 높이를 따라가는 빠르기(초당 비율).
+ * 즉시 옮기면 물건 하나 얹을 때마다 화면이 툭툭 튀어 어디에 떨어지는지 놓친다.
+ */
+const CAMERA_FOLLOW = 3.5
 
 /** 가장 큰 물건(비행기)의 반폭. tests/shapes.test.ts가 이 값을 지킨다 */
 const MAX_ITEM_HALF_WIDTH = 0.55
@@ -150,6 +168,8 @@ const QUAKE_REIMPACT_SPEED = 2.2
 export {
   ARENA,
   AIM_HALF_RANGE,
+  CAMERA_HEADROOM,
+  CAMERA_FOLLOW,
   MAX_ITEM_HALF_WIDTH,
   DROP_COOLDOWN_MS,
   HIDDEN_CHANCE,

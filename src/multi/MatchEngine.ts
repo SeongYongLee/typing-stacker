@@ -1,6 +1,7 @@
 import { AIM_HALF_RANGE, LIVES } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
+import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
 import { Aimer } from '../game/systems/Aimer.ts'
@@ -86,6 +87,8 @@ class MatchEngine {
   private connectionLost = false
   /** 방장이 물건마다 매기는 번호. 양쪽이 같은 물건으로 취급하는 기준이다 */
   private nextItemId = 1
+  /** 지금 화면이 올려다보는 높이. 탑을 따라 올라간다 */
+  private cameraY = 0
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: MatchViewState) => void) | null = null
@@ -279,7 +282,7 @@ class MatchEngine {
       this.spawner.remove(target.id)
     }
 
-    this.physics.spawnItem(variant, aimX, by, itemId)
+    this.physics.spawnItemAt(variant, aimX, spawnYFor(this.cameraY), by, itemId)
     this.resolving = true
     this.quietFor = 0
     this.resolveFor = 0
@@ -379,6 +382,7 @@ class MatchEngine {
   }
 
   private readonly update = (dt: number): void => {
+    this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
     if (this.match.over || this.connectionLost) {
       return
     }
@@ -439,6 +443,8 @@ class MatchEngine {
       hiddenReveal: null,
       quake: 0,
       quakePhase: 0,
+      cameraY: this.cameraY,
+      stackTop: this.physics.stackTop(),
       ownerColors: this.ownerColors,
     })
   }
@@ -452,7 +458,8 @@ class MatchEngine {
       lives: snapshot.lives,
       current: snapshot.current,
       myTurn: this.isMyTurn() && !this.resolving,
-      words: [...this.spawner.words],
+      // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
+      words: this.spawner.words,
       aimNormalized: this.aimer.normalized,
       suggestion: this.suggestion,
       feedback: this.feedback,

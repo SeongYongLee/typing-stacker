@@ -36,6 +36,12 @@ interface ItemVariant {
   readonly friction: number
   readonly restitution: number
   readonly density: number
+  /**
+   * 회전을 얼마나 빨리 잃는가. 낮을수록 잘 구른다.
+   * 물건마다 다르게 두면 "굴러가버렸다"와 "탁 붙었다"가 갈려서, 같은 자리에
+   * 떨궈도 판이 매번 달라진다.
+   */
+  readonly angularDamping: number
   readonly hidden: boolean
   readonly scoreBonus: number
 }

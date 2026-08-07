@@ -29,6 +29,7 @@ interface VariantInput {
   friction?: number
   restitution?: number
   density?: number
+  angularDamping?: number
   hidden?: boolean
   scoreBonus?: number
 }
@@ -47,6 +48,8 @@ function variant(input: VariantInput): ItemVariant {
     friction: input.friction ?? 0.75,
     restitution: input.restitution ?? 0.02,
     density: input.density ?? 1,
+    // 기본값은 웬만해선 구르지 않는 값이다. 굴리고 싶은 물건만 낮춰 잡는다
+    angularDamping: input.angularDamping ?? 2.4,
     hidden: input.hidden ?? false,
     scoreBonus: input.scoreBonus ?? 0,
   }
@@ -62,6 +65,9 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'clover',
+        // 가볍고 잘 튄다. 위에서 떨어지는 것에 쉽게 밀려난다
+        restitution: 0.25,
+        angularDamping: 1.1,
         label: '세잎클로버',
         sprite: 'clover-three',
         size: { height: 0.42 },
@@ -71,6 +77,8 @@ const WORDS: readonly WordEntry[] = [
       hiddenVariant({
         // 이 게임에서 가장 반가운 히든이라 보너스를 크게 준다
         id: 'clover-lucky',
+        restitution: 0.22,
+        angularDamping: 1.1,
         label: '네잎클로버',
         sprite: 'clover-four',
         size: { height: 0.44 },
@@ -85,6 +93,8 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'leaf',
+        // 나뭇잎은 얇아서 잘 눕는다. 구르지는 않지만 어디에 눕는지가 매번 다르다
+        angularDamping: 1.6,
         label: '나뭇잎',
         sprite: 'leaf',
         size: { height: 0.46 },
@@ -95,6 +105,7 @@ const WORDS: readonly WordEntry[] = [
       }),
       hiddenVariant({
         id: 'leaf-maple',
+        angularDamping: 1.6,
         label: '단풍잎',
         sprite: 'leaf-maple',
         size: { height: 0.5 },
@@ -119,6 +130,9 @@ const WORDS: readonly WordEntry[] = [
       }),
       hiddenVariant({
         id: 'snail-curled',
+        // 웅크린 껍데기는 둥글다. 닿으면 데구르르 굴러가 어디에 설지 알 수 없다
+        angularDamping: 0.5,
+        restitution: 0.12,
         label: '웅크린 달팽이',
         sprite: 'snail-curled',
         size: { width: 0.56 },
@@ -134,6 +148,9 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'octopus',
+        // 다리가 걸려 착 붙는다. 마찰이 가장 크고 튀지 않는다 — 탑을 붙잡아주는 물건
+        restitution: 0,
+        angularDamping: 3.2,
         label: '문어',
         sprite: 'octopus',
         size: { width: 0.58 },
@@ -149,6 +166,8 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'sausage',
+        // 원통이라 잘 구르고 마찰도 낮다. 얹으면 미끄러져 내려가는 물건
+        angularDamping: 0.45,
         label: '소시지',
         sprite: 'sausage',
         size: { width: 0.66 },
@@ -164,6 +183,7 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'iced-drink',
+        restitution: 0.14,
         label: '아이스 음료',
         sprite: 'iced-drink',
         size: { height: 0.58 },
@@ -172,6 +192,9 @@ const WORDS: readonly WordEntry[] = [
       }),
       hiddenVariant({
         id: 'cocktail',
+        // 잔이 위로 벌어져 무게중심이 높다. 잘 넘어진다
+        restitution: 0.1,
+        angularDamping: 0.9,
         label: '칵테일',
         sprite: 'cocktail',
         size: { height: 0.62 },
@@ -187,6 +210,9 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'tumbler',
+        // 무겁고 안 튄다. 서 있으면 든든하지만 한번 누우면 원통이라 굴러간다
+        restitution: 0,
+        angularDamping: 1.2,
         label: '텀블러',
         sprite: 'tumbler',
         size: { height: 0.7 },
@@ -212,6 +238,8 @@ const WORDS: readonly WordEntry[] = [
       hiddenVariant({
         // 한 조각 시켰는데 한 판이 왔다. 넓고 평평해서 훨씬 잘 받쳐준다
         id: 'pizza-box',
+        // 넓고 평평해서 그 위로 다시 쌓기 좋다. 받침이 되어주는 물건
+        angularDamping: 4,
         label: '피자 한 판',
         sprite: 'pizza-box',
         size: { width: 0.98 },
@@ -226,6 +254,9 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'bolt',
+        // 지그재그라 어디로 튈지 모른다. 가장 예측하기 어려운 물건
+        angularDamping: 0.7,
+        restitution: 0.3,
         label: '번개',
         sprite: 'bolt',
         size: { height: 0.8 },
@@ -241,6 +272,9 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'bento',
+        // 네모나고 무겁다. 얹히면 그대로 눌러앉는다
+        restitution: 0,
+        angularDamping: 4,
         label: '도시락',
         sprite: 'bento',
         size: { width: 0.74 },

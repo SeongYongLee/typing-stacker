@@ -45,14 +45,13 @@ const FIXED_STEP = 1 / 60
 const MAX_STEPS_PER_FRAME = 5
 
 const LINEAR_DAMPING = 0.2
-/**
- * 회전 감쇠를 세게 잡는다.
- * 우산 캐노피처럼 실루엣이 둥근 물건은 이 값이 낮으면 바퀴처럼 굴러 받침대를 벗어난다.
- * 빈 받침대 중앙에 떨궜는데 저절로 떨어지는 물건이 있으면 안 되고,
- * 그 불변식은 tests/PhysicsWorld.test.ts가 모든 변형에 대해 지킨다.
- * 미끄러지는 느낌은 선형 감쇠(위)가 담당하므로 이 값이 커도 손상되지 않는다.
+/*
+ * 회전 감쇠는 물건마다 다르다(words.ts의 angularDamping).
+ * 낮으면 잘 구르는데, 우산 캐노피처럼 실루엣이 둥근 물건은 바퀴처럼 굴러
+ * 받침대를 벗어난다. 빈 받침대 중앙에 떨궜는데 저절로 떨어지는 물건이 있으면
+ * 안 되고, 그 불변식은 tests/PhysicsWorld.test.ts가 모든 변형에 대해 지킨다.
+ * 개성을 주려고 낮출 때는 그 테스트가 한계를 알려준다.
  */
-const ANGULAR_DAMPING = 2.4
 
 interface SettleEvent {
   readonly variant: ItemVariant
@@ -208,7 +207,7 @@ class PhysicsWorld {
     const bodyDesc = RigidBodyDesc.dynamic()
       .setTranslation(x, y)
       .setLinearDamping(LINEAR_DAMPING)
-      .setAngularDamping(ANGULAR_DAMPING)
+      .setAngularDamping(variant.angularDamping)
       // 높은 곳에서 떨어지는 얇은 물건이 받침대를 뚫고 지나가는 것을 막는다
       .setCcdEnabled(true)
     const body = this.world.createRigidBody(bodyDesc)
@@ -393,7 +392,7 @@ class PhysicsWorld {
         entry.restY = y
         if (entry.anchored) {
           entry.body.setLinearDamping(LINEAR_DAMPING)
-          entry.body.setAngularDamping(ANGULAR_DAMPING)
+          entry.body.setAngularDamping(entry.variant.angularDamping)
           entry.anchored = false
         }
       }

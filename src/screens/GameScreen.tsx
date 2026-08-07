@@ -92,7 +92,12 @@ function GameScreen({ engine, state }: GameScreenProps) {
         </div>
       </div>
 
-      <InputBar input={input} feedback={state.feedback} stats={state.stats} />
+      <InputBar
+        input={input}
+        feedback={state.feedback}
+        stats={state.stats}
+        invulnerable={state.invulnerable}
+      />
     </div>
   )
 }

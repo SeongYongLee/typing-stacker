@@ -8,10 +8,14 @@ interface CollectionScreenProps {
   onBack: () => void
 }
 
-/** 도감에 오르는 것은 히든뿐이다. 기본 물건은 치면 언제나 나오므로 모을 것이 없다 */
-const HIDDEN_VARIANTS: readonly ItemVariant[] = WORDS.flatMap((entry) =>
-  entry.variants.filter((item) => item.hidden),
-)
+/**
+ * 도감은 물건 전부를 담는다.
+ *
+ * 히든만 담으면 대부분이 물음표인 채로 시작해서 도감이 "아직 아무것도 없는 곳"이 된다.
+ * 기본 물건이 먼저 채워지면 첫 판만으로도 칸이 메워지고, 그 사이에 비어 있는
+ * 히든 칸이 눈에 띈다 — 무엇을 더 찾아야 하는지가 도감 자체에서 보인다.
+ */
+const ALL_VARIANTS: readonly ItemVariant[] = WORDS.flatMap((entry) => entry.variants)
 
 /** 이 물건을 만들 수 있는 레시피. 없으면 운으로만 만난다 */
 function recipeFor(id: string): readonly string[] | null {
@@ -38,23 +42,19 @@ const gridStyle: CSSProperties = {
 
 function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
   const found = new Set(collected)
-  const total = HIDDEN_VARIANTS.length
+  const total = ALL_VARIANTS.length
 
   return (
     <div style={rootStyle}>
       <div style={{ maxWidth: 760, margin: '0 auto 24px', textAlign: 'center' }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>도감</h1>
-        <p style={{ color: '#b6bdd4', fontSize: 14, margin: '10px 0 0' }}>
-          히든 물건은 두 갈래로 만난다 — 단어를 맞췄을 때 낮은 확률로 나오거나,
-          재료를 서로 닿게 해 합치거나.
-        </p>
         <p style={{ color: '#ffcf5c', fontSize: 15, fontWeight: 600, margin: '12px 0 0' }}>
           {found.size} / {total}
         </p>
       </div>
 
       <div style={gridStyle} data-collection>
-        {HIDDEN_VARIANTS.map((item) => {
+        {ALL_VARIANTS.map((item) => {
           const owned = found.has(item.id)
           const inputs = recipeFor(item.id)
           return (
@@ -99,12 +99,15 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
               >
                 {owned ? item.label : '???'}
               </span>
-              {/* 만드는 법은 아직 못 만든 것에도 보여준다 — 도감은 목표를 주는 것이지 감추는 것이 아니다 */}
-              <span style={{ fontSize: 11, color: '#7c85a8', textAlign: 'center' }}>
-                {inputs === null
-                  ? '운으로만 만난다'
-                  : inputs.map(labelOf).join(' + ')}
-              </span>
+              {/*
+                만드는 법은 찾은 뒤에만 보여준다. 미리 알려주면 도감이 할 일 목록이 되고,
+                무엇이 나올지 모른 채 부딪혀보는 재미가 사라진다.
+              */}
+              {owned && inputs !== null && (
+                <span style={{ fontSize: 11, color: '#7c85a8', textAlign: 'center' }}>
+                  {inputs.map(labelOf).join(' + ')}
+                </span>
+              )}
             </div>
           )
         })}

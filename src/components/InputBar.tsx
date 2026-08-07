@@ -10,6 +10,8 @@ interface InputBarProps {
   input: HangulInput
   feedback: SubmitFeedback | null
   stats: RunStats
+  /** 남은 무적 시간 비율(0~1). 하트에 베리어로 보여준다 */
+  invulnerable: number
 }
 
 const UNDERLINE = '#2e3448'
@@ -59,7 +61,7 @@ const rowStyle: CSSProperties = {
   width: '100%',
 }
 
-function InputBar({ input, feedback, stats }: InputBarProps) {
+function InputBar({ input, feedback, stats, invulnerable }: InputBarProps) {
   const fieldRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLDivElement | null>(null)
 
@@ -113,7 +115,7 @@ function InputBar({ input, feedback, stats }: InputBarProps) {
     <div style={wrapStyle}>
       <div style={rowStyle}>
         <div style={{ justifySelf: 'end' }}>
-          <Lives lives={stats.lives} />
+          <Lives lives={stats.lives} invulnerable={invulnerable} />
         </div>
         <div ref={fieldRef} style={{ width: 'min(420px, 34vw)', position: 'relative' }}>
           <input

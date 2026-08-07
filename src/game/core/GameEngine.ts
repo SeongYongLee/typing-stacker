@@ -204,9 +204,9 @@ class GameEngine {
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     const variant = resolveItem(result.word.word, this.rng)
     this.queueDrop(variant, this.aimer.worldX)
+    this.discover(variant)
     if (variant.hidden) {
       this.hiddenReveal = { variant, elapsed: 0 }
-      this.discover(variant)
     }
 
     this.feedback = {
@@ -355,7 +355,11 @@ class GameEngine {
     this.discover(match.recipe.result)
   }
 
-  /** 히든을 만났다. 운으로 나왔든 합성으로 만들었든 도감은 같이 센다 */
+  /**
+   * 물건을 만났다. 도감은 히든만이 아니라 전부를 센다 —
+   * 기본 물건이 먼저 채워져야 도감이 비어 보이지 않고, 그 사이에 남은 빈 칸이
+   * 무엇을 더 찾아야 하는지 알려준다.
+   */
   private discover(variant: ItemVariant): void {
     if (this.collection.add(variant.id)) {
       this.onDiscover?.(this.collection.ids)

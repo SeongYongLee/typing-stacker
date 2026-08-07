@@ -14,7 +14,35 @@ const LOST = '#2e3448'
  * 남아 있어야 "몇 개를 잃었고 몇 번 더 버틸 수 있는지"가 한눈에 읽힌다.
  * 색만으로 구분하지 않고 글리프도 ♥/♡로 다르게 둔다.
  */
-function Lives({ lives }: { lives: number }) {
+const BARRIER = '#8bd6ff'
+
+/**
+ * 무적 시간을 하트에 씌우는 베리어.
+ *
+ * 남은 비율이 그대로 진하기가 된다 — 값이 매 프레임 들어오므로 애니메이션이 아니라
+ * 계산해서 그린다(짧은 일회성 연출만 WAAPI로 재생한다). 사라져가는 것이 보여야
+ * "언제까지 안전한지"를 눈으로 셀 수 있다.
+ */
+function Barrier({ ratio }: { ratio: number }) {
+  const strength = Math.min(Math.max(ratio, 0), 1)
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: '-5px -7px',
+        borderRadius: 999,
+        border: `1px solid ${BARRIER}`,
+        background: `radial-gradient(circle, rgba(139, 214, 255, 0.18), rgba(139, 214, 255, 0.04))`,
+        boxShadow: `0 0 ${6 + strength * 8}px rgba(139, 214, 255, ${0.25 + strength * 0.4})`,
+        opacity: 0.25 + strength * 0.75,
+        pointerEvents: 'none',
+      }}
+    />
+  )
+}
+
+function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: number }) {
   const rowRef = useRef<HTMLSpanElement | null>(null)
   const slots = useRef<(HTMLSpanElement | null)[]>([])
   const previous = useRef(lives)
@@ -70,8 +98,15 @@ function Lives({ lives }: { lives: number }) {
       <span style={{ fontSize: 11, color: '#6a7290', letterSpacing: '0.08em' }}>목숨</span>
       <span
         ref={rowRef}
-        style={{ display: 'inline-flex', gap: 3, fontSize: 22, lineHeight: 1 }}
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          gap: 3,
+          fontSize: 22,
+          lineHeight: 1,
+        }}
       >
+        {invulnerable > 0 && <Barrier ratio={invulnerable} />}
         {Array.from({ length: LIVES }, (_, index) => {
           const kept = index < lives
           return (

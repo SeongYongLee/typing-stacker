@@ -55,10 +55,18 @@ const ghostButtonStyle: CSSProperties = {
 function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
   const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
-  const [hideIp, setHideIp] = useState(true)
 
   if (phase?.kind === 'connecting') {
     return <Notice title="연결 중…" detail="중개 서버를 거쳐 상대를 찾는다" onBack={onBack} />
+  }
+
+  /*
+   * 붙은 뒤와 붙기 전을 다르게 보여준다.
+   * 멈췄을 때 어느 쪽에서 멈춘 것인지가 이 문장 하나로 갈린다 — "연결 중"에서 멈추면
+   * 경로가 안 열린 것이고, 여기서 멈추면 상대가 응답하지 않는 것이다.
+   */
+  if (phase?.kind === 'handshaking') {
+    return <Notice title="상대와 붙었다" detail="시작 신호를 기다린다…" onBack={onBack} />
   }
 
   if (phase?.kind === 'waiting') {
@@ -103,7 +111,7 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
         <button
           type="button"
           style={buttonStyle}
-          onClick={() => onOpen({ mode: { kind: 'host' }, nickname, hideIp })}
+          onClick={() => onOpen({ mode: { kind: 'host' }, nickname })}
         >
           방 만들기
         </button>
@@ -124,35 +132,16 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
             style={{ ...buttonStyle, opacity: codeReady ? 1 : 0.45 }}
             disabled={!codeReady}
             onClick={() =>
-              onOpen({ mode: { kind: 'join', code: trimmedCode }, nickname, hideIp })
+              onOpen({ mode: { kind: 'join', code: trimmedCode }, nickname })
             }
           >
             코드로 참가
           </button>
         </div>
 
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            fontSize: 13,
-            color: '#6a7290',
-            cursor: 'pointer',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={hideIp}
-            onChange={(event) => setHideIp(event.currentTarget.checked)}
-            data-hide-ip={hideIp ? 'on' : 'off'}
-          />
-          IP 가리기 (중계 경유)
-        </label>
         <p style={{ margin: 0, fontSize: 12, color: '#4a5171', lineHeight: 1.7 }}>
-          WebRTC는 연결할 때 상대에게 내 IP를 보여준다. 켜면 중계 서버를 거쳐 가려지지만,
-          그 서버가 막힌 망에서는 연결이 안 될 수 있다.
+          연결은 두 사람이 직접 맺는다(P2P). 그래서 <strong style={{ color: '#6a7290' }}>서로에게 IP가
+          보인다</strong> — 아는 사람과만 코드를 나누자.
         </p>
 
         <button type="button" style={ghostButtonStyle} onClick={onBack}>

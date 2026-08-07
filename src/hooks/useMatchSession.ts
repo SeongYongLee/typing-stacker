@@ -5,8 +5,6 @@ import { MatchSession, type SessionPhase } from '../multi/MatchSession.ts'
 interface JoinRequest {
   readonly mode: { readonly kind: 'host' } | { readonly kind: 'join'; readonly code: string }
   readonly nickname: string
-  /** IP를 가릴지. 공용 TURN이 막힌 망에서는 꺼야 연결된다 */
-  readonly hideIp: boolean
 }
 
 interface UseMatchSession {
@@ -40,7 +38,6 @@ function useMatchSession(): UseMatchSession {
       setState(null)
       sessionRef.current = MatchSession.open(request.mode, {
         nickname: request.nickname,
-        hideIp: request.hideIp,
         onPhase: (next) => {
           setPhase(next)
           if (next.kind === 'playing') {

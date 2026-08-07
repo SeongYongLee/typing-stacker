@@ -43,10 +43,10 @@ type TransportFailureKind =
   | 'roomNotFound'
   /**
    * 방은 찾았는데 P2P 경로가 열리지 않았다.
-   * IP를 가리려고 TURN 경유를 강제하면 공용 TURN이 막힌 망에서 이렇게 된다 —
-   * "방이 없다"와 전혀 다른 상황이라 안내도 달라야 한다.
+   * 한쪽 망이 P2P를 막고 있을 때 이렇게 된다 — "방이 없다"와 전혀 다른 상황이라
+   * 안내도 달라야 한다. 코드를 잘못 쳤는지 망이 막았는지 구분되지 않으면 손쓸 수가 없다.
    */
-  | 'relayBlocked'
+  | 'pathBlocked'
   /** 방이 정원을 채웠다 */
   | 'roomFull'
   /** 방 코드가 이미 누군가 쓰고 있다 (방장 쪽) */
@@ -57,6 +57,12 @@ type TransportFailureKind =
   | 'unsupported'
   /** 상대와의 연결이 끊겼다 */
   | 'peerLost'
+  /**
+   * 붙기는 했는데 시작 신호가 오가지 않았다.
+   * 경로가 안 열린 것과 구분해야 한다 — 이쪽은 연결 문제가 아니라 한쪽이 응답하지
+   * 않는 것이고, 타임아웃이 없으면 양쪽이 영원히 기다린다.
+   */
+  | 'handshakeStalled'
   | 'unknown'
 
 interface TransportFailure {
@@ -69,14 +75,16 @@ interface TransportFailure {
 
 const FAILURE_TEXT: Record<TransportFailureKind, string> = {
   roomNotFound: '그 코드로 기다리는 방이 없다. 코드를 다시 확인해보자.',
-  relayBlocked:
-    '방은 찾았는데 연결 경로가 열리지 않았다. IP를 가리는 모드가 막힌 망일 수 있다 — 직접 연결로 다시 시도해보자.',
+  pathBlocked:
+    '방은 찾았는데 연결 경로가 열리지 않았다. 한쪽 망이 P2P를 막고 있을 수 있다 — 다른 네트워크(휴대폰 핫스팟 등)에서 다시 시도해보자.',
   roomFull: '방이 이미 꽉 찼다.',
   codeTaken: '방 코드가 겹쳤다. 다시 만들면 된다.',
   brokerUnreachable:
     '연결 중개 서버에 닿지 못했다. 네트워크를 확인하거나 잠시 뒤 다시 시도해보자.',
   unsupported: '이 브라우저는 WebRTC를 지원하지 않는다. 최신 크롬이나 사파리에서 열어보자.',
   peerLost: '상대와의 연결이 끊겼다.',
+  handshakeStalled:
+    '상대와 붙었는데 시작 신호가 오지 않았다. 양쪽 다 나갔다가 방을 새로 만들어보자.',
   unknown: '연결에 실패했다.',
 }
 

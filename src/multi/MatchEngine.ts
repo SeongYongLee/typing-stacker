@@ -5,7 +5,7 @@ import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
 import { Aimer } from '../game/systems/Aimer.ts'
-import { DIFFICULTY } from '../game/systems/Difficulty.ts'
+import { difficultyAt, difficultyProgress } from '../game/systems/Difficulty.ts'
 import { resolveItem } from '../game/systems/ItemResolver.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
@@ -89,6 +89,8 @@ class MatchEngine {
   private nextItemId = 1
   /** 지금 화면이 올려다보는 높이. 탑을 따라 올라간다 */
   private cameraY = 0
+  /** 이번 판에 닿았던 가장 높은 난이도 진행도(0~1) */
+  private difficultyPeak = 0
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: MatchViewState) => void) | null = null
@@ -388,10 +390,19 @@ class MatchEngine {
     }
 
     this.elapsed += dt
-    this.aimer.update(dt, DIFFICULTY.aimSpeed)
+    /*
+     * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
+     * 탑이 무너질 때마다 단어가 뜸해졌다 몰아쳤다 하면 무엇이 기준인지 알 수 없다.
+     */
+    this.difficultyPeak = Math.max(
+      this.difficultyPeak,
+      difficultyProgress(this.physics.stackTop()),
+    )
+    const difficulty = difficultyAt(this.difficultyPeak)
+    this.aimer.update(dt, difficulty.aimSpeed)
     // 단어 밭은 양쪽이 같은 시드로 굴린다. 프레임 간격이 달라 위치는 조금씩 어긋나지만
     // 나오는 단어와 순서는 같다 — 대전에 필요한 것은 "같은 선택지"뿐이다
-    this.spawner.update(dt, DIFFICULTY)
+    this.spawner.update(dt, difficulty)
 
     const { escaped } = this.physics.step(dt)
 

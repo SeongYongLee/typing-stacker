@@ -11,6 +11,13 @@ import { ARENA, CAMERA_FOLLOW, CAMERA_HEADROOM } from '../config.ts'
  * 물리도 화면도 모르는 순수 계산이라 node에서 그대로 시험한다.
  */
 
+/**
+ * 카메라가 움직이기 시작하는 탑 높이.
+ * 여기까지는 시야가 고정이고, 넘어서면 따라 오른다 — "판이 본격적으로 시작되는 지점"이
+ * 눈에 보이는 유일한 순간이라 난이도도 이 값을 기준으로 삼는다(Difficulty.ts).
+ */
+const CAMERA_START_TOP = ARENA.spawnY - CAMERA_HEADROOM
+
 /** 지금 탑 높이에서 카메라가 있어야 할 자리 */
 function targetCameraY(stackTop: number): number {
   // 받침대 위 여유가 CAMERA_HEADROOM보다 좁아지면 그만큼 올려다본다
@@ -35,4 +42,4 @@ function spawnYFor(cameraY: number): number {
   return ARENA.spawnY + cameraY
 }
 
-export { targetCameraY, followCameraY, spawnYFor }
+export { CAMERA_START_TOP, targetCameraY, followCameraY, spawnYFor }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { WordSpawner } from '../src/game/systems/WordSpawner.ts'
 import { createRng } from '../src/game/systems/Rng.ts'
-import { DIFFICULTY } from '../src/game/systems/Difficulty.ts'
+import { FULL as DIFFICULTY } from '../src/game/systems/Difficulty.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { WORD } from '../src/game/config.ts'
 

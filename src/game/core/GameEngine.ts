@@ -12,7 +12,7 @@ import { WORDS } from '../data/words.ts'
 import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
-import { DIFFICULTY } from '../systems/Difficulty.ts'
+import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
 import { RECIPES } from '../data/recipes.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
 import { findMerge } from '../systems/Merger.ts'
@@ -97,6 +97,8 @@ class GameEngine {
   private quakePhase = 0
   /** 지금 화면이 올려다보는 높이. 탑을 따라 부드럽게 올라간다 */
   private cameraY = 0
+  /** 이번 판에 닿았던 가장 높은 난이도 진행도(0~1) */
+  private difficultyPeak = 0
   private lives = LIVES
   /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
   private invulnerableLeft = 0
@@ -163,6 +165,7 @@ class GameEngine {
     this.score.reset()
     this.collection.startRun()
     this.cameraY = 0
+    this.difficultyPeak = 0
     this.physics.reset()
     this.loop.start()
     this.emit()
@@ -302,9 +305,18 @@ class GameEngine {
       }
     }
 
-    this.aimer.update(dt, DIFFICULTY.aimSpeed)
+    /*
+     * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
+     * 탑이 무너질 때마다 단어가 뜸해졌다 몰아쳤다 하면 무엇이 기준인지 알 수 없다.
+     */
+    this.difficultyPeak = Math.max(
+      this.difficultyPeak,
+      difficultyProgress(this.physics.stackTop()),
+    )
+    const difficulty = difficultyAt(this.difficultyPeak)
+    this.aimer.update(dt, difficulty.aimSpeed)
     // 놓친 단어는 그냥 사라진다. 대가는 점수에서만 치른다(ScoreManager.accuracy)
-    this.spawner.update(dt, DIFFICULTY)
+    this.spawner.update(dt, difficulty)
 
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()

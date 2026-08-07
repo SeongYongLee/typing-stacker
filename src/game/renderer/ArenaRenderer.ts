@@ -207,7 +207,12 @@ class ArenaRenderer {
     }
 
     const cx = this.toScreenX(0)
-    const cy = this.toScreenY(ARENA.height * 0.52)
+    /*
+     * 아레나 위쪽에 띄운다. 가운데(0.52)에 두면 쌓인 물건이 정확히 그 자리로 올라와
+     * 이름이 가려진다 — 히든이 나온 순간이 가장 반가운데 그때 이름을 못 읽으면 헛일이다.
+     * 스택은 아래에서 자라고 화살표는 맨 위를 지나므로 그 사이가 유일하게 비어 있는 띠다.
+     */
+    const cy = this.toScreenY(ARENA.height * 0.74)
     const unit = this.scale
 
     ctx.save()
@@ -236,13 +241,33 @@ class ArenaRenderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
+    const labelSize = Math.max(16, unit * 0.34)
+    const tagSize = Math.max(10, unit * 0.16)
+    const labelY = cy + ghost * 0.62
+    const tagY = labelY + Math.max(16, unit * 0.32)
+
+    // 낙하 중인 물건이 글자 위를 지나가도 읽히도록 어두운 판을 깔아준다
+    ctx.font = `700 ${labelSize}px ${UI_FONT}`
+    const plateWidth = Math.max(ctx.measureText(reveal.label).width, tagSize * 5) + labelSize
+    const plateTop = labelY - labelSize * 0.9
+    ctx.globalAlpha = alpha * 0.72
+    ctx.fillStyle = '#0d0f16'
+    ctx.beginPath()
+    ctx.roundRect(
+      cx - plateWidth / 2,
+      plateTop,
+      plateWidth,
+      tagY + tagSize - plateTop + labelSize * 0.4,
+      labelSize * 0.5,
+    )
+    ctx.fill()
+
     ctx.globalAlpha = alpha
     ctx.fillStyle = COLORS.hidden
-    ctx.font = `700 ${Math.max(16, unit * 0.34)}px ${UI_FONT}`
-    ctx.fillText(reveal.label, cx, cy + ghost * 0.62)
-    ctx.font = `${Math.max(10, unit * 0.16)}px ${UI_FONT}`
+    ctx.fillText(reveal.label, cx, labelY)
+    ctx.font = `${tagSize}px ${UI_FONT}`
     ctx.globalAlpha = alpha * 0.75
-    ctx.fillText('HIDDEN', cx, cy + ghost * 0.62 + Math.max(16, unit * 0.32))
+    ctx.fillText('HIDDEN', cx, tagY)
 
     ctx.restore()
   }

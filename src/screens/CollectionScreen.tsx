@@ -26,11 +26,33 @@ function labelOf(id: string): string {
   return VARIANT_BY_ID.get(id)?.label ?? id
 }
 
+/**
+ * 머리말과 돌아가기는 제자리에 두고 격자만 스크롤한다.
+ * 전부 함께 흐르면 물건이 늘어날수록 돌아가는 길이 화면 밖으로 밀려난다 —
+ * 웹에서는 페이지 자체가 스크롤되지 않으므로(body가 overflow hidden) 그 버튼을
+ * 찾지 못하면 빠져나갈 방법이 없다.
+ */
 const rootStyle: CSSProperties = {
   height: '100%',
-  overflowY: 'auto',
-  padding: '40px 24px',
+  display: 'grid',
+  gridTemplateRows: 'auto minmax(0, 1fr) auto',
+  padding: '32px 24px 24px',
 }
+
+const scrollStyle: CSSProperties = {
+  overflowY: 'auto',
+  minHeight: 0,
+  padding: '4px 4px 8px',
+}
+
+/**
+ * 칸 그림의 크기. 퍼센트로 두지 않고 픽셀로 못 박는다.
+ *
+ * `height: 100%`는 부모가 grid일 때 **자동 크기로 잡힌 행**을 기준으로 풀린다.
+ * 그 행은 그림의 원래 높이(256px)를 따라 늘어나 있으므로 100%가 곧 256px이 되고,
+ * 세로로 긴 스티커(텀블러, 번개)가 상자를 넘어 아래 이름 위로 올라탔다.
+ */
+const ICON_SIZE = 72
 
 const gridStyle: CSSProperties = {
   display: 'grid',
@@ -53,8 +75,9 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
         </p>
       </div>
 
-      <div style={gridStyle} data-collection>
-        {ALL_VARIANTS.map((item) => {
+      <div style={scrollStyle}>
+        <div style={gridStyle} data-collection>
+          {ALL_VARIANTS.map((item) => {
           const owned = found.has(item.id)
           const inputs = recipeFor(item.id)
           return (
@@ -63,38 +86,59 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
               data-entry={item.id}
               data-owned={owned ? 'yes' : 'no'}
               style={{
-                border: `1px solid ${owned ? '#48507a' : '#242a3d'}`,
+                /*
+                 * 히든은 테두리와 이름 색으로 가른다.
+                 * 도감이 물건 전부를 담게 되면서 히든이 그 사이에 묻혔는데,
+                 * 모으는 재미는 "저건 특별한 것"이 한눈에 보일 때 생긴다.
+                 */
+                border: `1px solid ${
+                  item.hidden
+                    ? owned
+                      ? '#8a6d1f'
+                      : '#3a2f10'
+                    : owned
+                      ? '#48507a'
+                      : '#242a3d'
+                }`,
                 borderRadius: 12,
                 padding: 12,
-                background: owned ? '#1b2032' : '#12151f',
+                background: item.hidden && owned ? '#221d0f' : owned ? '#1b2032' : '#12151f',
                 display: 'grid',
                 justifyItems: 'center',
-                gap: 8,
+                gap: 6,
               }}
             >
-              <div
-                style={{
-                  width: 72,
-                  height: 72,
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                {owned ? (
-                  <img
-                    src={item.sprite}
-                    alt={item.label}
-                    style={{ maxWidth: '100%', maxHeight: '100%' }}
-                  />
-                ) : (
-                  <span style={{ fontSize: 30, color: '#3a4160' }}>?</span>
-                )}
-              </div>
+              {owned ? (
+                <img
+                  src={item.sprite}
+                  alt={item.label}
+                  style={{ width: ICON_SIZE, height: ICON_SIZE, objectFit: 'contain' }}
+                />
+              ) : (
+                <span
+                  style={{
+                    width: ICON_SIZE,
+                    height: ICON_SIZE,
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 30,
+                    color: '#3a4160',
+                  }}
+                >
+                  ?
+                </span>
+              )}
               <span
                 style={{
                   fontSize: 14,
                   fontWeight: 600,
-                  color: owned ? '#f2f4fb' : '#525a7d',
+                  color: item.hidden
+                    ? owned
+                      ? '#ffcf5c'
+                      : '#5c4a1c'
+                    : owned
+                      ? '#f2f4fb'
+                      : '#525a7d',
                 }}
               >
                 {owned ? item.label : '???'}
@@ -110,10 +154,11 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
               )}
             </div>
           )
-        })}
+          })}
+        </div>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 28 }}>
+      <div style={{ textAlign: 'center', paddingTop: 20 }}>
         <button
           type="button"
           onClick={onBack}

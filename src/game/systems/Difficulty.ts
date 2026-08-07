@@ -11,7 +11,7 @@ import type { DifficultyLevel } from '../types/game.ts'
  * 값은 **여유 있는 쪽**으로 잡는다. 이 게임의 재미는 촉박함이 아니라 쌓는 판단에 있고,
  * 조준까지 Enter 하나에 걸려 있어서 손이 급해지면 판단할 틈이 사라진다.
  * 낙하 7.5초는 단어 평균 6.3타(사람 속도로 1.1~1.5초)의 약 5배이고,
- * 화살표 왕복은 4.2초(= 2 / aimSpeed)다.
+ * 화살표 왕복은 5.3초(= 2 / aimSpeed)다 — 원하는 자리가 올 때까지 기다릴 수 있는 속도다.
  *
  * 동시 낙하 상한은 단어 풀(13개)과 레인 칸 수(4×2)에 묶인다. 활성 단어의 중복을
  * 막으므로 상한이 풀 크기에 가까우면 화면이 거의 전체 어휘로 채워져 스폰이 막힌다.
@@ -19,7 +19,7 @@ import type { DifficultyLevel } from '../types/game.ts'
 const DIFFICULTY: DifficultyLevel = {
   spawnInterval: 1.7,
   fallDuration: 7.5,
-  aimSpeed: 0.48,
+  aimSpeed: 0.38,
   maxConcurrent: 5,
 }
 

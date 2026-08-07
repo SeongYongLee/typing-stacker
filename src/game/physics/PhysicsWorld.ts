@@ -12,6 +12,7 @@ import {
   ANCHOR_LINEAR_DAMPING,
   ARENA,
   HEAVY_MASS,
+  QUAKE_MIN_SIZE,
   QUAKE_MIN_SPEED,
   QUAKE_REARM_DISTANCE,
   QUAKE_REIMPACT_SPEED,
@@ -105,7 +106,14 @@ interface TrackedBody {
    * 핸들로 맞추면 게스트가 로컬에서 만든 물건과 대응되지 않아 물건이 두 배로 늘어난다.
    */
   readonly itemId: number
+  /** 자리를 잡으면 잠기는가. 관성으로 버티는 물건이다 */
   readonly heavy: boolean
+  /**
+   * 부딪힐 때 화면을 흔드는가.
+   * 무거움과 따로 두는 이유는, 작고 조밀한 물건이 흔들면 눈과 어긋나기 때문이다.
+   * 잠금은 무게의 문제이고 흔들림은 보이는 크기의 문제다.
+   */
+  readonly shakes: boolean
   readonly sticky: boolean
   settleTimer: number
   settled: boolean
@@ -280,6 +288,9 @@ class PhysicsWorld {
       itemId,
       // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
       heavy: body.mass() >= HEAVY_MASS,
+      shakes:
+        body.mass() >= HEAVY_MASS &&
+        Math.max(variant.artBounds.hw, variant.artBounds.hh) * 2 >= QUAKE_MIN_SIZE,
       sticky: variant.sticky,
       settleTimer: 0,
       settled: false,
@@ -519,7 +530,7 @@ class PhysicsWorld {
       // 접촉 이벤트를 따로 배선하지 않아도 착지 순간을 충분히 정확하게 잡는다.
       const minImpactSpeed = entry.dislodged ? QUAKE_REIMPACT_SPEED : QUAKE_MIN_SPEED
       if (
-        entry.heavy &&
+        entry.shakes &&
         !entry.impacted &&
         entry.previousSpeed >= minImpactSpeed &&
         speed < entry.previousSpeed * 0.55

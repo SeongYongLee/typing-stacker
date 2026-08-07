@@ -134,8 +134,9 @@ const WORDS: readonly WordEntry[] = [
       }),
       hiddenVariant({
         id: 'snail-curled',
-        // 웅크리면 껍데기만 남아 달라붙지 못하고 데구르르 굴러간다 —
-        // 히든이 늘 좋은 쪽인 것은 아니다
+        // 달팽이는 웅크려도 달팽이다. 다만 껍데기가 둥글어 무언가에 닿기 전까지는
+        // 데구르르 굴러간다 — 어디에 가서 붙을지 알 수 없다
+        sticky: true,
         angularDamping: 0.5,
         restitution: 0.12,
         label: '웅크린 달팽이',

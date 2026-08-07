@@ -141,7 +141,20 @@ const HEAVY_MASS = 0.35
 const ANCHOR_LINEAR_DAMPING = 7
 const ANCHOR_ANGULAR_DAMPING = 9
 
-/** 무거운 물건이 이 속도 이상으로 부딪히면 화면이 흔들린다 */
+/**
+ * 화면을 흔들려면 이만큼은 커 보여야 한다(그린 크기의 큰 변).
+ *
+ * 무게만 보면 눈과 어긋난다. 도시락은 **가장 무거운** 물건인데(질량 0.744)
+ * 그림은 작은 편이고(0.75), 텀블러도 마찬가지다(질량 0.408, 크기 0.70).
+ * 작은 것이 쿵 하고 화면을 흔들면 과장으로 읽힌다. 반대로 크기만 보면
+ * 우산(0.98)이나 접힌 우산(0.80)처럼 가벼운 것까지 흔들게 된다.
+ *
+ * 0.78에서 끊으면 비행기·피자 한판·노트북·접힌 노트북이 남는다.
+ * 도시락(0.75)과의 간격이 0.05로 좁으니, 새 물건을 넣을 때는 이 표를 다시 봐야 한다.
+ */
+const QUAKE_MIN_SIZE = 0.78
+
+/** 무겁고 큰 물건이 이 속도 이상으로 부딪히면 화면이 흔들린다 */
 const QUAKE_MIN_SPEED = 3.5
 /**
  * 충격(속도 x 질량)을 0~1 세기로 누르는 나눔값.
@@ -182,6 +195,7 @@ export {
   WORD,
   ARENA_SCREEN_MAX_WIDTH,
   HEAVY_MASS,
+  QUAKE_MIN_SIZE,
   QUAKE_IMPACT_SCALE,
   ANCHOR_LINEAR_DAMPING,
   ANCHOR_ANGULAR_DAMPING,

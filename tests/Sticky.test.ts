@@ -212,8 +212,51 @@ describe('stackTop — 카메라가 보는 높이', () => {
   })
 })
 
+/** 물리층이 이 물건을 어떻게 분류했는지 */
+function classify(item: ItemVariant): { heavy: boolean; shakes: boolean } {
+  world.reset()
+  world.spawnItem(item, 0, SOLO_OWNER)
+  const internals = world as unknown as {
+    tracked: Map<number, { heavy: boolean; shakes: boolean }>
+  }
+  const entry = [...internals.tracked.values()][0]
+  if (entry === undefined) throw new Error('물건이 생기지 않았다')
+  return { heavy: entry.heavy, shakes: entry.shakes }
+}
+
+describe('흔들림 — 무겁고 커 보이는 것만 흔든다', () => {
+  it('가장 큰 물건은 흔든다 — 비행기가 조용하면 눈과 어긋난다', () => {
+    expect(classify(find('airplane')).shakes).toBe(true)
+  })
+
+  it('작고 조밀한 것은 흔들지 않는다 — 무게만 보면 눈과 어긋난다', () => {
+    // 도시락은 **가장 무거운** 물건이지만 그림이 작다
+    expect(massOf(find('bento'))).toBeGreaterThan(massOf(find('airplane')))
+    expect(classify(find('bento')).shakes).toBe(false)
+    expect(classify(find('tumbler')).shakes).toBe(false)
+  })
+
+  it('작아도 무거우면 자리를 잡고 잠긴다 — 흔들림과 잠금은 다른 문제다', () => {
+    expect(classify(find('bento')).heavy).toBe(true)
+    expect(classify(find('tumbler')).heavy).toBe(true)
+  })
+
+  it('크기만 커서는 흔들지 못한다', () => {
+    // 우산은 비행기 다음으로 크지만 가볍다
+    const umbrella = find('umbrella')
+    expect(umbrella.artBounds.hw * 2).toBeGreaterThan(0.78)
+    expect(classify(umbrella).shakes).toBe(false)
+  })
+
+  it('가벼운 물건은 어느 쪽도 아니다', () => {
+    for (const id of ['leaf', 'clover']) {
+      expect(classify(find(id)), id).toEqual({ heavy: false, shakes: false })
+    }
+  })
+})
+
 describe('무게 — 지진은 실제 질량으로 판정한다', () => {
-  it('가장 큰 물건은 무거운 축에 든다 — 비행기가 조용하면 눈과 어긋난다', () => {
+  it('가장 큰 물건은 무거운 축에 든다', () => {
     expect(massOf(find('airplane'))).toBeGreaterThanOrEqual(HEAVY_MASS)
   })
 

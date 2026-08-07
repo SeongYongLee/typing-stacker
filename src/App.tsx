@@ -4,15 +4,27 @@ import { useMatchSession } from './hooks/useMatchSession.ts'
 import { CollectionScreen } from './screens/CollectionScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { LobbyScreen } from './screens/LobbyScreen.tsx'
+import { LoopbackScreen } from './screens/LoopbackScreen.tsx'
 import { MatchScreen } from './screens/MatchScreen.tsx'
 import { ResultScreen } from './screens/ResultScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 
 /** 지금 어느 화면에 있는지. 싱글과 대전은 서로 다른 엔진을 쓴다 */
-type Route = 'title' | 'solo' | 'lobby' | 'collection'
+type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'loopback'
+
+/**
+ * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
+ * WebRTC 없이 대전을 확인할 수 있는 유일한 길이라, 대전을 만질 때는 여기서 먼저 본다.
+ */
+function initialRoute(): Route {
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('loopback')) {
+    return 'loopback'
+  }
+  return 'title'
+}
 
 function App() {
-  const [route, setRoute] = useState<Route>('title')
+  const [route, setRoute] = useState<Route>(initialRoute)
   const { engine, state } = useGameEngine()
   const match = useMatchSession()
 
@@ -30,6 +42,10 @@ function App() {
     match.leave()
     setRoute('title')
   }, [match])
+
+  if (route === 'loopback') {
+    return <LoopbackScreen onBack={() => setRoute('title')} />
+  }
 
   if (route === 'collection') {
     return (

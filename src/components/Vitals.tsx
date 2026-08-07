@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LIVES } from '../game/config.ts'
 import { play } from './animate.ts'
 
@@ -146,4 +146,124 @@ function Combo({ combo }: { combo: number }) {
   )
 }
 
-export { Lives, Combo }
+/**
+ * 점수. 오를 때와 내릴 때를 몸으로 알린다.
+ *
+ * 놓친 단어는 정확도를 떨어뜨려 **점수를 되돌린다**(ScoreManager.finalScore).
+ * 숫자만 조용히 바뀌면 그 대가가 있었다는 것을 알아채지 못한다 — 이 게임에서
+ * 놓침의 유일한 대가라 반드시 보여야 한다.
+ *
+ * 눈은 입력칸에 붙어 있으므로 연출도 그 옆에서 일어난다.
+ */
+function Score({ score }: { score: number }) {
+  const valueRef = useRef<HTMLSpanElement | null>(null)
+  const previous = useRef(score)
+  const [delta, setDelta] = useState<{ seq: number; amount: number } | null>(null)
+  const seq = useRef(0)
+  const timer = useRef(0)
+
+  useEffect(() => {
+    const amount = score - previous.current
+    previous.current = score
+    if (amount === 0) {
+      return
+    }
+
+    const up = amount > 0
+    play(
+      valueRef.current,
+      up
+        ? [
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.18)', offset: 0.3 },
+            { transform: 'scale(1)' },
+          ]
+        : [
+            // 내려갈 때는 커지지 않고 좌우로 흔들린다 — 위아래 방향이 값의 방향과 맞아야 한다
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-4px)', offset: 0.25 },
+            { transform: 'translateX(3px)', offset: 0.6 },
+            { transform: 'translateX(0)' },
+          ],
+      { duration: up ? 320 : 260, easing: 'ease-out' },
+    )
+
+    seq.current += 1
+    setDelta({ seq: seq.current, amount })
+    // 타이머의 주인은 이 표시 자신이다 — 값 변화에 매달면 연달아 바뀔 때 지워져 남는다
+    clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setDelta(null), DELTA_MS)
+  }, [score])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, position: 'relative' }}>
+      <span style={{ fontSize: 11, color: '#6a7290', letterSpacing: '0.08em' }}>점수</span>
+      <span
+        ref={valueRef}
+        data-score={score}
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          lineHeight: 1,
+          color: '#ffcf5c',
+          fontVariantNumeric: 'tabular-nums',
+          display: 'inline-block',
+        }}
+      >
+        {score.toLocaleString('ko-KR')}
+      </span>
+      {delta !== null && <Delta key={delta.seq} amount={delta.amount} />}
+    </div>
+  )
+}
+
+const DELTA_MS = 900
+
+/** 얼마나 오르내렸는지 한 번 띄우고 사라진다 */
+function Delta({ amount }: { amount: number }) {
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const up = amount > 0
+
+  useEffect(() => {
+    play(
+      ref.current,
+      [
+        { opacity: 0, transform: `translateY(${up ? 6 : -6}px)` },
+        { opacity: 1, transform: 'translateY(0)', offset: 0.2 },
+        { opacity: 1, transform: `translateY(${up ? -8 : 8}px)`, offset: 0.7 },
+        { opacity: 0, transform: `translateY(${up ? -14 : 14}px)` },
+      ],
+      // fill을 두지 않으면 끝난 뒤 기본 스타일로 돌아와 그대로 보인다
+      { duration: DELTA_MS, easing: 'ease-out', fill: 'forwards' },
+    )
+  }, [up])
+
+  return (
+    <span
+      ref={ref}
+      data-score-delta={amount}
+      style={{
+        /*
+         * 점수 **위쪽**에 띄운다. 오른쪽에 두면 바로 옆 콤보 글자를 덮는다.
+         * 위는 아레나라 가릴 것이 없고, 값이 오르내리는 방향과도 맞는다.
+         */
+        position: 'absolute',
+        bottom: '100%',
+        left: 0,
+        marginBottom: 2,
+        whiteSpace: 'nowrap',
+        fontSize: 14,
+        fontWeight: 700,
+        color: up ? '#6bffb0' : '#ff6b6b',
+        pointerEvents: 'none',
+      }}
+    >
+      {up ? '+' : '−'}
+      {Math.abs(amount).toLocaleString('ko-KR')}
+    </span>
+  )
+}
+
+export { Lives, Combo, Score }

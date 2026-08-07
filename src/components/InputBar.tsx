@@ -4,7 +4,7 @@ import type { SubmitFeedback } from '../game/core/GameEngine.ts'
 import type { RunStats } from '../game/types/game.ts'
 import type { HangulInput } from '../hooks/useHangulInput.ts'
 import { play } from './animate.ts'
-import { Combo, Lives } from './Vitals.tsx'
+import { Combo, Lives, Score } from './Vitals.tsx'
 
 interface InputBarProps {
   input: HangulInput
@@ -50,7 +50,7 @@ const labelStyle: CSSProperties = {
 }
 
 /**
- * 목숨 · 입력칸 · 콤보를 한 줄에 둔다.
+ * 목숨 · 입력칸 · 점수와 콤보를 한 줄에 둔다.
  * 양옆을 1fr로 잡아서 가운데 입력칸은 내용 폭과 무관하게 정확히 화면 중앙에 온다.
  */
 const rowStyle: CSSProperties = {
@@ -142,7 +142,16 @@ function InputBar({ input, feedback, stats, invulnerable }: InputBarProps) {
             }}
           />
         </div>
-        <div style={{ justifySelf: 'start' }}>
+        {/* 점수와 콤보를 나란히 둔다 — 둘 다 입력의 결과이고, 눈은 여기 붙어 있다 */}
+        <div
+          style={{
+            justifySelf: 'start',
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 24,
+          }}
+        >
+          <Score score={stats.score} />
           <Combo combo={stats.combo} />
         </div>
       </div>

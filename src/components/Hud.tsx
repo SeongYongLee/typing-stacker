@@ -18,9 +18,8 @@ const wrapStyle: CSSProperties = {
 function Hud({ stats, elapsed }: HudProps) {
   return (
     <div style={wrapStyle}>
-      {/* 목숨과 콤보는 여기 없다 — 시선이 머무는 입력창 옆(InputBar)으로 옮겼다 */}
-      <Metric label="점수" value={stats.score.toLocaleString('ko-KR')} strong />
-      <Metric label="쌓기" value={`${stats.stackCount}개`} />
+      {/* 점수·목숨·콤보는 여기 없다 — 시선이 머무는 입력창 옆(InputBar)으로 옮겼다 */}
+      <Metric label="쌓기" value={`${stats.stackCount}개`} strong />
       <Metric label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
       <Metric label="놓친 단어" value={`${stats.missedWords}개`} />
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 28 }}>

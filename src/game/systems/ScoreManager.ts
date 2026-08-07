@@ -20,6 +20,11 @@ class ScoreManager {
   private maxCombo = 0
   private keystrokes = 0
   private readonly hidden = new Set<string>()
+  /**
+   * 발견 목록을 배열로 펼친 것. stats()는 매 프레임 불리므로 그때마다 Set을 복사하면
+   * 초당 60개의 배열이 쓰레기로 쌓인다 — 새로 발견할 때만 다시 만든다.
+   */
+  private hiddenList: readonly string[] = []
 
   /** 콤보 배수. 물건이 멈출 때 그 시점의 배수가 점수에 곱해진다 */
   get multiplier(): number {
@@ -45,7 +50,7 @@ class ScoreManager {
    * 결과이지 운이 아니다.
    */
   onCrafted(variant: ItemVariant): void {
-    this.hidden.add(variant.label)
+    this.remember(variant.label)
     this.score += SCORE.craftBonus + variant.scoreBonus
   }
 
@@ -59,7 +64,7 @@ class ScoreManager {
     this.stackCount += 1
     this.score += Math.round((SCORE.perItem + variant.scoreBonus) * this.multiplier)
     if (variant.hidden) {
-      this.hidden.add(variant.label)
+      this.remember(variant.label)
     }
 
     const height = Math.max(topY - ARENA.platformTop, 0)
@@ -98,7 +103,16 @@ class ScoreManager {
       combo: this.combo,
       maxCombo: this.maxCombo,
       kpm: keystrokesPerMinute(this.keystrokes, elapsedSec),
-      hiddenFound: [...this.hidden],
+      hiddenFound: this.hiddenList,
+    }
+  }
+
+  /** 발견 목록에 넣고, 실제로 늘었을 때만 펼친 배열을 다시 만든다 */
+  private remember(label: string): void {
+    const before = this.hidden.size
+    this.hidden.add(label)
+    if (this.hidden.size !== before) {
+      this.hiddenList = [...this.hidden]
     }
   }
 
@@ -110,6 +124,7 @@ class ScoreManager {
     this.maxCombo = 0
     this.keystrokes = 0
     this.hidden.clear()
+    this.hiddenList = []
   }
 }
 

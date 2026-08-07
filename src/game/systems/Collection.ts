@@ -12,9 +12,16 @@ class Collection {
   private readonly known: Set<string>
   /** 이번 판에 처음 만난 것들. 결과 화면이 "새로 채운 칸"을 보여주는 데 쓴다 */
   private readonly fresh = new Set<string>()
+  /**
+   * 배열로 펼친 결과를 들고 있는다. 이 값은 매 프레임 스냅샷에 실려 나가는데,
+   * 그때마다 Set을 복사하면 초당 120개의 배열이 쓰레기로 쌓인다 — 바뀔 때만 다시 만든다.
+   */
+  private knownList: readonly string[] = []
+  private freshList: readonly string[] = []
 
   constructor(known: Iterable<string> = []) {
     this.known = new Set(known)
+    this.knownList = [...this.known]
   }
 
   has(id: string): boolean {
@@ -28,20 +35,23 @@ class Collection {
     }
     this.known.add(id)
     this.fresh.add(id)
+    this.knownList = [...this.known]
+    this.freshList = [...this.fresh]
     return true
   }
 
   get ids(): readonly string[] {
-    return [...this.known]
+    return this.knownList
   }
 
   get freshIds(): readonly string[] {
-    return [...this.fresh]
+    return this.freshList
   }
 
   /** 판을 새로 시작할 때. 모아둔 것은 남기고 "이번 판에 새로 만난 것"만 비운다 */
   startRun(): void {
     this.fresh.clear()
+    this.freshList = []
   }
 }
 

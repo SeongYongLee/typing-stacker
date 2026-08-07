@@ -1,15 +1,18 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { ARENA, HEAVY_MASS, SOLO_OWNER } from '../src/game/config.ts'
+import { RECIPES } from '../src/game/data/recipes.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { PhysicsWorld } from '../src/game/physics/PhysicsWorld.ts'
+import { findMerge } from '../src/game/systems/Merger.ts'
 import type { ItemVariant } from '../src/game/types/game.ts'
 
 /**
  * 끈적함과 무게가 실제로 다르게 움직이는지 잰다.
  *
- * 값을 바꿔놓고 "성격을 줬다"고 말하기는 쉽다. 그러나 마찰만 올리면 물리 엔진이
- * 두 물건의 마찰을 평균내면서 희석돼 실제로는 거의 달라지지 않는다.
- * 그래서 숫자가 아니라 **결과**를 본다.
+ * 값을 바꿔놓고 "성격을 줬다"고 말하기는 쉽다. 여기서 보는 것은 숫자가 아니라
+ * **결과**다. 실제로 이 시험들이 두 번의 실패를 잡아냈다 — 마찰만 올리는 방식은
+ * 흘러내린 거리가 소수점 셋째 자리까지 같았고, 닿는 순간 속도를 죽이는 방식은
+ * 물건이 자리를 찾을 여지를 없애 오히려 더 낮은 곳에 앉혔다.
  */
 
 function allVariants(): readonly ItemVariant[] {
@@ -22,8 +25,7 @@ function find(id: string): ItemVariant {
   return found
 }
 
-/** 부딪히는 쪽으로 쓸 무거운 물건 */
-const HEAVY = find('bento')
+const BLOCK = find('bento')
 
 let world: PhysicsWorld
 
@@ -31,32 +33,54 @@ beforeAll(async () => {
   world = await PhysicsWorld.create()
 })
 
-/**
- * 자리를 잡은 뒤 무거운 것에 부딪혔을 때 얼마나 밀려나는가.
- *
- * 처음에는 비탈에서 흘러내린 거리를 쟀는데 끈적한 쪽과 보통 쪽이 소수점 셋째 자리까지
- * 같았다. 이 중력과 이 모양들에서는 애초에 미끄러져 자리를 잃는 일이 드물기 때문이다.
- * 실제로 물건을 자리에서 떼어내는 것은 부딪힘이고, 끈적함이 막는 것도 그쪽이다.
- */
-function knockDistance(item: ItemVariant): number {
-  world.reset()
-  world.spawnItemAt(item, 0, ARENA.platformTop + 0.4, SOLO_OWNER)
-  for (let t = 0; t < 3; t += 1 / 60) world.step(1 / 60)
-
-  const before = world.frames().find((frame) => frame.variantId === item.id)
-  if (before === undefined) throw new Error(`${item.id}가 받침대에 남지 않았다`)
-
-  // 무거운 것을 옆에서 떨어뜨려 친다
-  world.spawnItem(HEAVY, before.x + 0.35, SOLO_OWNER)
-  for (let t = 0; t < 4; t += 1 / 60) world.step(1 / 60)
-
-  const after = world.frames().find((frame) => frame.variantId === item.id)
-  // 아예 밀려나 사라졌으면 가장 크게 밀린 것으로 친다
-  if (after === undefined) return Infinity
-  return Math.hypot(after.x - before.x, after.y - before.y)
+function run(seconds: number): void {
+  for (let t = 0; t < seconds; t += 1 / 60) {
+    world.step(1 / 60)
+  }
 }
 
-/** 콜라이더를 붙인 뒤라야 실제 질량이 나온다 */
+function frameOf(item: ItemVariant) {
+  return world.frames().find((frame) => frame.variantId === item.id)
+}
+
+function weldCount(): number {
+  return (world as unknown as { welds: Map<string, unknown> }).welds.size
+}
+
+/** 두 칸짜리 탑을 세우고 맨 위 칸을 돌려준다 */
+function buildTower() {
+  world.reset()
+  world.spawnItemAt(BLOCK, 0, ARENA.platformTop + 0.4, SOLO_OWNER)
+  run(2)
+  const first = world.frames()[0]
+  if (first === undefined) throw new Error('탑이 서지 않았다')
+  world.spawnItemAt(BLOCK, first.x, first.y + 0.45, SOLO_OWNER)
+  run(2)
+  return world.frames().reduce((best, frame) => (frame.y > best.y ? frame : best))
+}
+
+/**
+ * 탑 옆면에 갖다 댄 뒤 닿은 높이에서 얼마나 내려갔는지.
+ * 0에 가까우면 그 자리에 매달린 것이고, 크면 흘러내린 것이다.
+ * 받쳐주는 것이 없는 옆면이라 붙지 않으면 반드시 내려간다.
+ */
+function dropFromContact(item: ItemVariant): number {
+  const top = buildTower()
+  world.spawnItemAt(item, top.x + 0.5, top.y, SOLO_OWNER)
+  run(0.4)
+  const touched = frameOf(item)
+  if (touched === undefined) return Infinity
+  run(4)
+  const rest = frameOf(item)
+  if (rest === undefined) return Infinity
+  return touched.y - rest.y
+}
+
+/** 같은 물건에서 끈적함만 끈 사본. 모양이 변수가 되지 않게 한다 */
+function withoutSticky(item: ItemVariant): ItemVariant {
+  return { ...item, id: `${item.id}-plain`, sticky: false }
+}
+
 function massOf(item: ItemVariant): number {
   world.reset()
   world.spawnItem(item, 0, SOLO_OWNER)
@@ -68,42 +92,51 @@ function massOf(item: ItemVariant): number {
   return entry.body.mass()
 }
 
-/** 같은 물건에서 끈적함만 끈 사본. 모양이 변수가 되지 않게 한다 */
-function withoutSticky(item: ItemVariant): ItemVariant {
-  return { ...item, id: `${item.id}-plain`, sticky: false, friction: 0.75 }
-}
-
-describe('끈적함', () => {
+describe('끈적함 — 닿으면 붙는다', () => {
   it('끈적한 물건이 하나 이상 있다', () => {
     expect(allVariants().filter((item) => item.sticky).length).toBeGreaterThan(0)
   })
 
-  it('끈적한 물건은 마찰 바닥값을 보장받는다 — 말과 동작이 어긋나면 안 된다', () => {
+  it('받쳐주는 것이 없는 옆면에 닿아도 그 자리에 매달린다', () => {
     for (const item of allVariants().filter((v) => v.sticky)) {
-      expect(item.friction, item.id).toBeGreaterThanOrEqual(1.8)
+      expect(dropFromContact(item), item.id).toBeLessThan(0.05)
     }
   })
 
-  it('부딪혀도 끈적한 쪽이 훨씬 덜 밀린다', () => {
-    /*
-     * 이 게임에서 물건이 자리를 잃는 것은 미끄러져서가 아니라 부딪혀서다.
-     * 그래서 흘러내린 거리가 아니라 **밀려난 거리**를 잰다. 같은 물건에서
-     * 끈적함만 껐다 켜므로 모양이 결과를 가르지 않는다.
-     *
-     * 이미 무거운 물건은 끈적하지 않아도 잠기므로 여기서 빠진다 —
-     * 피자 한판이 그렇다(질량 0.526 >= HEAVY_MASS).
-     */
-    const light = allVariants().filter((v) => v.sticky && massOf(v) < HEAVY_MASS)
-    expect(light.length).toBeGreaterThan(0)
-
-    for (const item of light) {
-      const stuck = knockDistance(item)
-      const loose = knockDistance(withoutSticky(item))
-      expect(loose / stuck, item.id).toBeGreaterThan(2)
+  it('끈적함을 끄면 같은 물건이 흘러내린다 — 모양 덕이 아님을 보인다', () => {
+    for (const item of allVariants().filter((v) => v.sticky)) {
+      expect(dropFromContact(withoutSticky(item)), item.id).toBeGreaterThan(0.1)
     }
   })
 
-  it('끈적해도 빈 받침대 중앙에서 저절로 떨어지지 않는다', () => {
+  it('붙은 뒤에는 상대 위치가 그대로 유지된다', () => {
+    const item = find('octopus')
+    const top = buildTower()
+    world.spawnItemAt(item, top.x + 0.5, top.y, SOLO_OWNER)
+    run(0.6)
+
+    const gap = () => {
+      const mine = frameOf(item)
+      const block = world.frames().find((frame) => frame.variantId === BLOCK.id)
+      if (mine === undefined || block === undefined) return null
+      return { dx: mine.x - block.x, dy: mine.y - block.y }
+    }
+    const before = gap()
+    run(3)
+    const after = gap()
+
+    expect(before).not.toBeNull()
+    expect(after).not.toBeNull()
+    expect(after!.dx).toBeCloseTo(before!.dx, 1)
+    expect(after!.dy).toBeCloseTo(before!.dy, 1)
+  })
+
+  it('끈적한 것이 없으면 아무것도 붙지 않는다 — 탑 전체가 한 덩어리가 되면 안 된다', () => {
+    buildTower()
+    expect(weldCount()).toBe(0)
+  })
+
+  it('붙어 있어도 빈 받침대 중앙에서는 저절로 떨어지지 않는다', () => {
     for (const item of allVariants().filter((v) => v.sticky)) {
       world.reset()
       world.spawnItem(item, 0, SOLO_OWNER)
@@ -113,6 +146,34 @@ describe('끈적함', () => {
       }
       expect(escaped, item.id).toBe(0)
     }
+  })
+
+  it('붙은 재료가 합성으로 사라지면 관절 기록도 사라진다', () => {
+    /*
+     * 관절 자체는 Rapier가 바디와 함께 걷어내지만, 장부를 지우지 않으면 그 짝이
+     * 영원히 "이미 붙었다"로 남는다. 핸들은 재사용되므로 나중에 온 물건이
+     * 그 자리를 물려받으면 붙어야 할 때 붙지 않는다.
+     */
+    const recipe = RECIPES.find((item) => {
+      const [first, second] = item.inputs
+      return first === second && find(first!).sticky
+    })
+    if (recipe === undefined) throw new Error('끈적한 재료로 만드는 레시피가 없다')
+
+    world.reset()
+    const material = find(recipe.inputs[0]!)
+    world.spawnItemAt(material, 0, ARENA.platformTop + 0.5, SOLO_OWNER)
+    run(1.5)
+    const base = world.frames()[0]
+    if (base === undefined) throw new Error('재료가 남지 않았다')
+    world.spawnItemAt(material, base.x, base.y + 0.35, SOLO_OWNER)
+    run(1.5)
+    expect(weldCount()).toBeGreaterThan(0)
+
+    const match = findMerge(world.contactGraph(), RECIPES)
+    expect(match).not.toBeNull()
+    world.mergeItems(match!.itemIds, match!.recipe.result, SOLO_OWNER)
+    expect(weldCount()).toBe(0)
   })
 })
 

@@ -1,9 +1,10 @@
 import {
   init,
   ColliderDesc,
-  CoefficientCombineRule,
+  JointData,
   RigidBodyDesc,
   World,
+  type ImpulseJoint,
   type RigidBody,
 } from '@dimforge/rapier2d-compat'
 import {
@@ -41,6 +42,9 @@ function ensureInit(): Promise<void> {
   return initPromise
 }
 
+/** 버퍼를 제자리에서 갱신하기 위해 readonly를 벗긴다 */
+type Mutable<T> = { -readonly [K in keyof T]: T[K] }
+
 const FIXED_STEP = 1 / 60
 /** 탭 전환 등으로 dt가 크게 튀었을 때 시뮬레이션이 폭주하지 않게 */
 const MAX_STEPS_PER_FRAME = 5
@@ -53,6 +57,24 @@ const LINEAR_DAMPING = 0.2
  * 안 되고, 그 불변식은 tests/PhysicsWorld.test.ts가 모든 변형에 대해 지킨다.
  * 개성을 주려고 낮출 때는 그 테스트가 한계를 알려준다.
  */
+
+/** 두 핸들로 만드는 짝 열쇠. 순서가 달라도 같은 짝이다 */
+function weldKey(a: number, b: number): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`
+}
+
+/** 월드 좌표를 어떤 바디의 로컬 좌표로 옮긴다 */
+function toLocal(
+  point: { x: number; y: number },
+  origin: { x: number; y: number },
+  rotation: number,
+): { x: number; y: number } {
+  const dx = point.x - origin.x
+  const dy = point.y - origin.y
+  const cos = Math.cos(-rotation)
+  const sin = Math.sin(-rotation)
+  return { x: dx * cos - dy * sin, y: dx * sin + dy * cos }
+}
 
 interface SettleEvent {
   readonly variant: ItemVariant
@@ -170,6 +192,13 @@ function colliderFor(shape: PrimitiveShape): ColliderDesc | null {
 class PhysicsWorld {
   private readonly world: World
   private readonly tracked = new Map<number, TrackedBody>()
+  /** snapshots()가 재사용하는 버퍼. 매 프레임 새로 만들지 않기 위한 것 */
+  private readonly snapshotBuffer: Mutable<BodySnapshot>[] = []
+  /**
+   * 붙어버린 짝과 그 관절. 열쇠는 두 핸들을 작은 것부터 이어붙인 문자열이다.
+   * 같은 짝에 관절을 두 번 걸면 서로 당겨 물건이 떨리므로 반드시 한 번만 건다.
+   */
+  private readonly welds = new Map<string, ImpulseJoint>()
   private accumulator = 0
 
   private constructor() {
@@ -226,26 +255,15 @@ class PhysicsWorld {
       if (desc === null) {
         continue
       }
-      const collider = desc
-        .setTranslation(part.offset.x, part.offset.y)
-        .setRotation(part.rotation ?? 0)
-        .setFriction(variant.friction)
-        .setRestitution(variant.restitution)
-        .setDensity(variant.density)
-
-      if (variant.sticky) {
-        /*
-         * 마찰은 기본적으로 두 물건의 **평균**으로 정해진다. 최댓값 규칙으로 바꾸면
-         * 상대가 미끄럽든 말든 이쪽 마찰이 이긴다 — 끈적하다고 해놓고 미끄러운 것
-         * 위에서만 흘러내리는 일이 없어진다. 튕김은 최솟값으로 눌러 닿자마자 멈춘다.
-         * 다만 플레이어가 실제로 느끼는 "붙었다"는 착지 후 잠금에서 나온다(아래).
-         */
-        collider
-          .setFrictionCombineRule(CoefficientCombineRule.Max)
-          .setRestitutionCombineRule(CoefficientCombineRule.Min)
-      }
-
-      this.world.createCollider(collider, body)
+      this.world.createCollider(
+        desc
+          .setTranslation(part.offset.x, part.offset.y)
+          .setRotation(part.rotation ?? 0)
+          .setFriction(variant.friction)
+          .setRestitution(variant.restitution)
+          .setDensity(variant.density),
+        body,
+      )
       attached += 1
     }
 
@@ -274,6 +292,88 @@ class PhysicsWorld {
       restY: y,
     })
     return body.handle
+  }
+
+  /**
+   * 끈적한 물건에 닿은 것을 그 자리에서 실제로 붙여버린다.
+   *
+   * 속도를 죽이는 방식은 실패했다 — 물건이 탑 위에 자리를 잡으려면 살짝 미끄러져야
+   * 하는데 그걸 막으니 모서리에서 굴러떨어져 오히려 더 낮은 곳에 앉았다. 게다가
+   * 아래에 받쳐주는 것이 없으면 속도를 아무리 눌러도 중력이 이긴다.
+   * 옆면에 닿아 매달리려면 실제로 붙잡는 힘이 있어야 하고, 그것이 고정 관절이다.
+   *
+   * 끈적함은 **한 다리만** 건너간다. 끈적한 것에 닿은 물건은 붙지만, 그 물건에
+   * 닿은 다음 물건까지 붙지는 않는다. 그러지 않으면 탑 전체가 한 덩어리가 되어
+   * 무너짐이라는 사건 자체가 사라진다.
+   */
+  private weldSticky(): void {
+    for (const [handle, entry] of this.tracked) {
+      if (!entry.sticky || entry.lost) {
+        continue
+      }
+      for (let i = 0; i < entry.body.numColliders(); i += 1) {
+        this.world.contactPairsWith(entry.body.collider(i), (other) => {
+          const otherHandle = other.parent()?.handle
+          if (otherHandle === undefined || otherHandle === handle) {
+            return
+          }
+          const partner = this.tracked.get(otherHandle)
+          if (partner === undefined || partner.lost) {
+            return
+          }
+          this.weld(handle, entry, otherHandle, partner)
+        })
+      }
+    }
+  }
+
+  private weld(handleA: number, a: TrackedBody, handleB: number, b: TrackedBody): void {
+    const key = weldKey(handleA, handleB)
+    if (this.welds.has(key)) {
+      return
+    }
+
+    /*
+     * 지금의 상대 자세를 그대로 굳힌다.
+     * 두 물건의 중간점을 각자의 로컬 좌표로 옮겨 걸쇠로 삼고, 회전 차이를 frame으로
+     * 넘긴다. 이렇게 해야 붙는 순간 서로를 끌어당겨 튀는 일이 없다.
+     */
+    const posA = a.body.translation()
+    const posB = b.body.translation()
+    const rotA = a.body.rotation()
+    const rotB = b.body.rotation()
+    const mid = { x: (posA.x + posB.x) / 2, y: (posA.y + posB.y) / 2 }
+
+    const joint = this.world.createImpulseJoint(
+      JointData.fixed(
+        toLocal(mid, posA, rotA),
+        0,
+        toLocal(mid, posB, rotB),
+        rotA - rotB,
+      ),
+      a.body,
+      b.body,
+      true,
+    )
+    /*
+     * 붙인 짝끼리는 충돌을 끈다.
+     *
+     * 켜두면 접촉 제약이 둘을 밀어내는 동안 관절이 붙잡아, 솔버가 매 스텝 힘을
+     * 주고받으며 에너지를 만들어낸다. 실측하면 달팽이가 닿은 자리보다 0.5 높이
+     * 솟구쳤다가 받침대 밖으로 날아갔다. 이미 붙어 있는 둘 사이에 충돌 판정은
+     * 할 일이 없으므로 끄는 것이 맞다.
+     */
+    joint.setContactsEnabled(false)
+    this.welds.set(key, joint)
+  }
+
+  /** 사라지는 물건에 걸린 관절 기록을 지운다. 관절 자체는 Rapier가 바디와 함께 걷어낸다 */
+  private forgetWelds(handle: number): void {
+    for (const key of [...this.welds.keys()]) {
+      if (key.startsWith(`${handle}:`) || key.endsWith(`:${handle}`)) {
+        this.welds.delete(key)
+      }
+    }
   }
 
   /**
@@ -349,6 +449,7 @@ class PhysicsWorld {
     const y = sumY / entries.length
 
     for (const entry of entries) {
+      this.forgetWelds(entry.body.handle)
       this.tracked.delete(entry.body.handle)
       this.world.removeRigidBody(entry.body)
     }
@@ -367,6 +468,8 @@ class PhysicsWorld {
     if (steps === MAX_STEPS_PER_FRAME) {
       this.accumulator = 0
     }
+
+    this.weldSticky()
 
     const settled: SettleEvent[] = []
     const goneHandles: number[] = []
@@ -439,13 +542,8 @@ class PhysicsWorld {
           entry.settled = true
           entry.restX = x
           entry.restY = y
-          /*
-           * 자리를 잡으면 잠근다 — 웬만한 충격에 밀리지 않는다.
-           * 무거운 것은 관성으로, 끈적한 것은 달라붙어서 그렇게 된다.
-           * 스택이 실제로 무너지기 시작하면(QUAKE_REARM_DISTANCE) 잠금이 풀리므로
-           * 끈적한 물건도 영원히 고정되지는 않는다.
-           */
-          if (entry.heavy || entry.sticky) {
+          // 무거운 물건은 자리를 잡으면 잠긴다 — 웬만한 충격에 밀리지 않는다
+          if (entry.heavy) {
             entry.body.setLinearDamping(ANCHOR_LINEAR_DAMPING)
             entry.body.setAngularDamping(ANCHOR_ANGULAR_DAMPING)
             entry.anchored = true
@@ -464,6 +562,7 @@ class PhysicsWorld {
     for (const handle of goneHandles) {
       const entry = this.tracked.get(handle)
       if (entry !== undefined) {
+        this.forgetWelds(handle)
         this.world.removeRigidBody(entry.body)
         this.tracked.delete(handle)
       }
@@ -472,21 +571,39 @@ class PhysicsWorld {
     return { settled, escaped, quake }
   }
 
-  snapshots(): BodySnapshot[] {
-    const result: BodySnapshot[] = []
+  /**
+   * 렌더러에 넘길 스냅샷. **돌려준 배열과 그 안의 객체는 다음 호출에서 덮어쓴다.**
+   *
+   * 프레임마다 바디 수만큼 객체를 새로 만들면 초당 수백 개의 쓰레기가 쌓여 주기적으로
+   * GC가 돌고, 그것이 "중간중간 살짝 멈춤"으로 느껴진다. 렌더러는 받은 즉시 그리고 버리므로
+   * 버퍼를 재사용해도 안전하다 — 대신 붙들어 두려면 그 자리에서 복사해야 한다.
+   */
+  snapshots(): readonly BodySnapshot[] {
+    const buffer = this.snapshotBuffer
+    let count = 0
     for (const [handle, entry] of this.tracked) {
       const { x, y } = entry.body.translation()
-      result.push({
+      const slot = (buffer[count] ??= {
         handle,
         variant: entry.variant,
         owner: entry.owner,
         x,
         y,
-        rotation: entry.body.rotation(),
-        settled: entry.settled,
+        rotation: 0,
+        settled: false,
       })
+      slot.handle = handle
+      slot.variant = entry.variant
+      slot.owner = entry.owner
+      slot.x = x
+      slot.y = y
+      slot.rotation = entry.body.rotation()
+      slot.settled = entry.settled
+      count += 1
     }
-    return result
+    // 지난 프레임에 있었지만 지금은 없는 물건의 칸을 버린다
+    buffer.length = count
+    return buffer
   }
 
   /**
@@ -554,6 +671,7 @@ class PhysicsWorld {
     // 방장에게 없는 물건은 지운다 — 방장이 본 것이 사실이다
     for (const [handle, entry] of [...this.tracked]) {
       if (!wanted.has(entry.itemId)) {
+        this.forgetWelds(handle)
         this.world.removeRigidBody(entry.body)
         this.tracked.delete(handle)
       }
@@ -587,6 +705,7 @@ class PhysicsWorld {
       this.world.removeRigidBody(entry.body)
     }
     this.tracked.clear()
+    this.welds.clear()
     this.accumulator = 0
   }
 

@@ -35,16 +35,6 @@ interface VariantInput {
   scoreBonus?: number
 }
 
-/**
- * 끈적한 물건이 최소한 가져야 할 마찰.
- *
- * 끈적함의 실제 효과는 착지 후 잠금에서 나온다(types/game.ts의 sticky).
- * 마찰은 그 앞을 받쳐줄 뿐이다 — 스택이 크게 기울어 진짜 비탈이 생겼을 때
- * 흘러내리지 않게 한다. 평소 얹히는 정도의 기울기에서는 0.75와 결과가 같다.
- * "끈적하다"고 해놓고 마찰이 낮으면 말과 동작이 어긋나므로 바닥값으로만 둔다.
- */
-const STICKY_FRICTION = 1.8
-
 function variant(input: VariantInput): ItemVariant {
   return {
     id: input.id,
@@ -56,10 +46,7 @@ function variant(input: VariantInput): ItemVariant {
     artBounds: spriteBounds(input.sprite, input.size),
     // 벽이 없는 받침대라 미끄러짐이 곧 이탈이다. 기본 마찰을 넉넉히 두고
     // 물건별로 낮춰서 "잘 미끄러지는 물건"의 개성을 만든다.
-    // 끈적하다고 해놓고 마찰이 낮으면 말과 동작이 어긋난다. 바닥값을 보장한다
-    friction: input.sticky === true
-      ? Math.max(input.friction ?? 0, STICKY_FRICTION)
-      : (input.friction ?? 0.75),
+    friction: input.friction ?? 0.75,
     restitution: input.restitution ?? 0.02,
     density: input.density ?? 1,
     // 기본값은 웬만해선 구르지 않는 값이다. 굴리고 싶은 물건만 낮춰 잡는다

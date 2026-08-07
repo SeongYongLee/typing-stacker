@@ -5,7 +5,6 @@ import {
   SOLO_OWNER,
   QUAKE_DURATION,
   QUAKE_MAX_AMPLITUDE,
-  WORD,
 } from '../config.ts'
 import { WORDS } from '../data/words.ts'
 import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
@@ -18,7 +17,6 @@ import {
   STAGE_COUNT,
 } from '../systems/Difficulty.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
-import { PendingQueue } from '../systems/PendingItems.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
@@ -40,7 +38,6 @@ interface SubmitFeedback {
   readonly itemLabel: string | null
   readonly hidden: boolean
   /** 이 입력으로 대기 중인 물건을 막았는지 */
-  readonly canceled: boolean
 }
 
 interface GameState {
@@ -74,18 +71,11 @@ interface PendingDrop {
  * 왼쪽 레인의 왼쪽 칸일수록 아레나 왼쪽에서 떨어진다 — 어디로 내려올지 미리 보이므로
  * 미리 대비할 수 있고, 조준 범위 안이라 예고 물건도 받침대에 온전히 얹힌다.
  */
-function laneX(word: FallingWord): number {
-  const columns = WORD.slotsPerSide * 2
-  const index = word.side === 'left' ? word.slot : WORD.slotsPerSide + word.slot
-  const ratio = (index + 0.5) / columns
-  return -AIM_HALF_RANGE + ratio * AIM_HALF_RANGE * 2
-}
 
 class GameEngine {
   private readonly physics: PhysicsWorld
   private readonly loop = new GameLoop()
   private readonly score = new ScoreManager()
-  private readonly pending = new PendingQueue()
   private rng: Rng
   private spawner: WordSpawner
   private aimer = new Aimer(AIM_HALF_RANGE)
@@ -152,7 +142,6 @@ class GameEngine {
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
-    this.pending.reset()
     this.runSeq += 1
     this.rng = createRng(this.seed)
     this.spawner = new WordSpawner(this.rng, WORDS)
@@ -185,27 +174,6 @@ class GameEngine {
 
     this.feedbackSeq += 1
 
-    /*
-     * 낙하 중인 단어보다 예고 상자를 먼저 본다.
-     * 같은 단어가 양쪽에 있을 수 있는데(놓친 뒤 그 단어가 다시 내려온 경우),
-     * 그때 플레이어의 의도는 곧 떨어질 것을 막는 쪽이다. 급한 것부터 처리한다.
-     */
-    const canceled = this.pending.cancelByWord(text.trim())
-    if (canceled !== null) {
-      // 막은 것도 정확히 쳐낸 단어다 — 콤보와 타수에 들어간다
-      this.score.onWordMatched(canceled.word)
-      this.feedback = {
-        seq: this.feedbackSeq,
-        text: canceled.word,
-        ok: true,
-        itemLabel: null,
-        hidden: false,
-        canceled: true,
-      }
-      this.emit()
-      return
-    }
-
     const result = judgeInput(this.spawner.words, text)
 
     if (result.kind === 'miss') {
@@ -215,7 +183,6 @@ class GameEngine {
         ok: false,
         itemLabel: null,
         hidden: false,
-        canceled: false,
       }
       this.emit()
       return
@@ -236,7 +203,6 @@ class GameEngine {
       ok: true,
       itemLabel: variant.label,
       hidden: variant.hidden,
-      canceled: false,
     }
     this.emit()
   }
@@ -316,15 +282,8 @@ class GameEngine {
 
     const difficulty = difficultyAt(this.elapsed)
     this.aimer.update(dt, difficulty.aimSpeed)
-    // 놓친 단어는 사라지지 않고 아레나 위에서 기다리는 물건이 된다
-    for (const word of this.spawner.update(dt, difficulty)) {
-      this.pending.add(word.word, laneX(word), difficulty.pendingDelay)
-    }
-
-    // 기다림이 끝난 것은 서 있던 자리에서 그대로 떨어진다
-    for (const item of this.pending.update(dt)) {
-      this.queueDrop(resolveItem(item.word, this.rng), item.x)
-    }
+    // 놓친 단어는 그냥 사라진다. 대가는 점수에서만 치른다(ScoreManager.accuracy)
+    this.spawner.update(dt, difficulty)
 
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
@@ -359,11 +318,6 @@ class GameEngine {
       bodies: this.physics.snapshots(),
       aimX: this.aimer.worldX,
       showAim: this.phase === 'playing',
-      pending: this.pending.items.map((item) => ({
-        word: item.word,
-        x: item.x,
-        urgency: 1 - Math.max(item.remaining, 0) / item.total,
-      })),
       hiddenReveal:
         reveal === null
           ? null

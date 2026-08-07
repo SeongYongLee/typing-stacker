@@ -65,11 +65,45 @@ describe('ScoreManager', () => {
     expect(score.stats(0, 3, 60).stackCount).toBe(2)
   })
 
-  it('미스 개수는 그대로 전달만 한다 — 감점은 없다', () => {
+  it('놓친 것이 없으면 정확도는 1이고 점수가 깎이지 않는다', () => {
     const score = new ScoreManager()
     score.onSettled(anyVariant(false), ARENA.platformTop)
-    expect(score.stats(7, 3, 60).missedWords).toBe(7)
-    expect(score.stats(7, 3, 60).score).toBe(SCORE.perItem)
+    const stats = score.stats(0, 3, 60)
+    expect(stats.accuracy).toBe(1)
+    expect(stats.score).toBe(stats.rawScore)
+  })
+
+  it('놓친 단어는 정확도를 통해 점수를 깎는다', () => {
+    const score = new ScoreManager()
+    score.onSettled(anyVariant(false), ARENA.platformTop)
+    const stats = score.stats(7, 3, 60)
+    expect(stats.missedWords).toBe(7)
+    // 쌓은 것 1개 대 놓친 것 7개
+    expect(stats.accuracy).toBeCloseTo(1 / 8)
+    expect(stats.score).toBeLessThan(stats.rawScore)
+    expect(stats.rawScore).toBe(SCORE.perItem)
+  })
+
+  it('많이 쌓을수록 놓친 하나의 무게가 옅어진다', () => {
+    const few = new ScoreManager()
+    const many = new ScoreManager()
+    few.onSettled(anyVariant(false), ARENA.platformTop)
+    for (let i = 0; i < 20; i += 1) {
+      many.onSettled(anyVariant(false), ARENA.platformTop)
+    }
+    expect(many.stats(1, 3, 60).accuracy).toBeGreaterThan(few.stats(1, 3, 60).accuracy)
+  })
+
+  it('아무것도 하지 않은 판의 정확도는 1이다 — 0으로 나누지 않는다', () => {
+    expect(new ScoreManager().stats(0, 3, 60).accuracy).toBe(1)
+  })
+
+  it('전부 놓쳐도 점수가 음수가 되지는 않는다 — 바닥이 있다', () => {
+    const score = new ScoreManager()
+    score.onSettled(anyVariant(false), ARENA.platformTop)
+    const stats = score.stats(999, 3, 60)
+    expect(stats.score).toBeGreaterThan(0)
+    expect(stats.score).toBeGreaterThanOrEqual(stats.rawScore * SCORE.accuracyFloor)
   })
 
   it('콤보는 단어를 맞출 때마다 오른다', () => {

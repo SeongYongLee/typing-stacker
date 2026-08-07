@@ -437,7 +437,6 @@ class MatchEngine {
       bodies: this.physics.snapshots(),
       aimX: this.aimer.worldX,
       showAim: this.isMyTurn() && !this.resolving && !this.match.over,
-      pending: [],
       hiddenReveal: null,
       quake: 0,
       quakePhase: 0,

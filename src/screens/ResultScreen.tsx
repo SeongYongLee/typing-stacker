@@ -69,6 +69,10 @@ function ResultScreen({ stats, onRestart }: ResultScreenProps) {
           <Row label="최고 콤보" value={`x${stats.maxCombo}`} />
           <Row label="타수" value={`${stats.kpm}타/분`} />
           <Row label="놓친 단어" value={`${stats.missedWords}개`} />
+          <Row
+            label="정확도"
+            value={`${Math.round(stats.accuracy * 100)}% · 원점수 ${stats.rawScore.toLocaleString('ko-KR')}`}
+          />
         </dl>
 
         <div style={{ marginBottom: 28 }}>

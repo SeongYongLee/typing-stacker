@@ -8,6 +8,9 @@ import { countKeystrokes, keystrokesPerMinute } from './TypingSpeed.ts'
  * 콤보는 단어를 맞출 때마다 오르고, **목숨이 줄어들 때만** 초기화된다.
  * 오타나 놓친 단어로는 끊기지 않는다 — 끊기는 기준을 하나로 두면 플레이어가
  * "무엇을 지켜야 하는지"를 헷갈리지 않고, 그 하나가 이 게임의 본질인 쌓기다.
+ *
+ * 놓친 단어는 판을 방해하지 않고 **점수로만** 대가를 치른다. 예고 물건으로
+ * 되돌아와 손을 뺏던 방식은 쌓기에 쓸 시간을 갉아먹어 게임을 급하게 만들었다.
  */
 class ScoreManager {
   private score = 0
@@ -56,9 +59,28 @@ class ScoreManager {
     }
   }
 
+  /**
+   * 쌓은 것과 놓친 것의 비율. 둘 다 없으면 1이다.
+   * 놓친 단어가 아니라 **비율**을 보는 이유는 길게 버틴 판일수록 실수 하나가
+   * 차지하는 몫이 작아야 하기 때문이다.
+   */
+  accuracy(missedWords: number): number {
+    const total = this.stackCount + missedWords
+    return total === 0 ? 1 : this.stackCount / total
+  }
+
+  /** 정확도를 반영한 점수. 화면에 보이는 최종 점수다 */
+  finalScore(missedWords: number): number {
+    const penalty =
+      SCORE.accuracyFloor + (1 - SCORE.accuracyFloor) * this.accuracy(missedWords)
+    return Math.round(this.score * penalty)
+  }
+
   stats(missedWords: number, lives: number, elapsedSec: number): RunStats {
     return {
-      score: this.score,
+      score: this.finalScore(missedWords),
+      rawScore: this.score,
+      accuracy: this.accuracy(missedWords),
       stackCount: this.stackCount,
       maxHeight: this.maxHeight,
       missedWords,

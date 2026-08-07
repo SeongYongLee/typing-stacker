@@ -65,8 +65,6 @@ interface DifficultyLevel {
   readonly fallDuration: number
   readonly aimSpeed: number
   readonly maxConcurrent: number
-  /** 놓친 단어가 떨어지기까지 기다려주는 시간(초). 단계가 오르면 짧아진다 */
-  readonly pendingDelay: number
 }
 
 type JudgeResult =
@@ -94,7 +92,12 @@ interface BodySnapshot {
 type GamePhase = 'title' | 'playing' | 'collapsing' | 'over'
 
 interface RunStats {
+  /** 정확도 패널티까지 반영한 점수. 화면에 보이는 값이다 */
   readonly score: number
+  /** 패널티를 적용하기 전 원점수. 결과 화면이 둘을 나란히 보여준다 */
+  readonly rawScore: number
+  /** 쌓은 개수 ÷ (쌓은 개수 + 놓친 개수) */
+  readonly accuracy: number
   readonly stackCount: number
   readonly maxHeight: number
   readonly missedWords: number

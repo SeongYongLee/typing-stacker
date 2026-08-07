@@ -15,19 +15,10 @@ interface HiddenReveal {
   readonly progress: number
 }
 
-/** 놓쳐서 아레나 위에 떠 있는 물건. 단어를 맞히면 상쇄된다 */
-interface PendingBox {
-  readonly word: string
-  readonly x: number
-  /** 0이면 방금 올라왔고 1이면 곧 떨어진다 */
-  readonly urgency: number
-}
-
 interface ArenaRenderState {
   readonly bodies: readonly BodySnapshot[]
   readonly aimX: number
   readonly showAim: boolean
-  readonly pending: readonly PendingBox[]
   readonly hiddenReveal: HiddenReveal | null
   /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
   readonly quake: number
@@ -48,7 +39,6 @@ const COLORS = {
   aim: '#ffcf5c',
   aimTrack: 'rgba(255, 207, 92, 0.16)',
   danger: 'rgba(255, 107, 107, 0.5)',
-  pendingEdge: '#48507a',
   hidden: '#ffcf5c',
 } as const
 
@@ -118,94 +108,9 @@ class ArenaRenderer {
     for (const body of state.bodies) {
       this.drawBody(body, state.ownerColors)
     }
-    // 대기 중인 물건은 쌓인 것들 위에 그린다 — 곧 떨어질 것이 가려지면 안 된다
-    for (const [box, row] of this.layoutPending(state.pending)) {
-      this.drawPendingBox(box, row)
-    }
     ctx.restore()
   }
 
-  /**
-   * 예고 상자가 떨어질 자리 위에 그대로 서 있어야 하는데, 낙하 지점이 받침대 폭 안으로
-   * 제한되어 있어 여러 개가 나오면 가로로 겹친다. 겹치는 것들만 아래 줄로 내린다 —
-   * x는 그대로 두고 줄만 바꾸므로 "어디로 떨어지는지"는 흐트러지지 않는다.
-   */
-  private layoutPending(boxes: readonly PendingBox[]): [PendingBox, number][] {
-    const placed: [PendingBox, number][] = []
-    const rowRights: number[] = []
-    const sorted = [...boxes].sort((a, b) => a.x - b.x)
-
-    for (const box of sorted) {
-      const half = this.pendingWidth(box.word) / 2
-      const left = this.toScreenX(box.x) - half
-      let row = 0
-      while ((rowRights[row] ?? Number.NEGATIVE_INFINITY) > left) {
-        row += 1
-      }
-      rowRights[row] = this.toScreenX(box.x) + half
-      placed.push([box, row])
-    }
-    return placed
-  }
-
-  private pendingFontSize(): number {
-    return Math.max(12, this.scale * 0.2)
-  }
-
-  private pendingWidth(word: string): number {
-    const { ctx } = this
-    ctx.save()
-    ctx.font = `600 ${this.pendingFontSize()}px ${UI_FONT}`
-    const width = ctx.measureText(word).width + this.pendingFontSize()
-    ctx.restore()
-    return width
-  }
-
-  /**
-   * 놓친 단어가 떨어질 자리에서 기다리는 모습.
-   * 단어를 적어두는 이유는 두 가지다 — 어느 단어를 놓쳤는지 알려주고,
-   * 무슨 물건이 될지는 여전히 감추어 "Enter 뒤에 공개" 규칙을 지킨다.
-   */
-  private drawPendingBox(box: PendingBox, row: number): void {
-    const { ctx } = this
-    const urgency = Math.min(Math.max(box.urgency, 0), 1)
-    const x = this.toScreenX(box.x)
-    const fontSize = this.pendingFontSize()
-    const y = this.toScreenY(ARENA.height - 0.42) + row * (fontSize * 1.9)
-
-    ctx.save()
-    ctx.font = `600 ${fontSize}px ${UI_FONT}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-
-    const padX = fontSize * 0.5
-    const width = ctx.measureText(box.word).width + padX * 2
-    const height = fontSize * 1.7
-    const left = x - width / 2
-    const top = y - height / 2
-
-    // 임박할수록 붉어지고, 마지막 순간에는 깜빡인다
-    const blink = urgency > 0.75 ? 0.55 + 0.45 * Math.abs(Math.sin(urgency * 40)) : 1
-    ctx.globalAlpha = blink
-    ctx.fillStyle = 'rgba(13, 15, 22, 0.85)'
-    ctx.strokeStyle = urgency > 0.5 ? COLORS.danger : COLORS.pendingEdge
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.roundRect(left, top, width, height, 6)
-    ctx.fill()
-    ctx.stroke()
-
-    ctx.fillStyle = urgency > 0.5 ? '#ffd7d7' : '#b6bdd4'
-    ctx.fillText(box.word, x, y - height * 0.06)
-
-    // 남은 시간 — 바가 꽉 차면 떨어진다
-    const barY = top + height - 3.5
-    ctx.fillStyle = COLORS.pendingEdge
-    ctx.fillRect(left + 3, barY, width - 6, 2)
-    ctx.fillStyle = COLORS.danger
-    ctx.fillRect(left + 3, barY, (width - 6) * urgency, 2)
-    ctx.restore()
-  }
 
   /** 스프라이트는 비동기로 로드되므로 준비된 것만 그린다 */
   private image(src: string): HTMLImageElement | null {

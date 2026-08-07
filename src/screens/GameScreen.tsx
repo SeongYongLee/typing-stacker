@@ -222,12 +222,12 @@ function LifeLossNotice({ remaining }: { remaining: number }) {
   )
 }
 
-/** 처음 놓쳤을 때만. 예고 상자를 어떻게 없애는지 그 자리에서 알려준다 */
+/** 처음 놓쳤을 때만. 놓친 대가가 무엇인지 그 자리에서 알려준다 */
 function FirstMissNotice() {
   return (
     <Notice top="30%">
       <span style={{ ...noticeHeadStyle, fontSize: 26, color: '#ff6b6b' }}>놓쳤다</span>
-      <span style={noticeLineStyle}>위에 뜬 단어를 다시 치면 막는다</span>
+      <span style={noticeLineStyle}>쌓기는 그대로 간다 — 정확도가 내려가 점수만 깎인다</span>
     </Notice>
   )
 }

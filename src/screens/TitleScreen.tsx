@@ -61,9 +61,8 @@ function TitleScreen({ onStart, onMultiplayer, ready }: TitleScreenProps) {
           </li>
           <li>어떤 물건이 나올지는 Enter를 누른 뒤에 알 수 있다.</li>
           <li>
-            단어가 바닥선에 닿으면 그 단어가 아레나 위에서 기다린다.{' '}
-            <strong style={{ color: '#ffcf5c' }}>같은 단어를 다시 치면</strong> 막고, 시간이
-            지나면 물건이 되어 떨어진다.
+            단어를 놓쳐도 쌓기는 방해받지 않는다. 다만{' '}
+            <strong style={{ color: '#ffcf5c' }}>정확도</strong>가 내려가 최종 점수가 깎인다.
           </li>
           <li>
             받침대에는 양옆 벽이 없다. 물건이 쏠려서 받침대를 벗어나면{' '}

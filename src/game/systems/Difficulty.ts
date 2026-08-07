@@ -24,11 +24,11 @@ const STAGE_SECONDS = 12
  * 1단계 6.5초는 두세 개를 구할 수 있는 여유이고, 5단계 3.5초는 하나가 한계다.
  */
 const STAGES: readonly DifficultyLevel[] = [
-  { spawnInterval: 1.6, fallDuration: 6.5, aimSpeed: 0.55, maxConcurrent: 5, pendingDelay: 6.5 },
-  { spawnInterval: 1.38, fallDuration: 5.6, aimSpeed: 0.66, maxConcurrent: 5, pendingDelay: 5.8 },
-  { spawnInterval: 1.17, fallDuration: 4.65, aimSpeed: 0.77, maxConcurrent: 6, pendingDelay: 5.1 },
-  { spawnInterval: 0.96, fallDuration: 3.7, aimSpeed: 0.88, maxConcurrent: 6, pendingDelay: 4.3 },
-  { spawnInterval: 0.75, fallDuration: 2.8, aimSpeed: 1, maxConcurrent: 7, pendingDelay: 3.5 },
+  { spawnInterval: 1.6, fallDuration: 6.5, aimSpeed: 0.55, maxConcurrent: 5 },
+  { spawnInterval: 1.38, fallDuration: 5.6, aimSpeed: 0.66, maxConcurrent: 5 },
+  { spawnInterval: 1.17, fallDuration: 4.65, aimSpeed: 0.77, maxConcurrent: 6 },
+  { spawnInterval: 0.96, fallDuration: 3.7, aimSpeed: 0.88, maxConcurrent: 6 },
+  { spawnInterval: 0.75, fallDuration: 2.8, aimSpeed: 1, maxConcurrent: 7 },
 ]
 
 const STAGE_COUNT = STAGES.length

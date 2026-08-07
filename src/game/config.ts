@@ -109,16 +109,28 @@ const WORD = {
 const ARENA_SCREEN_MAX_WIDTH = 480
 
 /**
- * 이 밀도 이상이면 "무거운 물건"이다.
- * 착지한 뒤에는 감쇠를 크게 걸어 웬만한 충격에 밀리지 않게 잠근다 —
- * 무거운 걸 떨어뜨려 스택을 고정시키는 것이 하나의 전략이 된다.
+ * 이 질량 이상이면 "무거운 물건"이다. 착지하면 감쇠를 걸어 잠그고, 화면을 흔든다.
+ *
+ * **밀도가 아니라 질량으로 재는 이유**가 있다. 밀도로 재면 작고 조밀한 것(텀블러
+ * 0.408)이 무겁다고 판정되고, 크고 실제로 더 무거운 것(비행기 0.410, 피자 한판
+ * 0.526, 노트북 0.625)이 빠진다. 화면에서 무거워 보이는 것은 크기이므로,
+ * 밀도로 재면 "가벼워 보이는 게 흔들고 무거워 보이는 건 조용한" 어긋남이 생긴다.
+ *
+ * 0.35에서 끊으면 도시락·노트북·피자 한판·접힌 노트북·비행기·텀블러가 들어오고,
+ * 그다음(우산 0.183)까지 간격이 넓어서 경계가 애매하지 않다.
  */
-const HEAVY_DENSITY = 1.8
+const HEAVY_MASS = 0.35
 const ANCHOR_LINEAR_DAMPING = 7
 const ANCHOR_ANGULAR_DAMPING = 9
 
 /** 무거운 물건이 이 속도 이상으로 부딪히면 화면이 흔들린다 */
 const QUAKE_MIN_SPEED = 3.5
+/**
+ * 충격(속도 x 질량)을 0~1 세기로 누르는 나눔값.
+ * 가장 무거운 물건이 제 속도로 떨어졌을 때 최대치에 닿고, 경계에 걸친 물건은
+ * 눈에 겨우 보일 만큼만 흔들리는 값이다.
+ */
+const QUAKE_IMPACT_SCALE = 4.5
 const QUAKE_DURATION = 0.45
 /** 흔들림 최대 진폭 (월드 단위) */
 const QUAKE_MAX_AMPLITUDE = 0.16
@@ -149,7 +161,8 @@ export {
   SOLO_OWNER,
   WORD,
   ARENA_SCREEN_MAX_WIDTH,
-  HEAVY_DENSITY,
+  HEAVY_MASS,
+  QUAKE_IMPACT_SCALE,
   ANCHOR_LINEAR_DAMPING,
   ANCHOR_ANGULAR_DAMPING,
   QUAKE_MIN_SPEED,

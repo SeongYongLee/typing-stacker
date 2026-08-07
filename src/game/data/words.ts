@@ -30,9 +30,20 @@ interface VariantInput {
   restitution?: number
   density?: number
   angularDamping?: number
+  sticky?: boolean
   hidden?: boolean
   scoreBonus?: number
 }
+
+/**
+ * 끈적한 물건이 최소한 가져야 할 마찰.
+ *
+ * 끈적함의 실제 효과는 착지 후 잠금에서 나온다(types/game.ts의 sticky).
+ * 마찰은 그 앞을 받쳐줄 뿐이다 — 스택이 크게 기울어 진짜 비탈이 생겼을 때
+ * 흘러내리지 않게 한다. 평소 얹히는 정도의 기울기에서는 0.75와 결과가 같다.
+ * "끈적하다"고 해놓고 마찰이 낮으면 말과 동작이 어긋나므로 바닥값으로만 둔다.
+ */
+const STICKY_FRICTION = 1.8
 
 function variant(input: VariantInput): ItemVariant {
   return {
@@ -45,11 +56,15 @@ function variant(input: VariantInput): ItemVariant {
     artBounds: spriteBounds(input.sprite, input.size),
     // 벽이 없는 받침대라 미끄러짐이 곧 이탈이다. 기본 마찰을 넉넉히 두고
     // 물건별로 낮춰서 "잘 미끄러지는 물건"의 개성을 만든다.
-    friction: input.friction ?? 0.75,
+    // 끈적하다고 해놓고 마찰이 낮으면 말과 동작이 어긋난다. 바닥값을 보장한다
+    friction: input.sticky === true
+      ? Math.max(input.friction ?? 0, STICKY_FRICTION)
+      : (input.friction ?? 0.75),
     restitution: input.restitution ?? 0.02,
     density: input.density ?? 1,
     // 기본값은 웬만해선 구르지 않는 값이다. 굴리고 싶은 물건만 낮춰 잡는다
     angularDamping: input.angularDamping ?? 2.4,
+    sticky: input.sticky ?? false,
     hidden: input.hidden ?? false,
     scoreBonus: input.scoreBonus ?? 0,
   }
@@ -121,6 +136,8 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'snail',
+        // 기어가서 달라붙는다. 얹히면 그 자리에 눌러앉아 그 위로 다시 쌓을 수 있다
+        sticky: true,
         label: '달팽이',
         sprite: 'snail',
         size: { width: 0.7 },
@@ -130,7 +147,8 @@ const WORDS: readonly WordEntry[] = [
       }),
       hiddenVariant({
         id: 'snail-curled',
-        // 웅크린 껍데기는 둥글다. 닿으면 데구르르 굴러가 어디에 설지 알 수 없다
+        // 웅크리면 껍데기만 남아 달라붙지 못하고 데구르르 굴러간다 —
+        // 히든이 늘 좋은 쪽인 것은 아니다
         angularDamping: 0.5,
         restitution: 0.12,
         label: '웅크린 달팽이',
@@ -148,7 +166,8 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'octopus',
-        // 다리가 걸려 착 붙는다. 마찰이 가장 크고 튀지 않는다 — 탑을 붙잡아주는 물건
+        // 빨판으로 들러붙는다. 탑을 붙잡아주는 물건
+        sticky: true,
         restitution: 0,
         angularDamping: 3.2,
         label: '문어',
@@ -228,6 +247,8 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'pizza-slice',
+        // 치즈가 늘어붙는다. 기울어진 곳에 얹혀도 흘러내리지 않는다
+        sticky: true,
         label: '피자 조각',
         sprite: 'pizza-slice',
         size: { width: 0.72 },
@@ -239,6 +260,7 @@ const WORDS: readonly WordEntry[] = [
         // 한 조각 시켰는데 한 판이 왔다. 넓고 평평해서 훨씬 잘 받쳐준다
         id: 'pizza-box',
         // 넓고 평평해서 그 위로 다시 쌓기 좋다. 받침이 되어주는 물건
+        sticky: true,
         angularDamping: 4,
         label: '피자 한 판',
         sprite: 'pizza-box',

@@ -1,4 +1,4 @@
-import Peer, { type DataConnection } from 'peerjs'
+import Peer, { util, type DataConnection } from 'peerjs'
 import { MAX_PLAYERS, createRoomCode, parseMessage } from './protocol.ts'
 import type { Message, PlayerId } from './protocol.ts'
 import { failure } from './Transport.ts'
@@ -16,7 +16,6 @@ const ID_PREFIX = 'typing-stacker-'
  *
  * relay를 강제하면 모든 트래픽이 TURN을 거쳐 상대는 TURN 서버 주소만 보게 된다.
  * 대가는 공용 TURN 의존이다 — 그것이 막히면 연결 자체가 실패한다. 그래서 끌 수 있게 뒀다.
- * (PeerJS 기본 설정에 STUN과 공용 TURN이 이미 들어있어 서버를 따로 둘 필요는 없다.)
  */
 const HIDE_IP_BY_DEFAULT = true
 
@@ -29,8 +28,20 @@ interface PeerTransportOptions {
   readonly hideIp?: boolean
 }
 
+/**
+ * PeerJS는 넘긴 `config`로 **기본 config를 통째로 교체한다**(얕은 병합이다).
+ * 그래서 `{ iceTransportPolicy: 'relay' }`만 주면 기본 STUN·TURN 목록이 사라져
+ * "relay만 허용하는데 relay 서버가 하나도 없는" 상태가 된다 — 후보가 0개라
+ * 경로가 절대 열리지 않고, 방은 찾았는데 연결만 실패하는 증상이 된다.
+ *
+ * 그래서 기본 목록(`util.defaultConfig`)을 펼친 뒤 정책만 얹는다.
+ */
 function rtcConfig(hideIp: boolean): RTCConfiguration | undefined {
-  return hideIp ? { iceTransportPolicy: 'relay' } : undefined
+  if (!hideIp) {
+    // 넘기지 않으면 PeerJS 기본값(STUN + 공용 TURN)이 그대로 쓰인다
+    return undefined
+  }
+  return { ...util.defaultConfig, iceTransportPolicy: 'relay' }
 }
 
 /**

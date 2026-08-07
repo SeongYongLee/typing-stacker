@@ -5,6 +5,7 @@ import {
   LIVES,
   SOLO_OWNER,
   QUAKE_DURATION,
+  QUAKE_IMPACT_SCALE,
   QUAKE_MAX_AMPLITUDE,
 } from '../config.ts'
 import { WORDS } from '../data/words.ts'
@@ -238,7 +239,7 @@ class GameEngine {
     if (impact <= 0) {
       return
     }
-    const strength = Math.min(impact / 30, 1)
+    const strength = Math.min(impact / QUAKE_IMPACT_SCALE, 1)
     if (strength > this.quakeStrength || this.quakeLeft <= 0) {
       this.quakeStrength = strength
     }

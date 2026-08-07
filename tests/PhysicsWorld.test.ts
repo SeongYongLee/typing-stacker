@@ -9,6 +9,11 @@ import type { ItemVariant, OwnerId } from '../src/game/types/game.ts'
 /**
  * 쌓기 기준 물건 — 넓고 납작하며 마찰이 큰 것을 고른다.
  * 이름으로 찾지 않는 이유는 아트가 교체되면 단어 테이블이 통째로 바뀌기 때문이다.
+ *
+ * 마찰에 상한을 두는 이유가 있다. 끈적한 물건은 마찰 바닥값(1.8)을 보장받는데,
+ * 그 값이 점수를 눌러버려 달팽이처럼 쌓기에 나쁜 모양이 "쌓기 기준"으로 뽑혔다.
+ * 여기서 보고 싶은 것은 미끄러지지 않을 만큼의 마찰과 **납작함**이지
+ * 마찰의 크기 경쟁이 아니다.
  */
 function stackable(): ItemVariant {
   let best: ItemVariant | null = null
@@ -16,7 +21,7 @@ function stackable(): ItemVariant {
   for (const entry of WORDS) {
     for (const item of entry.variants) {
       const { hw, hh } = shapeBounds(item.shape)
-      const score = item.friction * (hw / hh)
+      const score = Math.min(item.friction, 1) * (hw / hh)
       if (score > bestScore) {
         bestScore = score
         best = item

@@ -42,6 +42,17 @@ interface ItemVariant {
    * 떨궈도 판이 매번 달라진다.
    */
   readonly angularDamping: number
+  /**
+   * 끈적한 물건인가. 자리를 잡으면 눌러앉아 웬만한 충격에 밀리지 않는다.
+   *
+   * **실제로 일을 하는 것은 착지 후 잠금이지 마찰이 아니다.** 재보면 마찰만
+   * 올렸을 때(0.75 -> 1.8) 흘러내린 거리가 소수점 셋째 자리까지 같다 — 이 중력과
+   * 이 모양들에서는 애초에 미끄러져 자리를 잃는 일이 드물기 때문이다. 물건을
+   * 자리에서 떼어내는 것은 미끄러짐이 아니라 **부딪혀 밀려나는 것**이고,
+   * 잠금이 그것을 막는다. 문어는 4배, 피자 조각은 3.7배 덜 밀린다.
+   * tests/Sticky.test.ts가 이 비율을 지킨다.
+   */
+  readonly sticky: boolean
   readonly hidden: boolean
   readonly scoreBonus: number
 }

@@ -1,6 +1,7 @@
 import {
   init,
   ColliderDesc,
+  CoefficientCombineRule,
   RigidBodyDesc,
   World,
   type RigidBody,
@@ -9,7 +10,7 @@ import {
   ANCHOR_ANGULAR_DAMPING,
   ANCHOR_LINEAR_DAMPING,
   ARENA,
-  HEAVY_DENSITY,
+  HEAVY_MASS,
   QUAKE_MIN_SPEED,
   QUAKE_REARM_DISTANCE,
   QUAKE_REIMPACT_SPEED,
@@ -83,6 +84,7 @@ interface TrackedBody {
    */
   readonly itemId: number
   readonly heavy: boolean
+  readonly sticky: boolean
   settleTimer: number
   settled: boolean
   previousSpeed: number
@@ -224,15 +226,26 @@ class PhysicsWorld {
       if (desc === null) {
         continue
       }
-      this.world.createCollider(
-        desc
-          .setTranslation(part.offset.x, part.offset.y)
-          .setRotation(part.rotation ?? 0)
-          .setFriction(variant.friction)
-          .setRestitution(variant.restitution)
-          .setDensity(variant.density),
-        body,
-      )
+      const collider = desc
+        .setTranslation(part.offset.x, part.offset.y)
+        .setRotation(part.rotation ?? 0)
+        .setFriction(variant.friction)
+        .setRestitution(variant.restitution)
+        .setDensity(variant.density)
+
+      if (variant.sticky) {
+        /*
+         * 마찰은 기본적으로 두 물건의 **평균**으로 정해진다. 최댓값 규칙으로 바꾸면
+         * 상대가 미끄럽든 말든 이쪽 마찰이 이긴다 — 끈적하다고 해놓고 미끄러운 것
+         * 위에서만 흘러내리는 일이 없어진다. 튕김은 최솟값으로 눌러 닿자마자 멈춘다.
+         * 다만 플레이어가 실제로 느끼는 "붙었다"는 착지 후 잠금에서 나온다(아래).
+         */
+        collider
+          .setFrictionCombineRule(CoefficientCombineRule.Max)
+          .setRestitutionCombineRule(CoefficientCombineRule.Min)
+      }
+
+      this.world.createCollider(collider, body)
       attached += 1
     }
 
@@ -247,7 +260,9 @@ class PhysicsWorld {
       variant,
       owner,
       itemId,
-      heavy: variant.density >= HEAVY_DENSITY,
+      // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
+      heavy: body.mass() >= HEAVY_MASS,
+      sticky: variant.sticky,
       settleTimer: 0,
       settled: false,
       previousSpeed: 0,
@@ -409,7 +424,7 @@ class PhysicsWorld {
         entry.impacted = true
         entry.restX = x
         entry.restY = y
-        quake = Math.max(quake, entry.previousSpeed * entry.variant.density)
+        quake = Math.max(quake, entry.previousSpeed * entry.body.mass())
       }
       entry.previousSpeed = speed
 
@@ -424,8 +439,13 @@ class PhysicsWorld {
           entry.settled = true
           entry.restX = x
           entry.restY = y
-          // 무거운 물건은 자리를 잡으면 잠긴다 — 웬만한 충격에 밀리지 않는다
-          if (entry.heavy) {
+          /*
+           * 자리를 잡으면 잠근다 — 웬만한 충격에 밀리지 않는다.
+           * 무거운 것은 관성으로, 끈적한 것은 달라붙어서 그렇게 된다.
+           * 스택이 실제로 무너지기 시작하면(QUAKE_REARM_DISTANCE) 잠금이 풀리므로
+           * 끈적한 물건도 영원히 고정되지는 않는다.
+           */
+          if (entry.heavy || entry.sticky) {
             entry.body.setLinearDamping(ANCHOR_LINEAR_DAMPING)
             entry.body.setAngularDamping(ANCHOR_ANGULAR_DAMPING)
             entry.anchored = true

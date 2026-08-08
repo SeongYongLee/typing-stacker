@@ -3,7 +3,7 @@ import { WORDS } from '../game/data/words.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
-import { NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
+import { MAX_PLAYERS, NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
 import { ownerColorAt } from '../multi/ownerColors.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
@@ -148,7 +148,7 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
    * 경로가 안 열린 것이고, 여기서 멈추면 상대가 응답하지 않는 것이다.
    */
   if (phase?.kind === 'handshaking') {
-    return <Notice title="상대와 붙었다" detail="시작 신호를 기다린다…" onBack={onBack} />
+    return <Notice title="방에 붙었다" detail="명단을 기다린다…" onBack={onBack} />
   }
 
   if (phase?.kind === 'waiting') {
@@ -174,13 +174,13 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
     <div style={rootStyle}>
       <div style={panelStyle}>
         <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          1대1 대전
+          함께 하기
         </h1>
         <p style={{ color: '#6a7290', margin: 0, fontSize: 14, lineHeight: 1.8 }}>
-          받침대 하나를 함께 쓴다. 둘 다 언제든 칠 수 있고,{' '}
+          받침대 하나를 {MAX_PLAYERS}명까지 함께 쓴다. 차례로 쌓고,{' '}
           <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
           <br />
-          떨군 직후에는 잠깐 못 떨군다. 그동안 친 단어는 상대에게 덫이 된다.
+          내 차례가 아닐 때 친 단어는 덫이 된다. 마지막까지 남은 사람이 이긴다.
         </p>
 
         {/*
@@ -204,7 +204,7 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
             }}
             value={nickname}
             onChange={(event) => setNickname(event.currentTarget.value)}
-            placeholder="상대에게 이렇게 보인다"
+            placeholder="다른 사람에게 이렇게 보인다"
             maxLength={NICKNAME_MAX}
             autoFocus
             onKeyDown={(event) => {
@@ -312,7 +312,7 @@ function ReadyRoom({
     <div style={rootStyle}>
       <div style={panelStyle} data-ready-room={ready.size}>
         <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
-          상대를 찾았다
+          같이 할 사람들
         </p>
 
         <div style={{ display: 'grid', gap: 10 }}>
@@ -388,7 +388,7 @@ function WaitingRoom({ roomCode, onBack }: { roomCode: string; onBack: () => voi
     <div style={rootStyle}>
       <div style={panelStyle}>
         <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
-          이 코드를 상대에게 알려주자
+          이 코드를 같이 할 사람들에게 알려주자
         </p>
         <div
           data-room-code={roomCode}
@@ -408,7 +408,9 @@ function WaitingRoom({ roomCode, onBack }: { roomCode: string; onBack: () => voi
         <button type="button" style={buttonStyle} onClick={copy}>
           {copied ? '복사했다' : '코드 복사'}
         </button>
-        <p style={{ color: '#b6bdd4', margin: 0, fontSize: 14 }}>상대가 들어오면 바로 시작한다…</p>
+        <p style={{ color: '#b6bdd4', margin: 0, fontSize: 14 }}>
+          한 명이라도 들어오면 준비 화면으로 넘어간다. 더 기다렸다 시작해도 된다
+        </p>
         <button type="button" style={ghostButtonStyle} onClick={onBack}>
           취소
         </button>

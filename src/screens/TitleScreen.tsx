@@ -48,7 +48,8 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, p
       disabled: !ready,
       panel: 'solo',
     },
-    { label: '1대1 대전', run: onMultiplayer, primary: false, disabled: !ready, panel: 'versus' },
+    // 여덟까지 붙는다. "1대1"은 정원을 늘린 뒤로 사실이 아니다
+    { label: '함께 하기', run: onMultiplayer, primary: false, disabled: !ready, panel: 'versus' },
     { label: '도감', run: onCollection, primary: false, disabled: false },
     // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
     { label: '옵션', run: onOptions, primary: false, disabled: false },

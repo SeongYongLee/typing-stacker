@@ -279,11 +279,16 @@ function ActionHint({ state }: { state: MatchViewState }) {
   }
   const ready = state.canDrop
   const soon = state.myTurn && !ready
+  /*
+   * 남의 차례일 때는 **누구 차례인지 이름을 댄다.** 여덟이 붙으면 "상대"로는
+   * 누구를 기다리는지 알 수 없고, 이름표를 눈으로 훑어야 한다.
+   */
+  const whose = state.players.find((player) => player.id === state.current)?.nickname
   const label = ready
     ? '내 차례 — 단어를 치면 그 물건이 화살표 자리에 떨어진다'
     : soon
       ? '곧 내 차례 — 지금 친 단어는 덫이 된다'
-      : '상대 차례 — 단어를 치면 상대에게 덫을 건다'
+      : `${whose ?? '상대'} 차례 — 단어를 치면 덫을 건다`
   const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#ff9f6b'
   return (
     <span

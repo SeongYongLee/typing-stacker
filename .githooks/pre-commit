@@ -1,0 +1,59 @@
+#!/bin/sh
+#
+# 커밋될 내용 그대로를 검사한다.
+#
+# 작업 트리가 아니라 **스테이징된 것**을 본다. 이 차이 때문에 CI가 한 번 깨졌다 —
+# 쓰는 쪽(materials.ts, 소리 테스트)은 커밋됐는데 만드는 쪽(types/game.ts, config.ts,
+# PhysicsWorld.ts)은 작업 트리에만 남아, 손에서는 멀쩡하고 CI에서만 터졌다.
+#
+# 검사는 임시 폴더에 스테이징된 트리를 풀어놓고 거기서 돌린다. 흔히 쓰는
+# "안 올린 것을 stash했다가 되돌리기"는 도중에 멈추면 작업이 어중간하게 남는다.
+# 이 방식은 작업 트리를 건드리지 않는다.
+#
+# 건너뛰려면: git commit --no-verify
+
+set -e
+
+# 아직 아무것도 스테이징하지 않았으면 검사할 것이 없다
+if git diff --cached --quiet; then
+  exit 0
+fi
+
+root=$(git rev-parse --show-toplevel)
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# 스테이징된 상태를 트리로 굳혀서 필요한 것만 꺼낸다.
+# assets-src(63MB)와 public은 타입 검사와 테스트에 쓰이지 않으므로 빼서 빠르게 둔다 —
+# 느린 훅은 --no-verify로 꺼지고, 꺼진 훅은 없는 것과 같다.
+tree=$(git write-tree)
+git archive "$tree" \
+  src tests \
+  package.json tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts \
+  | tar -x -C "$tmp"
+
+ln -s "$root/node_modules" "$tmp/node_modules"
+
+cd "$tmp"
+echo "pre-commit: 커밋될 내용으로 검사한다"
+
+if ! ./node_modules/.bin/tsc -b --noEmit; then
+  echo ""
+  echo "pre-commit: 타입 검사 실패. 함께 가야 할 파일이 빠지지 않았는지 보라."
+  exit 1
+fi
+
+# 검사 대상을 못 박는다. 폴더째로 맡기면 심볼릭 링크를 따라 node_modules까지 훑는다
+if ! ./node_modules/.bin/oxlint src tests; then
+  echo ""
+  echo "pre-commit: 린트 실패."
+  exit 1
+fi
+
+if ! ./node_modules/.bin/vitest run; then
+  echo ""
+  echo "pre-commit: 테스트 실패."
+  exit 1
+fi
+
+echo "pre-commit: 통과"

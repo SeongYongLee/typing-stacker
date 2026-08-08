@@ -62,38 +62,44 @@ describe('MatchState — 2명', () => {
   })
 })
 
-describe('MatchState.heal — 방해가 먹히면 되찾는다', () => {
-  it('반 칸씩 되찾는다', () => {
+describe('MatchState.loseLife — 반 칸씩도 깎인다', () => {
+  it('노림에 밟히면 반 칸 깎인다', () => {
     const match = new MatchState(players('a', 'b'), 3)
-    match.loseLife('a')
-    expect(match.livesOf('a')).toBe(2)
-    match.heal('a', 0.5)
+    match.loseLife('a', 0.5)
     expect(match.livesOf('a')).toBe(2.5)
   })
 
-  it('처음 하트보다 많아지지 않는다 — 무한히 버티면 판이 끝나지 않는다', () => {
+  it('기본은 한 칸이다 — 물건이 받침대를 벗어났을 때', () => {
     const match = new MatchState(players('a', 'b'), 3)
-    match.heal('a', 0.5)
-    match.heal('a', 0.5)
-    expect(match.livesOf('a')).toBe(3)
+    match.loseLife('a')
+    expect(match.livesOf('a')).toBe(2)
   })
 
-  it('탈락한 사람은 되살아나지 않는다 — 승패가 뒤집히면 안 된다', () => {
+  /*
+   * 반 칸씩 깎이는 길이 생겼으므로 0 아래로 내려갈 수 있다.
+   * 음수가 되면 "살아 있는가"를 세는 곳이 전부 흔들린다.
+   */
+  it('0 아래로는 내려가지 않는다', () => {
     const match = new MatchState(players('a', 'b'), 1)
-    match.loseLife('b')
-    expect(match.over).toBe(true)
-    match.heal('b', 0.5)
-    expect(match.livesOf('b')).toBe(0)
-    expect(match.winner).toBe('a')
+    match.loseLife('a', 0.5)
+    match.loseLife('a', 0.5)
+    match.loseLife('a', 0.5)
+    expect(match.livesOf('a')).toBe(0)
+  })
+
+  it('이미 탈락한 사람은 더 깎이지 않는다', () => {
+    const match = new MatchState(players('a', 'b'), 1)
+    match.loseLife('a')
+    match.loseLife('a', 0.5)
+    expect(match.livesOf('a')).toBe(0)
   })
 
   it('모르는 사람이나 0 이하 값은 무시한다', () => {
     const match = new MatchState(players('a', 'b'), 3)
-    match.loseLife('a')
-    match.heal('침입자', 0.5)
-    match.heal('a', 0)
-    match.heal('a', -1)
-    expect(match.livesOf('a')).toBe(2)
+    match.loseLife('침입자', 0.5)
+    match.loseLife('a', 0)
+    match.loseLife('a', -1)
+    expect(match.livesOf('a')).toBe(3)
   })
 
   it('반 칸이 남아 있으면 아직 살아 있다', () => {
@@ -106,9 +112,8 @@ describe('MatchState.heal — 방해가 먹히면 되찾는다', () => {
     const other = new MatchState(players('a', 'b'), 3)
     other.loseLife('a')
     other.loseLife('a')
-    other.heal('a', 0.5)
-    other.loseLife('a')
-    // 1 -> 0.5 로 남는다. 한 번 더 맞아야 끝난다
+    other.loseLife('a', 0.5)
+    // 3 -> 2 -> 1 -> 0.5. 반 칸이 남았으면 아직 살아 있다
     expect(other.livesOf('a')).toBe(0.5)
     expect(other.isAlive('a')).toBe(true)
   })
@@ -141,8 +146,7 @@ describe('MatchState — N명 (2명은 특수 케이스가 아니다)', () => {
 describe('MatchState.snapshot', () => {
   it('화면이 필요한 값을 한 번에 담는다', () => {
     const match = new MatchState(players('a', 'b'), 3)
-    match.loseLife('b')
-    match.heal('b', 0.5)
+    match.loseLife('b', 0.5)
     const snapshot = match.snapshot()
     expect(snapshot.lives).toEqual([
       ['a', 3],

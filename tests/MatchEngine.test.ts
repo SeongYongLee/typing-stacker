@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
-import { DROP_INTERVAL_SEC, MatchEngine, type MatchViewState } from '../src/multi/MatchEngine.ts'
+import {
+  AIM_DAMAGE,
+  DROP_INTERVAL_SEC,
+  MatchEngine,
+  type MatchViewState,
+} from '../src/multi/MatchEngine.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import { FrameClock } from './helpers/frameClock.ts'
@@ -332,9 +337,9 @@ describe('MatchEngine — 대전', () => {
     expect(pair.hostState().canDrop).toBe(false)
   })
 
-  it('떨굴 수 없는 동안 친 단어는 덫이 되고 양쪽 다 본다', async () => {
+  it('떨굴 수 없는 동안 친 단어를 노리고, 양쪽이 같게 본다', async () => {
     pair = await makePair()
-    // 단어가 여러 개 깔린 뒤에 시험한다 — 하나뿐이면 떨구는 순간 걸 것이 남지 않는다
+    // 단어가 여러 개 깔린 뒤에 시험한다 — 하나뿐이면 떨구는 순간 노릴 것이 남지 않는다
     await pair.clock.advance(6)
     dropSomething(pair)
     await pair.clock.advance(0.3)
@@ -344,33 +349,89 @@ describe('MatchEngine — 대전', () => {
     pair.host.submit(word!)
     await pair.clock.advance(0.3)
 
-    // 건 사람에게도 보여야 한다 — 무엇을 걸어뒀는지 모르면 같은 단어를 또 건다
-    expect(pair.hostState().harassed.map((h) => h.word)).toContain(word)
-    expect(pair.guestState().harassed.map((h) => h.word)).toContain(word)
-    expect(pair.hostState().harassed.find((h) => h.word === word)?.by).toBe('host-peer')
+    expect(pair.hostState().aimed.map((a) => a.word)).toContain(word)
+    expect(pair.guestState().aimed.map((a) => a.word)).toContain(word)
+    expect(pair.hostState().aimed.find((a) => a.word === word)?.by).toBe('host-peer')
   })
 
-  it('덫을 상대가 치면 건 사람이 하트를 되찾는다', async () => {
+  /*
+   * **한 사람은 하나만 노린다.** 제한이 없으면 여덟이 붙었을 때 1초 만에 모든 단어가
+   * 노려져, 차례인 사람은 무엇을 쳐도 하트를 잃는다.
+   */
+  it('노림은 마지막에 친 단어로 옮겨간다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(6)
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+
+    const first = pair.hostState().words.find((w) => w.state === 'active')?.word
+    expect(first).toBeDefined()
+    pair.host.submit(first!)
+    await pair.clock.advance(0.3)
+    expect(pair.guestState().aimed.map((a) => a.word)).toEqual([first])
+
+    // 새 단어가 나올 때까지 기다렸다가 그것을 노린다
+    let second: string | undefined
+    for (let tick = 0; tick < 40 && second === undefined; tick += 1) {
+      await pair.clock.advance(0.4)
+      second = pair
+        .hostState()
+        .words.find((w) => w.state === 'active' && w.word !== first)?.word
+    }
+    expect(second).toBeDefined()
+
+    pair.host.submit(second!)
+    await pair.clock.advance(0.3)
+
+    // 앞서 노리던 것은 풀리고 하나만 남는다
+    const aimed = pair.guestState().aimed.filter((a) => a.by === 'host-peer')
+    expect(aimed.map((a) => a.word)).toEqual([second])
+  })
+
+  it('노려진 단어를 쓴 사람만 반 칸 잃는다 — 노린 사람은 얻지 않는다', async () => {
     pair = await makePair()
     await pair.clock.advance(6)
 
-    const before = pair.hostState().lives.find(([id]) => id === 'host-peer')?.[1] ?? 0
-
+    const livesOf = (state: MatchViewState, id: string) =>
+      new Map(state.lives).get(id) ?? 0
     dropSomething(pair)
     await pair.clock.advance(0.3)
-    const trap = pair.hostState().words.find((w) => w.state === 'active')?.word
-    pair.host.submit(trap!)
+
+    const aimWord = pair.hostState().words.find((w) => w.state === 'active')?.word
+    pair.host.submit(aimWord!)
     await pair.clock.advance(0.3)
 
-    // 참가자가 그 단어를 친다. **자기 차례가 되어야** 덫을 밟을 수 있다 —
-    // 쿨타임이 도는 동안 친 것은 떨구기가 아니라 또 하나의 덫이 된다
+    const hostBefore = livesOf(pair.hostState(), 'host-peer')
+    const guestBefore = livesOf(pair.guestState(), 'guest-peer')
+
+    // 참가자 차례가 되어야 밟을 수 있다
     await pair.clock.advance(DROP_INTERVAL_SEC + 0.2)
-    pair.guest.submit(trap!)
+    pair.guest.submit(aimWord!)
     await pair.clock.advance(0.6)
 
-    const after = pair.hostState().lives.find(([id]) => id === 'host-peer')?.[1] ?? 0
-    // 이미 가득이면 오르지 않는다. 덫이 풀리는 것은 언제나 일어난다
-    expect(after).toBeGreaterThanOrEqual(before)
-    expect(pair.hostState().harassed.map((h) => h.word)).not.toContain(trap)
+    expect(livesOf(pair.hostState(), 'guest-peer')).toBeCloseTo(guestBefore - AIM_DAMAGE, 5)
+    // 노린 쪽은 그대로다 — 이것은 공격이지 회복이 아니다
+    expect(livesOf(pair.hostState(), 'host-peer')).toBe(hostBefore)
+    // 먹힌 노림은 풀린다
+    expect(pair.hostState().aimed.map((a) => a.word)).not.toContain(aimWord)
+  })
+
+  it('내가 노린 단어는 내가 써도 아무 일이 없다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(6)
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+
+    const word = pair.hostState().words.find((w) => w.state === 'active')?.word
+    pair.host.submit(word!)
+    await pair.clock.advance(DROP_INTERVAL_SEC * 2 + 0.4)
+
+    const before = new Map(pair.hostState().lives).get('host-peer') ?? 0
+    // 방장 차례가 돌아왔을 때 자기가 노린 단어를 친다
+    if (pair.hostState().canDrop) {
+      pair.host.submit(word!)
+      await pair.clock.advance(0.6)
+    }
+    expect(new Map(pair.hostState().lives).get('host-peer')).toBe(before)
   })
 })

@@ -34,6 +34,9 @@ const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
 
 const NICKNAME_MAX = 12
 
+/** 하트가 이보다 많다고 오면 거짓말이다. 회복 수단이 없으므로 처음 값이 상한이다 */
+const MAX_LIVES = 16
+
 type PlayerId = string
 
 interface PlayerInfo {
@@ -268,7 +271,13 @@ function parseMessage(raw: unknown): Message | null {
         if (!Array.isArray(entry) || entry.length !== 2) continue
         const [id, count] = entry
         if (!isShortString(id, 64) || !isFiniteNumber(count)) continue
-        lives.push([id, Math.max(0, Math.floor(count))])
+        /*
+         * **반 칸을 버리지 않는다.** 예전에는 Math.floor로 정수로 깎았는데, 노림이
+         * 반 칸씩 깎게 된 뒤로 그것이 곧 desync가 됐다 — 방장이 2.5를 보내면 참가자는
+         * 2로 읽어 양쪽 하트가 서로 다르게 보였다.
+         * 반 칸 단위로만 맞추고 음수와 터무니없는 값만 막는다.
+         */
+        lives.push([id, Math.max(0, Math.min(Math.round(count * 2) / 2, MAX_LIVES))])
       }
       return { t: 'lives', lives }
     }

@@ -180,7 +180,8 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           받침대 하나를 {MAX_PLAYERS}명까지 함께 쓴다. 차례로 쌓고,{' '}
           <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
           <br />
-          내 차례가 아닐 때 친 단어는 덫이 된다. 마지막까지 남은 사람이 이긴다.
+          내 차례가 아닐 때 친 단어를 노린다 — <strong style={{ color: '#b6bdd4' }}>마지막에 친
+          하나</strong>만 노려지고, 남이 그 단어를 쓰면 그 사람 하트가 반 칸 깎인다.
         </p>
 
         {/*

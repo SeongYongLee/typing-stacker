@@ -48,8 +48,13 @@ const DROP_INTERVAL_SEC = 0.9
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
 
-/** 방해가 먹혔을 때 건 사람이 되찾는 하트 */
-const HARASS_HEAL = 0.5
+/**
+ * 노려진 단어를 쓴 사람이 잃는 하트.
+ *
+ * 노린 사람은 아무것도 얻지 않는다 — 얻게 하면 하트가 양쪽으로 움직여 판이 길어지고,
+ * 무엇보다 "노림"이 회복 수단이 되어 이름과 어긋난다. 이것은 공격이다.
+ */
+const AIM_DAMAGE = 0.5
 
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
@@ -86,9 +91,15 @@ interface MatchViewState {
    * 덫이 걸린 단어들. **내가 건 것도 들어온다** —
    * 무엇을 걸어뒀는지 모르면 같은 단어를 또 걸게 된다.
    */
-  readonly harassed: readonly { readonly word: string; readonly by: PlayerId }[]
+  readonly aimed: readonly { readonly word: string; readonly by: PlayerId }[]
   /** 방금 되찾은 하트. 같은 seq면 이미 보여준 것이다 */
-  readonly lastHeal: { readonly by: PlayerId; readonly word: string; readonly seq: number } | null
+  /** 방금 먹힌 노림. 같은 seq면 이미 보여준 것이다 */
+  readonly lastAim: {
+    readonly by: PlayerId
+    readonly victim: PlayerId
+    readonly word: string
+    readonly seq: number
+  } | null
   readonly feedback: MatchFeedback | null
   readonly winner: PlayerId | null
   readonly connectionLost: boolean
@@ -191,10 +202,30 @@ class MatchEngine {
    * 단어를 열쇠로 삼는 이유는 낙하 단어가 사라졌다 다시 나와도 같은 덫으로 이어져야
    * 하기 때문이다. 상대가 그 단어를 치면 덫이 작동하고 건 사람이 하트를 되찾는다.
    */
-  private readonly harassed = new Map<string, PlayerId>()
+  /**
+   * 노려진 단어 → 노리는 사람.
+   *
+   * 한 단어는 한 사람만 노린다(먼저 노린 사람 것). 여럿이 겹치면 한 번 밟는 데
+   * 여러 칸이 날아가 인원이 많을수록 즉사한다.
+   */
+  private readonly aimedWord = new Map<string, PlayerId>()
+  /**
+   * 사람 → 그가 노리는 단어. **한 사람은 하나만 노린다.**
+   *
+   * 제한이 없으면 여덟이 붙었을 때 1초 만에 화면의 모든 단어가 노려져, 차례인 사람은
+   * 무엇을 쳐도 하트를 잃는다. 하나로 묶으면 "어디를 노릴까"가 선택이 되고,
+   * 차례인 사람에게는 언제나 피할 곳이 남는다.
+   */
+  private readonly aimOf = new Map<PlayerId, string>()
   /** 방금 되찾은 하트. 화면이 한 번 띄우고 지운다 */
-  private lastHeal: { by: PlayerId; word: string; seq: number } | null = null
-  private healSeq = 0
+  /** 방금 먹힌 노림. 화면이 한 번 띄우고 지운다 */
+  private lastAim: { by: PlayerId; victim: PlayerId; word: string; seq: number } | null = null
+  private aimSeq = 0
+  /*
+   * 화면에 넘길 사본. emit()은 매 프레임 도는데 노림은 사람이 칠 때만 바뀐다 —
+   * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다.
+   */
+  private aimedView: readonly { word: string; by: PlayerId }[] = []
   private feedback: MatchFeedback | null = null
   private feedbackSeq = 0
   private connectionLost = false
@@ -487,21 +518,33 @@ class MatchEngine {
   private sendHarass(word: string): void {
     if (this.transport.isHost) {
       this.transport.broadcast({ t: 'harassed', by: this.transport.selfId, word })
-      this.applyHarass(this.transport.selfId, word)
+      this.applyAim(this.transport.selfId, word)
     } else {
       this.transport.broadcast({ t: 'harass', word })
       // 건 사람에게도 바로 보여준다. 방장의 답을 기다리면 내가 뭘 걸었는지 모른 채
       // 다음 단어를 치게 된다
-      this.applyHarass(this.transport.selfId, word)
+      this.applyAim(this.transport.selfId, word)
     }
   }
 
-  /** 양쪽이 똑같이 실행한다. 이미 걸린 단어는 처음 건 사람의 것으로 둔다 */
-  private applyHarass(by: PlayerId, word: string): void {
-    if (this.harassed.has(word)) {
+  /**
+   * 양쪽이 똑같이 실행한다.
+   *
+   * **노림은 마지막에 친 단어로 옮겨간다.** 그래서 새로 치면 앞서 노리던 것이 풀린다 —
+   * 노리는 자리가 곧 내 시선이 가 있는 자리다.
+   * 남이 이미 노리는 단어는 뺏지 못한다. 먼저 노린 사람 것이다.
+   */
+  private applyAim(by: PlayerId, word: string): void {
+    if (this.aimedWord.has(word)) {
       return
     }
-    this.harassed.set(word, by)
+    const previous = this.aimOf.get(by)
+    if (previous !== undefined) {
+      this.aimedWord.delete(previous)
+    }
+    this.aimOf.set(by, word)
+    this.aimedWord.set(word, by)
+    this.refreshAimedView()
     this.fire({ kind: 'suggested' })
     this.emit()
   }
@@ -549,10 +592,10 @@ class MatchEngine {
      * 얹히는 대가다 — 먼저 보면 "덫이라 못 떨궜다"로 읽혀 규칙이 달라진다.
      * 자기가 건 덫은 밟히지 않는다. 스스로 치고 회복하면 방해가 아니라 회복 수단이 된다.
      */
-    const trapBy = this.harassed.get(word)
-    if (trapBy !== undefined && trapBy !== by) {
-      this.transport.broadcast({ t: 'harassHit', by: trapBy, victim: by, word })
-      this.applyHarassHit(trapBy, word)
+    const aimedBy = this.aimedWord.get(word)
+    if (aimedBy !== undefined && aimedBy !== by) {
+      this.transport.broadcast({ t: 'harassHit', by: aimedBy, victim: by, word })
+      this.applyAimHit(aimedBy, by, word)
       this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
     }
   }
@@ -631,18 +674,18 @@ class MatchEngine {
       case 'harass':
         if (this.transport.isHost) {
           this.transport.broadcast({ t: 'harassed', by: from, word: message.word })
-          this.applyHarass(from, message.word)
+          this.applyAim(from, message.word)
         }
         break
       case 'harassed':
         if (!this.transport.isHost) {
-          this.applyHarass(message.by, message.word)
+          this.applyAim(message.by, message.word)
         }
         break
       case 'harassHit':
         // 판정은 방장이 한다. 참가자는 결과만 따른다
         if (!this.transport.isHost) {
-          this.applyHarassHit(message.by, message.word)
+          this.applyAimHit(message.by, message.victim, message.word)
         }
         break
       case 'words':
@@ -706,23 +749,38 @@ class MatchEngine {
    * 덫이 작동했다. 건 사람이 하트를 되찾고 그 단어는 덫에서 풀린다.
    * 판정은 방장이 하고 양쪽이 같은 값을 그린다.
    */
-  private applyHarassHit(by: PlayerId, word: string): void {
-    this.harassed.delete(word)
-    this.match.heal(by, HARASS_HEAL)
-    this.lastHeal = { by, word, seq: this.healSeq += 1 }
+  private refreshAimedView(): void {
+    this.aimedView = [...this.aimedWord].map(([word, by]) => ({ word, by }))
+  }
+
+  /**
+   * 노림이 먹혔다. **밟은 사람만** 반 칸 잃고 그 노림은 풀린다.
+   * 판정은 방장이 하고 양쪽이 같은 값을 그린다.
+   */
+  private applyAimHit(by: PlayerId, victim: PlayerId, word: string): void {
+    const aimed = this.aimOf.get(by)
+    if (aimed === word) {
+      this.aimOf.delete(by)
+    }
+    this.aimedWord.delete(word)
+    this.refreshAimedView()
+    this.match.loseLife(victim, AIM_DAMAGE)
+    this.match.ensureTurnAlive()
+    this.lastAim = { by, victim, word, seq: this.aimSeq += 1 }
     this.fire({ kind: 'suggested' })
     this.emit()
   }
 
   private applyLives(lives: readonly (readonly [PlayerId, number])[]): void {
     for (const [id, count] of lives) {
-      // 방장이 보낸 값과 비교해 **누가** 잃었는지를 알아낸다 — 연출에 필요한 것이 그것이다
-      let lost = false
-      while (this.match.livesOf(id) > count) {
-        this.match.loseLife(id)
-        lost = true
-      }
-      if (lost) {
+      // 방장이 보낸 값과 견줘 **누가** 잃었는지를 알아낸다 — 연출에 필요한 것이 그것이다
+      const before = this.match.livesOf(id)
+      this.match.setLives(id, count)
+      /*
+       * 한 칸 넘게 잃었을 때만 "무너졌다"로 본다. 노림은 반 칸이고 그 알림은
+       * 따로 있으므로, 여기서까지 무적을 주면 노림이 연달아 막힌다.
+       */
+      if (before - count >= 1) {
         this.markHurt(id)
       }
     }
@@ -820,6 +878,7 @@ class MatchEngine {
         size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
         material: hit.variant.material,
         tone: hit.variant.tone,
+        grain: hit.variant.grain,
       })
     }
     if (quake > 0) {
@@ -935,8 +994,8 @@ class MatchEngine {
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,
       aimNormalized: this.aimer.normalized,
-      harassed: [...this.harassed].map(([word, by]) => ({ word, by })),
-      lastHeal: this.lastHeal,
+      aimed: this.aimedView,
+      lastAim: this.lastAim,
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
@@ -952,5 +1011,5 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, DROP_INTERVAL_SEC, HARASS_HEAL }
+export { MatchEngine, DROP_INTERVAL_SEC, AIM_DAMAGE }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

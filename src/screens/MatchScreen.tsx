@@ -59,12 +59,12 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   }, [focus])
 
   /*
-   * 단어 → 건 사람의 색. 내가 건 것도 들어 있다 —
-   * 무엇을 걸어뒀는지 보이지 않으면 같은 단어를 또 걸게 된다.
+   * 단어 → 노리는 사람의 색. 내가 노리는 것도 들어 있다 —
+   * 어디를 노리고 있는지 보이지 않으면 옮겨간 줄 모른 채 친다.
    */
   const harassColors = useMemo(() => {
     const colors = new Map<string, string>()
-    for (const mark of state.harassed) {
+    for (const mark of state.aimed) {
       const index = state.players.findIndex((player) => player.id === mark.by)
       colors.set(mark.word, ownerColorAt(index < 0 ? 0 : index))
     }
@@ -96,6 +96,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             {state.hurt !== null && state.phase !== 'over' && (
               <HurtNotice state={state} hurt={state.hurt} />
             )}
+            {state.phase !== 'over' && <AimNotice state={state} />}
           </div>
           <TypingLane words={state.words} side="right" harassed={harassColors} />
         </div>
@@ -261,7 +262,6 @@ function InputRow({
         * 알릴 것이 없을 때도 이 줄의 자리를 비워둔다. 나타났다 사라지게 하면 입력줄
         * 높이가 바뀌어 아레나가 위아래로 밀린다 — 조준 중에 화면이 움직이면 안 된다.
         */}
-      <HealNotice state={state} />
     </div>
   )
 }
@@ -280,17 +280,14 @@ function ActionHint({ state }: { state: MatchViewState }) {
   const ready = state.canDrop
   const soon = state.myTurn && !ready
   /*
-   * 남의 차례일 때는 **누구 차례인지 이름을 댄다.** 여덟이 붙으면 "상대"로는
-   * 누구를 기다리는지 알 수 없고, 이름표를 눈으로 훑어야 한다.
+   * 이 줄은 **내 타자가 무엇을 하는가**만 말한다.
+   * 누구 차례인지는 상단 이름표가 이미 밝히고 있어, 여기서 또 하면 같은 것을 두 번 읽는다.
    */
-  const whose = state.players.find((player) => player.id === state.current)?.nickname
   const label = ready
-    ? '내 차례 — 단어를 치면 그 물건이 화살표 자리에 떨어진다'
+    ? '단어를 치면 그 물건이 화살표 자리에 떨어진다'
     : soon
-      // 덫 설명은 남의 차례일 때 한 번만 한다. 여기서 또 하면 짧은 대기 동안
-      // 읽을 것만 늘고, 정작 봐야 할 것(막대가 줄어드는 것)에서 눈을 뗀다
-      ? '곧 내 차례'
-      : `${whose ?? '상대'} 차례 — 단어를 치면 덫을 건다`
+      ? '곧 칠 수 있다'
+      : '단어를 치면 그 단어를 노린다'
   const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#ff9f6b'
   return (
     <span
@@ -337,46 +334,97 @@ function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: stri
 }
 
 /**
- * 덫이 먹혔다는 알림.
+ * 노림이 먹혔다는 알림. **아레나 가운데에 띄운다.**
  *
- * 하트가 반 칸 오르는 것은 이름표에서 일어나는데 시선은 떨어지는 물건에 가 있다.
- * 무엇 때문에 올랐는지 말해주지 않으면 숫자가 흔들린 것으로 지나간다.
+ * 하트가 반 칸 깎이는 것은 이름표에서 일어나는데 시선은 떨어지는 물건에 가 있다.
+ * 하단 줄에 두었더니 그마저 눈에 안 들어왔다 — 판이 벌어지는 자리에 띄워야 남는다.
+ *
+ * **누가 누구를 노렸는지 이름을 다 댄다.** 여덟이 붙으면 "상대"로는 누가 누구에게
+ * 당했는지 알 수 없고, 하트를 훑어 역산해야 한다.
  */
-function HealNotice({ state }: { state: MatchViewState }) {
-  const heal = state.lastHeal
-  const seq = heal?.seq ?? 0
-  const [shown, setShown] = useState<string | null>(null)
+function AimNotice({ state }: { state: MatchViewState }) {
+  const aim = state.lastAim
+  const seq = aim?.seq ?? 0
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [shown, setShown] = useState<{
+    who: string
+    victim: string
+    word: string
+    tone: 'mine' | 'hit' | 'other'
+  } | null>(null)
   const timer = useRef(0)
 
   useEffect(() => {
-    if (heal === null) {
+    if (aim === null) {
       return
     }
-    const mine = heal.by === state.selfId
-    setShown(
-      mine
-        ? `덫이 먹혔다. ${heal.word} 로 하트가 반 칸 올랐다`
-        : `상대가 걸어둔 ${heal.word} 를 쳤다. 상대 하트가 반 칸 올랐다`,
+    const nameOf = (id: string) =>
+      state.players.find((player) => player.id === id)?.nickname ?? '상대'
+    setShown({
+      who: nameOf(aim.by),
+      victim: nameOf(aim.victim),
+      word: aim.word,
+      tone: aim.by === state.selfId ? 'mine' : aim.victim === state.selfId ? 'hit' : 'other',
+    })
+    /*
+     * 성공한 순간을 몸으로 알린다. 반 칸은 하트를 봐도 잘 안 보이는 크기라,
+     * 글자가 한 번 크게 튀어야 "무슨 일이 있었다"가 남는다.
+     */
+    play(
+      ref.current,
+      [
+        { opacity: 0, transform: 'scale(0.85)' },
+        { opacity: 1, transform: 'scale(1.12)', offset: 0.2 },
+        { opacity: 1, transform: 'scale(1)', offset: 0.35 },
+        { opacity: 1, transform: 'scale(1)', offset: 0.8 },
+        { opacity: 0, transform: 'scale(1)' },
+      ],
+      { duration: 2000, easing: 'ease-out' },
     )
     clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setShown(null), 1800)
-    // seq가 바뀔 때만 새 알림이다 — 같은 회복을 매 프레임 다시 띄우지 않는다
+    timer.current = window.setTimeout(() => setShown(null), 2000)
+    // seq가 바뀔 때만 새 알림이다 — 같은 노림을 매 프레임 다시 띄우지 않는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq])
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
+  if (shown === null) {
+    return null
+  }
+  // 노린 쪽은 초록(성공), 당한 쪽은 붉은색(손해), 구경꾼은 옅게
+  const color = shown.tone === 'mine' ? '#6bffb0' : shown.tone === 'hit' ? '#ff6b6b' : '#b6bdd4'
+
   return (
-    <span
-      data-heal={shown ?? undefined}
+    <div
+      ref={ref}
+      data-aim-hit={`${shown.who}>${shown.victim}`}
       style={{
-        fontSize: 14,
-        color: '#6bffb0',
-        visibility: shown === null ? 'hidden' : 'visible',
+        position: 'absolute',
+        top: '34%',
+        left: 0,
+        right: 0,
+        textAlign: 'center',
+        textShadow: '0 3px 18px #0d0f16',
+        pointerEvents: 'none',
       }}
     >
-      {shown ?? ' '}
-    </span>
+      {/*
+        * 보는 사람에 따라 주어를 바꾼다. "A의 노림이 B에게 성공"처럼 3인칭으로 쓰면
+        * 내가 노린 쪽인지 당한 쪽인지 한 박자 늦게 읽힌다 — 판이 벌어지는 중에
+        * 그 한 박자가 아깝다.
+        */}
+      <div style={{ fontSize: 20, fontWeight: 700, color }}>
+        {shown.tone === 'mine'
+          ? `${shown.victim}가 내 노림에 걸렸다`
+          : shown.tone === 'hit'
+            ? `${shown.who}의 노림에 걸렸다`
+            : `${shown.victim}가 ${shown.who}의 노림에 걸렸다`}
+      </div>
+      <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
+        {shown.word} · 하트 반 칸
+      </div>
+    </div>
   )
 }
 

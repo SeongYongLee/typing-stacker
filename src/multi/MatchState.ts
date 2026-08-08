@@ -19,7 +19,6 @@ class MatchState {
   private readonly order: PlayerInfo[]
   private readonly lives = new Map<PlayerId, number>()
   /** 회복으로도 이 위로는 올라가지 못한다 — 방해를 쌓아 무한히 버티면 판이 끝나지 않는다 */
-  private readonly maxLives: number
   /** 지금 떨굴 차례인 사람의 자리. 탈락자를 건너뛰며 돈다 */
   private turnIndex = 0
 
@@ -28,7 +27,6 @@ class MatchState {
       throw new Error('플레이어가 없다')
     }
     this.order = [...players]
-    this.maxLives = livesPerPlayer
     for (const player of this.order) {
       this.lives.set(player.id, livesPerPlayer)
     }
@@ -122,28 +120,30 @@ class MatchState {
    * 물건이 받침대를 벗어나 주인의 하트가 깎인다.
    * 떨어뜨린 사람이 아니라 **쌓은 사람**이 잃는다 — 그래서 상대 물건을 밀어내는 것이 공격이 된다.
    */
-  loseLife(owner: PlayerId): void {
-    const remaining = this.lives.get(owner)
-    if (remaining === undefined || remaining <= 0) {
+  /**
+   * 방장이 보낸 값으로 **맞춘다.** 빼는 것이 아니라 그 값이 되게 한다.
+   *
+   * 예전에는 "그 값이 될 때까지 한 칸씩 빼는" 방식이었는데, 노림으로 반 칸이 생기면서
+   * 깨졌다 — 3에서 2.5로 맞추려다 한 칸을 빼 2가 되고, 뒤이어 도착한 노림 알림이
+   * 또 반 칸을 빼 1.5가 됐다. 양쪽 화면의 하트가 서로 다르게 보였다.
+   */
+  setLives(id: PlayerId, value: number): void {
+    if (!this.lives.has(id)) {
       return
     }
-    this.lives.set(owner, remaining - 1)
+    this.lives.set(id, Math.max(0, value))
   }
 
-  /**
-   * 방해가 먹혔을 때 방해한 사람이 하트를 되찾는다.
-   *
-   * 되찾는 쪽이 **방해를 건 사람**인 이유는, 방해가 상대에게 놓는 덫이기 때문이다 —
-   * 상대가 그 단어를 치면 덫이 작동한 것이고 그 값이 나에게 온다.
-   * 이미 탈락한 사람은 되살아나지 않는다. 판이 끝나고도 되돌아오면 승패가 뒤집힌다.
-   */
-  heal(id: PlayerId, amount: number): void {
-    const current = this.lives.get(id)
-    if (current === undefined || current <= 0 || amount <= 0) {
+  loseLife(owner: PlayerId, amount = 1): void {
+    const remaining = this.lives.get(owner)
+    if (remaining === undefined || remaining <= 0 || amount <= 0) {
       return
     }
-    this.lives.set(id, Math.min(current + amount, this.maxLives))
+    // 반 칸씩 깎이는 길(노림)이 있어 0 아래로 내려가지 않게 막는다
+    this.lives.set(owner, Math.max(0, remaining - amount))
   }
+
+
 
   snapshot(): {
     readonly lives: readonly (readonly [PlayerId, number])[]

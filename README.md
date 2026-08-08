@@ -174,9 +174,10 @@ VITE_RELAY_URL=ws://localhost:8787 pnpm dev       # 앱이 그 중계를 쓰게 
 pnpm relay:deploy                                 # Cloudflare에 올린다 (wrangler login 필요)
 ```
 
-올린 뒤 저장소 **Settings → Secrets and variables → Actions → Variables**에
-`RELAY_URL`을 `wss://<이름>.<계정>.workers.dev`로 넣으면 배포본이 중계를 쓴다.
-비어 있으면 P2P로 떨어지므로, 서버 없이도 배포는 된다.
+중계 주소는 `src/multi/MatchSession.ts`에 적혀 있다. 비밀이 아니라서 — 어차피
+클라이언트 번들에 실려 나간다 — 숨기지 않는다. 빌드 설정에 숨겨두면 저장소를 새로
+받은 사람이 "왜 대전이 안 되지"를 코드에서 찾을 수 없다. 자기 중계로 바꾸려면 그 상수를
+고치고, 로컬 중계로 시험할 때만 `VITE_RELAY_URL`로 덮어쓴다.
 
 방 하나가 Durable Object 하나다(`worker/src/index.ts`). 같은 코드는 언제나 같은
 인스턴스로 가므로 방을 찾는 절차가 필요 없고, 전송로는 `Transport` 인터페이스 뒤에 있어

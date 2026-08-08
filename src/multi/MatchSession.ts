@@ -11,13 +11,20 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
 const HANDSHAKE_TIMEOUT_MS = 10000
 
 /**
- * 중계 서버 주소. 설정돼 있으면 P2P 대신 중계로 붙는다.
+ * 중계 서버 주소.
  *
- * P2P는 NAT을 통과해야만 동작하는데 그 조건이 망마다 달라서, 같은 Wi-Fi의 두 기기조차
- * 못 붙는 경우가 있다(공유기의 멀티캐스트 차단 + 헤어핀 NAT). 중계는 그 조건을 없앤다.
- * 주소가 없으면 P2P로 떨어지므로, 서버를 띄우지 않아도 예전처럼 동작은 한다.
+ * P2P는 NAT을 통과해야만 동작하는데 그 조건이 망마다 달라서, 같은 Wi-Fi의 두 기기도
+ * LTE와 Wi-Fi도 붙지 못했다(멀티캐스트 차단·헤어핀 NAT·이동통신 CGNAT). 중계는 그
+ * 조건을 없앤다 — 바깥으로 나가는 WebSocket 하나면 되고 그건 어디서나 열린다.
+ *
+ * **주소를 여기 적어두는 이유**는 이것이 비밀이 아니기 때문이다. 어차피 클라이언트
+ * 번들에 그대로 실려 나가므로 숨겨봐야 얻는 게 없고, 대신 빌드 설정에 숨겨두면
+ * 새로 받은 사람이 "왜 대전이 안 되지"를 코드에서 찾을 수 없다.
+ * 로컬 중계로 시험할 때만 VITE_RELAY_URL로 덮어쓴다.
  */
-const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? ''
+const DEFAULT_RELAY_URL = 'wss://typing-stacker-relay.typing-stacker-relay.workers.dev'
+
+const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? DEFAULT_RELAY_URL
 
 /**
  * 방을 만들고 상대가 들어와 판이 시작되기까지의 절차.

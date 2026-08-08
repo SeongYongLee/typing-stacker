@@ -166,8 +166,14 @@ function FeedbackChip({ feedback }: { feedback: SubmitFeedback | null }) {
   }
 
   const color = feedback.ok ? '#6bffb0' : DANGER
-  // 기본 물건은 이름이 단어와 같다 — 히든처럼 다른 것이 나왔을 때만 화살표로 알린다
-  const showItem = feedback.itemLabel !== null && feedback.itemLabel !== feedback.text
+  /*
+   * 화살표는 **히든이 나왔을 때만** 띄운다.
+   *
+   * 예전에는 "이름이 단어와 다르면" 띄웠는데, 그러면 기본 물건인데도 이름만 다르면
+   * 뭔가 특별한 것이 나온 것처럼 보였다. 이 표시의 목적은 운으로 다른 것이 나왔다는
+   * 것을 알리는 데 있지 이름이 다르다는 것을 알리는 데 있지 않다.
+   */
+  const showItem = feedback.hidden && feedback.itemLabel !== null
   return (
     <span
       key={feedback.seq}

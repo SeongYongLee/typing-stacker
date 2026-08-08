@@ -1,4 +1,5 @@
 import { spriteBounds, spriteShape } from '../shapes.ts'
+import { materialOf, toneOf } from './materials.ts'
 import { SPRITE_EXT, type SpriteName } from './sprites.generated.ts'
 import type { ItemVariant, WordEntry } from '../types/game.ts'
 
@@ -55,6 +56,9 @@ function variant(input: VariantInput): ItemVariant {
     sticky: input.sticky ?? false,
     hidden: input.hidden ?? false,
     scoreBonus: input.scoreBonus ?? 0,
+    // 소리에 쓰는 값은 물건마다 적지 않고 표에서 끌어온다 — 이유는 materials.ts에
+    material: materialOf(input.id),
+    tone: toneOf(input.id),
   }
 }
 
@@ -151,25 +155,6 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '문어',
-    variants: [
-      variant({
-        id: 'octopus',
-        // 빨판으로 들러붙는다. 탑을 붙잡아주는 물건
-        sticky: true,
-        restitution: 0,
-        angularDamping: 3.2,
-        label: '문어',
-        sprite: 'octopus-sausage',
-        size: { width: 0.58 },
-        color: '#e0714a',
-        // 빨판이 있어 어디에 놓아도 잘 붙는다. 가장 마찰이 큰 물건
-        density: 0.9,
-        friction: 0.95,
-      }),
-    ],
-  },
-  {
     word: '소시지',
     variants: [
       variant({
@@ -184,15 +169,35 @@ const WORDS: readonly WordEntry[] = [
         density: 0.9,
         friction: 0.35,
       }),
+      hiddenVariant({
+        /*
+         * 소시지에 칼집을 낸 것이 문어 소시지다. 아트도 `이미지 2탄`에서
+         * sausage / octopus-sausage 한 쌍으로 왔다.
+         *
+         * 기본형이 이 게임에서 가장 잘 미끄러지는 물건인데 히든은 가장 잘 붙는
+         * 물건이라, 같은 단어를 쳤을 때 결과가 정반대로 갈린다.
+         */
+        id: 'octopus',
+        sticky: true,
+        restitution: 0,
+        angularDamping: 3.2,
+        label: '문어소시지',
+        sprite: 'octopus-sausage',
+        size: { width: 0.58 },
+        color: '#e0714a',
+        // 빨판이 있어 어디에 놓아도 잘 붙는다. 가장 마찰이 큰 물건
+        density: 0.9,
+        friction: 0.95,
+      }),
     ],
   },
   {
-    word: '음료',
+    word: '칵테일',
     variants: [
       variant({
         id: 'iced-drink',
         restitution: 0.14,
-        label: '아이스 음료',
+        label: '칵테일',
         sprite: 'highball-cocktail',
         size: { height: 0.58 },
         color: '#5ec8bd',
@@ -203,7 +208,7 @@ const WORDS: readonly WordEntry[] = [
         // 잔이 위로 벌어져 무게중심이 높다. 잘 넘어진다
         restitution: 0.1,
         angularDamping: 0.9,
-        label: '칵테일',
+        label: '마티니 칵테일',
         sprite: 'martini-cocktail',
         size: { height: 0.62 },
         color: '#c9d99a',
@@ -389,7 +394,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '나비',
+    word: '호랑나비',
     variants: [
       variant({
         // 날개가 넓고 얇다. 가장 가벼워 위에 무엇이 오든 눌린다
@@ -421,7 +426,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '도넛',
+    word: '초코도넛',
     variants: [
       variant({
         // 가운데가 뚫린 원반. 세워지면 굴러간다
@@ -452,7 +457,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '커피',
+    word: '아메리카노',
     variants: [
       variant({
         // 잔이 위로 벌어져 무게중심이 높다
@@ -467,7 +472,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '우유',
+    word: '딸기우유',
     variants: [
       variant({
         // 네모난 우유갑. 서 있으면 안정적이다
@@ -498,7 +503,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '시계',
+    word: '알람시계',
     variants: [
       variant({
         // 몸통이 둥글어 잘 넘어진다
@@ -558,7 +563,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '샴푸',
+    word: '샴푸통',
     variants: [
       variant({
         // 바닥이 평평하고 아래가 무겁다
@@ -713,7 +718,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '주전자',
+    word: '전기주전자',
     variants: [
       variant({
         // 바닥이 평평하고 묵직하다
@@ -729,7 +734,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '공룡',
+    word: '공룡인형',
     variants: [
       variant({
         // 꼬리와 머리가 길어 자리를 많이 먹는다
@@ -775,7 +780,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '기차',
+    word: '장난감기차',
     variants: [
       variant({
         // 길고 낮아 받침으로 쓸 만하다
@@ -821,7 +826,7 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '배드민턴',
+    word: '배드민턴채',
     variants: [
       variant({
         // 길고 얇다. 눕히면 넓지만 세우면 곧 쓰러진다
@@ -865,13 +870,8 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.8,
         angularDamping: 1.2,
       }),
-    ],
-  },
-  {
-    word: '트리',
-    variants: [
-      variant({
-        // 삼각형이라 그 위에 무엇을 얹기 어렵다
+      hiddenVariant({
+        // 삼각형이라 그 위에 무엇을 얹기 어렵다. 꾸며진 대신 불리한 히든이다
         id: 'christmas-tree',
         label: '크리스마스트리',
         sprite: 'christmas-tree',

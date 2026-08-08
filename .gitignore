@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# wrangler 로컬 실행이 남기는 것들 (workerd 상태·번들 임시파일)
+.wrangler

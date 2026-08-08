@@ -241,6 +241,50 @@ class MatchEngine {
     return this.match.currentPlayer === this.transport.selfId
   }
 
+  /** 지금 떨굴 수 있는지. 화면에 보여주는 myTurn과 같은 기준이어야 한다 */
+  private canDropNow(): boolean {
+    return this.isMyTurn() && !this.resolving
+  }
+
+  /**
+   * 지목을 상대에게 보낸다.
+   *
+   * 방향에 따라 메시지가 다르다 — 참가자는 방장을 거쳐야 하지만(`suggest`),
+   * 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지 않으므로 같은 방식으로
+   * 보내면 아무 데도 닿지 않는다. 방장은 결과(`suggested`)를 바로 알린다.
+   */
+  private sendSuggestion(word: string): void {
+    if (this.transport.isHost) {
+      this.transport.broadcast({ t: 'suggested', by: this.transport.selfId, word })
+    } else {
+      this.transport.broadcast({ t: 'suggest', word })
+    }
+    this.feedback = {
+      seq: this.feedbackSeq,
+      text: word,
+      kind: 'suggested',
+      itemLabel: null,
+      hidden: false,
+    }
+    this.emit()
+  }
+
+  /**
+   * 턴이 바뀔 때 들고 있던 지목을 남길지 정한다.
+   *
+   * 지목은 **받은 사람이 쓸 수 있는 동안** 살아 있어야 한다. 내 차례가 시작되면
+   * 지금 치라는 것이므로 남기고, 남의 차례가 시작되면 내가 들고 있던 것은 쓸 기회를
+   * 잃었으므로 지운다.
+   *
+   * 무조건 지우면 자리를 잡는 동안 한 지목이 턴이 넘어가는 순간 사라진다 —
+   * 정확히 그 지목이 가장 쓸모있는 순간에.
+   */
+  private keepSuggestionFor(current: PlayerId | null): void {
+    if (current !== this.transport.selfId) {
+      this.suggestion = null
+    }
+  }
+
   /** 내가 떨구려 한다. 방장이면 바로 판정하고, 게스트면 방장에게 청한다 */
   private requestDrop(word: string): void {
     if (this.resolving) {
@@ -362,7 +406,7 @@ class MatchEngine {
         if (!this.transport.isHost) {
           this.match.setTurn(message.current)
           this.resolving = false
-          this.suggestion = null
+          this.keepSuggestionFor(this.match.currentPlayer)
           this.emit()
         }
         break
@@ -474,8 +518,8 @@ class MatchEngine {
 
     if (this.quietFor >= SETTLE_QUIET_SEC || this.resolveFor >= TURN_RESOLVE_TIMEOUT_SEC) {
       this.resolving = false
-      this.suggestion = null
       this.match.nextTurn()
+      this.keepSuggestionFor(this.match.currentPlayer)
       // 턴이 끝날 때만 권위 키프레임을 보낸다. 매 프레임 흘리면 무료 전송로의
       // 한도를 태우고, 턴제라 그럴 필요도 없다
       this.transport.broadcast({ t: 'sync', bodies: this.physics.frames() })
@@ -505,7 +549,7 @@ class MatchEngine {
       players: this.match.players,
       lives: snapshot.lives,
       current: snapshot.current,
-      myTurn: this.isMyTurn() && !this.resolving,
+      myTurn: this.canDropNow(),
       settling: this.resolving && !snapshot.over && !this.connectionLost,
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,

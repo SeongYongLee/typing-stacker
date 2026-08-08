@@ -265,11 +265,17 @@ describe('MatchEngine — 턴제 대전', () => {
     pair = await makePair()
     await pair.clock.advance(1)
     dropSomething(pair)
-    await pair.clock.advance(0.4)
+
+    // 떨군 단어는 밭에서 빠지므로 다음 단어가 나올 때까지 기다린다
+    let word: string | undefined
+    for (let tick = 0; tick < 10 && word === undefined; tick += 1) {
+      await pair.clock.advance(0.2)
+      word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
+    }
+    expect(word).toBeDefined()
     expect(pair.hostState().settling).toBe(true)
 
     // 방금 떨군 방장이 다음 차례가 될 참가자에게 지목한다
-    const word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
     pair.host.submit(word!)
     await pair.clock.advance(0.3)
     expect(pair.guestState().suggestion?.word).toBe(word)

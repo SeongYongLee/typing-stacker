@@ -58,38 +58,69 @@ const peerOptions = {
 } as const
 
 /**
- * ICE가 어디까지 갔는지 콘솔에 남긴다. **개발 모드에서만** 붙인다.
+ * 연결이 어디까지 갔는지 콘솔에 남긴다. **개발 모드에서만** 붙인다.
  *
- * "연결 중"에서 멈추는 증상은 원인이 여러 갈래인데(후보를 못 모음 / 모았지만 짝을 못 지음 /
- * 상대 후보가 안 옴) 화면으로는 구분되지 않는다. 후보 종류와 상태 전이를 찍어두면
- * 다음 시도 한 번으로 어느 갈래인지 정해진다.
+ * "안 붙는다"의 원인은 네 갈래인데 화면으로는 구분되지 않는다.
+ *   ① 내 후보를 못 모음  ② 상대 후보가 안 옴(시그널링)  ③ 후보는 다 있는데 짝이 안 지어짐
+ *   ④ 짝은 지어졌는데 데이터 채널이 안 열림
+ * 그래서 내 후보·상대 후보·짝 상태를 모두 찍는다. 특히 주소가 mDNS(.local)인지까지
+ * 남기는데, 같은 망의 두 기기가 못 붙는 흔한 이유가 공유기의 멀티캐스트 차단이기 때문이다.
  */
 function traceIce(label: string, connection: DataConnection): void {
   if (!import.meta.env.DEV) {
     return
   }
+  const say = (message: string): void => console.info(`[대전:${label}] ${message}`)
+
   const attach = (pc: RTCPeerConnection): void => {
-    const seen = new Set<string>()
+    const mine = new Set<string>()
+    const remoteKinds = new Set<string>()
+    let remoteCount = 0
+
     pc.addEventListener('icecandidate', (event) => {
-      const type = event.candidate?.type ?? null
-      if (type !== null && !seen.has(type)) {
-        seen.add(type)
-        console.info(`[대전:${label}] 내 후보 ${type} (${event.candidate?.protocol})`)
+      const candidate = event.candidate
+      if (candidate === null) {
+        say(`내 후보 수집 끝 — ${[...mine].join(', ') || '없음'}`)
+        return
       }
-      if (event.candidate === null) {
-        console.info(`[대전:${label}] 후보 수집 끝 — 모은 종류: ${[...seen].join(', ') || '없음'}`)
+      // mDNS로 가려진 주소인지가 중요하다. 상대가 이 이름을 풀지 못하면 그 후보는 쓸모없다
+      const address = candidate.address ?? ''
+      const form = address.endsWith('.local') ? 'mDNS' : address === '' ? '?' : 'IP'
+      const key = `${candidate.type}/${candidate.protocol}/${form}`
+      if (!mine.has(key)) {
+        mine.add(key)
+        say(`내 후보 ${key}`)
       }
     })
+
     pc.addEventListener('icecandidateerror', (event) => {
       const error = event as RTCPeerConnectionIceErrorEvent
       console.warn(`[대전:${label}] 후보 오류 ${error.errorCode} ${error.url ?? ''}`)
     })
+
+    // 상대 후보가 실제로 도착하는지 — 시그널링이 살아 있는지를 가르는 유일한 신호다
+    const addIceCandidate = pc.addIceCandidate.bind(pc)
+    pc.addIceCandidate = (candidate?: RTCIceCandidateInit | null): Promise<void> => {
+      const line = typeof candidate?.candidate === 'string' ? candidate.candidate : ''
+      const kind = line.split(' ')[7] ?? '?'
+      if (!remoteKinds.has(kind)) {
+        remoteKinds.add(kind)
+        say(`상대 후보 ${kind} 도착`)
+      }
+      remoteCount += 1
+      return addIceCandidate(candidate)
+    }
+
     pc.addEventListener('iceconnectionstatechange', () => {
-      console.info(`[대전:${label}] ICE ${pc.iceConnectionState}`)
+      say(`ICE ${pc.iceConnectionState} (상대 후보 ${remoteCount}개)`)
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        void reportPairs(pc, say)
+      }
     })
+    pc.addEventListener('signalingstatechange', () => say(`시그널링 ${pc.signalingState}`))
+    pc.addEventListener('connectionstatechange', () => say(`연결 ${pc.connectionState}`))
   }
 
-  // peerConnection은 협상이 시작된 뒤에 생긴다
   const pc = connection.peerConnection
   if (pc !== undefined && pc !== null) {
     attach(pc)
@@ -101,6 +132,32 @@ function traceIce(label: string, connection: DataConnection): void {
       attach(late)
     }
   })
+}
+
+/** 실패했을 때 어떤 짝이 어디까지 갔는지 — 여기서 "왜 못 붙었는지"가 확정된다 */
+async function reportPairs(
+  pc: RTCPeerConnection,
+  say: (message: string) => void,
+): Promise<void> {
+  const stats = await pc.getStats()
+  const names = new Map<string, string>()
+  const pairs: string[] = []
+
+  stats.forEach((report) => {
+    if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+      const address = String(report.address ?? '?')
+      const form = address.endsWith('.local') ? 'mDNS' : address
+      names.set(report.id, `${report.candidateType}/${report.protocol}/${form}`)
+    }
+  })
+  stats.forEach((report) => {
+    if (report.type === 'candidate-pair') {
+      const from = names.get(String(report.localCandidateId)) ?? '?'
+      const to = names.get(String(report.remoteCandidateId)) ?? '?'
+      pairs.push(`${from} ↔ ${to} : ${String(report.state)}`)
+    }
+  })
+  say(pairs.length === 0 ? '짝이 하나도 만들어지지 않았다' : `짝 상태\n  ${pairs.join('\n  ')}`)
 }
 
 interface PeerTransportOptions {

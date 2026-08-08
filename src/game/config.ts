@@ -145,7 +145,13 @@ const SCORE = {
 } as const
 
 const WORD = {
-  slotsPerSide: 4,
+  /*
+   * 좌우 각 칸 수. 여기 × 2가 화면에 동시에 뜰 수 있는 단어의 상한이다.
+   *
+   * 대전에서 사람이 늘면 단어를 더 내보내는데(Difficulty.forPlayers), 칸이 딱 맞으면
+   * 자리를 못 찾아 조용히 걸러진다. 여유를 두어야 여덟이 붙어도 밭이 채워진다.
+   */
+  slotsPerSide: 5,
 } as const
 
 /**

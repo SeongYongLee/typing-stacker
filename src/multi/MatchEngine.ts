@@ -12,7 +12,7 @@ import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
 import { Aimer } from '../game/systems/Aimer.ts'
-import { difficultyAt, difficultyProgress } from '../game/systems/Difficulty.ts'
+import { difficultyAt, difficultyProgress, forPlayers } from '../game/systems/Difficulty.ts'
 import { resolveItem } from '../game/systems/ItemResolver.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
@@ -798,7 +798,11 @@ class MatchEngine {
       this.difficultyPeak,
       difficultyProgress(this.physics.stackTop()),
     )
-    const difficulty = difficultyAt(this.difficultyPeak)
+    /*
+     * 사람이 많을수록 단어를 더 많이, 더 자주 내보낸다. 차례를 기다리는 사람들이
+     * 덫을 걸 단어가 있어야 손이 멈추지 않는다 — 그것이 이 게임에서 가장 큰 대가다.
+     */
+    const difficulty = forPlayers(difficultyAt(this.difficultyPeak), this.match.players.length)
     this.tickInvulnerable(dt)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*

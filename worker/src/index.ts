@@ -16,7 +16,7 @@ interface Env {
   BOARD: DurableObjectNamespace
 }
 
-const MAX_PEERS = 4
+const MAX_PEERS = 8
 
 /**
  * 이 주소들에서 열린 페이지만 받는다.

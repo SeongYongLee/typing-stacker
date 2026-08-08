@@ -21,7 +21,7 @@ const MAX_ID = 64
 const MAX_MATCH_ID = 200
 const MAX_NAME = 12
 /** 한 판에 들어올 수 있는 인원. 서버가 먼저 늘어나야 클라이언트를 나중에 올릴 수 있다 */
-const MAX_PLAYERS = 4
+const MAX_PLAYERS = 8
 /** 랭킹에 돌려주는 인원 */
 const TOP = 20
 

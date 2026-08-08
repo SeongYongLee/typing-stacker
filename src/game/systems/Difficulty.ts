@@ -1,4 +1,4 @@
-import { ARENA } from '../config.ts'
+import { ARENA, WORD } from '../config.ts'
 import type { DifficultyLevel } from '../types/game.ts'
 import { CAMERA_START_TOP } from './Camera.ts'
 
@@ -73,4 +73,40 @@ function difficultyAt(progress: number): DifficultyLevel {
   }
 }
 
-export { OPENING, FULL, difficultyAt, difficultyProgress }
+/**
+ * 레인이 담을 수 있는 단어 수. 좌우 각 slotsPerSide칸이다.
+ * 이보다 많이 내보내면 자리가 없어 스포너가 조용히 거른다.
+ */
+const MAX_ON_SCREEN = WORD.slotsPerSide * 2
+
+/**
+ * 인원에 **비례해** 단어 밭을 넓힌다. 대전에서만 부른다.
+ *
+ * 대전은 차례가 돌아가고, **기다리는 사람은 덫을 걸며 손을 놀린다.** 그런데 덫은
+ * 단어를 없애지 않고 표시만 하므로 걸 수 있는 단어가 곧 바닥난다 — 여덟이 붙으면
+ * 일곱이 같은 서너 개를 두고 달려들어 1초면 다 걸린다. 그때부터 기다리는 사람은
+ * 칠 것이 없다.
+ *
+ * 그래서 둘일 때를 기준으로 **인원 배수만큼** 늘린다. 넷이면 두 배, 여덟이면 네 배다.
+ * 동시에 뜨는 수와 나오는 빈도를 함께 올려야 한다 — 상한만 올리면 자리는 있는데
+ * 채워지지 않고, 빈도만 올리면 상한에 막혀 나오다 만다.
+ *
+ * 다만 **레인 칸이 진짜 상한**이라 배수대로 다 늘어나지는 않는다. 여덟이면 스무 개를
+ * 원하지만 자리가 열 개뿐이다. 그 위로는 레이아웃을 바꿔야 한다.
+ */
+function forPlayers(level: DifficultyLevel, players: number): DifficultyLevel {
+  const scale = Math.max(1, players / 2)
+  if (scale === 1) {
+    return level
+  }
+  return {
+    ...level,
+    maxConcurrent: Math.min(Math.round(level.maxConcurrent * scale), MAX_ON_SCREEN),
+    spawnInterval: Math.max(level.spawnInterval / scale, MIN_SPAWN_INTERVAL),
+  }
+}
+
+/** 아무리 사람이 많아도 이보다 자주 내보내지는 않는다 */
+const MIN_SPAWN_INTERVAL = 0.55
+
+export { OPENING, FULL, MAX_ON_SCREEN, difficultyAt, difficultyProgress, forPlayers }

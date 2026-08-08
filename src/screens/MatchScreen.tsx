@@ -111,16 +111,23 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
   const livesOf = new Map(state.lives)
   const invulnerableOf = new Map(state.invulnerable)
   const winsOf = new Map(state.wins)
+  /*
+   * 사람이 많으면 이름표를 좁힌다. 여덟이 다 붙으면 넓은 모양으로는 한 줄에 들어가지
+   * 않는데, 줄이 두 개가 되면 아레나가 밀려 내려간다 — 조준 중에 화면이 움직이면 안 된다.
+   * 승수는 판 사이에만 필요한 값이라 좁은 모양에서 먼저 접는다.
+   */
+  const crowded = state.players.length > 4
 
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 24,
-        padding: '12px 20px',
+        gap: crowded ? 10 : 24,
+        padding: crowded ? '8px 14px' : '12px 20px',
         borderBottom: '1px solid #262b3d',
         background: '#151824',
+        overflow: 'hidden',
       }}
     >
       {state.players.map((player, index) => {
@@ -140,9 +147,10 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
-              padding: '6px 12px',
+              gap: crowded ? 6 : 10,
+              padding: crowded ? '4px 8px' : '6px 12px',
               borderRadius: 999,
+              minWidth: 0,
               border: `1px solid ${active ? '#ffcf5c' : 'transparent'}`,
               background: active ? 'rgba(255, 207, 92, 0.1)' : 'transparent',
             }}
@@ -155,12 +163,22 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
                 background: ownerColorAt(index),
               }}
             />
-            <span style={{ fontSize: 15, color: '#f2f4fb', fontWeight: mine ? 700 : 500 }}>
+            <span
+              style={{
+                fontSize: crowded ? 13 : 15,
+                color: '#f2f4fb',
+                fontWeight: mine ? 700 : 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: crowded ? 72 : 160,
+              }}
+            >
               {player.nickname}
-              {mine && ' (나)'}
+              {mine && !crowded && ' (나)'}
             </span>
             <PlayerLives lives={lives} invulnerable={invulnerableOf.get(player.id) ?? 0} />
-            <Wins count={winsOf.get(player.id) ?? 0} />
+            {!crowded && <Wins count={winsOf.get(player.id) ?? 0} />}
           </div>
         )
       })}

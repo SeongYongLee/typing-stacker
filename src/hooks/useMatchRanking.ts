@@ -42,7 +42,17 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
   const [view, setView] = useState<RankView | null>(null)
 
   const over = state.phase === 'over'
-  const { matchId, opponentDevice, winnerDevice } = state
+  const { matchId } = state
+  /*
+   * 기기 id와 등수로 옮긴다. 전송로 id는 이 판에서만 쓰는 값이라 레이팅을 묶을 수 없다.
+   * 기기 id가 빈 사람이 있으면(옛 버전과 붙었거나 저장소가 막힘) 그 판은 보고하지 않는다.
+   */
+  const standings = state.standings.map((row) => ({
+    id: state.players.find((player) => player.id === row.id)?.device ?? '',
+    placement: row.placement,
+  }))
+  const reportable = standings.length >= 2 && standings.every((row) => row.id.length > 0)
+  const key = standings.map((row) => `${row.id}:${row.placement}`).join(',')
 
   /*
    * "한 번 보냈으면 건너뛴다"는 가드는 쓰지 않는다 — StrictMode가 이펙트를 두 번 돌릴 때
@@ -53,15 +63,15 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
     if (!over) {
       return
     }
-    // 기기 id가 비어 있으면 묶을 곳이 없다 — 옛 버전과 붙었거나 저장소가 막힌 경우다
-    if (opponentDevice.length === 0) {
+    // 묶을 곳이 없으면 보고하지 않는다 — 옛 버전과 붙었거나 저장소가 막힌 경우다
+    if (!reportable) {
       setStatus('offline')
       return
     }
     setStatus('pending')
 
     let alive = true
-    void reportMatch({ matchId, opponent: opponentDevice, winner: winnerDevice }).then(
+    void reportMatch({ matchId, standings }).then(
       (next) => {
         if (!alive) {
           return
@@ -97,7 +107,7 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
             if (!alive) {
               return
             }
-            void reportMatch({ matchId, opponent: opponentDevice, winner: winnerDevice }).then((later) => {
+            void reportMatch({ matchId, standings }).then((later) => {
               if (alive && later !== null && later.error === undefined && later.pending !== true) {
                 setView(later)
                 setStatus(later.disputed === true ? 'disputed' : 'ready')
@@ -110,7 +120,8 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
     return () => {
       alive = false
     }
-  }, [over, matchId, opponentDevice, winnerDevice])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [over, matchId, key, reportable])
 
   return {
     status,

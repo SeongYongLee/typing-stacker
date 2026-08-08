@@ -102,6 +102,11 @@ interface MatchViewState {
     readonly takenBy: PlayerId | null
     readonly seq: number
   } | null
+  /**
+   * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
+   * 같은 붕괴로 함께 탈락하면 공동 등수다.
+   */
+  readonly standings: readonly { readonly id: PlayerId; readonly placement: number }[]
   /** 방금 먹힌 노림. 같은 seq면 이미 보여준 것이다 */
   readonly lastAim: {
     readonly by: PlayerId
@@ -130,10 +135,6 @@ interface MatchViewState {
    * 기기 id는 명단에 실려 있으므로, 둘을 합쳐 정렬하면 양쪽에서 같은 값이 나온다.
    */
   readonly matchId: string
-  /** 이긴 사람의 기기 id. 무승부거나 아직 안 끝났으면 빈 문자열 */
-  readonly winnerDevice: string
-  /** 내 상대의 기기 id */
-  readonly opponentDevice: string
 }
 
 interface MatchFeedback {
@@ -241,6 +242,11 @@ class MatchEngine {
    * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다.
    */
   private aimedView: readonly { word: string; by: PlayerId }[] = []
+  /*
+   * 등수 사본. emit()은 매 프레임 도는데 등수는 누가 탈락할 때만 바뀐다 —
+   * 프레임마다 다시 세면 그것만으로 쓰레기가 쌓인다.
+   */
+  private standingsView: readonly { id: PlayerId; placement: number }[] = []
   private feedback: MatchFeedback | null = null
   private feedbackSeq = 0
   private connectionLost = false
@@ -289,6 +295,7 @@ class MatchEngine {
     this.wins = options.wins
     this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES)
+    this.standingsView = this.match.standings()
     this.ownerColors = buildOwnerColors(options.players)
     this.rng = createRng(options.seed)
     this.itemRng = createRng((options.seed ^ 0x9e3779b9) >>> 0)
@@ -438,14 +445,6 @@ class MatchEngine {
       )
       this.nextItemId += 1
     }
-  }
-
-  /** 전송로 id를 기기 id로 옮긴다. 레이팅은 기기 단위로 쌓인다 */
-  private deviceOf(id: PlayerId | null): string {
-    if (id === null) {
-      return ''
-    }
-    return this.match.players.find((player) => player.id === id)?.device ?? ''
   }
 
   /** 이긴 사람에게 1점. 무승부(둘 다 같은 붕괴로 탈락)면 아무도 못 얻는다 */
@@ -790,7 +789,10 @@ class MatchEngine {
     }
     this.aimedWord.delete(word)
     this.refreshAimedView()
+    // 노림 한 방으로도 탈락할 수 있다 — 그 사람만의 회차로 둔다
+    this.match.startDeathBatch()
     this.match.loseLife(victim, AIM_DAMAGE)
+    this.standingsView = this.match.standings()
     this.match.ensureTurnAlive()
     this.lastAim = { by, victim, word, seq: this.aimSeq += 1 }
     this.fire({ kind: 'suggested' })
@@ -798,6 +800,12 @@ class MatchEngine {
   }
 
   private applyLives(lives: readonly (readonly [PlayerId, number])[]): void {
+    /*
+     * **참가자 쪽에서도 회차를 올린다.** 방장에서만 올리면 참가자의 모든 탈락이 한
+     * 회차에 묶여 전부 공동 등수가 된다 — 실제로 방장은 1·2·3위를 보는데 참가자는
+     * 1·2·2위를 봤다. `lives` 한 통이 곧 한 번의 판정이다.
+     */
+    this.match.startDeathBatch()
     for (const [id, count] of lives) {
       // 방장이 보낸 값과 견줘 **누가** 잃었는지를 알아낸다 — 연출에 필요한 것이 그것이다
       const before = this.match.livesOf(id)
@@ -810,6 +818,7 @@ class MatchEngine {
         this.markHurt(id)
       }
     }
+    this.standingsView = this.match.standings()
     // 차례인 사람이 방금 탈락했으면 넘긴다 — 안 그러면 죽은 사람 차례에서 판이 멈춘다
     this.match.ensureTurnAlive()
     this.emit()
@@ -947,6 +956,8 @@ class MatchEngine {
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
   private hostJudge(dt: number, escaped: readonly OwnerId[]): void {
     let anyLost = false
+    // 이번 판정에 함께 죽는 사람들은 공동 등수다
+    this.match.startDeathBatch()
     for (const owner of escaped) {
       // 무적인 사람의 물건은 세계에서 치우되 목숨은 깎지 않는다
       if (this.isInvulnerable(owner)) {
@@ -957,6 +968,7 @@ class MatchEngine {
       anyLost = true
     }
     if (anyLost) {
+      this.standingsView = this.match.standings()
       // 참가자도 같은 순서로 건너뛰도록 양쪽이 똑같이 부른다
       this.match.ensureTurnAlive()
       this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
@@ -1022,15 +1034,12 @@ class MatchEngine {
       aimNormalized: this.aimer.normalized,
       aimed: this.aimedView,
       aimResult: this.aimResult,
+      standings: this.standingsView,
       lastAim: this.lastAim,
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
       matchId: this.matchId,
-      winnerDevice: this.deviceOf(snapshot.winner),
-      opponentDevice: this.deviceOf(
-        this.match.players.find((player) => player.id !== this.transport.selfId)?.id ?? null,
-      ),
       wins: this.winsView,
       wantRematch: this.rematchView,
       opponentLeft: this.opponentLeft,

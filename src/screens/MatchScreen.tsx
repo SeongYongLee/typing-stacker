@@ -663,9 +663,8 @@ function Verdict({
     state.players.find((player) => player.id === state.winner)?.nickname ?? null
   const iWantRematch = state.wantRematch.includes(state.selfId)
   const winsOf = new Map(state.wins)
-  const tally = state.players
-    .map((player) => `${player.nickname} ${winsOf.get(player.id) ?? 0}`)
-    .join('  :  ')
+  const nameOf = (id: string) =>
+    state.players.find((player) => player.id === id)?.nickname ?? '이름없음'
 
   return (
     <div
@@ -688,9 +687,71 @@ function Verdict({
           {text}
         </span>
         {winnerName !== null && !draw && (
-          <span style={{ color: '#b6bdd4', fontSize: 15 }}>{winnerName} 승</span>
+          <span style={{ color: '#b6bdd4', fontSize: 15 }}>{withSubject(winnerName)} 이겼다</span>
         )}
-        <span style={{ color: '#6a7290', fontSize: 14 }}>{tally}</span>
+        {/*
+          * 순위. **"이겼다/졌다"만으로는 여덟이 붙는 판에서 아무것도 알 수 없다** —
+          * 2등과 꼴찌가 같은 문장을 읽는다. 늦게까지 버틴 순서를 그대로 보여준다.
+          * 승수는 판을 거듭해 쌓인 값이라 옆에 함께 둔다(1등만 오른다).
+          */}
+        <ol
+          data-standings={state.standings.length}
+          style={{
+            margin: 0,
+            padding: '10px 14px',
+            listStyle: 'none',
+            display: 'grid',
+            gap: 5,
+            borderRadius: 12,
+            border: '1px solid #232839',
+            background: 'rgba(255, 255, 255, 0.025)',
+            textAlign: 'left',
+            minWidth: 260,
+          }}
+        >
+          {state.standings.map((row) => {
+            const mine = row.id === state.selfId
+            const wins = winsOf.get(row.id) ?? 0
+            return (
+              <li
+                key={row.id}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'baseline',
+                  fontSize: 14,
+                  color: mine ? '#ffcf5c' : '#b6bdd4',
+                  fontWeight: mine ? 700 : 400,
+                }}
+              >
+                <span
+                  style={{
+                    width: 26,
+                    textAlign: 'right',
+                    color: row.placement === 1 ? '#ffcf5c' : '#4a5171',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {row.placement}위
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {nameOf(row.id)}
+                  {mine && ' (나)'}
+                </span>
+                <span style={{ fontSize: 13, color: wins > 0 ? '#ffcf5c' : '#3a4160' }}>
+                  {wins > 0 ? `${wins}승` : '—'}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
         <TierPanel state={state} />
 
         {/*

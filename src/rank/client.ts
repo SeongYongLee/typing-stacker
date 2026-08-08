@@ -73,22 +73,20 @@ async function submitRun(stats: RunStats): Promise<RankView | null> {
 /**
  * 대전 한 판의 결과를 보고한다.
  *
- * 양쪽이 같은 `matchId`로 보내야 반영된다 — 한쪽 말만 믿으면 "내가 이겼다"를 그냥
- * 보내면 되기 때문이다. 어긋나면 서버가 그 판을 없던 것으로 한다.
+ * **참가자 전원이** 같은 `matchId`로 같은 등수를 보내야 반영된다 — 한 사람 말만 믿으면
+ * "내가 1등"을 그냥 보내면 되기 때문이다. 하나라도 어긋나면 서버가 그 판을 없던 것으로 한다.
  */
 async function reportMatch(input: {
   matchId: string
-  opponent: string
-  /** 이긴 사람의 기기 id. 무승부면 빈 문자열 */
-  winner: string
+  /** 기기 id와 등수. 1이 마지막까지 버틴 사람이고, 함께 탈락하면 같은 값이다 */
+  standings: readonly { readonly id: string; readonly placement: number }[]
 }): Promise<RankView | null> {
   const profile = loadProfile()
   return post('/rank/match', {
     matchId: input.matchId,
     reporter: profile.id,
-    opponent: input.opponent,
-    winner: input.winner,
     name: profile.name,
+    standings: input.standings,
   })
 }
 

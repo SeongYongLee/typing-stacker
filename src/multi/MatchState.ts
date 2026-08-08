@@ -21,6 +21,17 @@ class MatchState {
   /** 회복으로도 이 위로는 올라가지 못한다 — 방해를 쌓아 무한히 버티면 판이 끝나지 않는다 */
   /** 지금 떨굴 차례인 사람의 자리. 탈락자를 건너뛰며 돈다 */
   private turnIndex = 0
+  /**
+   * 탈락한 사람 → 몇 번째 판정에서 탈락했는가.
+   *
+   * 순서를 기억해야 판이 끝난 뒤 **등수**를 매길 수 있다. 우승자만 알면 2등과
+   * 꼴찌를 구분할 수 없고, 서버의 레이팅도 등수 없이는 계산되지 않는다.
+   *
+   * 번호가 아니라 **판정 회차**를 담는 이유는 한 번의 붕괴로 여럿이 함께 탈락할 수
+   * 있기 때문이다. 같은 회차에 죽은 사람은 공동 등수다.
+   */
+  private readonly deaths = new Map<PlayerId, number>()
+  private deathBatch = 0
 
   constructor(players: readonly PlayerInfo[], livesPerPlayer: number) {
     if (players.length === 0) {
@@ -131,7 +142,55 @@ class MatchState {
     if (!this.lives.has(id)) {
       return
     }
-    this.lives.set(id, Math.max(0, value))
+    const next = Math.max(0, value)
+    this.lives.set(id, next)
+    // 참가자 쪽은 이 길로만 죽는다 — 여기서 기록하지 않으면 등수가 방장에게만 남는다
+    if (next <= 0 && !this.deaths.has(id)) {
+      this.deaths.set(id, this.deathBatch)
+    }
+  }
+
+  /**
+   * 이번 판정에서 죽는 사람들을 한 묶음으로 본다.
+   *
+   * 한 번의 붕괴로 두 사람의 물건이 함께 벗어나면 둘은 공동 등수여야 한다.
+   * 판정을 시작할 때마다 부르면 그 회차에 죽은 사람이 같은 번호를 갖는다.
+   */
+  startDeathBatch(): void {
+    this.deathBatch += 1
+  }
+
+  /**
+   * 등수. **1이 마지막까지 버틴 사람**이다.
+   *
+   * 살아 있는 사람이 먼저고, 그 뒤는 늦게 죽은 순서다. 같은 회차에 죽었으면
+   * 같은 등수를 나눠 갖고, 그만큼 다음 등수가 밀린다(1,2,2,4).
+   */
+  standings(): { id: PlayerId; placement: number }[] {
+    const alive = this.order.filter((player) => this.isAlive(player.id)).map((p) => p.id)
+    const batches = [...new Set(this.order
+      .filter((player) => !this.isAlive(player.id))
+      .map((player) => this.deaths.get(player.id) ?? 0))]
+      .sort((a, b) => b - a)
+
+    const rows: { id: PlayerId; placement: number }[] = []
+    let placement = 1
+    if (alive.length > 0) {
+      for (const id of alive) {
+        rows.push({ id, placement })
+      }
+      placement += alive.length
+    }
+    for (const batch of batches) {
+      const group = this.order
+        .filter((player) => !this.isAlive(player.id) && (this.deaths.get(player.id) ?? 0) === batch)
+        .map((player) => player.id)
+      for (const id of group) {
+        rows.push({ id, placement })
+      }
+      placement += group.length
+    }
+    return rows
   }
 
   loseLife(owner: PlayerId, amount = 1): void {
@@ -140,7 +199,11 @@ class MatchState {
       return
     }
     // 반 칸씩 깎이는 길(노림)이 있어 0 아래로 내려가지 않게 막는다
-    this.lives.set(owner, Math.max(0, remaining - amount))
+    const next = Math.max(0, remaining - amount)
+    this.lives.set(owner, next)
+    if (next <= 0 && !this.deaths.has(owner)) {
+      this.deaths.set(owner, this.deathBatch)
+    }
   }
 
 

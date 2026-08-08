@@ -22,6 +22,17 @@ function sprite(src: string): HTMLImageElement | null {
 }
 
 function load(src: string): Promise<void> {
+  /*
+   * 브라우저 밖에서는 아무것도 받지 않는다.
+   *
+   * `game/systems`와 달리 렌더러는 브라우저의 것이지만, 테스트가 렌더러를 세워
+   * 한 프레임을 그려보는 일이 있다(`tests/ArenaGlow.test.ts`). 그때 `new Image()`가
+   * 없어서 터지면 **그리는 코드가 아니라 이미지 캐시 때문에** 테스트가 죽는다.
+   * 그림이 없으면 호출부가 도형 색으로 대신 칠하므로 없는 채로 두면 된다.
+   */
+  if (typeof Image === 'undefined') {
+    return Promise.resolve()
+  }
   const found = cache.get(src)
   if (found !== undefined && found.complete) {
     return Promise.resolve()

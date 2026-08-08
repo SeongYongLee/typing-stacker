@@ -230,16 +230,30 @@ function Delta({ amount }: { amount: number }) {
   const up = amount > 0
 
   useEffect(() => {
+    /*
+     * 내려갈 때를 더 크게 알린다.
+     *
+     * 오르는 것은 기대한 결과라 곁눈으로 봐도 되지만, 깎이는 것은 **놓쳤다는 사실을
+     * 방금 알아야** 다음 판단이 달라진다. 그런데 시선은 떨어지는 물건에 가 있어서
+     * 같은 크기로는 지나간다. 그래서 커졌다 제자리로 돌아오는 동작을 얹는다.
+     */
     play(
       ref.current,
-      [
-        { opacity: 0, transform: `translateY(${up ? 6 : -6}px)` },
-        { opacity: 1, transform: 'translateY(0)', offset: 0.2 },
-        { opacity: 1, transform: `translateY(${up ? -8 : 8}px)`, offset: 0.7 },
-        { opacity: 0, transform: `translateY(${up ? -14 : 14}px)` },
-      ],
+      up
+        ? [
+            { opacity: 0, transform: 'translateY(6px)' },
+            { opacity: 1, transform: 'translateY(0)', offset: 0.2 },
+            { opacity: 1, transform: 'translateY(-8px)', offset: 0.7 },
+            { opacity: 0, transform: 'translateY(-14px)' },
+          ]
+        : [
+            { opacity: 0, transform: 'translateY(-4px) scale(0.7)' },
+            { opacity: 1, transform: 'translateY(0) scale(1.3)', offset: 0.18 },
+            { opacity: 1, transform: 'translateY(4px) scale(1)', offset: 0.55 },
+            { opacity: 0, transform: 'translateY(14px) scale(1)' },
+          ],
       // fill을 두지 않으면 끝난 뒤 기본 스타일로 돌아와 그대로 보인다
-      { duration: DELTA_MS, easing: 'ease-out', fill: 'forwards' },
+      { duration: up ? DELTA_MS : DELTA_MS + 300, easing: 'ease-out', fill: 'forwards' },
     )
   }, [up])
 
@@ -257,9 +271,17 @@ function Delta({ amount }: { amount: number }) {
         left: 0,
         marginBottom: 2,
         whiteSpace: 'nowrap',
-        fontSize: 14,
+        // 깎일 때는 글자 자체도 크다. 커지는 동작만으로는 스치듯 지나간다
+        fontSize: up ? 14 : 19,
         fontWeight: 700,
         color: up ? '#6bffb0' : '#ff6b6b',
+        /*
+         * 커진 글자는 위로 뻗어 레인 바닥선과 겹친다. 그 선도 같은 순간에 붉게
+         * 번지므로 그대로 두면 붉은 것 둘이 포개져 숫자가 읽히지 않는다.
+         */
+        textShadow: up ? undefined : '0 2px 8px #0d0f16, 0 0 3px #0d0f16',
+        // 커진 글자가 왼쪽 끝에 매달리면 숫자에서 멀어져 어디서 나온 값인지 흐려진다
+        transformOrigin: 'left bottom',
         pointerEvents: 'none',
       }}
     >

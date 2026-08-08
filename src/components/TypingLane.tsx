@@ -12,14 +12,24 @@ interface TypingLaneProps {
    * 내가 건 것과 상대가 건 것이 같아 보이면 어느 쪽이 함정인지 알 수 없다.
    */
   harassed?: ReadonlyMap<string, string> | null
+  /**
+   * 단어를 놓친 횟수. 이 값이 오를 때마다 바닥선이 붉게 번진다.
+   *
+   * 놓치면 정확도가 떨어져 점수가 깎이는데, 그 일은 화면 반대쪽(입력줄 옆 숫자)에서
+   * 일어난다. 정작 놓친 자리는 이 선이므로 여기서도 한 번 알린다.
+   */
+  missSeq?: number
 }
 
+
+const LANE_LINE = '#3a4160'
+const MISS_FLASH = '#ff6b6b'
 
 const laneStyle: CSSProperties = {
   position: 'relative',
   height: '100%',
   minWidth: 0,
-  borderBottom: '2px dashed #3a4160',
+  borderBottom: `2px dashed ${LANE_LINE}`,
 }
 
 const chipBase: CSSProperties = {
@@ -34,11 +44,27 @@ const chipBase: CSSProperties = {
   border: '1px solid',
 }
 
-function TypingLane({ words, side, harassed = null }: TypingLaneProps) {
+function TypingLane({ words, side, harassed = null, missSeq = 0 }: TypingLaneProps) {
   const mine = words.filter((word) => word.side === side)
+  const laneRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (missSeq === 0) {
+      return
+    }
+    play(
+      laneRef.current,
+      [
+        { borderBottomColor: MISS_FLASH, borderBottomWidth: '3px' },
+        { borderBottomColor: MISS_FLASH, borderBottomWidth: '3px', offset: 0.35 },
+        { borderBottomColor: LANE_LINE, borderBottomWidth: '2px' },
+      ],
+      { duration: 620, easing: 'ease-out' },
+    )
+  }, [missSeq])
 
   return (
-    <div style={laneStyle} data-lane={side}>
+    <div ref={laneRef} style={laneStyle} data-lane={side}>
       {mine.map((word) => (
         <Chip
           key={word.id}

@@ -9,7 +9,7 @@ import { TypingLane } from '../components/TypingLane.tsx'
 import { ARENA_SCREEN_MAX_WIDTH } from '../game/config.ts'
 import type { GameEngine, GameState } from '../game/core/GameEngine.ts'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
-import { useMusicActive, useTypingSound } from '../hooks/useAudio.ts'
+import { useTypingSound } from '../hooks/useAudio.ts'
 
 interface GameScreenProps {
   engine: GameEngine
@@ -77,11 +77,6 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   const [options, setOptions] = useState(false)
 
   useTypingSound(input.tapSeq)
-  /*
-   * 멈춘 동안에는 음악도 멈춘다. 화면이 멈췄는데 음악만 계속 돌면 판이 아직
-   * 도는 것처럼 들려서, 일시정지가 정말 멈춘 것인지 헷갈린다.
-   */
-  useMusicActive(state.phase === 'playing')
 
   /*
    * Escape는 판을 멈춘다. 입력칸에 포커스가 있어도 들어야 하므로 window에서 듣는다 —
@@ -137,7 +132,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>
-          <TypingLane words={state.words} side="left" />
+          <TypingLane words={state.words} side="left" missSeq={state.stats.missedWords} />
           {/* data-aim은 화살표 위치(-1~1). 자동화 테스트가 조준을 읽는 유일한 통로다 */}
           <div
             style={{ position: 'relative', minHeight: 0 }}
@@ -145,7 +140,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
           >
             {collapsing && <CollapseOverlay />}
           </div>
-          <TypingLane words={state.words} side="right" />
+          <TypingLane words={state.words} side="right" missSeq={state.stats.missedWords} />
         </div>
       </div>
 

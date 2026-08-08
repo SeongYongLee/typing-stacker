@@ -25,6 +25,8 @@ import { MatchState } from './MatchState.ts'
 import { buildOwnerColors } from './ownerColors.ts'
 import type { Message, PlayerId, PlayerInfo } from './protocol.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
+import type { ChatLine } from './ChatLog.ts'
+import type { ChatLog } from './ChatLog.ts'
 
 /**
  * 대전 한 판.
@@ -49,14 +51,6 @@ const DROP_INTERVAL_SEC = 0.9
 
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
-
-/**
- * 노려진 단어를 쓴 사람이 잃는 하트.
- *
- * 노린 사람은 아무것도 얻지 않는다 — 얻게 하면 하트가 양쪽으로 움직여 판이 길어지고,
- * 무엇보다 "노림"이 회복 수단이 되어 이름과 어긋난다. 이것은 공격이다.
- */
-const AIM_DAMAGE = 0.5
 
 /**
  * 판을 가리키는 이름. 인원이 몇이든 길이가 같다.
@@ -105,34 +99,20 @@ interface MatchViewState {
   readonly hurt: { readonly by: PlayerId; readonly lives: number } | null
   readonly words: readonly FallingWord[]
   readonly aimNormalized: number
-  /** 상대가 지목한 단어. 강제력은 없고 표시만 한다 */
   /**
-   * 덫이 걸린 단어들. **내가 건 것도 들어온다** —
-   * 무엇을 걸어뒀는지 모르면 같은 단어를 또 걸게 된다.
+   * 주고받은 말. 코드로 모인 방에서만 오간다.
+   *
+   * 차례가 아닐 때 할 일이 없어진 자리를 메우는 것이다 — 예전에는 그 자리에 노림이
+   * 있었는데, 남의 차례를 방해하는 일이라 배우기도 어렵고 당하는 쪽도 영문을 몰랐다.
    */
-  readonly aimed: readonly { readonly word: string; readonly by: PlayerId }[]
-  /** 방금 되찾은 하트. 같은 seq면 이미 보여준 것이다 */
-  /**
-   * 방금 노려보려 한 결과. 성공했는지, 누가 먼저 차지했는지.
-   * 되든 안 되든 알려야 한다 — 아무 반응이 없으면 왜 안 됐는지 알 수 없다.
-   */
-  readonly aimResult: {
-    readonly word: string
-    readonly takenBy: PlayerId | null
-    readonly seq: number
-  } | null
+  readonly chat: readonly ChatLine[]
+  /** 지금 입력창의 Enter가 무엇을 하는가. 같은 칸이 때에 따라 다른 일을 한다 */
+  readonly inputMode: 'drop' | 'chat' | 'idle'
   /**
    * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
    * 같은 붕괴로 함께 탈락하면 공동 등수다.
    */
   readonly standings: readonly { readonly id: PlayerId; readonly placement: number }[]
-  /** 방금 먹힌 노림. 같은 seq면 이미 보여준 것이다 */
-  readonly lastAim: {
-    readonly by: PlayerId
-    readonly victim: PlayerId
-    readonly word: string
-    readonly seq: number
-  } | null
   readonly feedback: MatchFeedback | null
   readonly winner: PlayerId | null
   readonly connectionLost: boolean
@@ -176,6 +156,24 @@ interface MatchEngineOptions {
   readonly onFailure?: (failure: TransportFailure) => void
   /** 다음 판을 열어달라고 세션에 청한다. 엔진은 자기 자신을 갈아치울 수 없다 */
   readonly onRestart?: (seed: number) => void
+  /**
+   * 주고받은 말. **세션이 들고 있는 것을 그대로 받는다** — 준비 화면에서 나눈 말이
+   * 판이 열리는 순간 사라지면 안 되고, 엔진은 판마다 새로 만들어진다.
+   */
+  readonly chat: ChatLog
+  /**
+   * 말을 걸 수 있는 방인가. 코드로 모인 방만 그렇다 —
+   * 자동 매칭은 서로 모르는 사이라 말을 걸 자리가 아니다.
+   */
+  readonly chatEnabled: boolean
+  /**
+   * 지금 시각(ms). 같은 말이 연달아 오는 것을 막는 데만 쓴다.
+   *
+   * **세션과 엔진이 같은 시계를 봐야 한다.** 기록을 나눠 쓰는데 시계가 다르면,
+   * 준비 화면(큰 값)에서 판(0부터 시작하는 경과 시간)으로 넘어가는 순간 시각이
+   * 거꾸로 흘러 그 뒤의 말이 전부 버려진다.
+   */
+  readonly chatClock: () => number
 }
 
 class MatchEngine {
@@ -187,6 +185,9 @@ class MatchEngine {
   private readonly onFailure: ((failure: TransportFailure) => void) | null
   private readonly onRestart: ((seed: number) => void) | null
   private readonly wins: Map<PlayerId, number>
+  private readonly chat: ChatLog
+  private readonly chatEnabled: boolean
+  private readonly chatClock: () => number
   private readonly wantRematch = new Set<PlayerId>()
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
   private recorded = false
@@ -237,34 +238,7 @@ class MatchEngine {
    */
   /**
    * 노려진 단어 → 노리는 사람.
-   *
-   * 한 단어는 한 사람만 노린다(먼저 노린 사람 것). 여럿이 겹치면 한 번 밟는 데
-   * 여러 칸이 날아가 인원이 많을수록 즉사한다.
    */
-  private readonly aimedWord = new Map<string, PlayerId>()
-  /**
-   * 사람 → 그가 노리는 단어. **한 사람은 하나만 노린다.**
-   *
-   * 제한이 없으면 여덟이 붙었을 때 1초 만에 화면의 모든 단어가 노려져, 차례인 사람은
-   * 무엇을 쳐도 하트를 잃는다. 하나로 묶으면 "어디를 노릴까"가 선택이 되고,
-   * 차례인 사람에게는 언제나 피할 곳이 남는다.
-   */
-  private readonly aimOf = new Map<PlayerId, string>()
-  /** 방금 되찾은 하트. 화면이 한 번 띄우고 지운다 */
-  /**
-   * 방금 노려보려 한 결과. 화면이 한 번 띄우고 지운다.
-   * `takenBy`가 있으면 그 사람이 먼저 노리고 있어 실패한 것이다.
-   */
-  private aimResult: { word: string; takenBy: PlayerId | null; seq: number } | null = null
-  private aimResultSeq = 0
-  /** 방금 먹힌 노림. 화면이 한 번 띄우고 지운다 */
-  private lastAim: { by: PlayerId; victim: PlayerId; word: string; seq: number } | null = null
-  private aimSeq = 0
-  /*
-   * 화면에 넘길 사본. emit()은 매 프레임 도는데 노림은 사람이 칠 때만 바뀐다 —
-   * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다.
-   */
-  private aimedView: readonly { word: string; by: PlayerId }[] = []
   /*
    * 등수 사본. emit()은 매 프레임 도는데 등수는 누가 탈락할 때만 바뀐다 —
    * 프레임마다 다시 세면 그것만으로 쓰레기가 쌓인다.
@@ -321,6 +295,9 @@ class MatchEngine {
     this.onFailure = options.onFailure ?? null
     this.onRestart = options.onRestart ?? null
     this.wins = options.wins
+    this.chat = options.chat
+    this.chatEnabled = options.chatEnabled
+    this.chatClock = options.chatClock
     this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES)
     this.standingsView = this.match.standings()
@@ -380,11 +357,19 @@ class MatchEngine {
   /**
    * Enter를 누른 순간.
    *
-   * 떨굴 수 있으면 떨구고, 낙하 간격이 도는 중이면 그 단어에 **덫**을 건다.
-   * 간격을 비워두면 그 몇 초 동안 타자가 아무 반응 없이 삼켜진다.
+   * **내 차례면 떨구고, 아니면 한마디가 된다.** 같은 칸이 때에 따라 다른 일을 하는데,
+   * 그렇게 둔 것은 차례를 기다리는 동안 손이 갈 곳이 여기밖에 없기 때문이다 —
+   * 예전에는 이 자리에 노림이 있었다. 화면은 칸 위에 지금 무엇을 하는지 적어둔다.
+   *
+   * 판정보다 먼저 갈라야 한다. 뒤에 두면 한마디가 낙하 단어와 맞는지 검사받고,
+   * 맞지 않으면 오타로 처리되어 말이 사라진다.
    */
   submit(text: string): void {
     if (this.match.over) {
+      return
+    }
+    if (this.inputMode() === 'chat') {
+      this.sendChat(text)
       return
     }
     const result = judgeInput(this.spawner.words, text)
@@ -408,10 +393,20 @@ class MatchEngine {
     this.fire({ kind: 'wordHit', combo: 0 })
     if (this.canDropNow()) {
       this.requestDrop(word)
-      return
     }
-    // 떨굴 수 없는 동안의 타자는 노림이 된다
-    this.sendAim(word)
+  }
+
+  /**
+   * 지금 Enter가 무엇을 하는가.
+   *
+   * 떨굴 수 있으면 물건이고, 아니면 한마디다. 코드로 모인 방이 아니면 할 말이 없어
+   * 아무 일도 하지 않는다 — 그때는 화면이 칸을 잠가 헛치지 않게 한다.
+   */
+  private inputMode(): 'drop' | 'chat' | 'idle' {
+    if (this.canDropNow()) {
+      return 'drop'
+    }
+    return this.chatEnabled ? 'chat' : 'idle'
   }
 
   handleTransportEvent(event: TransportEvent): void {
@@ -551,55 +546,38 @@ class MatchEngine {
   }
 
   /**
-   * 이 단어를 노린다.
+   * 한마디 한다.
    *
-   * **되든 안 되든 화면에 알린다.** 남이 이미 노리는 단어는 뺏지 못하는데, 그때
-   * 아무 반응이 없으면 "쳤는데 왜 아무 일도 없지"가 남는다 — 손을 멈추게 하는 것과
-   * 같은 대가다.
-   *
-   * 방향에 따라 메시지가 다르다 — 참가자는 방장을 거쳐야 하지만(`harass`),
-   * 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지 않으므로 같은 방식으로
-   * 보내면 아무 데도 닿지 않는다. 방장은 결과(`harassed`)를 바로 알린다.
+   * **방장을 거쳐서만 퍼진다.** 저마다 뿌리면 사람마다 다른 순서로 쌓이고, 거르는
+   * 규칙도 여러 벌이 된다. 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지
+   * 않으므로 곧바로 결과를 알린다.
    */
-  private sendAim(word: string): void {
-    const takenBy = this.aimedWord.get(word)
-    if (takenBy !== undefined && takenBy !== this.transport.selfId) {
-      this.aimResult = { word, takenBy, seq: (this.aimResultSeq += 1) }
-      this.emit()
+  sendChat(text: string): void {
+    if (!this.chatEnabled) {
       return
     }
-    this.aimResult = { word, takenBy: null, seq: (this.aimResultSeq += 1) }
     if (this.transport.isHost) {
-      this.transport.broadcast({ t: 'harassed', by: this.transport.selfId, word })
-      this.applyAim(this.transport.selfId, word)
-    } else {
-      this.transport.broadcast({ t: 'harass', word })
-      // 건 사람에게도 바로 보여준다. 방장의 답을 기다리면 내가 뭘 걸었는지 모른 채
-      // 다음 단어를 치게 된다
-      this.applyAim(this.transport.selfId, word)
+      this.applyChat(this.transport.selfId, text)
+      return
     }
+    this.transport.broadcast({ t: 'chat', text })
   }
 
-  /**
-   * 양쪽이 똑같이 실행한다.
-   *
-   * **노림은 마지막에 친 단어로 옮겨간다.** 그래서 새로 치면 앞서 노리던 것이 풀린다 —
-   * 노리는 자리가 곧 내 시선이 가 있는 자리다.
-   * 남이 이미 노리는 단어는 뺏지 못한다. 먼저 노린 사람 것이다.
-   */
-  private applyAim(by: PlayerId, word: string): void {
-    if (this.aimedWord.has(word)) {
+  /** 방장이 걸러 모두에게 돌린다. 버려진 말은 퍼지지 않는다 */
+  private applyChat(from: PlayerId, text: string): void {
+    if (!this.chatEnabled || !this.transport.isHost) {
       return
     }
-    const previous = this.aimOf.get(by)
-    if (previous !== undefined) {
-      this.aimedWord.delete(previous)
+    const line = this.chat.add(from, this.nameOf(from), text, this.chatClock())
+    if (line === null) {
+      return
     }
-    this.aimOf.set(by, word)
-    this.aimedWord.set(word, by)
-    this.refreshAimedView()
-    this.fire({ kind: 'suggested' })
+    this.transport.broadcast({ t: 'chatted', from, text: line.text })
     this.emit()
+  }
+
+  private nameOf(id: PlayerId): string {
+    return this.match.players.find((player) => player.id === id)?.nickname ?? '이름없음'
   }
 
   /** 내가 떨구려 한다. 방장이면 바로 판정하고, 게스트면 방장에게 청한다 */
@@ -639,18 +617,6 @@ class MatchEngine {
       itemId,
     })
     this.applyDrop(by, word, aimX, variant.id, itemId)
-
-    /*
-     * 덫을 밟았는지는 떨군 **뒤에** 본다. 물건은 어차피 떨어지고, 덫은 그 위에
-     * 얹히는 대가다 — 먼저 보면 "덫이라 못 떨궜다"로 읽혀 규칙이 달라진다.
-     * 자기가 건 덫은 밟히지 않는다. 스스로 치고 회복하면 방해가 아니라 회복 수단이 된다.
-     */
-    const aimedBy = this.aimedWord.get(word)
-    if (aimedBy !== undefined && aimedBy !== by) {
-      this.transport.broadcast({ t: 'harassHit', by: aimedBy, victim: by, word })
-      this.applyAimHit(aimedBy, by, word)
-      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
-    }
   }
 
   /** 양쪽이 똑같이 실행하는 부분. 물건 정체는 방장이 정한 id를 그대로 쓴다 */
@@ -724,21 +690,14 @@ class MatchEngine {
           )
         }
         break
-      case 'harass':
-        if (this.transport.isHost) {
-          this.transport.broadcast({ t: 'harassed', by: from, word: message.word })
-          this.applyAim(from, message.word)
-        }
+      case 'chat':
+        // 거르는 것은 방장의 일이다. 참가자가 보낸 것은 여기서 한 번만 통과한다
+        this.applyChat(from, message.text)
         break
-      case 'harassed':
+      case 'chatted':
         if (!this.transport.isHost) {
-          this.applyAim(message.by, message.word)
-        }
-        break
-      case 'harassHit':
-        // 판정은 방장이 한다. 참가자는 결과만 따른다
-        if (!this.transport.isHost) {
-          this.applyAimHit(message.by, message.victim, message.word)
+          this.chat.add(message.from, this.nameOf(message.from), message.text, this.chatClock())
+          this.emit()
         }
         break
       case 'words':
@@ -796,35 +755,6 @@ class MatchEngine {
       default:
         break
     }
-  }
-
-  /**
-   * 덫이 작동했다. 건 사람이 하트를 되찾고 그 단어는 덫에서 풀린다.
-   * 판정은 방장이 하고 양쪽이 같은 값을 그린다.
-   */
-  private refreshAimedView(): void {
-    this.aimedView = [...this.aimedWord].map(([word, by]) => ({ word, by }))
-  }
-
-  /**
-   * 노림이 먹혔다. **밟은 사람만** 반 칸 잃고 그 노림은 풀린다.
-   * 판정은 방장이 하고 양쪽이 같은 값을 그린다.
-   */
-  private applyAimHit(by: PlayerId, victim: PlayerId, word: string): void {
-    const aimed = this.aimOf.get(by)
-    if (aimed === word) {
-      this.aimOf.delete(by)
-    }
-    this.aimedWord.delete(word)
-    this.refreshAimedView()
-    // 노림 한 방으로도 탈락할 수 있다 — 그 사람만의 회차로 둔다
-    this.match.startDeathBatch()
-    this.match.loseLife(victim, AIM_DAMAGE)
-    this.standingsView = this.match.standings()
-    this.match.ensureTurnAlive()
-    this.lastAim = { by, victim, word, seq: this.aimSeq += 1 }
-    this.fire({ kind: 'suggested' })
-    this.emit()
   }
 
   private applyLives(lives: readonly (readonly [PlayerId, number])[]): void {
@@ -1076,10 +1006,9 @@ class MatchEngine {
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,
       aimNormalized: this.aimer.normalized,
-      aimed: this.aimedView,
-      aimResult: this.aimResult,
+      chat: this.chat.view,
+      inputMode: this.inputMode(),
       standings: this.standingsView,
-      lastAim: this.lastAim,
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
@@ -1091,5 +1020,5 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, DROP_INTERVAL_SEC, AIM_DAMAGE, matchIdOf }
+export { MatchEngine, DROP_INTERVAL_SEC, matchIdOf }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

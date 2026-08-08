@@ -34,6 +34,12 @@ const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
 
 const NICKNAME_MAX = 12
 
+/**
+ * 한마디의 최대 길이. 파싱에서 자르는 값이라 `ChatLog`의 것보다 넉넉히 둔다 —
+ * 여기서는 "말이 안 되게 긴 것"만 걷어내고, 실제로 화면에 맞춰 자르는 일은 기록이 한다.
+ */
+const CHAT_MAX = 200
+
 /** 하트가 이보다 많다고 오면 거짓말이다. 회복 수단이 없으므로 처음 값이 상한이다 */
 const MAX_LIVES = 16
 
@@ -74,9 +80,13 @@ type ToHost =
   | { readonly t: 'rematch' }
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
   | { readonly t: 'drop'; readonly word: string; readonly aimX: number }
-  /** 상대 턴에 단어를 지목한다 (강제력 없음) */
-  /** 이 단어를 상대에게 덫으로 걸겠다 */
-  | { readonly t: 'harass'; readonly word: string }
+  /**
+   * 한마디 한다. 방장이 걸러서 모두에게 돌린다.
+   *
+   * 코드를 주고받아 모인 방에서만 오간다 — 자동 매칭은 서로 모르는 사이라 말을
+   * 걸 자리가 아니다. 그 판단은 세션이 하고 여기서는 실어 나르기만 한다.
+   */
+  | { readonly t: 'chat'; readonly text: string }
 
 /** 방장 → 참가자 */
 type ToGuest =
@@ -102,15 +112,13 @@ type ToGuest =
       /** 양쪽이 같은 물건으로 취급하도록 방장이 매기는 번호 */
       readonly itemId: number
     }
-  /** 누가 어떤 단어에 덫을 걸었는지. 건 사람에게도 보여야 한다 */
-  | { readonly t: 'harassed'; readonly by: PlayerId; readonly word: string }
-  /** 덫이 작동했다. 건 사람이 하트를 되찾고, 그 단어는 덫에서 풀린다 */
-  | {
-      readonly t: 'harassHit'
-      readonly by: PlayerId
-      readonly victim: PlayerId
-      readonly word: string
-    }
+  /**
+   * 누가 무슨 말을 했는지. **한 말은 방장을 거쳐서만 퍼진다.**
+   *
+   * 그래야 모두가 같은 순서로 보고, 거르는 자리도 하나로 모인다 — 저마다 뿌리면
+   * 사람마다 다른 순서로 쌓이고 걸러내는 규칙도 여러 벌이 된다.
+   */
+  | { readonly t: 'chatted'; readonly from: PlayerId; readonly text: string }
   /**
    * 지금 내려오는 단어 밭. 방장이 소유한다.
    *
@@ -198,9 +206,9 @@ function parseMessage(raw: unknown): Message | null {
     case 'drop':
       if (!isShortString(raw['word'], 20) || !isFiniteNumber(raw['aimX'])) return null
       return { t: 'drop', word: raw['word'], aimX: raw['aimX'] }
-    case 'harass':
-      if (!isShortString(raw['word'], 20)) return null
-      return { t: 'harass', word: raw['word'] }
+    case 'chat':
+      if (!isShortString(raw['text'], CHAT_MAX)) return null
+      return { t: 'chat', text: raw['text'] }
     case 'welcome':
       if (!isShortString(raw['you'], 64) || !Array.isArray(raw['players'])) return null
       return { t: 'welcome', you: raw['you'], players: parsePlayers(raw['players']) }
@@ -256,18 +264,9 @@ function parseMessage(raw: unknown): Message | null {
         variantId: raw['variantId'],
         itemId: raw['itemId'],
       }
-    case 'harassed':
-      if (!isShortString(raw['by'], 64) || !isShortString(raw['word'], 20)) return null
-      return { t: 'harassed', by: raw['by'], word: raw['word'] }
-    case 'harassHit':
-      if (
-        !isShortString(raw['by'], 64) ||
-        !isShortString(raw['victim'], 64) ||
-        !isShortString(raw['word'], 20)
-      ) {
-        return null
-      }
-      return { t: 'harassHit', by: raw['by'], victim: raw['victim'], word: raw['word'] }
+    case 'chatted':
+      if (!isShortString(raw['from'], 64) || !isShortString(raw['text'], CHAT_MAX)) return null
+      return { t: 'chatted', from: raw['from'], text: raw['text'] }
     case 'words': {
       if (!Array.isArray(raw['words'])) return null
       const words: FallingWord[] = []
@@ -425,6 +424,7 @@ export {
   ROOM_CODE_LENGTH,
   ROOM_CODE_ALPHABET,
   NICKNAME_MAX,
+  CHAT_MAX,
   parseMessage,
   sanitizeNickname,
   createRoomCode,

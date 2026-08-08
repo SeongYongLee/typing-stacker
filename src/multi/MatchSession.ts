@@ -5,6 +5,8 @@ import { createRoomCode } from './protocol.ts'
 import { sanitizeNickname } from './protocol.ts'
 import type { PlayerId, PlayerInfo } from './protocol.ts'
 import { COUNTDOWN_SEC } from '../game/config.ts'
+import { ChatLog } from './ChatLog.ts'
+import type { ChatLine } from './ChatLog.ts'
 import { failure } from './Transport.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 
@@ -63,6 +65,9 @@ type SessionPhase =
       readonly players: readonly PlayerInfo[]
       readonly ready: readonly PlayerId[]
       readonly selfId: PlayerId
+      /** 주고받은 말. 코드로 모인 방에서만 오간다 */
+      readonly chat: readonly ChatLine[]
+      readonly chatEnabled: boolean
     }
   /**
    * 모두 준비했고 곧 시작한다. 남은 셈을 화면이 크게 보여준다.
@@ -98,6 +103,11 @@ interface SessionOptions {
   readonly countdownSec?: number
   /** 이 기기의 id. 레이팅을 판 너머로 묶는 유일한 열쇠다 */
   readonly deviceId: string
+  /**
+   * 지금 시각(ms). 같은 말이 연달아 오는 것을 막는 데만 쓴다.
+   * 시험에서 시간을 손으로 밀 수 있게 여기로 뺐다 — 기본은 벽시계다.
+   */
+  readonly chatClock?: () => number
   /** 상대 화면에 뜰 아이콘(물건 id). 안 골랐으면 빈 문자열 */
   readonly icon: string
   readonly onPhase: (phase: SessionPhase) => void
@@ -118,6 +128,16 @@ class MatchSession {
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null
   /** 자동매칭으로 붙었는가. 준비 시한을 두는 것도, 코드를 감추는 것도 이 경우뿐이다 */
   private autoMatched = false
+  /**
+   * 말을 걸 수 있는 방인가.
+   *
+   * **코드를 주고받아 모인 방만 그렇다.** 자동 매칭은 서로 모르는 사이라 말을 걸
+   * 자리가 아니고, 모르는 사람에게 무엇이든 보낼 수 있는 통로를 열어두면 그것을
+   * 지켜볼 사람이 없다.
+   */
+  private get chatEnabled(): boolean {
+    return !this.autoMatched
+  }
   private readyTimer: ReturnType<typeof setTimeout> | null = null
   /** 준비 단계의 명단. 방장이 정하고 참가자는 받아 쓴다 */
   private roster: readonly PlayerInfo[] = []
@@ -131,12 +151,19 @@ class MatchSession {
    * 엔진에 이 Map을 그대로 넘겨 고치게 한다.
    */
   private readonly wins = new Map<PlayerId, number>()
+  /**
+   * 주고받은 말. **엔진이 아니라 여기서 들고 있다** — 준비 화면에서 나눈 말이 판이
+   * 열리는 순간 사라지면 안 되는데, 엔진은 판마다 새로 만들어진다.
+   */
+  private readonly chat = new ChatLog()
+  private readonly chatClock: () => number
 
   private constructor(options: SessionOptions) {
     this.nickname = sanitizeNickname(options.nickname)
     this.deviceId = options.deviceId
     this.icon = options.icon
     this.countdownSec = options.countdownSec ?? COUNTDOWN_SEC
+    this.chatClock = options.chatClock ?? (() => Date.now())
     this.onPhase = options.onPhase
   }
 
@@ -288,6 +315,17 @@ class MatchSession {
     }
 
     // 참가자가 준비를 눌렀다. 판을 여는 것은 모두가 눌렀을 때다
+    if (event.message.t === 'chat') {
+      // 거르는 것은 방장의 일이다. 참가자가 보낸 것은 여기서 한 번만 통과한다
+      this.receiveChat(event.from, event.message.text)
+      return
+    }
+    if (!transport.isHost && event.message.t === 'chatted') {
+      this.chat.add(event.message.from, this.nameOf(event.message.from), event.message.text, this.chatClock())
+      this.emitReady()
+      return
+    }
+
     if (transport.isHost && event.message.t === 'ready') {
       this.ready.add(event.from)
       this.publishReady()
@@ -328,6 +366,42 @@ class MatchSession {
     }
     // 참가자는 방장에게 청하고, 명단은 방장이 되돌려주는 것을 따른다
     transport.broadcast({ t: 'ready' })
+  }
+
+  /**
+   * 준비 화면에서 한마디 한다. 판이 열린 뒤에는 엔진이 같은 일을 맡는다.
+   *
+   * 나눠 맡는 이유는 전송로를 쥔 쪽이 단계마다 다르기 때문이다 — 기록만은 하나를
+   * 함께 써서, 판이 열려도 그때까지의 말이 그대로 이어진다.
+   */
+  sendChat(text: string): void {
+    const transport = this.transport
+    if (transport === null || !this.chatEnabled) {
+      return
+    }
+    if (transport.isHost) {
+      this.receiveChat(transport.selfId, text)
+      return
+    }
+    transport.broadcast({ t: 'chat', text })
+  }
+
+  /** 방장만 한다. 걸러 남은 말만 모두에게 돌린다 */
+  private receiveChat(from: PlayerId, text: string): void {
+    const transport = this.transport
+    if (transport === null || !transport.isHost || !this.chatEnabled) {
+      return
+    }
+    const line = this.chat.add(from, this.nameOf(from), text, this.chatClock())
+    if (line === null) {
+      return
+    }
+    transport.broadcast({ t: 'chatted', from, text: line.text })
+    this.emitReady()
+  }
+
+  private nameOf(id: PlayerId): string {
+    return this.roster.find((player) => player.id === id)?.nickname ?? '이름없음'
   }
 
   /** 방장이 자기를 맨 앞에 두고 들어온 순서대로 명단을 만든다 — 그 순서가 곧 차례다 */
@@ -379,6 +453,8 @@ class MatchSession {
       players: this.roster,
       ready: [...this.ready],
       selfId: transport.selfId,
+      chat: this.chat.view,
+      chatEnabled: this.chatEnabled,
     })
   }
 
@@ -484,6 +560,9 @@ class MatchSession {
       players,
       seed,
       wins: this.wins,
+      chat: this.chat,
+      chatEnabled: this.chatEnabled,
+      chatClock: this.chatClock,
       onFailure: (reason) => this.onPhase({ kind: 'failed', failure: reason }),
       onRestart: (next) => this.restart(next),
     })

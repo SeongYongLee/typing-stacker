@@ -23,6 +23,8 @@ interface UseMatchSession {
   readonly leave: () => void
   /** 준비 단계에서 준비를 누른다 */
   readonly setReady: () => void
+  /** 준비 화면에서 한마디 한다. 판이 열린 뒤에는 엔진이 같은 일을 맡는다 */
+  readonly sendChat: (text: string) => void
 }
 
 /**
@@ -83,7 +85,11 @@ function useMatchSession(): UseMatchSession {
     sessionRef.current?.setReady()
   }, [])
 
-  return { phase, state, open, leave, setReady }
+  const sendChat = useCallback((text: string) => {
+    sessionRef.current?.sendChat(text)
+  }, [])
+
+  return { phase, state, open, leave, setReady, sendChat }
 }
 
 export { useMatchSession }

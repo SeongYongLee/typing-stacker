@@ -121,6 +121,7 @@ function App() {
         phase={phase}
         onOpen={match.open}
         onReady={match.setReady}
+        onChat={match.sendChat}
         onBack={backToTitle}
       />
     )

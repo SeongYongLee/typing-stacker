@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import {
-  AIM_DAMAGE,
   DROP_INTERVAL_SEC,
   MatchEngine,
   type MatchViewState,
@@ -10,6 +9,7 @@ import {
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import { FrameClock } from './helpers/frameClock.ts'
+import { ChatLog } from '../src/multi/ChatLog.ts'
 
 /**
  * 대전 로직 전체를 붙여서 확인한다.
@@ -41,9 +41,13 @@ interface Pair {
   clock: FrameClock
 }
 
-async function makePair(seed = 1234): Promise<Pair> {
+async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
   const clock = new FrameClock()
   clock.install()
+
+  // 시각은 시험이 쥔다 — 벽시계를 쓰면 연달아 보내는 것을 막는 규칙이 시험을 흔든다
+  let now = 0
+  const chatClock = () => (now += 10_000)
 
   const [hostLink, guestLink] = LoopbackTransport.pair()
   const host = await MatchEngine.create({
@@ -51,12 +55,18 @@ async function makePair(seed = 1234): Promise<Pair> {
     players: PLAYERS,
     seed,
     wins: new Map(),
+    chat: new ChatLog(),
+    chatEnabled,
+    chatClock,
   })
   const guest = await MatchEngine.create({
     transport: guestLink,
     players: PLAYERS,
     seed,
     wins: new Map(),
+    chat: new ChatLog(),
+    chatEnabled,
+    chatClock,
   })
 
   hostLink.listen((event) => host.handleTransportEvent(event))
@@ -337,101 +347,71 @@ describe('MatchEngine — 대전', () => {
     expect(pair.hostState().canDrop).toBe(false)
   })
 
-  it('떨굴 수 없는 동안 친 단어를 노리고, 양쪽이 같게 본다', async () => {
+  it('내 차례가 아니면 친 말이 채팅으로 간다', async () => {
     pair = await makePair()
-    // 단어가 여러 개 깔린 뒤에 시험한다 — 하나뿐이면 떨구는 순간 노릴 것이 남지 않는다
+    await pair.clock.advance(6)
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+
+    // 방금 떨궜으니 차례가 넘어갔다 — 지금 치는 것은 말이다
+    expect(pair.hostState().canDrop).toBe(false)
+    expect(pair.hostState().inputMode).toBe('chat')
+
+    pair.host.submit('잘하네요')
+    await pair.clock.advance(0.3)
+
+    expect(pair.hostState().chat.map((line) => line.text)).toEqual(['잘하네요'])
+    // 양쪽이 같게 본다 — 한 말은 방장을 거쳐 퍼진다
+    expect(pair.guestState().chat.map((line) => line.text)).toEqual(['잘하네요'])
+  })
+
+  /*
+   * 낙하 단어와 맞는지 검사하기 **전에** 갈라야 한다. 뒤에 두면 한마디가 오타로
+   * 처리되어 그대로 사라진다.
+   */
+  it('낙하 단어와 같은 말이라도 내 차례가 아니면 채팅이다', async () => {
+    pair = await makePair()
     await pair.clock.advance(6)
     dropSomething(pair)
     await pair.clock.advance(0.3)
 
     const word = pair.hostState().words.find((w) => w.state === 'active')?.word
     expect(word).toBeDefined()
+    const before = pair.hostState().words.length
+
     pair.host.submit(word!)
     await pair.clock.advance(0.3)
 
-    expect(pair.hostState().aimed.map((a) => a.word)).toContain(word)
-    expect(pair.guestState().aimed.map((a) => a.word)).toContain(word)
-    expect(pair.hostState().aimed.find((a) => a.word === word)?.by).toBe('host-peer')
+    expect(pair.hostState().chat.map((line) => line.text)).toEqual([word])
+    // 단어는 그대로 남아 있다 — 떨어지지 않았다
+    expect(pair.hostState().words.length).toBe(before)
+  })
+
+  it('내 차례에 친 것은 말이 아니라 물건이다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(6)
+
+    expect(pair.hostState().inputMode).toBe('drop')
+    const word = pair.hostState().words.find((w) => w.state === 'active')?.word
+    pair.host.submit(word!)
+    await pair.clock.advance(0.4)
+
+    expect(pair.hostState().chat).toHaveLength(0)
   })
 
   /*
-   * **한 사람은 하나만 노린다.** 제한이 없으면 여덟이 붙었을 때 1초 만에 모든 단어가
-   * 노려져, 차례인 사람은 무엇을 쳐도 하트를 잃는다.
+   * 자동 매칭으로 만난 사이에는 말을 걸 수 없다. 그때 입력창이 아무 일도 하지 않는
+   * 것을 화면이 알아야 잠가둘 수 있다.
    */
-  it('노림은 마지막에 친 단어로 옮겨간다', async () => {
-    pair = await makePair()
+  it('말을 걸 수 없는 방에서는 아무 일도 하지 않는다', async () => {
+    pair = await makePair(1234, false)
     await pair.clock.advance(6)
     dropSomething(pair)
     await pair.clock.advance(0.3)
 
-    const first = pair.hostState().words.find((w) => w.state === 'active')?.word
-    expect(first).toBeDefined()
-    pair.host.submit(first!)
+    expect(pair.hostState().inputMode).toBe('idle')
+    pair.host.submit('안녕')
     await pair.clock.advance(0.3)
-    expect(pair.guestState().aimed.map((a) => a.word)).toEqual([first])
-
-    // 새 단어가 나올 때까지 기다렸다가 그것을 노린다
-    let second: string | undefined
-    for (let tick = 0; tick < 40 && second === undefined; tick += 1) {
-      await pair.clock.advance(0.4)
-      second = pair
-        .hostState()
-        .words.find((w) => w.state === 'active' && w.word !== first)?.word
-    }
-    expect(second).toBeDefined()
-
-    pair.host.submit(second!)
-    await pair.clock.advance(0.3)
-
-    // 앞서 노리던 것은 풀리고 하나만 남는다
-    const aimed = pair.guestState().aimed.filter((a) => a.by === 'host-peer')
-    expect(aimed.map((a) => a.word)).toEqual([second])
-  })
-
-  it('노려진 단어를 쓴 사람만 반 칸 잃는다 — 노린 사람은 얻지 않는다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(6)
-
-    const livesOf = (state: MatchViewState, id: string) =>
-      new Map(state.lives).get(id) ?? 0
-    dropSomething(pair)
-    await pair.clock.advance(0.3)
-
-    const aimWord = pair.hostState().words.find((w) => w.state === 'active')?.word
-    pair.host.submit(aimWord!)
-    await pair.clock.advance(0.3)
-
-    const hostBefore = livesOf(pair.hostState(), 'host-peer')
-    const guestBefore = livesOf(pair.guestState(), 'guest-peer')
-
-    // 참가자 차례가 되어야 밟을 수 있다
-    await pair.clock.advance(DROP_INTERVAL_SEC + 0.2)
-    pair.guest.submit(aimWord!)
-    await pair.clock.advance(0.6)
-
-    expect(livesOf(pair.hostState(), 'guest-peer')).toBeCloseTo(guestBefore - AIM_DAMAGE, 5)
-    // 노린 쪽은 그대로다 — 이것은 공격이지 회복이 아니다
-    expect(livesOf(pair.hostState(), 'host-peer')).toBe(hostBefore)
-    // 먹힌 노림은 풀린다
-    expect(pair.hostState().aimed.map((a) => a.word)).not.toContain(aimWord)
-  })
-
-  it('내가 노린 단어는 내가 써도 아무 일이 없다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(6)
-    dropSomething(pair)
-    await pair.clock.advance(0.3)
-
-    const word = pair.hostState().words.find((w) => w.state === 'active')?.word
-    pair.host.submit(word!)
-    await pair.clock.advance(DROP_INTERVAL_SEC * 2 + 0.4)
-
-    const before = new Map(pair.hostState().lives).get('host-peer') ?? 0
-    // 방장 차례가 돌아왔을 때 자기가 노린 단어를 친다
-    if (pair.hostState().canDrop) {
-      pair.host.submit(word!)
-      await pair.clock.advance(0.6)
-    }
-    expect(new Map(pair.hostState().lives).get('host-peer')).toBe(before)
+    expect(pair.hostState().chat).toHaveLength(0)
   })
 })

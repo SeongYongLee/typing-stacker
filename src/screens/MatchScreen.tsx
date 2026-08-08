@@ -2,14 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Avatar } from '../components/Avatar.tsx'
 import { play } from '../components/animate.ts'
-import { withObject, withSubject, withTopic } from '../text/particle.ts'
+import { withSubject } from '../text/particle.ts'
 import { StackArena } from '../components/StackArena.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
 import { LIVES } from '../game/config.ts'
 import type { MatchEngine, MatchViewState } from '../multi/MatchEngine.ts'
+import type { ChatLine } from '../multi/ChatLog.ts'
 import { ownerColorAt } from '../multi/ownerColors.ts'
 import { Barrier, KEPT, LOST } from '../components/Vitals.tsx'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
+import { useMenuKeys } from '../hooks/useMenuKeys.ts'
+import { MenuButton } from '../components/MenuButton.tsx'
 import { useMatchRanking } from '../hooks/useMatchRanking.ts'
 import { tierOf, tierProgress } from '../rank/tiers.ts'
 import { useTypingSound } from '../hooks/useAudio.ts'
@@ -60,19 +63,6 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
     focus()
   }, [focus])
 
-  /*
-   * 단어 → 노리는 사람의 색. 내가 노리는 것도 들어 있다 —
-   * 어디를 노리고 있는지 보이지 않으면 옮겨간 줄 모른 채 친다.
-   */
-  const harassColors = useMemo(() => {
-    const colors = new Map<string, string>()
-    for (const mark of state.aimed) {
-      const index = state.players.findIndex((player) => player.id === mark.by)
-      colors.set(mark.word, ownerColorAt(index < 0 ? 0 : index))
-    }
-    return colors
-  }, [state])
-
   return (
     <div style={rootStyle} onMouseDown={input.keepFocus}>
       <Scoreboard state={state} onLeave={onLeave} />
@@ -80,7 +70,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>
-          <TypingLane words={state.words} side="left" harassed={harassColors} />
+          <TypingLane words={state.words} side="left" />
           <div
             style={{ position: 'relative', minHeight: 0 }}
             data-aim={state.aimNormalized.toFixed(3)}
@@ -98,9 +88,8 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             {state.hurt !== null && state.phase !== 'over' && (
               <HurtNotice state={state} hurt={state.hurt} />
             )}
-            {state.phase !== 'over' && <AimNotice state={state} />}
           </div>
-          <TypingLane words={state.words} side="right" harassed={harassColors} />
+          <TypingLane words={state.words} side="right" />
         </div>
       </div>
 
@@ -120,6 +109,17 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
    * 승수는 판 사이에만 필요한 값이라 좁은 모양에서 먼저 접는다.
    */
   const crowded = state.players.length > 4
+  /*
+   * 사람마다 **마지막 한마디만** 남긴다. 여러 줄을 띄우면 이름표가 밀려 아레나가
+   * 내려가는데, 조준 중에 화면이 움직이면 안 된다.
+   */
+  const lastSaid = useMemo(() => {
+    const latest = new Map<string, ChatLine>()
+    for (const line of state.chat) {
+      latest.set(line.from, line)
+    }
+    return latest
+  }, [state.chat])
 
   return (
     <div
@@ -130,7 +130,12 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
         padding: crowded ? '8px 14px' : '12px 20px',
         borderBottom: '1px solid #262b3d',
         background: '#151824',
-        overflow: 'hidden',
+        /*
+         * 말풍선이 이 줄 **아래로 삐져나와** 아레나 위에 뜬다. `hidden`이면 그 자리에서
+         * 잘린다 — 이름이 넘치는 것은 이름표 안에서 이미 잘라내므로 여기서 또 막을 필요가 없다.
+         */
+        position: 'relative',
+        zIndex: 5,
       }}
     >
       {state.players.map((player, index) => {
@@ -148,6 +153,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
             data-player={mine ? 'me' : 'opponent'}
             data-lives={lives}
             style={{
+              position: 'relative',
               display: 'flex',
               alignItems: 'center',
               gap: crowded ? 6 : 10,
@@ -158,6 +164,15 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               background: active ? 'rgba(255, 207, 92, 0.1)' : 'transparent',
             }}
           >
+            {/*
+              한 말은 **그 사람 이름표에 붙인다.** 한곳에 목록으로 쌓으면 누가 한
+              말인지 이름을 읽어야 알고, 판이 도는 동안에는 그럴 틈이 없다.
+            */}
+            {/* 꼬리가 가리킬 곳 = 아이콘 한가운데. 왼쪽 여백 + 아이콘 반지름 */}
+            <Bubble
+              line={lastSaid.get(player.id) ?? null}
+              tailX={crowded ? 8 + 9 : 12 + 12}
+            />
             {/* 판이 도는 중에는 이름을 읽을 틈이 없다. 아이콘이 더 빨리 읽힌다 */}
             <Avatar icon={player.icon} size={crowded ? 18 : 24} ring={ownerColorAt(index)} />
             <span
@@ -207,6 +222,19 @@ function InputRow({
 }) {
   const waiting = !state.canDrop && state.phase === 'playing'
 
+  /*
+   * 판이 끝나면 단어 칸에서 포커스를 뺀다.
+   *
+   * `useMenuKeys`는 글자를 치는 중에는 화살표를 듣지 않는다. 이 칸은 판이 도는 내내
+   * 포커스를 쥐고 있으므로, 그대로 두면 결과창이 떠도 화살표가 커서의 것이라
+   * 버튼을 고를 수 없다. 싱글에서도 같은 자리에서 같은 방법으로 풀었다.
+   */
+  useEffect(() => {
+    if (state.phase !== 'playing') {
+      input.ref.current?.blur()
+    }
+  }, [state.phase, input.ref])
+
   return (
     <div
       style={{
@@ -230,7 +258,7 @@ function InputRow({
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
-          aria-label="단어 입력"
+          aria-label={state.inputMode === 'chat' ? '채팅 입력' : '단어 입력'}
           style={{
             width: '100%',
             font: '600 28px/1.2 var(--sans)',
@@ -254,7 +282,6 @@ function InputRow({
       </div>
 
       <ActionHint state={state} />
-      <AimResult state={state} />
       {/*
         * 알릴 것이 없을 때도 이 줄의 자리를 비워둔다. 나타났다 사라지게 하면 입력줄
         * 높이가 바뀌어 아레나가 위아래로 밀린다 — 조준 중에 화면이 움직이면 안 된다.
@@ -280,12 +307,18 @@ function ActionHint({ state }: { state: MatchViewState }) {
    * 이 줄은 **내 타자가 무엇을 하는가**만 말한다.
    * 누구 차례인지는 상단 이름표가 이미 밝히고 있어, 여기서 또 하면 같은 것을 두 번 읽는다.
    */
+  /*
+   * 같은 칸이 때에 따라 다른 일을 하므로 **지금 무엇을 하는지 반드시 적는다.**
+   * 적지 않으면 하려던 것과 다른 일이 일어나고, 그때는 이미 보낸 뒤다.
+   */
   const label = ready
     ? '단어를 치면 그 물건이 화살표 자리에 떨어집니다'
     : soon
       ? '곧 칠 수 있습니다'
-      : '단어를 치면 그 단어를 노립니다'
-  const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#ff9f6b'
+      : state.inputMode === 'chat'
+        ? '지금 적는 말은 채팅으로 갑니다'
+        : '차례를 기다립니다'
+  const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#8bd6ff'
   return (
     <span
       data-turn-hint={ready ? 'mine' : soon ? 'soon' : 'theirs'}
@@ -304,79 +337,87 @@ function ActionHint({ state }: { state: MatchViewState }) {
   )
 }
 
+
 /**
- * 노려보려 한 결과.
+ * 한마디를 그 사람 이름표에 붙여 띄운다.
  *
- * 남이 이미 노리는 단어는 뺏지 못한다. 그때 아무 반응이 없으면 "쳤는데 왜 아무 일도
- * 없지"가 남는다 — 정확히 친 손을 헛치게 만드는 것이라 반드시 말해줘야 한다.
+ * 한곳에 목록으로 쌓지 않는 이유는 **누가 한 말인지 읽는 데 시간이 들기 때문이다.**
+ * 판이 도는 동안 시선은 떨어지는 물건과 단어 밭에 가 있고, 이름을 훑어 짝지을 틈이 없다.
+ * 이름표 위에 붙으면 위치 자체가 누구인지 말한다.
  *
- * 성공은 옅게, 실패는 눈에 띄게 한다. 성공은 칩에 색이 붙는 것으로 이미 보이지만
- * 실패는 화면에 아무 흔적이 남지 않기 때문이다.
+ * 잠시 뒤 사라진다. 남겨두면 지나간 말이 계속 이름표를 덮어, 하트와 차례를 가린다.
  */
-function AimResult({ state }: { state: MatchViewState }) {
-  const result = state.aimResult
-  const seq = result?.seq ?? 0
-  const ref = useRef<HTMLSpanElement | null>(null)
-  const [shown, setShown] = useState<{ text: string; failed: boolean } | null>(null)
-  const timer = useRef(0)
+function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
+  const [shown, setShown] = useState<ChatLine | null>(null)
 
   useEffect(() => {
-    if (result === null) {
+    if (line === null) {
       return
     }
-    const failed = result.takenBy !== null
-    const taker =
-      state.players.find((player) => player.id === result.takenBy)?.nickname ?? '다른 사람'
-    setShown({
-      text: failed
-        ? `${withTopic(result.word)} ${withSubject(taker)} 먼저 노렸다`
-        : `${withObject(result.word)} 노렸다`,
-      failed,
-    })
-    play(
-      ref.current,
-      failed
-        ? [
-            // 실패는 좌우로 흔든다 — 커지는 것은 성공으로 읽힌다
-            { transform: 'translateX(0)', opacity: 1 },
-            { transform: 'translateX(-5px)', offset: 0.2 },
-            { transform: 'translateX(4px)', offset: 0.45 },
-            { transform: 'translateX(0)', offset: 0.7 },
-            { transform: 'translateX(0)', opacity: 0 },
-          ]
-        : [
-            { transform: 'scale(0.94)', opacity: 0 },
-            { transform: 'scale(1.06)', opacity: 1, offset: 0.25 },
-            { transform: 'scale(1)', opacity: 1, offset: 0.5 },
-            { transform: 'scale(1)', opacity: 0 },
-          ],
-      { duration: AIM_RESULT_MS, easing: 'ease-out' },
-    )
-    clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setShown(null), AIM_RESULT_MS)
-    // seq가 바뀔 때만 새 결과다 — 같은 시도를 매 프레임 다시 띄우지 않는다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seq])
+    setShown(line)
+    const timer = setTimeout(() => setShown(null), BUBBLE_MS)
+    return () => clearTimeout(timer)
+    // seq로만 다시 띄운다 — 같은 말을 매 프레임 되살리지 않는다
+  }, [line?.seq])
 
-  useEffect(() => () => clearTimeout(timer.current), [])
-
+  if (shown === null) {
+    return null
+  }
   return (
     <span
-      ref={ref}
-      data-aim-result={shown === null ? undefined : shown.failed ? 'failed' : 'ok'}
+      data-bubble={shown.text}
       style={{
+        position: 'absolute',
+        /*
+         * 이름표 **아래**에 붙인다. 위에 두었더니 점수판이 화면 맨 위에 있어서
+         * 말풍선이 통째로 잘려 아무것도 보이지 않았다.
+         *
+         * 가운데가 아니라 왼쪽 끝에 맞춘다 — 꼬리가 아이콘을 가리켜야 하는데
+         * 아이콘은 이름표 왼쪽에 있고, 가운데 정렬이면 이름 길이에 따라 꼬리와
+         * 아이콘의 거리가 사람마다 달라진다.
+         */
+        left: 0,
+        top: 'calc(100% + 7px)',
+        maxWidth: 220,
+        padding: '6px 10px',
+        borderRadius: 10,
+        background: '#f2f4fb',
+        color: '#151824',
         fontSize: 13,
-        fontWeight: shown?.failed === true ? 700 : 400,
-        color: shown === null ? 'transparent' : shown.failed ? '#ff9f6b' : '#8b93b0',
-        visibility: shown === null ? 'hidden' : 'visible',
+        fontWeight: 600,
+        lineHeight: 1.35,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        boxShadow: '0 6px 16px rgba(0, 0, 0, 0.45)',
+        // 아레나 위로 올라와야 한다. 이름표 줄은 아레나보다 뒤에 그려진다
+        zIndex: 5,
+        pointerEvents: 'none',
       }}
     >
-      {shown?.text ?? ' '}
+      {/*
+        꼬리. **아이콘을 가리킨다** — 여덟이 붙으면 이름표가 다닥다닥 붙는데,
+        누가 한 말인지는 꼬리가 어디를 향하느냐로 갈린다.
+        테두리로 삼각형을 만든다. 그림자를 지우려고 따로 얹지 않았다.
+      */}
+      <span
+        style={{
+          position: 'absolute',
+          top: -6,
+          left: tailX - 6,
+          width: 0,
+          height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderBottom: '6px solid #f2f4fb',
+        }}
+      />
+      {shown.text}
     </span>
   )
 }
 
-const AIM_RESULT_MS = 2200
+/** 말풍선이 머무는 시간. 읽을 만큼은 남고, 다음 차례를 가릴 만큼은 아니어야 한다 */
+const BUBBLE_MS = 4200
 
 /** 다음에 떨굴 수 있을 때까지 남은 시간. 숫자보다 줄어드는 막대가 눈에 빨리 들어온다 */
 function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: string }) {
@@ -404,108 +445,6 @@ function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: stri
   )
 }
 
-/**
- * 노림이 먹혔다는 알림. **아레나 가운데에 띄운다.**
- *
- * 하트가 반 칸 깎이는 것은 이름표에서 일어나는데 시선은 떨어지는 물건에 가 있다.
- * 하단 줄에 두었더니 그마저 눈에 안 들어왔다 — 판이 벌어지는 자리에 띄워야 남는다.
- *
- * **누가 누구를 노렸는지 이름을 다 댄다.** 여덟이 붙으면 "상대"로는 누가 누구에게
- * 당했는지 알 수 없고, 하트를 훑어 역산해야 한다.
- */
-/**
- * 가운데 알림이 남아 있는 시간.
- *
- * 반 칸은 하트만 봐서는 알아채기 어렵다. 무슨 일이 있었는지 읽고, 누구인지 확인하고,
- * 남은 하트까지 세는 데 걸리는 시간을 담아야 한다.
- */
-const CENTER_NOTICE_MS = 5000
-
-function AimNotice({ state }: { state: MatchViewState }) {
-  const aim = state.lastAim
-  const seq = aim?.seq ?? 0
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [shown, setShown] = useState<{
-    who: string
-    victim: string
-    word: string
-    lives: number
-    tone: 'mine' | 'hit' | 'other'
-  } | null>(null)
-  const timer = useRef(0)
-
-  useEffect(() => {
-    if (aim === null) {
-      return
-    }
-    const nameOf = (id: string) =>
-      state.players.find((player) => player.id === id)?.nickname ?? '상대'
-    setShown({
-      who: nameOf(aim.by),
-      victim: nameOf(aim.victim),
-      word: aim.word,
-      lives: new Map(state.lives).get(aim.victim) ?? 0,
-      tone: aim.by === state.selfId ? 'mine' : aim.victim === state.selfId ? 'hit' : 'other',
-    })
-    /*
-     * 성공한 순간을 몸으로 알린다. 반 칸은 하트를 봐도 잘 안 보이는 크기라,
-     * 글자가 한 번 크게 튀어야 "무슨 일이 있었다"가 남는다.
-     */
-    play(
-      ref.current,
-      [
-        { opacity: 0, transform: 'scale(0.85)' },
-        { opacity: 1, transform: 'scale(1.12)', offset: 0.2 },
-        { opacity: 1, transform: 'scale(1)', offset: 0.35 },
-        { opacity: 1, transform: 'scale(1)', offset: 0.88 },
-        { opacity: 0, transform: 'scale(1)' },
-      ],
-      // 반 칸은 하트만 봐서는 알아채기 어렵다. 읽고 이해할 시간까지 두고 남긴다
-      { duration: CENTER_NOTICE_MS, easing: 'ease-out' },
-    )
-    clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setShown(null), CENTER_NOTICE_MS)
-    // seq가 바뀔 때만 새 알림이다 — 같은 노림을 매 프레임 다시 띄우지 않는다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seq])
-
-  useEffect(() => () => clearTimeout(timer.current), [])
-
-  if (shown === null) {
-    return null
-  }
-  // 노린 쪽은 초록(성공), 당한 쪽은 붉은색(손해), 구경꾼은 옅게
-  const color = shown.tone === 'mine' ? '#6bffb0' : shown.tone === 'hit' ? '#ff6b6b' : '#b6bdd4'
-
-  return (
-    <div
-      ref={ref}
-      data-aim-hit={`${shown.who}>${shown.victim}`}
-      style={{
-        position: 'absolute',
-        top: '34%',
-        left: 0,
-        right: 0,
-        textAlign: 'center',
-        textShadow: '0 3px 18px #0d0f16',
-        pointerEvents: 'none',
-      }}
-    >
-      {/*
-        * **누구든 닉네임으로 부른다.** "내 노림"처럼 대명사를 쓰면 옆에서 보는 사람과
-        * 당사자가 서로 다른 문장을 읽게 되어, 나중에 판을 되짚을 때 말이 안 맞는다.
-        * 누가 노린 쪽이고 누가 당한 쪽인지는 색이 말한다.
-        */}
-      <div style={{ fontSize: 20, fontWeight: 700, color }}>
-        {withSubject(shown.victim)} {shown.who}의 노림에 걸렸다
-      </div>
-      {/* 서브텍스트는 가운데 알림끼리 같은 것을 말한다 — 깎인 사람의 남은 하트 */}
-      <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
-        {shown.word} · {shown.victim} 남은 하트 {shown.lives}
-      </div>
-    </div>
-  )
-}
 
 /**
  * 판을 거듭하며 쌓인 승수.
@@ -661,6 +600,30 @@ function Verdict({
   const nameOf = (id: string) =>
     state.players.find((player) => player.id === id)?.nickname ?? '이름없음'
 
+  /*
+   * 손이 키보드에 붙어 있는 게임이라 결과창도 키보드로 넘긴다. 여기서 마우스를 잡게
+   * 하면 다음 판으로 이어지는 흐름이 매번 끊긴다 — 싱글 결과 화면과 같은 규칙이다.
+   *
+   * 상대가 나갔으면 '계속하기'가 아예 없다. 누를 수 없는 버튼을 남겨두면
+   * "왜 안 되지"가 생기므로, 목록에서도 빼서 화살표가 그 자리를 지나가지 않게 한다.
+   */
+  const canRematch = !state.opponentLeft
+  const items = [
+    ...(canRematch ? [{ run: onRematch, disabled: iWantRematch }] : []),
+    { run: onLeave, disabled: false },
+  ]
+  const menu = useMenuKeys({
+    count: items.length,
+    onActivate: (index) => {
+      const item = items[index]
+      if (item !== undefined && !item.disabled) {
+        item.run()
+      }
+    },
+    // Escape는 나가는 것이다. 다시 붙는 것은 고르는 일이지 취소가 아니다
+    onCancel: onLeave,
+  })
+
   return (
     <div
       data-verdict={draw ? 'draw' : won ? 'win' : 'lose'}
@@ -758,40 +721,30 @@ function Verdict({
             상대가 로비로 나갔습니다
           </span>
         ) : (
-          <button
-            type="button"
-            onClick={onRematch}
-            disabled={iWantRematch}
-            data-rematch={iWantRematch ? 'waiting' : 'ready'}
-            style={{
-              padding: '12px 28px',
-              fontSize: 15,
-              fontWeight: 600,
-              borderRadius: 10,
-              border: '1px solid #48507a',
-              background: iWantRematch ? 'transparent' : '#ffcf5c',
-              color: iWantRematch ? '#8b93b0' : '#1a1405',
-            }}
-          >
-            {iWantRematch ? '상대를 기다립니다…' : '계속하기'}
-          </button>
+          <div data-rematch={iWantRematch ? 'waiting' : 'ready'}>
+            <MenuButton
+              selected={menu.index === 0}
+              onClick={onRematch}
+              onHover={() => menu.select(0)}
+              disabled={iWantRematch}
+              primary
+            >
+              {iWantRematch ? '상대를 기다립니다…' : '계속하기'}
+            </MenuButton>
+          </div>
         )}
 
-        <button
-          type="button"
+        <MenuButton
+          selected={menu.index === items.length - 1}
           onClick={onLeave}
-          style={{
-            padding: '10px 24px',
-            fontSize: 14,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: '1px solid #2e3448',
-            background: 'transparent',
-            color: '#b6bdd4',
-          }}
+          onHover={() => menu.select(items.length - 1)}
         >
-          로비로 나가기
-        </button>
+          로비로 나가기 (Esc)
+        </MenuButton>
+
+        <span style={{ fontSize: 12, color: '#4a5171' }}>
+          ↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다
+        </span>
       </div>
     </div>
   )

@@ -35,10 +35,21 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
  * 걸지 않으려는 것이고, 턴이 끝날 때마다 방장이 권위 키프레임을 보내 어긋남을 되돌린다.
  */
 
-/** 이 시간 동안 아무것도 움직이지 않으면 턴을 넘긴다 */
-const SETTLE_QUIET_SEC = 0.6
-/** 물건이 영원히 구르는 경우를 대비한 상한 */
-const TURN_RESOLVE_TIMEOUT_SEC = 12
+/**
+ * 한 사람이 연달아 떨구는 사이의 최소 간격(초).
+ *
+ * 턴을 없앤 자리를 이것이 대신한다. 예전에는 물건이 자리를 잡을 때까지 아무도
+ * 떨구지 못했는데, 그러면 상대가 쌓는 몇 초 동안 내 손이 멈춘다 — 타자게임에서
+ * 가장 큰 대가다. 이제 둘 다 언제든 치되, 한 사람이 물건을 쏟아붓지는 못한다.
+ * 싱글의 DROP_COOLDOWN_MS와 같은 장치이고, 사람마다 따로 돈다.
+ */
+const DROP_INTERVAL_SEC = 0.9
+
+/** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
+const SYNC_INTERVAL_SEC = 2.5
+
+/** 방해가 먹혔을 때 건 사람이 되찾는 하트 */
+const HARASS_HEAL = 0.5
 
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
@@ -48,15 +59,10 @@ interface MatchViewState {
   readonly selfId: PlayerId
   readonly players: readonly PlayerInfo[]
   readonly lives: readonly (readonly [PlayerId, number])[]
-  readonly current: PlayerId | null
-  readonly myTurn: boolean
-  /**
-   * 떨어진 물건이 멈추기를 기다리는 중.
-   *
-   * 이 값이 없으면 이 구간이 양쪽 화면에 똑같이 "상대 차례"로 보인다 — 아무의 차례도
-   * 아닌 것이 규칙인데 그렇게 말해주지 않아 판이 멈춘 것처럼 읽힌다.
-   */
-  readonly settling: boolean
+  /** 지금 떨굴 수 있는지. 낙하 간격이 돌고 있으면 false */
+  readonly canDrop: boolean
+  /** 낙하 간격이 얼마나 남았는지 0~1. 화면이 채워지는 눈금으로 그린다 */
+  readonly dropCooldown: number
   /**
    * 사람별 남은 무적 비율(1 → 0). 목숨을 잃은 직후 잠깐 붙는다.
    *
@@ -69,7 +75,13 @@ interface MatchViewState {
   readonly words: readonly FallingWord[]
   readonly aimNormalized: number
   /** 상대가 지목한 단어. 강제력은 없고 표시만 한다 */
-  readonly suggestion: { readonly by: PlayerId; readonly word: string } | null
+  /**
+   * 덫이 걸린 단어들. **내가 건 것도 들어온다** —
+   * 무엇을 걸어뒀는지 모르면 같은 단어를 또 걸게 된다.
+   */
+  readonly harassed: readonly { readonly word: string; readonly by: PlayerId }[]
+  /** 방금 되찾은 하트. 같은 seq면 이미 보여준 것이다 */
+  readonly lastHeal: { readonly by: PlayerId; readonly word: string; readonly seq: number } | null
   readonly feedback: MatchFeedback | null
   readonly winner: PlayerId | null
   readonly connectionLost: boolean
@@ -153,12 +165,20 @@ class MatchEngine {
   private aimer = new Aimer(AIM_HALF_RANGE)
   private elapsed = 0
 
-  /** 물건이 떨어진 뒤 자리를 잡기를 기다리는 중인지. 그동안은 아무도 떨굴 수 없다 */
-  private resolving = false
-  private quietFor = 0
-  private resolveFor = 0
+  /** 사람별로 다음에 떨굴 수 있을 때까지 남은 시간(초) */
+  private readonly dropWait = new Map<PlayerId, number>()
+  private sinceSync = 0
 
-  private suggestion: { by: PlayerId; word: string } | null = null
+  /**
+   * 덫이 걸린 단어 — 단어 → 건 사람.
+   *
+   * 단어를 열쇠로 삼는 이유는 낙하 단어가 사라졌다 다시 나와도 같은 덫으로 이어져야
+   * 하기 때문이다. 상대가 그 단어를 치면 덫이 작동하고 건 사람이 하트를 되찾는다.
+   */
+  private readonly harassed = new Map<string, PlayerId>()
+  /** 방금 되찾은 하트. 화면이 한 번 띄우고 지운다 */
+  private lastHeal: { by: PlayerId; word: string; seq: number } | null = null
+  private healSeq = 0
   private feedback: MatchFeedback | null = null
   private feedbackSeq = 0
   private connectionLost = false
@@ -262,8 +282,9 @@ class MatchEngine {
 
   /**
    * Enter를 누른 순간.
-   * 내 턴이면 물건을 떨구고, 아니면 그 단어를 상대에게 지목한다 —
-   * 대기 시간에도 타자가 의미를 갖게 하는 유일한 통로다.
+   *
+   * 떨굴 수 있으면 떨구고, 낙하 간격이 도는 중이면 그 단어에 **덫**을 건다.
+   * 간격을 비워두면 그 몇 초 동안 타자가 아무 반응 없이 삼켜진다.
    */
   submit(text: string): void {
     if (this.match.over) {
@@ -292,12 +313,8 @@ class MatchEngine {
       this.requestDrop(word)
       return
     }
-    /*
-     * 떨굴 수 없는 두 경우 — 상대 차례이거나, 떨군 물건이 자리를 잡는 중이다.
-     * 둘 다 지목으로 보낸다. 자리를 잡는 구간을 비워두면 떨군 사람의 타자가
-     * 아무 반응 없이 삼켜져서, 그 몇 초가 통째로 죽는다.
-     */
-    this.sendSuggestion(word)
+    // 떨굴 수 없는 동안의 타자는 덫이 된다
+    this.sendHarass(word)
   }
 
   handleTransportEvent(event: TransportEvent): void {
@@ -434,59 +451,46 @@ class MatchEngine {
     this.physics.dispose()
   }
 
-  private isMyTurn(): boolean {
-    return this.match.currentPlayer === this.transport.selfId
-  }
-
-  /** 지금 떨굴 수 있는지. 화면에 보여주는 myTurn과 같은 기준이어야 한다 */
+  /** 지금 떨굴 수 있는지. 화면에 보여주는 값과 같은 기준이어야 한다 */
   private canDropNow(): boolean {
-    return this.isMyTurn() && !this.resolving
+    return this.match.canDrop(this.transport.selfId) && this.waitOf(this.transport.selfId) <= 0
+  }
+
+  private waitOf(id: PlayerId): number {
+    return this.dropWait.get(id) ?? 0
   }
 
   /**
-   * 지목을 상대에게 보낸다.
+   * 이 단어에 덫을 건다.
    *
-   * 방향에 따라 메시지가 다르다 — 참가자는 방장을 거쳐야 하지만(`suggest`),
+   * 방향에 따라 메시지가 다르다 — 참가자는 방장을 거쳐야 하지만(`harass`),
    * 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지 않으므로 같은 방식으로
-   * 보내면 아무 데도 닿지 않는다. 방장은 결과(`suggested`)를 바로 알린다.
+   * 보내면 아무 데도 닿지 않는다. 방장은 결과(`harassed`)를 바로 알린다.
    */
-  private sendSuggestion(word: string): void {
+  private sendHarass(word: string): void {
     if (this.transport.isHost) {
-      this.transport.broadcast({ t: 'suggested', by: this.transport.selfId, word })
+      this.transport.broadcast({ t: 'harassed', by: this.transport.selfId, word })
+      this.applyHarass(this.transport.selfId, word)
     } else {
-      this.transport.broadcast({ t: 'suggest', word })
+      this.transport.broadcast({ t: 'harass', word })
+      // 건 사람에게도 바로 보여준다. 방장의 답을 기다리면 내가 뭘 걸었는지 모른 채
+      // 다음 단어를 치게 된다
+      this.applyHarass(this.transport.selfId, word)
     }
-    this.feedback = {
-      seq: this.feedbackSeq,
-      text: word,
-      kind: 'suggested',
-      itemLabel: null,
-      hidden: false,
-    }
-    this.emit()
   }
 
-  /**
-   * 턴이 바뀔 때 들고 있던 지목을 남길지 정한다.
-   *
-   * 지목은 **받은 사람이 쓸 수 있는 동안** 살아 있어야 한다. 내 차례가 시작되면
-   * 지금 치라는 것이므로 남기고, 남의 차례가 시작되면 내가 들고 있던 것은 쓸 기회를
-   * 잃었으므로 지운다.
-   *
-   * 무조건 지우면 자리를 잡는 동안 한 지목이 턴이 넘어가는 순간 사라진다 —
-   * 정확히 그 지목이 가장 쓸모있는 순간에.
-   */
-  private keepSuggestionFor(current: PlayerId | null): void {
-    if (current !== this.transport.selfId) {
-      this.suggestion = null
+  /** 양쪽이 똑같이 실행한다. 이미 걸린 단어는 처음 건 사람의 것으로 둔다 */
+  private applyHarass(by: PlayerId, word: string): void {
+    if (this.harassed.has(word)) {
+      return
     }
+    this.harassed.set(word, by)
+    this.fire({ kind: 'suggested' })
+    this.emit()
   }
 
   /** 내가 떨구려 한다. 방장이면 바로 판정하고, 게스트면 방장에게 청한다 */
   private requestDrop(word: string): void {
-    if (this.resolving) {
-      return
-    }
     if (this.transport.isHost) {
       this.resolveDrop(this.transport.selfId, word, this.aimer.worldX)
       return
@@ -499,7 +503,7 @@ class MatchEngine {
    * 자기 턴인지, 실제로 화면에 있던 단어인지, 조준이 범위 안인지 전부 확인한다.
    */
   private resolveDrop(by: PlayerId, word: string, rawAimX: number): void {
-    if (this.resolving || !this.match.canDrop(by)) {
+    if (!this.match.canDrop(by) || this.waitOf(by) > 0) {
       return
     }
     const target = this.spawner.words.find(
@@ -522,6 +526,18 @@ class MatchEngine {
       itemId,
     })
     this.applyDrop(by, word, aimX, variant.id, itemId)
+
+    /*
+     * 덫을 밟았는지는 떨군 **뒤에** 본다. 물건은 어차피 떨어지고, 덫은 그 위에
+     * 얹히는 대가다 — 먼저 보면 "덫이라 못 떨궜다"로 읽혀 규칙이 달라진다.
+     * 자기가 건 덫은 밟히지 않는다. 스스로 치고 회복하면 방해가 아니라 회복 수단이 된다.
+     */
+    const trapBy = this.harassed.get(word)
+    if (trapBy !== undefined && trapBy !== by) {
+      this.transport.broadcast({ t: 'harassHit', by: trapBy, victim: by, word })
+      this.applyHarassHit(trapBy, word)
+      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
+    }
   }
 
   /** 양쪽이 똑같이 실행하는 부분. 물건 정체는 방장이 정한 id를 그대로 쓴다 */
@@ -549,9 +565,8 @@ class MatchEngine {
     if (variant.hidden) {
       this.fire({ kind: 'reveal' })
     }
-    this.resolving = true
-    this.quietFor = 0
-    this.resolveFor = 0
+    // 떨군 사람만 잠깐 못 떨군다. 상대의 손은 멈추지 않는다
+    this.dropWait.set(by, DROP_INTERVAL_SEC)
 
     if (by === this.transport.selfId) {
       this.feedbackSeq += 1
@@ -585,30 +600,26 @@ class MatchEngine {
           )
         }
         break
-      case 'suggest':
+      case 'harass':
         if (this.transport.isHost) {
-          this.transport.broadcast({ t: 'suggested', by: from, word: message.word })
-          this.showSuggestion(from, message.word)
+          this.transport.broadcast({ t: 'harassed', by: from, word: message.word })
+          this.applyHarass(from, message.word)
         }
         break
-      case 'suggested':
+      case 'harassed':
         if (!this.transport.isHost) {
-          this.showSuggestion(message.by, message.word)
+          this.applyHarass(message.by, message.word)
+        }
+        break
+      case 'harassHit':
+        // 판정은 방장이 한다. 참가자는 결과만 따른다
+        if (!this.transport.isHost) {
+          this.applyHarassHit(message.by, message.word)
         }
         break
       case 'words':
         if (!this.transport.isHost) {
           this.spawner.apply(message.words)
-          this.emit()
-        }
-        break
-      case 'turn':
-        // 순서는 방장이 정한 것을 그대로 따른다. 스스로 굴리면 탈락이 끼었을 때
-        // 양쪽이 서로 자기 차례라고 믿게 된다
-        if (!this.transport.isHost) {
-          this.match.setTurn(message.current)
-          this.resolving = false
-          this.keepSuggestionFor(this.match.currentPlayer)
           this.emit()
         }
         break
@@ -663,11 +674,14 @@ class MatchEngine {
     }
   }
 
-  private showSuggestion(by: PlayerId, word: string): void {
-    if (by === this.transport.selfId) {
-      return
-    }
-    this.suggestion = { by, word }
+  /**
+   * 덫이 작동했다. 건 사람이 하트를 되찾고 그 단어는 덫에서 풀린다.
+   * 판정은 방장이 하고 양쪽이 같은 값을 그린다.
+   */
+  private applyHarassHit(by: PlayerId, word: string): void {
+    this.harassed.delete(word)
+    this.match.heal(by, HARASS_HEAL)
+    this.lastHeal = { by, word, seq: this.healSeq += 1 }
     this.fire({ kind: 'suggested' })
     this.emit()
   }
@@ -684,7 +698,6 @@ class MatchEngine {
         this.markHurt(id)
       }
     }
-    this.match.ensureTurnAlive()
     this.emit()
   }
 
@@ -741,6 +754,17 @@ class MatchEngine {
     }
 
     this.elapsed += dt
+
+    // 사람마다 따로 도는 낙하 간격. 0이 되면 그 사람이 다시 떨굴 수 있다
+    for (const [id, left] of this.dropWait) {
+      const next = left - dt
+      if (next <= 0) {
+        this.dropWait.delete(id)
+      } else {
+        this.dropWait.set(id, next)
+      }
+    }
+
     /*
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
      * 탑이 무너질 때마다 단어가 뜸해졌다 몰아쳤다 하면 무엇이 기준인지 알 수 없다.
@@ -817,8 +841,7 @@ class MatchEngine {
       anyLost = true
     }
     if (anyLost) {
-      this.match.ensureTurnAlive()
-      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
+        this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
     }
 
     if (this.match.over) {
@@ -828,25 +851,21 @@ class MatchEngine {
       return
     }
 
-    if (!this.resolving) {
-      return
-    }
-
-    this.resolveFor += dt
-    this.quietFor = this.physics.isQuiet() ? this.quietFor + dt : 0
-
-    if (this.quietFor >= SETTLE_QUIET_SEC || this.resolveFor >= TURN_RESOLVE_TIMEOUT_SEC) {
-      this.resolving = false
-      this.match.nextTurn()
-      this.keepSuggestionFor(this.match.currentPlayer)
-      // 턴이 끝날 때만 권위 키프레임을 보낸다. 매 프레임 흘리면 무료 전송로의
-      // 한도를 태우고, 턴제라 그럴 필요도 없다
+    /*
+     * 키프레임을 일정 간격으로 보낸다.
+     *
+     * 예전에는 턴이 끝날 때 보냈다. 턴이 사라지면서 "끝나는 지점"이 없어졌는데,
+     * 물리는 양쪽에서 따로 돌기 때문에 맞춰주지 않으면 서서히 벌어진다.
+     * 매 프레임 흘리면 무료 전송로의 한도를 태우므로 간격을 둔다.
+     */
+    this.sinceSync += dt
+    if (this.sinceSync >= SYNC_INTERVAL_SEC) {
+      this.sinceSync = 0
       this.transport.broadcast({
         t: 'sync',
         bodies: this.physics.frames(),
         welds: this.physics.weldPairs(),
       })
-      this.transport.broadcast({ t: 'turn', current: this.match.currentPlayer ?? '' })
     }
   }
 
@@ -854,7 +873,7 @@ class MatchEngine {
     this.renderer?.draw({
       bodies: this.physics.snapshots(),
       aimX: this.aimer.worldX,
-      showAim: this.isMyTurn() && !this.resolving && !this.match.over,
+      showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
       hiddenReveal: null,
       quake: 0,
       quakePhase: 0,
@@ -871,9 +890,11 @@ class MatchEngine {
       selfId: this.transport.selfId,
       players: this.match.players,
       lives: snapshot.lives,
-      current: snapshot.current,
-      myTurn: this.canDropNow(),
-      settling: this.resolving && !snapshot.over && !this.connectionLost,
+      canDrop: this.canDropNow(),
+      dropCooldown: Math.min(
+        1,
+        Math.max(0, this.waitOf(this.transport.selfId) / DROP_INTERVAL_SEC),
+      ),
       invulnerable: this.invulnerableRatios(),
       hurt:
         this.lastHurt === null
@@ -882,7 +903,8 @@ class MatchEngine {
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,
       aimNormalized: this.aimer.normalized,
-      suggestion: this.suggestion,
+      harassed: [...this.harassed].map(([word, by]) => ({ word, by })),
+      lastHeal: this.lastHeal,
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
@@ -898,5 +920,5 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, SETTLE_QUIET_SEC, TURN_RESOLVE_TIMEOUT_SEC }
+export { MatchEngine, DROP_INTERVAL_SEC, HARASS_HEAL }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

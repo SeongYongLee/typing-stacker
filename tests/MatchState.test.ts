@@ -7,29 +7,12 @@ function players(...ids: string[]): PlayerInfo[] {
 }
 
 describe('MatchState — 2명', () => {
-  it('첫 턴은 배열 순서의 첫 사람이다', () => {
-    const match = new MatchState(players('a', 'b'), 3)
-    expect(match.currentPlayer).toBe('a')
-    expect(match.livesOf('a')).toBe(3)
-    expect(match.livesOf('b')).toBe(3)
-    expect(match.over).toBe(false)
-  })
-
-  it('턴은 번갈아 돌아간다', () => {
-    const match = new MatchState(players('a', 'b'), 3)
-    match.nextTurn()
-    expect(match.currentPlayer).toBe('b')
-    match.nextTurn()
-    expect(match.currentPlayer).toBe('a')
-  })
-
-  it('자기 턴이 아니면 떨굴 수 없다 — 상대가 보낸 drop을 막는 문', () => {
+  it('둘 다 처음부터 떨굴 수 있다 — 차례를 기다리지 않는다', () => {
     const match = new MatchState(players('a', 'b'), 3)
     expect(match.canDrop('a')).toBe(true)
-    expect(match.canDrop('b')).toBe(false)
-    match.nextTurn()
-    expect(match.canDrop('a')).toBe(false)
     expect(match.canDrop('b')).toBe(true)
+    expect(match.livesOf('a')).toBe(3)
+    expect(match.over).toBe(false)
   })
 
   it('방에 없는 사람은 떨굴 수 없다', () => {
@@ -39,7 +22,7 @@ describe('MatchState — 2명', () => {
 
   it('하트는 물건 주인이 잃는다', () => {
     const match = new MatchState(players('a', 'b'), 3)
-    // a의 턴이지만 밀려 떨어진 물건이 b의 것이면 b가 잃는다
+    // 누가 밀어냈든 떨어진 물건이 b의 것이면 b가 잃는다
     match.loseLife('b')
     expect(match.livesOf('a')).toBe(3)
     expect(match.livesOf('b')).toBe(2)
@@ -53,7 +36,6 @@ describe('MatchState — 2명', () => {
     match.loseLife('b')
     expect(match.over).toBe(true)
     expect(match.winner).toBe('a')
-    expect(match.currentPlayer).toBeNull()
   })
 
   it('하트는 0 아래로 내려가지 않는다', () => {
@@ -79,37 +61,59 @@ describe('MatchState — 2명', () => {
   })
 })
 
-describe('MatchState — N명 (2명은 특수 케이스가 아니다)', () => {
-  it('네 명이면 순서대로 돌고 한 바퀴 뒤 처음으로 온다', () => {
-    const match = new MatchState(players('a', 'b', 'c', 'd'), 3)
-    const seen: (string | null)[] = [match.currentPlayer]
-    for (let i = 0; i < 4; i += 1) {
-      match.nextTurn()
-      seen.push(match.currentPlayer)
-    }
-    expect(seen).toEqual(['a', 'b', 'c', 'd', 'a'])
-  })
-
-  it('탈락자는 턴 순환에서 건너뛴다', () => {
-    const match = new MatchState(players('a', 'b', 'c'), 1)
-    match.loseLife('b')
-    expect(match.isAlive('b')).toBe(false)
-
-    expect(match.currentPlayer).toBe('a')
-    match.nextTurn()
-    expect(match.currentPlayer).toBe('c')
-    match.nextTurn()
-    expect(match.currentPlayer).toBe('a')
-  })
-
-  it('턴 주인이 자기 물건 때문에 탈락하면 턴이 옮겨진다', () => {
-    const match = new MatchState(players('a', 'b', 'c'), 1)
-    expect(match.currentPlayer).toBe('a')
+describe('MatchState.heal — 방해가 먹히면 되찾는다', () => {
+  it('반 칸씩 되찾는다', () => {
+    const match = new MatchState(players('a', 'b'), 3)
     match.loseLife('a')
-    match.ensureTurnAlive()
-    expect(match.currentPlayer).toBe('b')
+    expect(match.livesOf('a')).toBe(2)
+    match.heal('a', 0.5)
+    expect(match.livesOf('a')).toBe(2.5)
   })
 
+  it('처음 하트보다 많아지지 않는다 — 무한히 버티면 판이 끝나지 않는다', () => {
+    const match = new MatchState(players('a', 'b'), 3)
+    match.heal('a', 0.5)
+    match.heal('a', 0.5)
+    expect(match.livesOf('a')).toBe(3)
+  })
+
+  it('탈락한 사람은 되살아나지 않는다 — 승패가 뒤집히면 안 된다', () => {
+    const match = new MatchState(players('a', 'b'), 1)
+    match.loseLife('b')
+    expect(match.over).toBe(true)
+    match.heal('b', 0.5)
+    expect(match.livesOf('b')).toBe(0)
+    expect(match.winner).toBe('a')
+  })
+
+  it('모르는 사람이나 0 이하 값은 무시한다', () => {
+    const match = new MatchState(players('a', 'b'), 3)
+    match.loseLife('a')
+    match.heal('침입자', 0.5)
+    match.heal('a', 0)
+    match.heal('a', -1)
+    expect(match.livesOf('a')).toBe(2)
+  })
+
+  it('반 칸이 남아 있으면 아직 살아 있다', () => {
+    const match = new MatchState(players('a', 'b'), 3)
+    match.loseLife('a')
+    match.loseLife('a')
+    match.loseLife('a')
+    expect(match.isAlive('a')).toBe(false)
+
+    const other = new MatchState(players('a', 'b'), 3)
+    other.loseLife('a')
+    other.loseLife('a')
+    other.heal('a', 0.5)
+    other.loseLife('a')
+    // 1 -> 0.5 로 남는다. 한 번 더 맞아야 끝난다
+    expect(other.livesOf('a')).toBe(0.5)
+    expect(other.isAlive('a')).toBe(true)
+  })
+})
+
+describe('MatchState — N명 (2명은 특수 케이스가 아니다)', () => {
   it('마지막 한 명이 남으면 그 사람이 승자다', () => {
     const match = new MatchState(players('a', 'b', 'c'), 1)
     match.loseLife('a')
@@ -124,26 +128,12 @@ describe('MatchState — N명 (2명은 특수 케이스가 아니다)', () => {
     expect(match.over).toBe(false)
     expect(match.aliveCount).toBe(2)
   })
-})
 
-describe('MatchState.setTurn — 순서는 방장이 정한 것을 따른다', () => {
-  it('알려준 사람에게 차례를 옮긴다', () => {
-    const match = new MatchState(players('a', 'b', 'c'), 3)
-    expect(match.setTurn('c')).toBe(true)
-    expect(match.currentPlayer).toBe('c')
-  })
-
-  it('모르는 사람이면 무시한다 — 상대가 보낸 값을 그대로 믿지 않는다', () => {
-    const match = new MatchState(players('a', 'b'), 3)
-    expect(match.setTurn('침입자')).toBe(false)
-    expect(match.currentPlayer).toBe('a')
-  })
-
-  it('탈락자에게는 옮기지 않는다', () => {
+  it('탈락한 사람은 떨굴 수 없다', () => {
     const match = new MatchState(players('a', 'b', 'c'), 1)
     match.loseLife('b')
-    expect(match.setTurn('b')).toBe(false)
-    expect(match.currentPlayer).toBe('a')
+    expect(match.canDrop('b')).toBe(false)
+    expect(match.canDrop('a')).toBe(true)
   })
 })
 
@@ -151,11 +141,11 @@ describe('MatchState.snapshot', () => {
   it('화면이 필요한 값을 한 번에 담는다', () => {
     const match = new MatchState(players('a', 'b'), 3)
     match.loseLife('b')
+    match.heal('b', 0.5)
     const snapshot = match.snapshot()
-    expect(snapshot.current).toBe('a')
     expect(snapshot.lives).toEqual([
       ['a', 3],
-      ['b', 2],
+      ['b', 2.5],
     ])
     expect(snapshot.over).toBe(false)
     expect(snapshot.winner).toBeNull()

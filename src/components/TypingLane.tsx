@@ -7,10 +7,14 @@ interface TypingLaneProps {
   words: readonly FallingWord[]
   side: Side
   /** 상대가 지목한 단어. 대전에서만 넘어온다 */
-  suggested?: string | null
+  /**
+   * 덫이 걸린 단어 → 건 사람의 색.
+   * 색까지 받는 이유는 **누가 걸었는지**가 테두리로 보여야 하기 때문이다 —
+   * 내가 건 것과 상대가 건 것이 같아 보이면 어느 쪽이 함정인지 알 수 없다.
+   */
+  harassed?: ReadonlyMap<string, string> | null
 }
 
-const SUGGESTED = '#ffcf5c'
 
 const laneStyle: CSSProperties = {
   position: 'relative',
@@ -31,7 +35,7 @@ const chipBase: CSSProperties = {
   border: '1px solid',
 }
 
-function TypingLane({ words, side, suggested = null }: TypingLaneProps) {
+function TypingLane({ words, side, harassed = null }: TypingLaneProps) {
   const mine = words.filter((word) => word.side === side)
 
   return (
@@ -40,7 +44,7 @@ function TypingLane({ words, side, suggested = null }: TypingLaneProps) {
         <Chip
           key={word.id}
           word={word}
-          suggested={word.state === 'active' && word.word === suggested}
+          harassColor={word.state === 'active' ? (harassed?.get(word.word) ?? null) : null}
         />
       ))}
     </div>
@@ -54,7 +58,8 @@ function TypingLane({ words, side, suggested = null }: TypingLaneProps) {
  * 맥박은 WAAPI로 돌린다. 엔진이 매 프레임 리렌더를 밀어 CSS transition은 끊기고,
  * y가 매 프레임 바뀌어도 애니메이션은 다시 시작되지 않는다.
  */
-function Chip({ word, suggested }: { word: FallingWord; suggested: boolean }) {
+function Chip({ word, harassColor }: { word: FallingWord; harassColor: string | null }) {
+  const suggested = harassColor !== null
   const ref = useRef<HTMLDivElement | null>(null)
   const missed = word.state === 'missed'
 
@@ -85,9 +90,11 @@ function Chip({ word, suggested }: { word: FallingWord; suggested: boolean }) {
         top: `${word.y * 100}%`,
         left: `${((word.slot + 0.5) / WORD.slotsPerSide) * 100}%`,
         opacity: missed ? word.fade * 0.6 : 1,
-        color: missed ? '#6a7290' : suggested ? '#ffe9b8' : '#f2f4fb',
-        background: missed ? 'transparent' : suggested ? 'rgba(255, 207, 92, 0.16)' : '#1d2233',
-        borderColor: missed ? '#2b3047' : suggested ? SUGGESTED : '#48507a',
+        color: missed ? '#6a7290' : suggested ? '#ffe1e1' : '#f2f4fb',
+        // 덫은 붉은 바탕에 **건 사람의 색** 테두리다. 바탕이 위험을, 테두리가 누구인지를 말한다
+        background: missed ? 'transparent' : suggested ? 'rgba(255, 107, 107, 0.22)' : '#1d2233',
+        borderColor: missed ? '#2b3047' : (harassColor ?? '#48507a'),
+        borderWidth: suggested ? 2 : 1,
         boxShadow: suggested && !missed ? `0 0 14px rgba(255, 207, 92, 0.45)` : 'none',
         textDecoration: missed ? 'line-through' : 'none',
       }}

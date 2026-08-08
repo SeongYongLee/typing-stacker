@@ -53,7 +53,8 @@ type ToHost =
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
   | { readonly t: 'drop'; readonly word: string; readonly aimX: number }
   /** 상대 턴에 단어를 지목한다 (강제력 없음) */
-  | { readonly t: 'suggest'; readonly word: string }
+  /** 이 단어를 상대에게 덫으로 걸겠다 */
+  | { readonly t: 'harass'; readonly word: string }
 
 /** 방장 → 참가자 */
 type ToGuest =
@@ -79,7 +80,15 @@ type ToGuest =
       /** 양쪽이 같은 물건으로 취급하도록 방장이 매기는 번호 */
       readonly itemId: number
     }
-  | { readonly t: 'suggested'; readonly by: PlayerId; readonly word: string }
+  /** 누가 어떤 단어에 덫을 걸었는지. 건 사람에게도 보여야 한다 */
+  | { readonly t: 'harassed'; readonly by: PlayerId; readonly word: string }
+  /** 덫이 작동했다. 건 사람이 하트를 되찾고, 그 단어는 덫에서 풀린다 */
+  | {
+      readonly t: 'harassHit'
+      readonly by: PlayerId
+      readonly victim: PlayerId
+      readonly word: string
+    }
   /**
    * 지금 내려오는 단어 밭. 방장이 소유한다.
    *
@@ -88,17 +97,13 @@ type ToGuest =
    * 밭이 바뀔 때만 보내므로 흐르는 양은 몇 초에 한 번이다.
    */
   | { readonly t: 'words'; readonly words: readonly FallingWord[] }
-  | { readonly t: 'turn'; readonly current: PlayerId }
   | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[] }
-  /** 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다 */
   /**
-   * 턴이 끝날 때 방장이 보내는 권위 키프레임. 참가자가 여기에 스냅한다.
+   * 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다.
    *
    * 자리만으로는 부족해서 **붙어 있는 짝**도 함께 보낸다. 끈적함은 양쪽이 각자
    * 접촉을 보고 정하는데, 한 프레임만 어긋나도 한쪽에만 관절이 생기고 그것은
    * 영구적이다 — 자리를 맞춰도 그 뒤로 탑이 다르게 움직인다.
-   *
-   * 짝은 **itemId로** 주고받는다. Rapier 핸들은 세계마다 달라 기준이 될 수 없다.
    */
   | {
       readonly t: 'sync'
@@ -170,9 +175,9 @@ function parseMessage(raw: unknown): Message | null {
     case 'drop':
       if (!isShortString(raw['word'], 20) || !isFiniteNumber(raw['aimX'])) return null
       return { t: 'drop', word: raw['word'], aimX: raw['aimX'] }
-    case 'suggest':
+    case 'harass':
       if (!isShortString(raw['word'], 20)) return null
-      return { t: 'suggest', word: raw['word'] }
+      return { t: 'harass', word: raw['word'] }
     case 'welcome':
       if (!isShortString(raw['you'], 64) || !Array.isArray(raw['players'])) return null
       return { t: 'welcome', you: raw['you'], players: parsePlayers(raw['players']) }
@@ -228,9 +233,18 @@ function parseMessage(raw: unknown): Message | null {
         variantId: raw['variantId'],
         itemId: raw['itemId'],
       }
-    case 'suggested':
+    case 'harassed':
       if (!isShortString(raw['by'], 64) || !isShortString(raw['word'], 20)) return null
-      return { t: 'suggested', by: raw['by'], word: raw['word'] }
+      return { t: 'harassed', by: raw['by'], word: raw['word'] }
+    case 'harassHit':
+      if (
+        !isShortString(raw['by'], 64) ||
+        !isShortString(raw['victim'], 64) ||
+        !isShortString(raw['word'], 20)
+      ) {
+        return null
+      }
+      return { t: 'harassHit', by: raw['by'], victim: raw['victim'], word: raw['word'] }
     case 'words': {
       if (!Array.isArray(raw['words'])) return null
       const words: FallingWord[] = []
@@ -241,9 +255,6 @@ function parseMessage(raw: unknown): Message | null {
       }
       return { t: 'words', words }
     }
-    case 'turn':
-      if (!isShortString(raw['current'], 64)) return null
-      return { t: 'turn', current: raw['current'] }
     case 'lives': {
       if (!Array.isArray(raw['lives'])) return null
       const lives: [PlayerId, number][] = []
@@ -262,7 +273,6 @@ function parseMessage(raw: unknown): Message | null {
         const frame = parseBodyFrame(entry)
         if (frame !== null) bodies.push(frame)
       }
-      // 관절이 빠진 옛 키프레임도 받아들인다 — 그 판은 자리만 맞고 구조는 갈린 채로 간다
       const welds: [number, number][] = []
       if (Array.isArray(raw['welds'])) {
         for (const entry of raw['welds']) {

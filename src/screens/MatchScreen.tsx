@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { play } from '../components/animate.ts'
 import { StackArena } from '../components/StackArena.tsx'
@@ -10,7 +10,7 @@ import { Barrier, KEPT, LOST } from '../components/Vitals.tsx'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
 import { useMatchRanking } from '../hooks/useMatchRanking.ts'
 import { tierOf, tierProgress } from '../rank/tiers.ts'
-import { useMusicActive, useTypingSound } from '../hooks/useAudio.ts'
+import { useTypingSound } from '../hooks/useAudio.ts'
 
 interface MatchScreenProps {
   engine: MatchEngine
@@ -47,7 +47,6 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   const { focus } = input
 
   useTypingSound(input.tapSeq)
-  useMusicActive(state.phase === 'playing')
 
   /*
    * 턴이 바뀌어도 **치던 글자는 지우지 않는다.**
@@ -57,7 +56,20 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
    */
   useEffect(() => {
     focus()
-  }, [state.current, focus])
+  }, [focus])
+
+  /*
+   * 단어 → 건 사람의 색. 내가 건 것도 들어 있다 —
+   * 무엇을 걸어뒀는지 보이지 않으면 같은 단어를 또 걸게 된다.
+   */
+  const harassColors = useMemo(() => {
+    const colors = new Map<string, string>()
+    for (const mark of state.harassed) {
+      const index = state.players.findIndex((player) => player.id === mark.by)
+      colors.set(mark.word, ownerColorAt(index < 0 ? 0 : index))
+    }
+    return colors
+  }, [state])
 
   return (
     <div style={rootStyle} onMouseDown={input.keepFocus}>
@@ -66,11 +78,11 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>
-          <TypingLane words={state.words} side="left" suggested={state.suggestion?.word ?? null} />
+          <TypingLane words={state.words} side="left" harassed={harassColors} />
           <div
             style={{ position: 'relative', minHeight: 0 }}
             data-aim={state.aimNormalized.toFixed(3)}
-            data-my-turn={state.myTurn ? 'yes' : 'no'}
+            data-my-turn={state.canDrop ? 'yes' : 'no'}
           >
             {state.phase === 'over' && (
               <Verdict state={state} onRematch={rematch} onLeave={onLeave} />
@@ -85,7 +97,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
               <HurtNotice state={state} hurt={state.hurt} />
             )}
           </div>
-          <TypingLane words={state.words} side="right" suggested={state.suggestion?.word ?? null} />
+          <TypingLane words={state.words} side="right" harassed={harassColors} />
         </div>
       </div>
 
@@ -115,7 +127,8 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
         const mine = player.id === state.selfId
         // 자리를 잡는 동안에는 아무도 표시하지 않는다 — 아무의 차례도 아닌 것이 규칙이고,
         // 여기만 이름표를 밝혀두면 아래 안내문("자리를 잡는 중")과 어긋나 보인다
-        const active = state.current === player.id && !state.settling
+        // 턴이 없으니 이름표에 강조할 '차례'도 없다. 자기 자리만 알아볼 수 있으면 된다
+        const active = player.id === state.selfId
         const lives = livesOf.get(player.id) ?? 0
         return (
           <div
@@ -175,7 +188,7 @@ function InputRow({
   input: ReturnType<typeof useHangulInput>
   state: MatchViewState
 }) {
-  const waiting = !state.myTurn && state.phase === 'playing'
+  const waiting = !state.canDrop && state.phase === 'playing'
 
   return (
     <div
@@ -223,48 +236,112 @@ function InputRow({
         />
       </div>
 
-      <TurnHint state={state} />
+      <ActionHint state={state} />
       {/*
-        * 지목이 없을 때도 이 줄의 자리를 비워둔다. 나타났다 사라지게 하면 입력줄 높이가
-        * 바뀌어 아레나가 위아래로 밀린다 — 조준 중에 화면이 움직이면 안 된다.
+        * 알릴 것이 없을 때도 이 줄의 자리를 비워둔다. 나타났다 사라지게 하면 입력줄
+        * 높이가 바뀌어 아레나가 위아래로 밀린다 — 조준 중에 화면이 움직이면 안 된다.
         */}
-      <span
-        data-suggestion={state.suggestion?.word}
-        style={{
-          fontSize: 14,
-          color: '#ffcf5c',
-          visibility: state.suggestion === null ? 'hidden' : 'visible',
-        }}
-      >
-        {state.suggestion === null
-          ? ' '
-          : `상대가 «${state.suggestion.word}» 를 지목했다`}
-      </span>
+      <HealNotice state={state} />
     </div>
   )
 }
 
-/** 지금 내 타자가 무엇을 하는지 한 줄로 알려준다 — 규칙이 턴에 따라 달라지기 때문이다 */
-function TurnHint({ state }: { state: MatchViewState }) {
+/**
+ * 지금 내 타자가 무엇을 하는지 한 줄로 알려준다.
+ *
+ * 턴이 없어졌으므로 갈리는 것은 "떨굴 수 있는가" 하나다. 떨굴 수 없는 동안 친 단어는
+ * 덫이 되므로, 그 사이가 비어 있는 시간이 아니라는 것을 말해줘야 한다.
+ */
+function ActionHint({ state }: { state: MatchViewState }) {
   if (state.phase === 'over') {
     return <span style={{ fontSize: 14, color: '#6a7290' }}>판이 끝났다</span>
   }
-  /*
-   * 자리를 잡는 구간은 아무의 차례도 아니다. "상대 차례"로 뭉뚱그리면 양쪽 화면에
-   * 똑같은 문장이 떠서 판이 멈춘 것처럼 보인다 — 셋을 갈라야 지금 무엇을 기다리는지 읽힌다.
-   */
-  if (state.settling) {
-    return <SettlingHint />
-  }
-  const label = state.myTurn
-    ? '내 차례 — 단어를 치면 그 물건이 화살표 자리에 떨어진다'
-    : '상대 차례 — 단어를 치면 상대에게 지목한다'
+  const ready = state.canDrop
   return (
     <span
-      data-turn-hint={state.myTurn ? 'mine' : 'theirs'}
-      style={{ fontSize: 14, color: state.myTurn ? '#6bffb0' : '#6a7290' }}
+      data-turn-hint={ready ? 'mine' : 'theirs'}
+      style={{
+        fontSize: 14,
+        color: ready ? '#6bffb0' : '#ff9f6b',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+      }}
     >
-      {label}
+      {ready
+        ? '단어를 치면 그 물건이 화살표 자리에 떨어진다'
+        : '단어를 치면 상대에게 덫을 건다'}
+      {!ready && <CooldownBar ratio={state.dropCooldown} />}
+    </span>
+  )
+}
+
+/** 다음에 떨굴 수 있을 때까지 남은 시간. 숫자보다 줄어드는 막대가 눈에 빨리 들어온다 */
+function CooldownBar({ ratio }: { ratio: number }) {
+  return (
+    <span
+      data-cooldown={ratio.toFixed(2)}
+      style={{
+        display: 'inline-block',
+        width: 48,
+        height: 4,
+        borderRadius: 2,
+        background: '#2b3047',
+        overflow: 'hidden',
+      }}
+    >
+      <span
+        style={{
+          display: 'block',
+          width: `${Math.round(ratio * 100)}%`,
+          height: '100%',
+          background: '#ff9f6b',
+        }}
+      />
+    </span>
+  )
+}
+
+/**
+ * 덫이 먹혔다는 알림.
+ *
+ * 하트가 반 칸 오르는 것은 이름표에서 일어나는데 시선은 떨어지는 물건에 가 있다.
+ * 무엇 때문에 올랐는지 말해주지 않으면 숫자가 흔들린 것으로 지나간다.
+ */
+function HealNotice({ state }: { state: MatchViewState }) {
+  const heal = state.lastHeal
+  const seq = heal?.seq ?? 0
+  const [shown, setShown] = useState<string | null>(null)
+  const timer = useRef(0)
+
+  useEffect(() => {
+    if (heal === null) {
+      return
+    }
+    const mine = heal.by === state.selfId
+    setShown(
+      mine
+        ? `덫이 먹혔다 — «${heal.word}» 로 하트 반 칸 회복`
+        : `상대의 덫 «${heal.word}» 를 쳤다 — 상대가 반 칸 회복`,
+    )
+    clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setShown(null), 1800)
+    // seq가 바뀔 때만 새 알림이다 — 같은 회복을 매 프레임 다시 띄우지 않는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  return (
+    <span
+      data-heal={shown ?? undefined}
+      style={{
+        fontSize: 14,
+        color: '#6bffb0',
+        visibility: shown === null ? 'hidden' : 'visible',
+      }}
+    >
+      {shown ?? ' '}
     </span>
   )
 }
@@ -366,16 +443,36 @@ function PlayerLives({ lives, invulnerable }: { lives: number; invulnerable: num
     >
       {invulnerable > 0 && <Barrier ratio={invulnerable} />}
       {Array.from({ length: LIVES }, (_, slot) => {
-        const kept = slot < lives
+        /*
+         * 방해가 먹히면 하트가 **반 칸씩** 오른다. 칸을 통째로만 그리면 되찾은 것이
+         * 화면에 나타나지 않아, 무엇 때문에 살아남았는지 알 수 없다.
+         * 반 칸은 왼쪽만 채운 하트로 그린다.
+         */
+        const filled = Math.min(Math.max(lives - slot, 0), 1)
         return (
           <span
             key={slot}
             ref={(node) => {
               slots.current[slot] = node
             }}
-            style={{ display: 'inline-block', color: kept ? KEPT : LOST }}
+            data-heart={filled}
+            style={{ position: 'relative', display: 'inline-block', color: LOST }}
           >
-            {kept ? '♥' : '♡'}
+            ♡
+            {filled > 0 && (
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  color: KEPT,
+                  overflow: 'hidden',
+                  width: `${filled * 100}%`,
+                }}
+              >
+                ♥
+              </span>
+            )}
           </span>
         )
       })}
@@ -383,56 +480,6 @@ function PlayerLives({ lives, invulnerable }: { lives: number; invulnerable: num
   )
 }
 
-/**
- * 물건이 멈추기를 기다리는 동안.
- *
- * 점 셋이 차례로 밝아진다 — 얼마나 걸릴지는 물리가 정해서 예고할 수 없지만,
- * 무언가 진행 중이라는 것은 보여야 한다. 정지된 문장만 두면 멈춘 것과 구분되지 않는다.
- */
-function SettlingHint() {
-  const ref = useRef<HTMLSpanElement | null>(null)
-
-  useEffect(() => {
-    const dots = ref.current?.querySelectorAll('i') ?? []
-    const running = [...dots].map((dot, index) =>
-      play(
-        dot as HTMLElement,
-        [{ opacity: 0.25 }, { opacity: 1 }, { opacity: 0.25 }],
-        {
-          duration: 1000,
-          delay: index * 180,
-          iterations: Number.POSITIVE_INFINITY,
-          easing: 'ease-in-out',
-        },
-      ),
-    )
-    return () => running.forEach((animation) => animation?.cancel())
-  }, [])
-
-  return (
-    <span
-      ref={ref}
-      data-turn-hint="settling"
-      style={{ fontSize: 14, color: '#c8a95e', display: 'inline-flex', gap: 6 }}
-    >
-      <span aria-hidden style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-        {[0, 1, 2].map((dot) => (
-          <i
-            key={dot}
-            style={{
-              width: 4,
-              height: 4,
-              borderRadius: 999,
-              background: 'currentColor',
-              opacity: 0.25,
-            }}
-          />
-        ))}
-      </span>
-      자리를 잡는 중 — 물건이 멈추면 다음 차례로 넘어간다
-    </span>
-  )
-}
 
 function Verdict({
   state,

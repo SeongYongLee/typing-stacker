@@ -1,23 +1,30 @@
 import type { PlayerId, PlayerInfo } from './protocol.ts'
 
 /**
- * 대전의 규칙 상태 — 턴 순서, 하트, 탈락, 승자.
+ * 대전의 규칙 상태 — 하트, 탈락, 승자.
  *
- * 2명을 특수 케이스로 두지 않는다. 플레이어를 배열로 들고 인덱스를 순환시키므로
- * 인원이 늘어도 이 파일은 그대로다. 탈락한 사람은 순환에서 빠지고, 마지막 한 명이 승자다.
+ * **턴은 없다.** 예전에는 한 사람씩 돌아가며 떨궜는데, 그러면 상대가 쌓는 동안
+ * 내 손이 멈춰 있어야 했다. 타자게임에서 손을 멈추게 하는 것은 가장 큰 대가다.
+ * 이제 둘 다 언제든 칠 수 있고, 물건이 한꺼번에 쏟아지는 것은 사람마다 따로 도는
+ * 낙하 간격이 막는다(MatchEngine).
+ *
+ * 2명을 특수 케이스로 두지 않는다. 인원이 늘어도 이 파일은 그대로다.
+ * 마지막 한 명이 승자다.
  *
  * 물리도 화면도 모르는 순수 규칙이라 node에서 그대로 테스트한다.
  */
 class MatchState {
   private readonly order: PlayerInfo[]
   private readonly lives = new Map<PlayerId, number>()
-  private turnIndex = 0
+  /** 회복으로도 이 위로는 올라가지 못한다 — 방해를 쌓아 무한히 버티면 판이 끝나지 않는다 */
+  private readonly maxLives: number
 
   constructor(players: readonly PlayerInfo[], livesPerPlayer: number) {
     if (players.length === 0) {
       throw new Error('플레이어가 없다')
     }
     this.order = [...players]
+    this.maxLives = livesPerPlayer
     for (const player of this.order) {
       this.lives.set(player.id, livesPerPlayer)
     }
@@ -25,14 +32,6 @@ class MatchState {
 
   get players(): readonly PlayerInfo[] {
     return this.order
-  }
-
-  /** 지금 떨굴 차례인 사람. 판이 끝났으면 null */
-  get currentPlayer(): PlayerId | null {
-    if (this.over) {
-      return null
-    }
-    return this.order[this.turnIndex]?.id ?? null
   }
 
   get aliveCount(): number {
@@ -63,9 +62,13 @@ class MatchState {
     return this.livesOf(id) > 0
   }
 
-  /** 그 사람이 지금 물건을 떨굴 수 있는가. 상대가 보낸 drop을 검증하는 문이다 */
+  /**
+   * 그 사람이 지금 물건을 떨굴 수 있는가. 상대가 보낸 drop을 검증하는 문이다.
+   * 차례를 보지 않는다 — 살아 있고 판이 끝나지 않았으면 언제든 떨굴 수 있다.
+   * 얼마나 자주 떨구는지는 방장이 낙하 간격으로 따로 막는다.
+   */
   canDrop(id: PlayerId): boolean {
-    return !this.over && this.isAlive(id) && this.currentPlayer === id
+    return !this.over && this.isAlive(id)
   }
 
   /**
@@ -81,58 +84,26 @@ class MatchState {
   }
 
   /**
-   * 다음 생존자에게 턴을 넘긴다.
-   * 탈락자를 건너뛰므로 인원이 줄어도 순환이 끊기지 않는다.
+   * 방해가 먹혔을 때 방해한 사람이 하트를 되찾는다.
+   *
+   * 되찾는 쪽이 **방해를 건 사람**인 이유는, 방해가 상대에게 놓는 덫이기 때문이다 —
+   * 상대가 그 단어를 치면 덫이 작동한 것이고 그 값이 나에게 온다.
+   * 이미 탈락한 사람은 되살아나지 않는다. 판이 끝나고도 되돌아오면 승패가 뒤집힌다.
    */
-  nextTurn(): void {
-    if (this.over) {
+  heal(id: PlayerId, amount: number): void {
+    const current = this.lives.get(id)
+    if (current === undefined || current <= 0 || amount <= 0) {
       return
     }
-    for (let step = 1; step <= this.order.length; step += 1) {
-      const index = (this.turnIndex + step) % this.order.length
-      const candidate = this.order[index]
-      if (candidate !== undefined && this.isAlive(candidate.id)) {
-        this.turnIndex = index
-        return
-      }
-    }
-  }
-
-  /**
-   * 방장이 알려준 차례로 맞춘다.
-   *
-   * 게스트가 스스로 nextTurn을 돌리지 않는 이유는 순서가 한 곳에서만 정해져야 하기 때문이다 —
-   * 탈락이 끼면 "다음 사람"이 양쪽에서 달라질 수 있고, 그러면 둘이 서로 자기 차례라고 믿는다.
-   * 모르는 사람이나 탈락자를 가리키면 무시한다.
-   */
-  setTurn(id: PlayerId): boolean {
-    const index = this.order.findIndex((player) => player.id === id)
-    if (index < 0 || !this.isAlive(id)) {
-      return false
-    }
-    this.turnIndex = index
-    return true
-  }
-
-  /**
-   * 지금 턴 주인이 탈락했다면 살아있는 사람에게 턴을 옮긴다.
-   * 자기 물건이 무너져 스스로 탈락하는 경우가 있어 하트를 깎은 뒤 불러야 한다.
-   */
-  ensureTurnAlive(): void {
-    const current = this.order[this.turnIndex]
-    if (current !== undefined && !this.isAlive(current.id)) {
-      this.nextTurn()
-    }
+    this.lives.set(id, Math.min(current + amount, this.maxLives))
   }
 
   snapshot(): {
-    readonly current: PlayerId | null
     readonly lives: readonly (readonly [PlayerId, number])[]
     readonly over: boolean
     readonly winner: PlayerId | null
   } {
     return {
-      current: this.currentPlayer,
       lives: this.order.map((player) => [player.id, this.livesOf(player.id)] as const),
       over: this.over,
       winner: this.winner,

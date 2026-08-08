@@ -98,10 +98,10 @@ afterEach(() => {
   pair?.clock.uninstall()
 })
 
-/** 지금 차례인 쪽에서 화면에 있는 단어 하나를 골라 떨군다 */
+/** 방장이 화면에 있는 단어 하나를 골라 떨군다 */
 function dropSomething(current: Pair): string | null {
-  const mine = current.hostState().myTurn ? current.host : current.guest
-  const view = current.hostState().myTurn ? current.hostState() : current.guestState()
+  const mine = current.host
+  const view = current.hostState()
   const word = view.words.find((candidate) => candidate.state === 'active')?.word
   if (word === undefined) {
     return null
@@ -110,17 +110,7 @@ function dropSomething(current: Pair): string | null {
   return word
 }
 
-describe('MatchEngine — 턴제 대전', () => {
-  it('첫 차례는 명단의 첫 사람이고 양쪽이 같게 본다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(0.2)
-
-    expect(pair.hostState().current).toBe('host-peer')
-    expect(pair.guestState().current).toBe('host-peer')
-    expect(pair.hostState().myTurn).toBe(true)
-    expect(pair.guestState().myTurn).toBe(false)
-  })
-
+describe('MatchEngine — 대전', () => {
   it('양쪽에 같은 단어가 나온다', async () => {
     pair = await makePair(777)
     await pair.clock.advance(2)
@@ -144,15 +134,14 @@ describe('MatchEngine — 턴제 대전', () => {
     let dropped: string | null = null
     for (let tick = 0; tick < 60 && dropped === null; tick += 1) {
       await pair.clock.advance(0.5)
-      const hostTurn = pair.hostState().myTurn
-      const view = hostTurn ? pair.hostState() : pair.guestState()
+      const view = pair.hostState()
       const target = view.words.find(
         (word) => word.state === 'active' && HIDDEN_WORDS.has(word.word),
       )
       if (target === undefined) {
         continue
       }
-      ;(hostTurn ? pair.host : pair.guest).submit(target.word)
+      pair.host.submit(target.word)
       dropped = target.word
     }
     expect(dropped).not.toBeNull()
@@ -184,138 +173,6 @@ describe('MatchEngine — 턴제 대전', () => {
   /*
    * 이 구간은 아무의 차례도 아니다. settling을 따로 두지 않으면 양쪽 화면에 똑같이
    * "상대 차례"가 떠서 판이 멈춘 것처럼 보인다.
-   */
-  it('물건이 자리를 잡는 동안은 양쪽 다 자기 차례가 아니고, 그 사실이 드러난다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-    dropSomething(pair)
-    await pair.clock.advance(0.4)
-
-    expect(pair.hostState().settling).toBe(true)
-    expect(pair.guestState().settling).toBe(true)
-    expect(pair.hostState().myTurn).toBe(false)
-    expect(pair.guestState().myTurn).toBe(false)
-
-    // 멈추면 풀린다
-    await pair.clock.advance(6)
-    expect(pair.hostState().settling).toBe(false)
-    expect(pair.guestState().settling).toBe(false)
-    expect(pair.guestState().myTurn).toBe(true)
-  })
-
-  it('떨군 물건이 자리를 잡으면 턴이 넘어간다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-    dropSomething(pair)
-
-    // 낙하 + 안착 + 정적 판정까지 넉넉히 돌린다
-    await pair.clock.advance(6)
-
-    expect(pair.hostState().current).toBe('guest-peer')
-    expect(pair.guestState().current).toBe('guest-peer')
-    expect(pair.guestState().myTurn).toBe(true)
-    expect(pair.hostState().myTurn).toBe(false)
-  })
-
-  it('내 차례가 아니면 떨구지 못한다 — 상대가 보낸 청을 방장이 거른다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-
-    // 첫 턴은 방장인데 참가자가 떨구려 한다
-    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
-    expect(word).toBeDefined()
-    pair.guest.submit(word!)
-    await pair.clock.advance(1)
-
-    // 물건이 생기지 않고 턴도 그대로다
-    expect(pair.host.debugBodies()).toHaveLength(0)
-    expect(pair.hostState().current).toBe('host-peer')
-  })
-
-  it('내 차례가 아닐 때 친 단어는 상대에게 지목으로 간다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-
-    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
-    pair.guest.submit(word!)
-    await pair.clock.advance(0.3)
-
-    expect(pair.hostState().suggestion?.word).toBe(word)
-    expect(pair.hostState().suggestion?.by).toBe('guest-peer')
-    // 지목한 쪽 화면에는 자기 지목이 뜨지 않는다
-    expect(pair.guestState().suggestion).toBeNull()
-  })
-
-  /*
-   * 반대 방향도 되어야 한다. 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지
-   * 않으므로, 참가자와 같은 방식으로 보내면 아무 데도 닿지 않는다.
-   */
-  it('방장이 친 지목도 참가자에게 간다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-    // 첫 턴은 방장이므로 한 번 떨궈 참가자에게 넘긴다
-    dropSomething(pair)
-    await pair.clock.advance(6)
-    expect(pair.guestState().myTurn).toBe(true)
-
-    const word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
-    pair.host.submit(word!)
-    await pair.clock.advance(0.3)
-
-    expect(pair.guestState().suggestion?.word).toBe(word)
-    expect(pair.guestState().suggestion?.by).toBe('host-peer')
-    expect(pair.hostState().suggestion).toBeNull()
-  })
-
-  /*
-   * 자리를 잡는 동안은 아무도 떨굴 수 없다. 그 시간에 친 타자가 버려지면
-   * 대기 구간이 통째로 죽는다 — 떨군 쪽도 지목할 수 있어야 하고,
-   * 다음 차례가 될 사람에게 간 지목은 그 차례까지 살아 있어야 한다.
-   */
-  it('자리를 잡는 동안 떨군 쪽이 한 지목은 다음 차례까지 남는다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-    dropSomething(pair)
-
-    // 떨군 단어는 밭에서 빠지므로 다음 단어가 나올 때까지 기다린다
-    let word: string | undefined
-    for (let tick = 0; tick < 10 && word === undefined; tick += 1) {
-      await pair.clock.advance(0.2)
-      word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
-    }
-    expect(word).toBeDefined()
-    expect(pair.hostState().settling).toBe(true)
-
-    // 방금 떨군 방장이 다음 차례가 될 참가자에게 지목한다
-    pair.host.submit(word!)
-    await pair.clock.advance(0.3)
-    expect(pair.guestState().suggestion?.word).toBe(word)
-
-    // 턴이 넘어가도 살아 있다 — 참가자가 지금 그것을 칠 수 있어야 한다
-    await pair.clock.advance(6)
-    expect(pair.guestState().myTurn).toBe(true)
-    expect(pair.guestState().suggestion?.word).toBe(word)
-  })
-
-  it('내 차례가 끝나면 나에게 온 지목은 지워진다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-
-    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
-    pair.guest.submit(word!)
-    await pair.clock.advance(0.3)
-    expect(pair.hostState().suggestion?.word).toBe(word)
-
-    // 방장이 떨구고 턴이 넘어가면 방장에게 온 지목은 쓸 기회를 잃었다
-    dropSomething(pair)
-    await pair.clock.advance(6)
-    expect(pair.hostState().myTurn).toBe(false)
-    expect(pair.hostState().suggestion).toBeNull()
-  })
-
-  /*
-   * 탑이 한 번 무너지면 그 사람의 물건이 줄줄이 벗어난다. 그때마다 깎으면 목숨 셋이
-   * 한순간에 날아가 만회할 틈이 없다. 싱글과 같은 규칙을 대전에도 둔다.
    */
   it('한 번 잃으면 잠깐 무적이고, 그 사실이 양쪽 화면에 보인다', async () => {
     pair = await makePair()
@@ -392,19 +249,6 @@ describe('MatchEngine — 턴제 대전', () => {
     })
   })
 
-  it('턴이 끝나면 방장이 권위 키프레임을 보낸다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(1)
-    dropSomething(pair)
-    await pair.clock.advance(6)
-
-    const syncs = pair.hostLink.sent.filter((message) => message.t === 'sync')
-    expect(syncs.length).toBeGreaterThan(0)
-
-    // 키프레임은 턴 끝에만 보낸다 — 매 프레임 흘리면 무료 전송로 한도를 태운다
-    expect(syncs.length).toBeLessThan(4)
-  })
-
   it('키프레임을 받은 참가자가 방장과 같은 자리를 본다', async () => {
     pair = await makePair()
     await pair.clock.advance(1)
@@ -443,5 +287,74 @@ describe('MatchEngine — 턴제 대전', () => {
 
     expect(pair.host.debugBodies()).toHaveLength(0)
     expect(pair.hostState().feedback?.kind).toBe('miss')
+  })
+
+  it('둘 다 처음부터 떨굴 수 있다 — 차례를 기다리지 않는다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(0.5)
+
+    expect(pair.hostState().canDrop).toBe(true)
+    expect(pair.guestState().canDrop).toBe(true)
+  })
+
+  it('떨군 사람만 잠깐 못 떨군다 — 상대의 손은 멈추지 않는다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+
+    expect(pair.hostState().canDrop).toBe(false)
+    expect(pair.guestState().canDrop).toBe(true)
+  })
+
+  it('간격이 지나면 다시 떨굴 수 있다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+    expect(pair.hostState().canDrop).toBe(false)
+
+    await pair.clock.advance(1.2)
+    expect(pair.hostState().canDrop).toBe(true)
+  })
+
+  it('떨굴 수 없는 동안 친 단어는 덫이 되고 양쪽 다 본다', async () => {
+    pair = await makePair()
+    // 단어가 여러 개 깔린 뒤에 시험한다 — 하나뿐이면 떨구는 순간 걸 것이 남지 않는다
+    await pair.clock.advance(6)
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+
+    const word = pair.hostState().words.find((w) => w.state === 'active')?.word
+    expect(word).toBeDefined()
+    pair.host.submit(word!)
+    await pair.clock.advance(0.3)
+
+    // 건 사람에게도 보여야 한다 — 무엇을 걸어뒀는지 모르면 같은 단어를 또 건다
+    expect(pair.hostState().harassed.map((h) => h.word)).toContain(word)
+    expect(pair.guestState().harassed.map((h) => h.word)).toContain(word)
+    expect(pair.hostState().harassed.find((h) => h.word === word)?.by).toBe('host-peer')
+  })
+
+  it('덫을 상대가 치면 건 사람이 하트를 되찾는다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(6)
+
+    const before = pair.hostState().lives.find(([id]) => id === 'host-peer')?.[1] ?? 0
+
+    dropSomething(pair)
+    await pair.clock.advance(0.3)
+    const trap = pair.hostState().words.find((w) => w.state === 'active')?.word
+    pair.host.submit(trap!)
+    await pair.clock.advance(0.3)
+
+    // 참가자가 그 단어를 친다
+    pair.guest.submit(trap!)
+    await pair.clock.advance(0.6)
+
+    const after = pair.hostState().lives.find(([id]) => id === 'host-peer')?.[1] ?? 0
+    // 이미 가득이면 오르지 않는다. 덫이 풀리는 것은 언제나 일어난다
+    expect(after).toBeGreaterThanOrEqual(before)
+    expect(pair.hostState().harassed.map((h) => h.word)).not.toContain(trap)
   })
 })

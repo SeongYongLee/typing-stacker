@@ -202,6 +202,8 @@ class PhysicsWorld {
   private readonly tracked = new Map<number, TrackedBody>()
   /** snapshots()가 재사용하는 버퍼. 매 프레임 새로 만들지 않기 위한 것 */
   private readonly snapshotBuffer: Mutable<BodySnapshot>[] = []
+  /** countsByVariant()가 다시 채워 쓰는 Map. 같은 이유로 매 프레임 새로 만들지 않는다 */
+  private readonly variantCounts = new Map<string, number>()
   /**
    * 붙어버린 짝과 그 관절. 열쇠는 두 핸들을 작은 것부터 이어붙인 문자열이다.
    * 같은 짝에 관절을 두 번 걸면 서로 당겨 물건이 떨리므로 반드시 한 번만 건다.
@@ -385,6 +387,28 @@ class PhysicsWorld {
         this.welds.delete(key)
       }
     }
+  }
+
+  /**
+   * 지금 아레나에 있는 변형별 개수. 이탈이 확정된 물건은 세지 않는다
+   * (`contactGraph`가 빼는 것과 같은 기준이어야 한다).
+   *
+   * 접촉을 보기 **전에** "합칠 재료가 갖춰졌는지"를 물어보려고 있다.
+   * `contactGraph()`는 물건마다 콜라이더를 전부 훑고 WASM 경계를 여러 번 넘지만
+   * 이쪽은 순수 JS로 Map 하나를 훑는다 — 값이 두 자릿수 배로 싸다.
+   *
+   * **돌려준 Map은 다음 호출에서 덮어쓴다.** 프레임마다 부르는 자리라 새로 만들지 않는다.
+   */
+  countsByVariant(): ReadonlyMap<string, number> {
+    const counts = this.variantCounts
+    counts.clear()
+    for (const entry of this.tracked.values()) {
+      if (entry.lost) {
+        continue
+      }
+      counts.set(entry.variant.id, (counts.get(entry.variant.id) ?? 0) + 1)
+    }
+    return counts
   }
 
   /**

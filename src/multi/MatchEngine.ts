@@ -185,19 +185,16 @@ class MatchEngine {
     }
 
     const word = result.word.word
-    if (this.isMyTurn()) {
+    if (this.canDropNow()) {
       this.requestDrop(word)
-    } else {
-      this.transport.broadcast({ t: 'suggest', word })
-      this.feedback = {
-        seq: this.feedbackSeq,
-        text: word,
-        kind: 'suggested',
-        itemLabel: null,
-        hidden: false,
-      }
-      this.emit()
+      return
     }
+    /*
+     * 떨굴 수 없는 두 경우 — 상대 차례이거나, 떨군 물건이 자리를 잡는 중이다.
+     * 둘 다 지목으로 보낸다. 자리를 잡는 구간을 비워두면 떨군 사람의 타자가
+     * 아무 반응 없이 삼켜져서, 그 몇 초가 통째로 죽는다.
+     */
+    this.sendSuggestion(word)
   }
 
   handleTransportEvent(event: TransportEvent): void {

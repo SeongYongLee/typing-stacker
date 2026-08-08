@@ -23,6 +23,12 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const SRC_ROOT = process.env.SPRITE_ROOT ?? path.join(process.env.HOME, 'Downloads')
 const OUT_DIR = path.join(__dirname, '..', 'public', 'items')
 
+/**
+ * 가장 큰 덩이의 이 비율에 못 미치는 떨어진 조각은 버린다.
+ * 김이나 반짝임 같은 장식은 걸러내면서 한 쌍으로 그려진 물건은 남기는 값이다.
+ */
+const SCRAP_RATIO = 0.06
+
 const SOURCES = [
   {
     dir: '이미지 1탄-ver2',
@@ -129,6 +135,7 @@ const processInPage = ([
   maxOutlinePoints,
   maxPieces,
   targetPieces,
+  scrapRatio,
 ]) =>
   new Promise((resolve, reject) => {
     const img = new Image()
@@ -152,16 +159,66 @@ const processInPage = ([
       sctx.drawImage(image, 0, 0)
       const data = sctx.getImageData(0, 0, w, h).data
 
-      const solid = (x, y) =>
+      const opaque = (x, y) =>
         x >= 0 && y >= 0 && x < w && y < h && data[(y * w + x) * 4 + 3] >= alphaThreshold
+
+      /*
+       * 떨어져 있는 작은 부스러기를 버린다.
+       *
+       * 아메리카노 그림에는 컵 위로 김이 세 가닥 떠 있다. 크롭 상자는 모든 불투명
+       * 픽셀로 잡히는데 윤곽선 추적은 "가장 위 왼쪽 픽셀"에서 시작하므로, 김 한 가닥만
+       * 따라 그리고 끝난다 — 그림은 컵까지 포함한 크기로 그려지는데 충돌 도형은 김
+       * 조각 하나가 된다. 눈에는 물건이 허공에서 부딪히는 것으로 보인다.
+       *
+       * 반대로 큰 덩어리는 버리면 안 된다. 고무장갑 한 쌍이나 운동화 한 켤레처럼
+       * 두 덩이가 다 필요한 물건이 있다. 그래서 가장 큰 덩이의 일정 비율에 못 미치는
+       * 것만 버리고, 남은 것을 제대로 감쌌는지는 아래 maskCoverage가 검사한다.
+       */
+      const label = new Int32Array(w * h).fill(-1)
+      const sizes = []
+      for (let y = 0; y < h; y += 1) {
+        for (let x = 0; x < w; x += 1) {
+          if (!opaque(x, y) || label[y * w + x] >= 0) continue
+          const id = sizes.length
+          let count = 0
+          const stack = [x, y]
+          label[y * w + x] = id
+          while (stack.length > 0) {
+            const py = stack.pop()
+            const px = stack.pop()
+            count += 1
+            for (let dy = -1; dy <= 1; dy += 1) {
+              for (let dx = -1; dx <= 1; dx += 1) {
+                const nx = px + dx
+                const ny = py + dy
+                if (!opaque(nx, ny) || label[ny * w + nx] >= 0) continue
+                label[ny * w + nx] = id
+                stack.push(nx, ny)
+              }
+            }
+          }
+          sizes.push(count)
+        }
+      }
+      if (sizes.length === 0) throw new Error('no opaque pixels')
+
+      const biggest = Math.max(...sizes)
+      const keep = sizes.map((n) => n >= biggest * scrapRatio)
+      const dropped = sizes.filter((n, i) => !keep[i]).length
+      const solid = (x, y) => {
+        if (!opaque(x, y)) return false
+        return keep[label[y * w + x]]
+      }
 
       let minX = w
       let minY = h
       let maxX = -1
       let maxY = -1
+      let maskPixels = 0
       for (let y = 0; y < h; y += 1) {
         for (let x = 0; x < w; x += 1) {
           if (solid(x, y)) {
+            maskPixels += 1
             if (x < minX) minX = x
             if (x > maxX) maxX = x
             if (y < minY) minY = y
@@ -228,8 +285,28 @@ const processInPage = ([
         outline: norm(simplified),
         pieces: pieces.map(norm),
         coverage: Number((covered / target).toFixed(4)),
+        /*
+         * 추적한 실루엣이 마스크를 얼마나 덮는지.
+         *
+         * coverage는 조각들이 **윤곽선**을 덮는지만 본다. 그래서 엉뚱한 덩이 하나만
+         * 따라 그려도 100%가 나온다 — 아메리카노가 정확히 그랬다. 실제 그림과
+         * 대조하는 눈이 하나 더 필요하다.
+         */
+        maskCoverage: Number((polygonArea(simplified) / maskPixels).toFixed(4)),
+        dropped,
         allConvex: pieces.every(isConvex),
       }
+    }
+
+    /** 폴리곤 넓이 (픽셀 단위). 신발끈 공식 */
+    function polygonArea(points) {
+      let sum = 0
+      for (let i = 0; i < points.length; i += 1) {
+        const [x1, y1] = points[i]
+        const [x2, y2] = points[(i + 1) % points.length]
+        sum += x1 * y2 - x2 * y1
+      }
+      return Math.abs(sum) / 2
     }
 
     function traceContour(solid, minX, minY, maxX, maxY) {
@@ -509,6 +586,7 @@ async function main() {
       MAX_OUTLINE_POINTS,
       MAX_PIECES,
       TARGET_PIECES,
+      SCRAP_RATIO,
     ])
 
     const base64 = result.dataUrl.replace(/^data:image\/png;base64,/, '')
@@ -525,16 +603,28 @@ async function main() {
       '윤곽 ' + String(result.outline.length).padEnd(3),
       '조각 ' + String(result.pieces.length).padEnd(3),
       '면적 ' + (result.coverage * 100).toFixed(1) + '%',
+      '실루엣 ' + (result.maskCoverage * 100).toFixed(0) + '%',
+      result.dropped > 0 ? `부스러기 ${result.dropped}개 버림` : '',
       result.allConvex ? '' : '⚠ 볼록하지 않은 조각',
     )
   }
 
   // 얇은 조각을 버리므로 면적이 100%에서 조금 모자랄 수 있다. 부풀어 오르는 쪽(볼록껍질
   // 대체)이 진짜 문제이므로 상한을 좁게 잡는다.
-  const bad = summary.filter((s) => !s.allConvex || s.coverage < 0.95 || s.coverage > 1.01)
+  /*
+   * maskCoverage가 낮으면 그림의 일부만 따라 그린 것이다 — 나머지는 충돌 없이
+   * 통과하는 유령이 된다. 볼록 조각으로 나누며 오목한 부분이 조금 깎이므로
+   * 100%를 요구하지는 않는다.
+   */
+  const bad = summary.filter(
+    (s) => !s.allConvex || s.coverage < 0.95 || s.coverage > 1.01 || s.maskCoverage < 0.9,
+  )
   if (bad.length > 0) {
     throw new Error(
-      '분해 검증 실패: ' + bad.map((s) => `${s.name}(${s.coverage})`).join(', '),
+      '분해 검증 실패: ' +
+        bad
+          .map((s) => `${s.name}(조각 ${s.coverage} / 실루엣 ${s.maskCoverage})`)
+          .join(', '),
     )
   }
 

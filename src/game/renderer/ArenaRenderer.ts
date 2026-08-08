@@ -1,3 +1,4 @@
+import { sprite } from './spriteCache.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
 import type {
@@ -69,7 +70,6 @@ const WORLD_WIDTH = ARENA.halfWidth * 2
 class ArenaRenderer {
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
-  private readonly imageCache = new Map<string, HTMLImageElement>()
   private scale = 1
   private cssWidth = 0
   private cssHeight = 0
@@ -126,18 +126,6 @@ class ArenaRenderer {
     ctx.restore()
   }
 
-
-  /** 스프라이트는 비동기로 로드되므로 준비된 것만 그린다 */
-  private image(src: string): HTMLImageElement | null {
-    const cached = this.imageCache.get(src)
-    if (cached !== undefined) {
-      return cached.complete && cached.naturalWidth > 0 ? cached : null
-    }
-    const img = new Image()
-    img.src = src
-    this.imageCache.set(src, img)
-    return null
-  }
 
   private toScreenX(worldX: number): number {
     return this.cssWidth / 2 + worldX * this.scale
@@ -259,7 +247,7 @@ class ArenaRenderer {
 
     ctx.globalAlpha = alpha * 0.2
     const ghost = unit * (1.3 + t * 0.5)
-    const img = this.image(reveal.sprite)
+    const img = sprite(reveal.sprite)
     if (img !== null) {
       const ratio = img.naturalWidth / img.naturalHeight
       const w = ratio >= 1 ? ghost : ghost * ratio
@@ -338,7 +326,7 @@ class ArenaRenderer {
    * 실루엣이 그대로 나오고, 그 위에 그림을 다시 덮어 테두리만 남긴다.
    */
   private drawSprite(src: string, bounds: Bounds, rim: string | null): boolean {
-    const img = this.image(src)
+    const img = sprite(src)
     if (img === null) {
       return false
     }

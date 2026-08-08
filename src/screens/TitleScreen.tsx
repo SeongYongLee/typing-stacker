@@ -4,6 +4,8 @@ import { LIVES } from '../game/config.ts'
 
 interface TitleScreenProps {
   onStart: () => void
+  /** 그림을 받은 비율(0~1). 기다리는 동안 얼마나 남았는지 보여준다 */
+  progress: number
   onMultiplayer: () => void
   onCollection: () => void
   ready: boolean
@@ -25,7 +27,7 @@ const ruleStyle: CSSProperties = {
   maxWidth: 460,
 }
 
-function TitleScreen({ onStart, onMultiplayer, onCollection, ready }: TitleScreenProps) {
+function TitleScreen({ onStart, onMultiplayer, onCollection, ready, progress }: TitleScreenProps) {
   useEffect(() => {
     if (!ready) {
       return
@@ -90,7 +92,7 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, ready }: TitleScree
             cursor: ready ? 'pointer' : 'default',
           }}
         >
-          {ready ? '혼자 하기 (Enter)' : '물리 엔진 준비 중…'}
+          {ready ? '혼자 하기 (Enter)' : `준비 중… ${Math.round(progress * 100)}%`}
         </button>
 
         <button

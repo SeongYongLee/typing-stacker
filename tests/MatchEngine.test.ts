@@ -235,6 +235,67 @@ describe('MatchEngine — 턴제 대전', () => {
     expect(pair.guestState().suggestion).toBeNull()
   })
 
+  /*
+   * 반대 방향도 되어야 한다. 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지
+   * 않으므로, 참가자와 같은 방식으로 보내면 아무 데도 닿지 않는다.
+   */
+  it('방장이 친 지목도 참가자에게 간다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    // 첫 턴은 방장이므로 한 번 떨궈 참가자에게 넘긴다
+    dropSomething(pair)
+    await pair.clock.advance(6)
+    expect(pair.guestState().myTurn).toBe(true)
+
+    const word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
+    pair.host.submit(word!)
+    await pair.clock.advance(0.3)
+
+    expect(pair.guestState().suggestion?.word).toBe(word)
+    expect(pair.guestState().suggestion?.by).toBe('host-peer')
+    expect(pair.hostState().suggestion).toBeNull()
+  })
+
+  /*
+   * 자리를 잡는 동안은 아무도 떨굴 수 없다. 그 시간에 친 타자가 버려지면
+   * 대기 구간이 통째로 죽는다 — 떨군 쪽도 지목할 수 있어야 하고,
+   * 다음 차례가 될 사람에게 간 지목은 그 차례까지 살아 있어야 한다.
+   */
+  it('자리를 잡는 동안 떨군 쪽이 한 지목은 다음 차례까지 남는다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    dropSomething(pair)
+    await pair.clock.advance(0.4)
+    expect(pair.hostState().settling).toBe(true)
+
+    // 방금 떨군 방장이 다음 차례가 될 참가자에게 지목한다
+    const word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
+    pair.host.submit(word!)
+    await pair.clock.advance(0.3)
+    expect(pair.guestState().suggestion?.word).toBe(word)
+
+    // 턴이 넘어가도 살아 있다 — 참가자가 지금 그것을 칠 수 있어야 한다
+    await pair.clock.advance(6)
+    expect(pair.guestState().myTurn).toBe(true)
+    expect(pair.guestState().suggestion?.word).toBe(word)
+  })
+
+  it('내 차례가 끝나면 나에게 온 지목은 지워진다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+
+    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
+    pair.guest.submit(word!)
+    await pair.clock.advance(0.3)
+    expect(pair.hostState().suggestion?.word).toBe(word)
+
+    // 방장이 떨구고 턴이 넘어가면 방장에게 온 지목은 쓸 기회를 잃었다
+    dropSomething(pair)
+    await pair.clock.advance(6)
+    expect(pair.hostState().myTurn).toBe(false)
+    expect(pair.hostState().suggestion).toBeNull()
+  })
+
   it('턴이 끝나면 방장이 권위 키프레임을 보낸다', async () => {
     pair = await makePair()
     await pair.clock.advance(1)

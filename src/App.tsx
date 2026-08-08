@@ -25,7 +25,7 @@ function initialRoute(): Route {
 
 function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
-  const { engine, state } = useGameEngine()
+  const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
 
   const startSolo = useCallback(() => {
@@ -72,7 +72,8 @@ function App() {
         onStart={startSolo}
         onMultiplayer={() => setRoute('lobby')}
         onCollection={() => setRoute('collection')}
-        ready={engine !== null && state !== null}
+        ready={engine !== null && state !== null && assetProgress >= 1}
+        progress={assetProgress}
       />
     )
   }

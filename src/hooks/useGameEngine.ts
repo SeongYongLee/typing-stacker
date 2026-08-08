@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 import { GameEngine, type GameState } from '../game/core/GameEngine.ts'
+import { WORDS } from '../game/data/words.ts'
+import { preloadSprites } from '../game/renderer/spriteCache.ts'
 import { loadCollection, saveCollection } from '../storage/collection.ts'
+
+/** 게임에 나오는 모든 그림. 판이 시작되기 전에 이만큼을 받아둔다 */
+const SPRITE_SOURCES = WORDS.flatMap((entry) => entry.variants.map((item) => item.sprite))
 
 interface UseGameEngine {
   readonly engine: GameEngine | null
   readonly state: GameState | null
+  /** 스프라이트를 받은 비율(0~1). 다 받기 전에는 판을 시작하지 않는다 */
+  readonly assetProgress: number
 }
 
 /**
@@ -14,6 +21,26 @@ interface UseGameEngine {
 function useGameEngine(): UseGameEngine {
   const [engine, setEngine] = useState<GameEngine | null>(null)
   const [state, setState] = useState<GameState | null>(null)
+  const [assetProgress, setAssetProgress] = useState(0)
+
+  /*
+   * 그림을 미리 다 받아둔다.
+   *
+   * 렌더러는 그리려는 순간에 이미지를 불러오므로, 미리 받지 않으면 그 물건이
+   * 처음 나오는 판에서 도형 색만 칠해진 채로 떨어진다. 물건이 57종이 되면서
+   * 판마다 처음 보는 물건이 여럿 나온다.
+   */
+  useEffect(() => {
+    let disposed = false
+    void preloadSprites(SPRITE_SOURCES, (ratio) => {
+      if (!disposed) {
+        setAssetProgress(ratio)
+      }
+    })
+    return () => {
+      disposed = true
+    }
+  }, [])
 
   useEffect(() => {
     let disposed = false
@@ -49,7 +76,7 @@ function useGameEngine(): UseGameEngine {
     return () => window.removeEventListener('resize', onResize)
   }, [engine])
 
-  return { engine, state }
+  return { engine, state, assetProgress }
 }
 
 export { useGameEngine }

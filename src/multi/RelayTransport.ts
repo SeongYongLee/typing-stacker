@@ -97,7 +97,7 @@ class RelayTransport implements Transport {
     create: boolean,
     options: RelayOptions,
   ): Promise<RelayTransport> {
-    const url = `${baseUrl.replace(/\/$/, '')}/room/${code}${create ? '?create=1' : ''}`
+    const url = `${secure(baseUrl).replace(/\/$/, '')}/room/${code}${create ? '?create=1' : ''}`
     const socket = new WebSocket(url)
 
     return new Promise((resolve, reject) => {
@@ -191,6 +191,16 @@ class RelayTransport implements Transport {
     this.closed = true
     this.onEvent({ kind: 'error', failure: failure(kind) })
   }
+}
+
+/**
+ * HTTPS 페이지에서 `ws://`는 혼합 콘텐츠로 **차단된다** — 그것도 조용히 실패한다.
+ * 배포본(https)에 로컬 개발용 주소를 그대로 넣어두면 원인을 찾는 데 한참 걸리므로
+ * 여기서 올려준다. 로컬(http)에서는 그대로 둔다.
+ */
+function secure(url: string): string {
+  const pageIsHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  return pageIsHttps && url.startsWith('ws://') ? url.replace(/^ws:/, 'wss:') : url
 }
 
 function parseFrame(raw: unknown): ServerFrame | null {

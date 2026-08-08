@@ -86,11 +86,15 @@
 
 ## 스프라이트 파이프라인
 
-`scripts/prepare-sprites.cjs` → `public/items/*.png` + `src/game/data/sprites.generated.ts`
+`assets-src/**/*.png`(원본) → `scripts/prepare-sprites.cjs` → `public/items/*.webp` + `src/game/data/sprites.generated.ts`
 
 생성 파일은 직접 고치지 말고 스크립트를 다시 돌린다. 스크립트는 조각 면적 합이 실루엣과 맞는지, 모든 조각이 볼록한지 검증하고 어긋나면 중단한다. Node에 이미지 라이브러리가 없어 headless Chrome을 이미지 처리기로 쓴다.
 
-새 아트가 오면 `SOURCES`에 폴더와 `[파일명, 이름]`을 추가하고 돌린 뒤, `words.ts`에서 `sprite: '이름'`과 `size: { width | height }`로 쓴다. 크기는 큰 변 하나만 주면 원본 비율을 따른다.
+새 아트가 오면 **원본 PNG를 `assets-src/` 아래 폴더에 넣고** `SOURCES`에 폴더와 `[파일명, 이름]`을 추가해 돌린 뒤, `words.ts`에서 `sprite: '이름'`과 `size: { width | height }`로 쓴다. 크기는 큰 변 하나만 주면 원본 비율을 따른다.
+
+**원본은 저장소 안에 둔다(53MB).** 예전에는 `~/Downloads`에 있었는데, 그 폴더가 정리되면 파이프라인을 다시 돌릴 수 없고 그러면 조각 수 상한·출력 형식처럼 나중에 다시 재보게 되는 상수를 영영 조정할 수 없다. `assets-src/`는 `public/` 밖이라 빌드 산출물에는 실리지 않는다. `SPRITE_ROOT`로 상위 경로를 바꿀 수 있다.
+
+**입력은 PNG, 출력은 WebP다.** 형식은 `OUT_FORMAT` 하나가 정하고, 확장자는 생성 파일이 `SPRITE_EXT`로 내보내 `words.ts`가 그것을 쓴다 — 양쪽에 적어두면 형식을 바꿀 때 한쪽을 잊어 57장이 전부 404가 되고, 그 실패는 배포된 뒤에야 드러난다. 손실 압축이지만 충돌 도형은 **원본**의 알파 마스크에서 뽑으므로 물리에 닿지 않는다. 형식을 바꾼 뒤에는 도감에서 눈으로 한 번 훑는다.
 
 **물건은 전부 스티커 아트다.** 이모지 렌더 경로는 제거했으므로 아트 없는 물건은 추가할 수 없다.
 

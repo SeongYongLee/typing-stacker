@@ -620,7 +620,7 @@ class MatchEngine {
         break
       case 'sync':
         if (!this.transport.isHost) {
-          this.physics.applyFrames(message.bodies, (id) => VARIANT_BY_ID.get(id))
+          this.physics.applyFrames(message.bodies, (id) => VARIANT_BY_ID.get(id), message.welds)
           this.emit()
         }
         break
@@ -841,7 +841,11 @@ class MatchEngine {
       this.keepSuggestionFor(this.match.currentPlayer)
       // 턴이 끝날 때만 권위 키프레임을 보낸다. 매 프레임 흘리면 무료 전송로의
       // 한도를 태우고, 턴제라 그럴 필요도 없다
-      this.transport.broadcast({ t: 'sync', bodies: this.physics.frames() })
+      this.transport.broadcast({
+        t: 'sync',
+        bodies: this.physics.frames(),
+        welds: this.physics.weldPairs(),
+      })
       this.transport.broadcast({ t: 'turn', current: this.match.currentPlayer ?? '' })
     }
   }

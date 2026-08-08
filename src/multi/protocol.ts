@@ -17,6 +17,9 @@ const MAX_PLAYERS = 2
 /** 한 번에 받아들일 단어 수. 화면에 뜨는 것보다 넉넉하되 무한히 받지는 않는다 */
 const MAX_WORDS = 24
 
+/** 한 번에 받아들일 관절 수. 물건 하나가 여럿에 붙을 수 있어 물건 수보다 넉넉히 둔다 */
+const MAX_WELDS = 256
+
 /** 방 코드 길이. 짧으면 무작위 대입으로 남의 방에 들어올 수 있다 */
 const ROOM_CODE_LENGTH = 8
 
@@ -88,7 +91,20 @@ type ToGuest =
   | { readonly t: 'turn'; readonly current: PlayerId }
   | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[] }
   /** 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다 */
-  | { readonly t: 'sync'; readonly bodies: readonly BodyFrame[] }
+  /**
+   * 턴이 끝날 때 방장이 보내는 권위 키프레임. 참가자가 여기에 스냅한다.
+   *
+   * 자리만으로는 부족해서 **붙어 있는 짝**도 함께 보낸다. 끈적함은 양쪽이 각자
+   * 접촉을 보고 정하는데, 한 프레임만 어긋나도 한쪽에만 관절이 생기고 그것은
+   * 영구적이다 — 자리를 맞춰도 그 뒤로 탑이 다르게 움직인다.
+   *
+   * 짝은 **itemId로** 주고받는다. Rapier 핸들은 세계마다 달라 기준이 될 수 없다.
+   */
+  | {
+      readonly t: 'sync'
+      readonly bodies: readonly BodyFrame[]
+      readonly welds: readonly (readonly [number, number])[]
+    }
   | { readonly t: 'over'; readonly winner: PlayerId | null }
   /** 판이 끝난 뒤 계속하기를 누른 사람들 */
   | { readonly t: 'rematchList'; readonly ready: readonly PlayerId[] }
@@ -246,7 +262,18 @@ function parseMessage(raw: unknown): Message | null {
         const frame = parseBodyFrame(entry)
         if (frame !== null) bodies.push(frame)
       }
-      return { t: 'sync', bodies }
+      // 관절이 빠진 옛 키프레임도 받아들인다 — 그 판은 자리만 맞고 구조는 갈린 채로 간다
+      const welds: [number, number][] = []
+      if (Array.isArray(raw['welds'])) {
+        for (const entry of raw['welds']) {
+          if (!Array.isArray(entry) || entry.length !== 2) continue
+          const [a, b] = entry
+          if (!isFiniteNumber(a) || !isFiniteNumber(b)) continue
+          welds.push([Math.floor(a), Math.floor(b)])
+          if (welds.length >= MAX_WELDS) break
+        }
+      }
+      return { t: 'sync', bodies, welds }
     }
     case 'over': {
       const winner = raw['winner']

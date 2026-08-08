@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { RECIPES } from '../game/data/recipes.ts'
+import { hashOf } from '../game/data/materials.ts'
 import { ALL_VARIANTS, VARIANT_BY_ID } from '../game/data/words.ts'
 
 interface CollectionScreenProps {
@@ -20,6 +21,25 @@ interface CollectionScreenProps {
  * `ALL_VARIANTS`를 쓰는 것이 중요하다. 단어에 매달린 것만 훑으면 합성으로만 나오는
  * 물건 18종이 통째로 빠지는데, 그건 도감에서 **가장 채우기 어려운 칸들**이다.
  */
+
+/**
+ * 도감에 놓이는 순서. **단어 테이블 순서가 아니라 섞은 순서다.**
+ *
+ * 데이터 순서 그대로 두면 두 가지가 새어 나갔다.
+ *
+ * 1. **히든이 기본형 바로 옆 칸에 앉는다.** 이름을 `???`로 가려도 자리가 말해준다 —
+ *    클로버 옆이 네잎클로버라 "이 물건에는 히든이 있다"가 11군데 전부 드러났다.
+ * 2. **가장 채우기 어려운 칸이 맨 끝에 뭉친다.** 합성 전용 18종이 통째로 뒤에 몰려서,
+ *    앞을 훑을 땐 꽤 채운 것처럼 보이다가 끝에서 물음표 밭을 만났다. 흩어 놓으면
+ *    "아직 갈 길이 있다"가 도감 전체에 고르게 퍼진다.
+ *
+ * **난수로 섞지 않는다.** 열 때마다 자리가 바뀌면 어제 본 칸을 다시 못 찾는다 —
+ * 도감은 무엇을 모았는지 훑는 곳이라 순서가 기억에 붙어야 한다. id 해시로 정렬하면
+ * 무작위처럼 보이면서 언제 열어도 같은 자리다.
+ *
+ * 모듈이 올라올 때 한 번만 정렬한다. 물건 표는 실행 중에 바뀌지 않는다.
+ */
+const ORDERED = [...ALL_VARIANTS].sort((a, b) => hashOf(a.id) - hashOf(b.id))
 
 /** 이 물건을 만들 수 있는 레시피. 없으면 운으로만 만난다 */
 function recipeFor(id: string): readonly string[] | null {
@@ -91,7 +111,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
   }, [])
 
   const found = new Set(collected)
-  const total = ALL_VARIANTS.length
+  const total = ORDERED.length
 
   return (
     <div style={rootStyle}>
@@ -104,7 +124,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
 
       <div ref={scrollRef} style={scrollStyle}>
         <div style={gridStyle} data-collection>
-          {ALL_VARIANTS.map((item) => {
+          {ORDERED.map((item) => {
           const owned = found.has(item.id)
           const inputs = recipeFor(item.id)
           return (

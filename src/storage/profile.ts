@@ -1,5 +1,5 @@
-import { WORDS } from '../game/data/words.ts'
-import { NICKNAME_MAX, sanitizeNickname } from '../multi/protocol.ts'
+import { isMadeName, joinName, randomName } from '../game/data/nicknames.ts'
+import { NICKNAME_MAX } from '../multi/protocol.ts'
 
 /**
  * 이 기기의 신원.
@@ -24,11 +24,10 @@ interface Profile {
 
 /**
  * 이름을 짓는 것이 게임에 들어가는 문턱이 되면 안 된다.
- * 게임에 나오는 단어 하나를 미리 넣어두면 그대로 시작해도 서로 구분된다.
+ * 미리 하나 뽑아두면 그대로 시작해도 서로 구분된다.
  */
 function suggestName(): string {
-  const index = Math.floor(Math.random() * WORDS.length)
-  return WORDS[index]?.word ?? '이름없음'
+  return joinName(randomName())
 }
 
 function newId(): string {
@@ -58,9 +57,17 @@ function saveProfile(profile: Profile): void {
   }
 }
 
-/** 이름만 바꾼다. id는 그대로 둔다 — 바뀌면 쌓아둔 기록과의 연결이 끊긴다 */
+/**
+ * 이름만 바꾼다. id는 그대로 둔다 — 바뀌면 쌓아둔 기록과의 연결이 끊긴다.
+ *
+ * 재료로 만들 수 있는 이름만 받는다. 순위표는 모두가 보는 자리라 아무 말이나
+ * 올라가면 지울 방법이 없고, 지키는 사람도 없다.
+ */
 function renameProfile(name: string): Profile {
-  const next: Profile = { id: loadProfile().id, name: sanitizeNickname(name) }
+  const next: Profile = {
+    id: loadProfile().id,
+    name: isMadeName(name) ? name : suggestName(),
+  }
   saveProfile(next)
   return next
 }
@@ -84,7 +91,15 @@ function read(): Profile | null {
     if (id.length === 0 || id.length > 64) {
       return null
     }
-    return { id, name: name.slice(0, NICKNAME_MAX) }
+    /*
+     * 저장소는 손으로 고칠 수 있는 자리다. 여기서 검사하지 않으면 자유 입력을
+     * 막아둔 뜻이 사라진다 — 값을 고쳐 넣고 순위표에 올리면 그만이다.
+     * 재료 밖의 이름이면 새로 뽑는다.
+     */
+    return {
+      id,
+      name: isMadeName(name) ? name.slice(0, NICKNAME_MAX) : suggestName(),
+    }
   } catch {
     return null
   }

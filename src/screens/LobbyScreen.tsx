@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { WORDS } from '../game/data/words.ts'
 import { play } from '../components/animate.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
+import { NameScreen } from './NameScreen.tsx'
+import { loadProfile } from '../storage/profile.ts'
 import { useStartAlert } from '../hooks/useStartAlert.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
-import { MAX_PLAYERS, NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
+import { ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
 import { ownerColorAt } from '../multi/ownerColors.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
@@ -91,19 +92,16 @@ const ghostButtonStyle: CSSProperties = {
   color: '#b6bdd4',
 }
 
-/**
- * 이름을 비워두면 둘 다 '이름없음'이 되어 누가 누구인지 알 수 없다.
- * 게임에 나오는 단어 하나를 미리 넣어두면 그대로 시작해도 서로 구분된다 —
- * 이름을 짓는 것이 대전에 들어가는 문턱이 되면 안 된다.
- */
-function suggestName(): string {
-  const index = Math.floor(Math.random() * WORDS.length)
-  return WORDS[index]?.word ?? ''
-}
-
 function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
-  // 한 번만 뽑는다 — 리렌더마다 이름이 바뀌면 고칠 수가 없다
-  const [nickname, setNickname] = useState(suggestName)
+  /*
+   * 이름은 이 화면의 것이 아니라 **기기의 것**이다.
+   *
+   * 예전에는 여기 자유 입력 칸이 있었고 그 값은 어디에도 저장되지 않았다. 그래서
+   * 들어올 때마다 새로 지어야 했고, 무엇보다 그 이름이 그대로 상대 화면에 뜨는데도
+   * 아무 검사가 없었다. 지금은 골라둔 이름을 그대로 쓴다.
+   */
+  const [nickname, setNickname] = useState(() => loadProfile().name)
+  const [naming, setNaming] = useState(false)
   const [code, setCode] = useState('')
 
   const trimmedCode = code.trim().toLowerCase()
@@ -115,9 +113,16 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
       onOpen({ mode: { kind: 'join', code: trimmedCode }, nickname })
     }
   }
-  const actions = [
-    { label: '방 만들기', run: host, primary: true, disabled: false },
-    { label: '코드로 참가', run: join, primary: false, disabled: !codeReady },
+  /*
+   * 고를 수 있는 것을 화면에 놓인 순서 그대로 적는다. 이름이 맨 위인 이유는
+   * 화면에서도 맨 위이기 때문이다 — ↑↓로 훑는 순서가 눈으로 훑는 순서와 어긋나면
+   * 무엇이 골라졌는지 매번 다시 찾아야 한다.
+   */
+  const items = [
+    { run: () => setNaming(true), disabled: false },
+    { run: host, disabled: false },
+    { run: join, disabled: !codeReady },
+    { run: onBack, disabled: false },
   ]
 
   /*
@@ -125,20 +130,24 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
    * Tab을 메뉴가 먹으면 입력칸으로 갈 길이 막힌다.
    */
   const menu = useMenuKeys({
-    count: actions.length + 1,
+    count: items.length,
     useTab: false,
+    // 여기 온 사람이 하려는 것은 방을 여는 것이다. 이름은 이미 골라둔 값이라 건드릴 일이 드물다
+    initialIndex: 1,
+    // 이름 화면이 열려 있는 동안에는 그쪽이 키를 갖는다
+    active: !naming,
     onActivate: (index) => {
-      if (index === actions.length) {
-        onBack()
-        return
-      }
-      const action = actions[index]
-      if (action !== undefined && !action.disabled) {
-        action.run()
+      const item = items[index]
+      if (item !== undefined && !item.disabled) {
+        item.run()
       }
     },
     onCancel: onBack,
   })
+
+  if (naming) {
+    return <NameScreen onBack={() => setNaming(false)} onChange={setNickname} />
+  }
 
   if (phase?.kind === 'connecting') {
     return <Notice title="연결 중…" detail="중개 서버를 거쳐 상대를 찾는다" onBack={onBack} />
@@ -182,48 +191,31 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
         <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
           함께 하기
         </h1>
-        <p style={{ color: '#6a7290', margin: 0, fontSize: 14, lineHeight: 1.8 }}>
-          받침대 하나를 {MAX_PLAYERS}명까지 함께 쓴다. 차례로 쌓고,{' '}
-          <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
-          <br />
-          내 차례가 아닐 때 친 단어를 노린다 — <strong style={{ color: '#b6bdd4' }}>마지막에 친
-          하나</strong>만 노려지고, 남이 그 단어를 쓰면 그 사람 하트가 반 칸 깎인다.
-        </p>
+        {/*
+          규칙은 시작 화면에서 '함께 하기'를 고르면 옆 판에 뜬다. 여기까지 온 사람은
+          이미 읽었고, 지금 할 일은 방을 열거나 코드를 넣는 것뿐이다 —
+          그 앞에 규칙을 또 세우면 해야 할 일이 뒤로 밀린다.
+        */}
 
         {/*
-          * 내 이름 — 비워두면 둘 다 '이름없음'이 되어 누가 누구인지 알 수 없다.
+          * 내 이름 — 상대에게 이렇게 보인다.
           *
           * 버튼들과 같은 간격으로 세워두면 이것도 누르는 것처럼 읽힌다. 이름은 **고르는
           * 값**이지 행동이 아니므로, 옅은 판에 얹고 아래위로 떼어 무리에서 빼둔다.
           */}
         <div style={nameFieldStyle}>
-          <label
-            htmlFor="nickname"
-            style={{ fontSize: 12, color: '#8b93b0', letterSpacing: '0.06em' }}
-          >
+          <span style={{ fontSize: 12, color: '#8b93b0', letterSpacing: '0.06em' }}>
             내 이름
-          </label>
-          <input
-            id="nickname"
-            style={{
-              ...fieldStyle,
-              borderColor: nickname.trim().length === 0 ? '#5a4a2a' : '#3a4160',
-            }}
-            value={nickname}
-            onChange={(event) => setNickname(event.currentTarget.value)}
-            placeholder="다른 사람에게 이렇게 보인다"
-            maxLength={NICKNAME_MAX}
-            autoFocus
-            onKeyDown={(event) => {
-              // 이름을 치고 Enter를 누르면 방을 만든다 — 손을 떼지 않아도 된다
-              if (event.key === 'Enter') host()
-            }}
-          />
-          {nickname.trim().length === 0 && (
-            <span style={{ fontSize: 12, color: '#8a7a4a' }}>
-              비워두면 <strong>이름없음</strong>으로 들어간다. 둘 다 같은 이름이라 누가 누구인지 알기 어렵다.
-            </span>
-          )}
+          </span>
+          <div style={{ ...fieldStyle, borderColor: '#3a4160' }}>{nickname}</div>
+          <MenuButton
+            selected={menu.index === 0}
+            onClick={() => setNaming(true)}
+            onHover={() => menu.select(0)}
+            style={{ padding: '9px 20px', fontSize: 14 }}
+          >
+            바꾸기
+          </MenuButton>
         </div>
 
         {/*
@@ -254,16 +246,16 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
 
           {/* 3행 — 두 길의 끝 */}
           <MenuButton
-            selected={menu.index === 0}
+            selected={menu.index === 1}
             onClick={host}
-            onHover={() => menu.select(0)}
+            onHover={() => menu.select(1)}
           >
             방 만들기
           </MenuButton>
           <MenuButton
-            selected={menu.index === 1}
+            selected={menu.index === 2}
             onClick={join}
-            onHover={() => menu.select(1)}
+            onHover={() => menu.select(2)}
             disabled={!codeReady}
           >
             코드로 참가
@@ -271,9 +263,9 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
         </div>
 
         <MenuButton
-          selected={menu.index === 2}
+          selected={menu.index === 3}
           onClick={onBack}
-          onHover={() => menu.select(2)}
+          onHover={() => menu.select(3)}
         >
           돌아가기 (Esc)
         </MenuButton>

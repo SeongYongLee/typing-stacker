@@ -5,6 +5,7 @@ import { useAudioBoot, useMusic } from './hooks/useAudio.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
 import { useMatchSession } from './hooks/useMatchSession.ts'
 import { CollectionScreen } from './screens/CollectionScreen.tsx'
+import { NameScreen } from './screens/NameScreen.tsx'
 import { OptionsScreen } from './screens/OptionsScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { LobbyScreen } from './screens/LobbyScreen.tsx'
@@ -14,7 +15,7 @@ import { ResultScreen } from './screens/ResultScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 
 /** 지금 어느 화면에 있는지. 싱글과 대전은 서로 다른 엔진을 쓴다 */
-type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'options' | 'loopback'
+type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'options' | 'name' | 'loopback'
 
 /**
  * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
@@ -47,6 +48,7 @@ function musicFor(
     case 'collection':
       return 'collection'
     case 'options':
+    case 'name':
       return 'title'
     case 'title':
       return 'title'
@@ -93,8 +95,15 @@ function App() {
     return <LoopbackScreen onBack={() => setRoute('title')} />
   }
 
+  if (route === 'name') {
+    // 옵션에서 들어왔으니 옵션으로 돌아간다 — 들어온 문으로 나가야 길을 잃지 않는다
+    return <NameScreen onBack={() => setRoute('options')} />
+  }
+
   if (route === 'options') {
-    return <OptionsScreen onBack={() => setRoute('title')} />
+    return (
+      <OptionsScreen onBack={() => setRoute('title')} onName={() => setRoute('name')} />
+    )
   }
 
   if (route === 'collection') {

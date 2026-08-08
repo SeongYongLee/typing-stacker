@@ -96,7 +96,14 @@ class SoundBoard {
 
     switch (event.kind) {
       case 'impact':
-        voices.impact(voice, event.strength, event.size, event.material, event.tone)
+        voices.impact(
+          voice,
+          event.strength,
+          event.size,
+          event.material,
+          event.tone,
+          event.grain,
+        )
         break
       case 'typed':
         voices.typeTick(voice)

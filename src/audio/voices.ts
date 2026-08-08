@@ -200,6 +200,21 @@ interface MaterialVoice {
   } | null
   /** 음높이를 개체마다 몇 반음까지 밀지 */
   readonly spread: number
+  /**
+   * 울림 길이를 개체마다 ±몇 배까지 밀지. 0.5면 절반에서 1.5배까지 벌어진다.
+   *
+   * 음높이와 **다른 축**이라는 것이 요점이다. 같은 금속 21종이 음높이만 다르면
+   * 한 소리를 조옮김한 것으로 들리는데, 짧게 끊기는 것과 길게 남는 것은 서로
+   * 다른 물건으로 들린다 — 자물쇠와 물뿌리개가 그렇다.
+   */
+  readonly ringSpread: number
+  /**
+   * 잡음의 밝기를 개체마다 ±몇 배까지 밀지.
+   *
+   * 몸통이 거의 없는 재질(마른 것·천)은 잡음이 소리의 전부라, 그쪽에서는 이 축이
+   * 울림 길이보다 크게 들린다. 그래서 재질마다 두 축의 몫이 다르다.
+   */
+  readonly tickSpread: number
 }
 
 const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
@@ -214,6 +229,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     ],
     tick: { filter: 'highpass', freq: 1600, gain: 0.5, duration: 0.02 },
     spread: 9,
+    ringSpread: 0.45,
+    tickSpread: 0.25,
   },
   /* 금속 — 정수배가 아닌 배음이라 어긋난 채로 울린다. 그게 금속의 성질이다 */
   metal: {
@@ -226,6 +243,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     ],
     tick: { filter: 'bandpass', freq: 1900, gain: 0.4, duration: 0.025 },
     spread: 10,
+    ringSpread: 0.5,
+    tickSpread: 0.3,
   },
   /* 나무 — 배음 없이 짧게 끊긴다 */
   wood: {
@@ -235,6 +254,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [[2.4, 0.12, 0.06]],
     tick: { filter: 'lowpass', freq: 1400, gain: 0.55, duration: 0.02 },
     spread: 5,
+    ringSpread: 0.4,
+    tickSpread: 0.3,
   },
   /* 마른 것 — 몸통이 거의 없고 잡음이 전부다 */
   paper: {
@@ -244,6 +265,9 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [],
     tick: { filter: 'bandpass', freq: 2600, toFreq: 1100, gain: 0.7, duration: 0.09 },
     spread: 4,
+    ringSpread: 0.3,
+    // 이미 2.6kHz라 더 열면 뾰족해진다. 마른 것은 잡음 길이 쪽으로 갈린다
+    tickSpread: 0.26,
   },
   /* 천 — 넷 중 가장 조용하다. 얹혔다는 것만 겨우 알린다 */
   cloth: {
@@ -253,6 +277,9 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [],
     tick: { filter: 'lowpass', freq: 320, gain: 0.5, duration: 0.05 },
     spread: 3,
+    ringSpread: 0.3,
+    // 몸통이 거의 없는 재질이라 갈라주는 것은 잡음뿐이다. 320Hz라 밝게 밀어도 안 뾰족하다
+    tickSpread: 0.45,
   },
   /* 단단한 플라스틱 — 마른 "딱". 울림이 거의 없다 */
   plastic: {
@@ -262,6 +289,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [[3.1, 0.14, 0.05]],
     tick: { filter: 'bandpass', freq: 2100, gain: 0.5, duration: 0.018 },
     spread: 6,
+    ringSpread: 0.4,
+    tickSpread: 0.28,
   },
   /* 고무 — 음높이가 아래로 훅 떨어졌다 살짝 되돌아온다. 튀는 느낌은 거기서 온다 */
   rubber: {
@@ -271,6 +300,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [],
     tick: { filter: 'lowpass', freq: 700, gain: 0.3, duration: 0.03 },
     spread: 5,
+    ringSpread: 0.35,
+    tickSpread: 0.25,
   },
   /* 기계 — 무겁게 내려앉고 끝에 금속이 한 번 스친다 */
   tech: {
@@ -280,6 +311,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [[6.2, 0.07, 0.16]],
     tick: { filter: 'lowpass', freq: 900, gain: 0.45, duration: 0.03 },
     spread: 3,
+    ringSpread: 0.35,
+    tickSpread: 0.3,
   },
   /* 물컹한 것 — 음높이가 아래로 미끄러진다. "퍽" */
   squish: {
@@ -289,6 +322,8 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [],
     tick: { filter: 'lowpass', freq: 520, toFreq: 200, gain: 0.55, duration: 0.06 },
     spread: 9,
+    ringSpread: 0.4,
+    tickSpread: 0.35,
   },
   /* 번개 — 물건이 아니다. 잡음이 튀고 높은 음이 하나 남는다 */
   spark: {
@@ -298,6 +333,9 @@ const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
     partials: [[2.5, 0.3, 0.26]],
     tick: { filter: 'highpass', freq: 2400, toFreq: 4200, gain: 0.6, duration: 0.07 },
     spread: 9,
+    ringSpread: 0.35,
+    // 이미 4.2kHz까지 열려 있다. 더 밀면 버스의 로우패스(5.2kHz)에 닿아 뾰족해진다
+    tickSpread: 0.15,
   },
 }
 
@@ -379,8 +417,13 @@ function dropWhoosh(voice: Voice, material: Material, tone: number, hidden: bool
  * | 물건 크기 | 몸통의 음높이. 큰 것이 낮게 울리는 것은 실제 물건이 그렇기 때문이다 |
  * | 부딪힌 세기 | 음량과 길이 |
  * | 개체(tone) | 같은 재질 안에서 몇 반음 밀기 — 유리잔과 칵테일을 가른다 |
+ * | 개체(grain) | 울림의 길이와 잡음의 밝기 — 자물쇠와 물뿌리개를 가른다 |
  *
  * 그래야 화면을 보지 않아도 **무엇이 얼마나 세게 얹혔는지**를 안다.
+ *
+ * 개체가 축 하나가 아니라 둘인 이유는 `game/data/materials.ts`에 있다. 음높이만
+ * 밀면 같은 재질이 몰려 있을 때(금속 21종) 이웃끼리 0.48반음이라 한 소리를 조옮김한
+ * 것으로 들린다. 축이 둘이면 같은 폭 안에서도 갈라지는 물건 수가 제곱으로 늘어난다.
  */
 function impact(
   voice: Voice,
@@ -388,18 +431,26 @@ function impact(
   size: number,
   material: Material,
   itemTone: number,
+  itemGrain: number,
 ): void {
   const recipe = MATERIAL_VOICES[material]
   // 큰 물건일수록 낮게. 재질이 정한 기준음에서 크기만큼 내려간다
   const body = clamp(recipe.body - size * 78, 44, 320) * detuneRatio(itemTone, recipe.spread)
   const level = 0.05 + strength * 0.28
+  /*
+   * grain이 높으면 길게 울리고 잡음이 어둡다(크고 속이 빈 것), 낮으면 짧고 밝다
+   * (작고 단단한 것). 둘을 **반대로** 묶는 것이 요점이다 — 같은 방향으로 밀면
+   * "밝고 긴" 것과 "어둡고 짧은" 것뿐이라 결국 축이 하나로 되돌아간다.
+   */
+  const ringScale = 1 + (itemGrain - 0.5) * 2 * recipe.ringSpread
+  const tickScale = 1 - (itemGrain - 0.5) * 2 * recipe.tickSpread
 
   tone(voice, {
     type: 'sine',
     freq: body,
     toFreq: body * 0.6,
     gain: level * recipe.bodyGain,
-    duration: recipe.ring + strength * 0.12,
+    duration: recipe.ring * ringScale + strength * 0.12,
     // 완전히 가파르게 두면 저음이 아니라 딱 소리가 먼저 들린다
     attack: 0.006,
   })
@@ -409,7 +460,7 @@ function impact(
       type: 'sine',
       freq: body * ratio,
       gain: level * gain,
-      duration: ring + strength * 0.1,
+      duration: ring * ringScale + strength * 0.1,
       attack: 0.004,
     })
   }
@@ -423,10 +474,10 @@ function impact(
   if (tick !== null) {
     burst(voice, {
       filter: tick.filter,
-      freq: tick.freq,
-      toFreq: tick.toFreq,
+      freq: tick.freq * tickScale,
+      toFreq: tick.toFreq === undefined ? undefined : tick.toFreq * tickScale,
       gain: (0.014 + strength * 0.042) * tick.gain * 2,
-      duration: tick.duration,
+      duration: tick.duration * ringScale,
       attack: 0.004,
     })
   }
@@ -596,6 +647,9 @@ function suggested(voice: Voice): void {
 }
 
 export {
+  // 재질별 폭(spread)이 여기 있어서, 개체값이 실제로 몇 반음 벌어지는지는
+  // 이 표를 봐야 안다. tests/materials.test.ts가 그 간격을 지킨다
+  MATERIAL_VOICES,
   tone,
   burst,
   hz,

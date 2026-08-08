@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { MATERIALS, materialOf, toneOf } from '../src/game/data/materials.ts'
+import { MATERIAL_VOICES } from '../src/audio/voices.ts'
+import { MATERIALS, grainOf, materialOf, toneOf } from '../src/game/data/materials.ts'
 import { ALL_VARIANTS } from '../src/game/data/words.ts'
 import type { ItemVariant } from '../src/game/types/game.ts'
 
 function allVariants(): ItemVariant[] {
   return [...ALL_VARIANTS]
+}
+
+function groupByMaterial(): Map<string, ItemVariant[]> {
+  const byMaterial = new Map<string, ItemVariant[]>()
+  for (const item of allVariants()) {
+    const list = byMaterial.get(item.material) ?? []
+    list.push(item)
+    byMaterial.set(item.material, list)
+  }
+  return byMaterial
 }
 
 describe('재질 표', () => {
@@ -31,6 +42,9 @@ describe('재질 표', () => {
       expect(item.material, item.id).toBe(materialOf(item.id))
       expect(item.tone, item.id).toBeGreaterThanOrEqual(0)
       expect(item.tone, item.id).toBeLessThan(1)
+      expect(item.grain, item.id).toBe(grainOf(item.id))
+      expect(item.grain, item.id).toBeGreaterThanOrEqual(0)
+      expect(item.grain, item.id).toBeLessThan(1)
     }
   })
 
@@ -69,47 +83,59 @@ describe('개체값(tone)', () => {
    * 값이 겹쳐도 되는 것은 **재질이 다를 때**뿐이다. 유리 셋째와 나무 셋째가 같은
    * 0.5를 갖는 것은 문제가 아니다 — 배음과 울림이 이미 갈라놓았기 때문이다.
    * 갈려야 하는 것은 같은 무리 안이다.
+   *
+   * 축이 둘이므로 겹치지 않아야 하는 것은 **쌍**이다. 음높이가 같아도 울림이 다르면
+   * 다른 소리다 — 격자에 앉히는 것이 바로 그 성질을 쓰는 것이다.
    */
-  it('같은 재질 안에서 값이 겹치지 않는다', () => {
-    const byMaterial = new Map<string, number[]>()
-    for (const item of allVariants()) {
-      const list = byMaterial.get(item.material) ?? []
-      list.push(item.tone)
-      byMaterial.set(item.material, list)
-    }
-    for (const [material, tones] of byMaterial) {
-      expect(new Set(tones).size, material).toBe(tones.length)
+  it('같은 재질 안에서 (음높이, 울림) 쌍이 겹치지 않는다', () => {
+    for (const [material, items] of groupByMaterial()) {
+      const pairs = items.map((item) => `${item.tone},${item.grain}`)
+      expect(new Set(pairs).size, material).toBe(pairs.length)
     }
   })
 
   /**
-   * 같은 재질 안에서 값이 뭉쳐 있으면 그 무리가 한 소리로 들린다.
-   * 유리끼리, 금속끼리 서로 갈려 있는지 본다.
+   * 개체값이 실제로 **몇 반음** 벌어지는지는 재질의 폭(spread)까지 봐야 안다.
+   * 0~1 안에서 등간격이라는 것만으로는 부족했다 — 천 13종은 폭이 3반음뿐이라
+   * 이웃끼리 0.23반음이었고, 등간격이었지만 귀에는 완전히 같은 소리였다.
+   *
+   * 격자로 바꾼 뒤에는 음높이 칸이 ⌈√개수⌉개뿐이라 같은 폭에서도 훨씬 벌어진다.
+   * 이 검사가 "물건이 늘어서 무리가 다시 빽빽해지는 것"을 잡는다.
    */
-  it('같은 재질 안에서도 값이 흩어져 있다', () => {
-    const byMaterial = new Map<string, number[]>()
-    for (const item of allVariants()) {
-      const list = byMaterial.get(item.material) ?? []
-      list.push(item.tone)
-      byMaterial.set(item.material, list)
-    }
-    for (const [material, tones] of byMaterial) {
-      if (tones.length < 3) {
+  it('같은 음높이 칸끼리는 최소 반음 이상 벌어져 있다', () => {
+    const MIN_SEMITONES = 0.6
+    for (const [material, items] of groupByMaterial()) {
+      const spread = MATERIAL_VOICES[material as keyof typeof MATERIAL_VOICES].spread
+      const levels = [...new Set(items.map((item) => item.tone))].sort((a, b) => a - b)
+      if (levels.length < 2) {
         continue
       }
-      const sorted = [...tones].sort((a, b) => a - b)
-      /*
-       * 등간격으로 펴두므로 가장 가까운 둘도 1/개수만큼 벌어져 있어야 한다.
-       * 해시를 그대로 쓰던 때는 여기서 0.0016짜리 짝이 나왔다 — 0.01반음 차이라
-       * 완전히 같은 소리였다. 이 검사가 그 회귀를 막는다.
-       */
-      let closest = 1
-      for (let i = 1; i < sorted.length; i += 1) {
-        closest = Math.min(closest, (sorted[i] ?? 0) - (sorted[i - 1] ?? 0))
+      let closest = Infinity
+      for (let i = 1; i < levels.length; i += 1) {
+        closest = Math.min(closest, (levels[i] ?? 0) - (levels[i - 1] ?? 0))
       }
-      expect(closest, `${material}에서 가장 가까운 두 물건`).toBeGreaterThan(
-        0.9 / tones.length,
-      )
+      expect(
+        closest * spread,
+        `${material} ${items.length}종의 이웃 음높이 간격(반음)`,
+      ).toBeGreaterThanOrEqual(MIN_SEMITONES)
+    }
+  })
+
+  /**
+   * 음높이가 같은 물건들은 울림이 갈라놓아야 한다. 그것이 두 번째 축을 둔 이유다 —
+   * 여기가 무너지면 격자가 그냥 한 줄로 되돌아간 것이다.
+   */
+  it('음높이가 같은 물건들은 울림이 서로 다르다', () => {
+    for (const [material, items] of groupByMaterial()) {
+      const byTone = new Map<number, number[]>()
+      for (const item of items) {
+        const list = byTone.get(item.tone) ?? []
+        list.push(item.grain)
+        byTone.set(item.tone, list)
+      }
+      for (const [tone, grains] of byTone) {
+        expect(new Set(grains).size, `${material} 음높이 ${tone}`).toBe(grains.length)
+      }
     }
   })
 })

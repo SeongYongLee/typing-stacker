@@ -296,6 +296,7 @@ class GameEngine {
         size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
         material: hit.variant.material,
         tone: hit.variant.tone,
+        grain: hit.variant.grain,
       })
     }
     if (quake > 0) {

@@ -1,5 +1,5 @@
 import { spriteBounds, spriteShape } from '../shapes.ts'
-import { materialOf, toneOf } from './materials.ts'
+import { bounceOf, grainOf, materialOf, toneOf } from './materials.ts'
 import { SPRITE_EXT, type SpriteName } from './sprites.generated.ts'
 import type { ItemVariant, WordEntry } from '../types/game.ts'
 
@@ -37,6 +37,7 @@ interface VariantInput {
 }
 
 function variant(input: VariantInput): ItemVariant {
+  const material = materialOf(input.id)
   return {
     id: input.id,
     label: input.label,
@@ -49,7 +50,8 @@ function variant(input: VariantInput): ItemVariant {
     // 벽이 없는 받침대라 미끄러짐이 곧 이탈이다. 기본 마찰을 넉넉히 두고
     // 물건별로 낮춰서 "잘 미끄러지는 물건"의 개성을 만든다.
     friction: input.friction ?? 0.75,
-    restitution: input.restitution ?? 0.02,
+    // 튐은 물건이 아니라 재질이 정한다 — 고무는 다 튀고 천은 다 죽는다. 이유는 materials.ts에
+    restitution: input.restitution ?? bounceOf(material),
     density: input.density ?? 1,
     // 기본값은 웬만해선 구르지 않는 값이다. 굴리고 싶은 물건만 낮춰 잡는다
     angularDamping: input.angularDamping ?? 2.4,
@@ -57,8 +59,9 @@ function variant(input: VariantInput): ItemVariant {
     hidden: input.hidden ?? false,
     scoreBonus: input.scoreBonus ?? 0,
     // 소리에 쓰는 값은 물건마다 적지 않고 표에서 끌어온다 — 이유는 materials.ts에
-    material: materialOf(input.id),
+    material,
     tone: toneOf(input.id),
+    grain: grainOf(input.id),
   }
 }
 

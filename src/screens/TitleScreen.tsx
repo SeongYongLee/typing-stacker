@@ -3,7 +3,6 @@ import { MenuButton } from '../components/MenuButton.tsx'
 import { useLeaderboard } from '../hooks/useLeaderboard.ts'
 import { TitleSidePanel } from './TitleSidePanel.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
-import { LIVES } from '../game/config.ts'
 
 interface TitleScreenProps {
   onStart: () => void
@@ -22,15 +21,6 @@ const rootStyle: CSSProperties = {
   padding: 24,
 }
 
-const ruleStyle: CSSProperties = {
-  fontSize: 15,
-  lineHeight: 1.9,
-  color: '#b6bdd4',
-  margin: '28px 0 36px',
-  textAlign: 'left',
-  maxWidth: 460,
-}
-
 function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, progress }: TitleScreenProps) {
   const board = useLeaderboard()
 
@@ -39,7 +29,7 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, p
     run: () => void
     primary: boolean
     disabled: boolean
-    panel?: 'solo' | 'versus'
+    panel: 'solo' | 'versus' | 'collection' | 'options'
   }[] = [
     {
       label: ready ? '혼자 하기' : `준비 중… ${Math.round(progress * 100)}%`,
@@ -50,9 +40,9 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, p
     },
     // 여덟까지 붙는다. "1대1"은 정원을 늘린 뒤로 사실이 아니다
     { label: '함께 하기', run: onMultiplayer, primary: false, disabled: !ready, panel: 'versus' },
-    { label: '도감', run: onCollection, primary: false, disabled: false },
+    { label: '도감', run: onCollection, primary: false, disabled: false, panel: 'collection' },
     // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
-    { label: '옵션', run: onOptions, primary: false, disabled: false },
+    { label: '옵션', run: onOptions, primary: false, disabled: false, panel: 'options' },
   ]
 
   const menu = useMenuKeys({
@@ -81,34 +71,18 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, p
         </h1>
 
         {/*
-          규칙은 넷만 남긴다. 합성·도감·정확도처럼 나중에 알아도 되는 것은
-          그 순간 화면에서 알려주므로, 시작 전에는 손이 무엇을 해야 하는지와
-          무엇을 잃는지만 있으면 된다.
-        */}
-        <ul style={ruleStyle}>
-          <li>좌우에서 내려오는 한글 단어를 타이핑한다.</li>
-          <li>
-            <strong style={{ color: '#ffcf5c' }}>Enter를 누른 순간</strong>의 화살표
-            위치로 물건이 떨어진다.
-          </li>
-          <li>
-            물건이 쏠려서 받침대를 벗어나면{' '}
-            <strong style={{ color: '#ff6b6b' }}>목숨이 하나</strong> 줄어든다.
-          </li>
-          <li>
-            목숨은 <strong style={{ color: '#ff6b6b' }}>{LIVES}개(♥♥♥)</strong>. 다 잃으면
-            게임이 끝난다.
-          </li>
-        </ul>
+          메뉴와 패널을 나란히 둔다.
 
-        {/*
-          메뉴와 패널을 나란히 둔다. 패널은 자리를 항상 차지한다 — 항목을 오갈 때마다
-          나타났다 사라지면 메뉴가 좌우로 흔들려 무엇을 고르는 중인지 놓친다.
+          규칙을 여기 한 덩어리로 두지 않는 이유는, 넷 중 하나를 고르러 온 사람에게
+          네 개의 설명을 한꺼번에 읽히는 셈이기 때문이다. 지금은 고른 것의 설명만
+          패널에 뜬다. 패널은 자리와 크기를 항상 차지한다 — 오갈 때마다 늘었다 줄면
+          메뉴가 흔들려 무엇을 고르는 중인지 놓친다.
         */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: '260px auto',
+            marginTop: 32,
             gap: 20,
             justifyContent: 'center',
             alignItems: 'start',

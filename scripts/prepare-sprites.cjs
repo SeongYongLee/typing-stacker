@@ -200,7 +200,14 @@ const ALPHA_THRESHOLD = 100
 const MAX_SIZE = 256
 /** 윤곽선 단순화 강도 — 크기 대비 비율 */
 const SIMPLIFY_RATIO = 0.012
-const MAX_OUTLINE_POINTS = 44
+/**
+ * 윤곽선 점 수 상한.
+ *
+ * 44였을 때 거북이·별똥별·학사모·별가루가 정확히 44에서 멈췄다 — 더 정밀해질 수 있는데
+ * 상한이 막고 있던 것이다. 점 수는 조각 수를 통해서만 물리에 값을 매기므로
+ * (콜라이더 비용은 조각이 정한다) 여기를 넉넉히 두고 조각 쪽에서 조인다.
+ */
+const MAX_OUTLINE_POINTS = 64
 /**
  * 조각 수 상한. 우산 캐노피처럼 물결진 윤곽은 오목한 꼭짓점이 많아 조각이 불어난다.
  * 상한에 걸리면 볼록껍질로 때우면서 정확도를 잃으므로, 그 전에 윤곽선을 더 단순화해
@@ -351,6 +358,16 @@ const processInPage = ([
         .map(([id, box]) => ({ id, ...box }))
         .sort((a, b) => b.count - a.count)
 
+      /*
+       * 후보 윤곽을 칠해볼 자리. 물건 하나에 후보가 아홉 × 덩어리 수만큼 나오므로
+       * 캔버스는 한 번만 만들고 매번 지워 쓴다.
+       */
+      const fit = document.createElement('canvas')
+      fit.width = w
+      fit.height = h
+      const fitCtx = fit.getContext('2d', { willReadFrequently: true })
+      fitCtx.fillStyle = '#fff'
+
       const outlines = []
       const pieces = []
       for (const blob of blobs) {
@@ -370,16 +387,58 @@ const processInPage = ([
          * 조각이 오목한 안쪽까지 먹으며 114%로 부풀었다. 강도가 한 방향으로만
          * 움직일 수 있어서 되돌릴 길이 없었다.
          *
-         * 그래서 여러 강도를 다 재보고 가장 나은 것을 고른다. 보는 것은 둘이다 —
-         * **윤곽이 그림을 얼마나 닮았는지**(fit)와 **조각이 윤곽 밖으로 부풀지
-         * 않았는지**(spill). 부푸는 쪽이 더 나쁘다. 그림에 없는 곳에서 부딪히는 것은
-         * 눈으로 알아챌 수 없기 때문이다.
+         * 그래서 여러 강도를 다 재보고 가장 나은 것을 고른다. 보는 것은 셋이다 —
+         * 그림인데 윤곽 밖으로 밀려난 정도(miss), 그림이 아닌데 윤곽 안에 들어온
+         * 정도(bulge), 조각이 윤곽 밖으로 부푼 정도(spill). 부푸는 쪽이 더 나쁘다.
          */
         const blobW = blob.maxX - blob.minX + 1
         const blobH = blob.maxY - blob.minY + 1
         const baseTolerance = Math.max(1, Math.min(blobW, blobH) * simplifyRatio)
+
+        /*
+         * 후보 윤곽을 **실제로 칠해서** 그림과 겹쳐본다.
+         *
+         * 예전에는 넓이 비율만 봤다(윤곽 넓이 ÷ 마스크 픽셀 수). 그러면 모양이 틀려도
+         * 넓이만 맞으면 만점이다 — 한쪽이 부풀고 다른 쪽이 패이면 서로 상쇄되기
+         * 때문이다. 보물지도가 6각형으로, 고무장갑이 손가락 없는 8각형으로 뽑힌 것이
+         * 그래서다. 둘 다 넓이는 거의 정확했다.
+         *
+         * 그래서 넓이가 아니라 **겹침**을 잰다. 그림인데 윤곽 밖으로 밀려난 픽셀(miss)과
+         * 그림이 아닌데 윤곽 안에 들어온 픽셀(bulge)을 따로 센다. 상쇄되지 않으므로
+         * 모양이 틀리면 반드시 점수에 남는다.
+         *
+         * 큰 덩어리는 몇 픽셀 건너뛰며 센다. 재는 것이 비율이라 표본이 성겨도 값이
+         * 흔들리지 않고, 후보마다 픽셀을 전부 훑으면 물건 하나에 수백만 번이 된다.
+         */
+        const step = Math.max(1, Math.floor(Math.min(blobW, blobH) / 256))
+        const overlapOf = (poly) => {
+          fitCtx.clearRect(0, 0, w, h)
+          fitCtx.beginPath()
+          fitCtx.moveTo(poly[0][0] + 0.5, poly[0][1] + 0.5)
+          for (let i = 1; i < poly.length; i += 1) {
+            fitCtx.lineTo(poly[i][0] + 0.5, poly[i][1] + 0.5)
+          }
+          fitCtx.closePath()
+          fitCtx.fill()
+          const filled = fitCtx.getImageData(blob.minX, blob.minY, blobW, blobH).data
+          let inside = 0
+          let miss = 0
+          let bulge = 0
+          for (let y = 0; y < blobH; y += step) {
+            for (let x = 0; x < blobW; x += step) {
+              const painted = filled[(y * blobW + x) * 4 + 3] > 127
+              const real = blobSolid(blob.minX + x, blob.minY + y)
+              if (real) inside += 1
+              if (real && !painted) miss += 1
+              else if (!real && painted) bulge += 1
+            }
+          }
+          if (inside === 0) return { miss: 1, bulge: 1 }
+          return { miss: miss / inside, bulge: bulge / inside }
+        }
+
         let best = null
-        for (const factor of [0.25, 0.4, 0.6, 1, 1.45, 2.1, 3.05, 4.4, 6.4]) {
+        for (const factor of [0.15, 0.25, 0.4, 0.6, 1, 1.45, 2.1, 3.05, 4.4, 6.4]) {
           let tolerance = baseTolerance * factor
           let candidate = simplify(outline, tolerance)
           while (candidate.length > maxOutlinePoints) {
@@ -392,11 +451,16 @@ const processInPage = ([
           if (attemptPieces.length === 0) continue
           const outlineArea = Math.abs(area(candidate))
           if (outlineArea === 0) continue
-          const fit = polygonArea(candidate) / blob.count
+          const { miss, bulge } = overlapOf(candidate)
           const spill =
             attemptPieces.reduce((sum, p) => sum + Math.abs(area(p)), 0) / outlineArea
           const score =
-            Math.abs(fit - 1) +
+            /*
+             * 부푸는 쪽에 벌점을 두 배 준다. 그림에 없는 곳에서 부딪히는 것은 눈으로
+             * 알아챌 수 없기 때문이다 — 사라진 쪽은 통과하는 것이 보이기라도 한다.
+             */
+            miss +
+            bulge * 2 +
             Math.abs(spill - 1) * 2 +
             /*
              * 조각은 콜라이더 비용이라 적을수록 좋지만, 그것은 **동점일 때만** 갈라야

@@ -8,6 +8,7 @@ compatibility_date = "2026-08-01"
 name = "ROOMS"
 class_name = "MatchRoom"
 
+# SQLite 백엔드여야 무료 플랜에서 쓸 수 있다 (KV 백엔드 DO는 유료 전용이다)
 [[migrations]]
 tag = "v1"
-new_classes = ["MatchRoom"]
+new_sqlite_classes = ["MatchRoom"]

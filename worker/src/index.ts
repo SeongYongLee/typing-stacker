@@ -35,23 +35,33 @@ export default {
   },
 }
 
-interface Member {
-  readonly id: string
-  readonly socket: WebSocket
-}
-
-/** 방 하나. 붙어 있는 둘 사이에서 메시지를 그대로 옮긴다 */
+/**
+ * 방 하나. 붙어 있는 둘 사이에서 메시지를 그대로 옮긴다.
+ *
+ * **하이버네이션 API로 붙인다.** `accept()`로 받으면 연결이 열려 있는 내내 duration이
+ * 과금되는데, 턴제 게임은 대부분의 시간이 "아무 일도 없는" 상태다 — 사람이 단어를
+ * 생각하는 동안 서버가 메모리에 떠 있을 이유가 없다. `acceptWebSocket()`은 메시지가
+ * 없는 동안 인스턴스를 재워서 그 시간을 청구하지 않는다.
+ *
+ * 대신 잠든 사이 인스턴스 변수는 사라진다. 그래서 참가자 id를 소켓 자체에 붙여둔다
+ * (serializeAttachment) — 깨어났을 때 누가 누구인지 그것으로 복원한다.
+ */
 export class MatchRoom {
-  private readonly members = new Map<string, Member>()
+  private readonly state: DurableObjectState
+
+  constructor(state: DurableObjectState) {
+    this.state = state
+  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const wantsToCreate = url.searchParams.get('create') === '1'
 
+    const sockets = this.state.getWebSockets()
+
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]
-    server.accept()
 
     /*
      * 거절도 **연결을 받아들인 뒤 닫는 코드로** 알린다.
@@ -59,54 +69,72 @@ export class MatchRoom {
      * 상태 코드로 거절하면 "방이 없다"와 "방이 찼다"를 구분할 수 없다 —
      * 코드 오타가 가장 흔한 실수라 그 구분이 곧 안내의 정확도다.
      */
-    if (!wantsToCreate && this.members.size === 0) {
+    if (!wantsToCreate && sockets.length === 0) {
+      server.accept()
       server.close(4404, '그 코드로 기다리는 방이 없다')
       return new Response(null, { status: 101, webSocket: client })
     }
-    if (this.members.size >= MAX_PEERS) {
+    if (sockets.length >= MAX_PEERS) {
+      server.accept()
       server.close(4409, '방이 찼다')
       return new Response(null, { status: 101, webSocket: client })
     }
 
     const id = crypto.randomUUID()
-    const others = [...this.members.keys()]
-    this.members.set(id, { id, socket: server })
+    const others = sockets.map((socket) => idOf(socket)).filter((peer) => peer !== null)
+
+    this.state.acceptWebSocket(server)
+    // 잠들었다 깨어나도 누가 누구인지 알아야 한다
+    server.serializeAttachment({ id })
 
     server.send(JSON.stringify({ t: 'welcome', self: id, peers: others, host: others.length === 0 }))
     this.broadcast({ t: 'peerJoined', peer: id }, id)
 
-    server.addEventListener('message', (event) => {
-      const parsed = parse(event.data)
-      if (parsed === null) {
-        return
-      }
-      const envelope = { t: 'msg', from: id, data: parsed.data }
-      if (typeof parsed.to === 'string') {
-        this.members.get(parsed.to)?.socket.send(JSON.stringify(envelope))
-        return
-      }
-      this.broadcast(envelope, id)
-    })
-
-    const drop = (): void => {
-      if (this.members.delete(id)) {
-        this.broadcast({ t: 'peerLeft', peer: id }, id)
-      }
-    }
-    server.addEventListener('close', drop)
-    server.addEventListener('error', drop)
-
     return new Response(null, { status: 101, webSocket: client })
+  }
+
+  webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer): void {
+    const from = idOf(socket)
+    const parsed = parse(raw)
+    if (from === null || parsed === null) {
+      return
+    }
+    const envelope = { t: 'msg', from, data: parsed.data }
+    if (typeof parsed.to === 'string') {
+      const target = this.state
+        .getWebSockets()
+        .find((candidate) => idOf(candidate) === parsed.to)
+      target?.send(JSON.stringify(envelope))
+      return
+    }
+    this.broadcast(envelope, from)
+  }
+
+  webSocketClose(socket: WebSocket): void {
+    const id = idOf(socket)
+    if (id !== null) {
+      this.broadcast({ t: 'peerLeft', peer: id }, id)
+    }
+  }
+
+  webSocketError(socket: WebSocket): void {
+    this.webSocketClose(socket)
   }
 
   private broadcast(message: unknown, exceptId: string): void {
     const text = JSON.stringify(message)
-    for (const member of this.members.values()) {
-      if (member.id !== exceptId) {
-        member.socket.send(text)
+    for (const socket of this.state.getWebSockets()) {
+      if (idOf(socket) !== exceptId) {
+        socket.send(text)
       }
     }
   }
+}
+
+/** 소켓에 붙여둔 참가자 id. 하이버네이션에서 깨어난 뒤에도 이것만은 남는다 */
+function idOf(socket: WebSocket): string | null {
+  const attachment = socket.deserializeAttachment() as { id?: unknown } | null
+  return typeof attachment?.id === 'string' ? attachment.id : null
 }
 
 /** 상대가 보낸 것은 무엇이든 올 수 있다. 모양이 맞지 않으면 조용히 버린다 */

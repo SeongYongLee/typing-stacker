@@ -51,7 +51,10 @@ function useGameEngine(): UseGameEngine {
     // 시드 자체는 매 세션 달라야 하므로 경계에서만 시간을 쓴다.
     // 시드가 정해진 뒤로는 모든 난수가 재현 가능하다 (1대1 멀티 대비).
     // 도감은 판을 넘어 남는다. 저장소를 아는 것은 이 경계뿐이다
-    void GameEngine.create(Date.now() >>> 0, loadCollection()).then((instance) => {
+    void GameEngine.create(Date.now() >>> 0, loadCollection(), {
+      // 미러볼 조명을 다듬는 동안에만 개발 서버의 새 판에 재료를 미리 떨어뜨린다.
+      mirrorBallFixture: import.meta.env.DEV,
+    }).then((instance) => {
       if (disposed) {
         instance.dispose()
         return

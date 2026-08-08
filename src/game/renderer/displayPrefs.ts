@@ -55,6 +55,14 @@ function trailScale(): number {
   return displaySettings().trail
 }
 
+/** 빠른 점멸이 부담스러운 환경에서는 효과를 정적인 저강도 조명으로 바꾼다. */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
+
 export {
   displaySettings,
   updateDisplaySettings,
@@ -62,4 +70,5 @@ export {
   shakeScale,
   glowScale,
   trailScale,
+  prefersReducedMotion,
 }

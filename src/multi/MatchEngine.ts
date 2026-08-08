@@ -1076,6 +1076,7 @@ class MatchEngine {
       aimX: this.aimer.worldX,
       showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
       hiddenReveal: null,
+      mirrorBallLights: null,
       landing: this.landing.view,
       quake: 0,
       quakePhase: 0,

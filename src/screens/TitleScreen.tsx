@@ -59,7 +59,6 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, ready, progress }: 
         >
           타자 스태커
         </h1>
-        <p style={{ color: '#6a7290', marginTop: 10 }}>타자게임 + 쌓기</p>
 
         {/*
           규칙은 넷만 남긴다. 합성·도감·정확도처럼 나중에 알아도 되는 것은

@@ -65,6 +65,16 @@ interface MatchViewState {
   readonly feedback: MatchFeedback | null
   readonly winner: PlayerId | null
   readonly connectionLost: boolean
+  /** 판을 거듭하며 쌓인 승수. 이름 옆에 붙는다 */
+  readonly wins: readonly (readonly [PlayerId, number])[]
+  /** 계속하기를 누른 사람들 */
+  readonly wantRematch: readonly PlayerId[]
+  /**
+   * 상대가 **일부러** 로비로 나갔다.
+   * 연결이 끊긴 것과 구분한다 — 이쪽은 사고가 아니라 상대의 선택이고,
+   * 다시 시도해볼 것이 없으므로 남은 사람에게는 나가는 길만 열어준다.
+   */
+  readonly opponentLeft: boolean
 }
 
 interface MatchFeedback {
@@ -79,7 +89,14 @@ interface MatchEngineOptions {
   readonly transport: Transport
   readonly players: readonly PlayerInfo[]
   readonly seed: number
+  /**
+   * 판을 거듭하며 쌓이는 승수. **세션이 들고 있는 것을 그대로 받아 고친다** —
+   * 엔진은 판마다 새로 만들어지므로 여기서 소유하면 점수가 매 판 사라진다.
+   */
+  readonly wins: Map<PlayerId, number>
   readonly onFailure?: (failure: TransportFailure) => void
+  /** 다음 판을 열어달라고 세션에 청한다. 엔진은 자기 자신을 갈아치울 수 없다 */
+  readonly onRestart?: (seed: number) => void
 }
 
 class MatchEngine {
@@ -89,6 +106,18 @@ class MatchEngine {
   private readonly match: MatchState
   private readonly ownerColors: Map<OwnerId, string>
   private readonly onFailure: ((failure: TransportFailure) => void) | null
+  private readonly onRestart: ((seed: number) => void) | null
+  private readonly wins: Map<PlayerId, number>
+  private readonly wantRematch = new Set<PlayerId>()
+  /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
+  private recorded = false
+  private opponentLeft = false
+  /*
+   * 화면에 넘길 사본. emit()은 매 프레임 도는데 이 둘은 판이 끝날 때만 바뀐다 —
+   * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다. 바뀐 순간에만 다시 만든다.
+   */
+  private winsView: readonly (readonly [PlayerId, number])[] = []
+  private rematchView: readonly PlayerId[] = []
 
   /**
    * 단어 밭을 굴리는 난수와 물건을 뽑는 난수를 나눠 둔다.
@@ -138,6 +167,9 @@ class MatchEngine {
     this.physics = physics
     this.transport = options.transport
     this.onFailure = options.onFailure ?? null
+    this.onRestart = options.onRestart ?? null
+    this.wins = options.wins
+    this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES)
     this.ownerColors = buildOwnerColors(options.players)
     this.rng = createRng(options.seed)
@@ -273,6 +305,61 @@ class MatchEngine {
       )
       this.nextItemId += 1
     }
+  }
+
+  /** 이긴 사람에게 1점. 무승부(둘 다 같은 붕괴로 탈락)면 아무도 못 얻는다 */
+  private recordWin(winner: PlayerId | null): void {
+    if (this.recorded) {
+      return
+    }
+    this.recorded = true
+    if (winner !== null) {
+      this.wins.set(winner, (this.wins.get(winner) ?? 0) + 1)
+    }
+    this.winsView = [...this.wins]
+    /*
+     * 판이 끝나면 무적 시계가 멈춘다(update가 먼저 빠져나간다). 그대로 두면 결과
+     * 화면 내내 하트에 베리어가 씌워진 채로 남는다 — 끝난 판에서 지킬 것이 없다.
+     */
+    this.invulnerable.clear()
+    this.lastHurt = null
+  }
+
+  /** 화면에서 계속하기를 눌렀다 */
+  requestRematch(): void {
+    if (!this.match.over || this.opponentLeft) {
+      return
+    }
+    if (this.transport.isHost) {
+      this.wantRematch.add(this.transport.selfId)
+      this.publishRematch()
+      return
+    }
+    this.transport.broadcast({ t: 'rematch' })
+  }
+
+  /** 화면에서 로비로 나가기를 눌렀다. 상대가 영문을 모른 채 기다리지 않게 알리고 나간다 */
+  announceLeave(): void {
+    if (this.opponentLeft) {
+      return
+    }
+    this.transport.broadcast({ t: 'bye' })
+  }
+
+  /** 방장만 부른다. 모두 누르면 여기서 다음 판이 열린다 */
+  private publishRematch(): void {
+    this.rematchView = [...this.wantRematch]
+    this.transport.broadcast({ t: 'rematchList', ready: this.rematchView })
+    this.emit()
+
+    const all = this.match.players.every((player) => this.wantRematch.has(player.id))
+    if (!all) {
+      return
+    }
+    // 시드를 새로 뽑아야 다음 판에 같은 단어가 같은 순서로 되풀이되지 않는다
+    const seed = Date.now() >>> 0
+    this.transport.broadcast({ t: 'restart', seed })
+    this.onRestart?.(seed)
   }
 
   dispose(): void {
@@ -470,8 +557,36 @@ class MatchEngine {
       case 'over':
         if (!this.transport.isHost) {
           this.loop.stop()
+          this.recordWin(message.winner)
           this.emit()
         }
+        break
+      case 'rematch':
+        if (this.transport.isHost) {
+          this.wantRematch.add(from)
+          this.publishRematch()
+        }
+        break
+      case 'rematchList':
+        if (!this.transport.isHost) {
+          this.wantRematch.clear()
+          for (const id of message.ready) {
+            this.wantRematch.add(id)
+          }
+          this.rematchView = [...this.wantRematch]
+          this.emit()
+        }
+        break
+      case 'restart':
+        if (!this.transport.isHost) {
+          this.onRestart?.(message.seed)
+        }
+        break
+      case 'bye':
+        // 사고가 아니라 상대의 선택이다. 남은 사람에게는 나가는 길만 열어준다
+        this.opponentLeft = true
+        this.loop.stop()
+        this.emit()
         break
       default:
         break
@@ -608,6 +723,7 @@ class MatchEngine {
 
     if (this.match.over) {
       this.loop.stop()
+      this.recordWin(this.match.winner)
       this.transport.broadcast({ t: 'over', winner: this.match.winner })
       return
     }
@@ -666,6 +782,9 @@ class MatchEngine {
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
+      wins: this.winsView,
+      wantRematch: this.rematchView,
+      opponentLeft: this.opponentLeft,
     })
   }
 }

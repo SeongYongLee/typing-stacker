@@ -41,8 +41,18 @@ async function makePair(seed = 1234): Promise<Pair> {
   clock.install()
 
   const [hostLink, guestLink] = LoopbackTransport.pair()
-  const host = await MatchEngine.create({ transport: hostLink, players: PLAYERS, seed })
-  const guest = await MatchEngine.create({ transport: guestLink, players: PLAYERS, seed })
+  const host = await MatchEngine.create({
+    transport: hostLink,
+    players: PLAYERS,
+    seed,
+    wins: new Map(),
+  })
+  const guest = await MatchEngine.create({
+    transport: guestLink,
+    players: PLAYERS,
+    seed,
+    wins: new Map(),
+  })
 
   hostLink.listen((event) => host.handleTransportEvent(event))
   guestLink.listen((event) => guest.handleTransportEvent(event))
@@ -329,6 +339,57 @@ describe('MatchEngine — 턴제 대전', () => {
     await pair.clock.advance(INVULNERABLE_SEC + 0.2)
     expect(pair.hostState().hurt).toBeNull()
     expect(pair.guestState().invulnerable).toHaveLength(0)
+  })
+
+  describe('판이 끝난 뒤', () => {
+    /** 한쪽 목숨을 다 털어 판을 끝낸다 */
+    async function finish(current: Pair, loser: string): Promise<void> {
+      for (let round = 0; round < LIVES; round += 1) {
+        current.host.debugEscape(loser, 1)
+        await current.clock.advance(INVULNERABLE_SEC + 0.4)
+      }
+    }
+
+    it('이긴 사람에게 1승이 붙고 양쪽이 같게 본다', async () => {
+      pair = await makePair()
+      await pair.clock.advance(1)
+      await finish(pair, 'guest-peer')
+
+      expect(pair.hostState().phase).toBe('over')
+      expect(pair.hostState().winner).toBe('host-peer')
+      expect(new Map(pair.hostState().wins).get('host-peer')).toBe(1)
+      expect(new Map(pair.guestState().wins).get('host-peer')).toBe(1)
+    })
+
+    it('한쪽만 계속하기를 눌러도 다음 판은 열리지 않는다', async () => {
+      pair = await makePair()
+      await pair.clock.advance(1)
+      await finish(pair, 'guest-peer')
+
+      pair.host.requestRematch()
+      await pair.clock.advance(0.3)
+
+      // 누가 눌렀는지는 양쪽이 같게 본다 — 기다리는 쪽이 자기라는 것을 알아야 한다
+      expect(pair.hostState().wantRematch).toEqual(['host-peer'])
+      expect(pair.guestState().wantRematch).toEqual(['host-peer'])
+      expect(pair.hostState().phase).toBe('over')
+    })
+
+    /*
+     * 나가기는 사고(연결 끊김)와 구분해야 한다. 남은 사람에게 다시 시도할 것이
+     * 없으므로 계속하기를 열어두면 누르고 영영 기다리게 된다.
+     */
+    it('상대가 나가면 남은 사람이 그 사실을 안다', async () => {
+      pair = await makePair()
+      await pair.clock.advance(1)
+      await finish(pair, 'guest-peer')
+
+      pair.guest.announceLeave()
+      await pair.clock.advance(0.3)
+
+      expect(pair.hostState().opponentLeft).toBe(true)
+      expect(pair.hostState().connectionLost).toBe(false)
+    })
   })
 
   it('턴이 끝나면 방장이 권위 키프레임을 보낸다', async () => {

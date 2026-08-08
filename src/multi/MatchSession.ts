@@ -80,6 +80,13 @@ class MatchSession {
   /** 준비 단계의 명단. 방장이 정하고 참가자는 받아 쓴다 */
   private roster: readonly PlayerInfo[] = []
   private readonly ready = new Set<PlayerId>()
+  /**
+   * 판을 거듭하며 쌓이는 승수.
+   *
+   * 엔진이 아니라 여기서 들고 있는 이유는 엔진이 판마다 새로 만들어지기 때문이다.
+   * 엔진에 이 Map을 그대로 넘겨 고치게 한다.
+   */
+  private readonly wins = new Map<PlayerId, number>()
 
   private constructor(options: SessionOptions) {
     this.nickname = sanitizeNickname(options.nickname)
@@ -297,26 +304,47 @@ class MatchSession {
       return
     }
     this.started = true
+    this.roster = players
     this.clearHandshakeTimeout()
 
     const engine = await MatchEngine.create({
       transport,
       players,
       seed,
+      wins: this.wins,
       onFailure: (reason) => this.onPhase({ kind: 'failed', failure: reason }),
+      onRestart: (next) => this.restart(next),
     })
     if (this.disposed) {
       engine.dispose()
       return
     }
+    // 다음 판이면 앞 판의 엔진을 확실히 치운다 — 남겨두면 물리 세계가 둘이 된다
+    this.engine?.dispose()
     this.engine = engine
     engine.start()
     this.onPhase({ kind: 'playing', engine })
   }
 
+  /**
+   * 다음 판. 명단과 승수는 그대로 두고 판만 새로 연다.
+   *
+   * 엔진을 갈아치우는 일을 엔진 자신에게 맡길 수 없어서 여기로 올려두었다.
+   * 시드가 바뀌므로 단어도 새로 나온다.
+   */
+  private restart(seed: number): void {
+    if (this.disposed) {
+      return
+    }
+    this.started = false
+    void this.begin(this.roster, seed)
+  }
+
   dispose(): void {
     this.disposed = true
     this.clearHandshakeTimeout()
+    // 상대가 영문을 모른 채 기다리지 않게, 끊기 전에 나간다고 알린다
+    this.engine?.announceLeave()
     this.engine?.dispose()
     this.engine = null
     this.transport?.close()

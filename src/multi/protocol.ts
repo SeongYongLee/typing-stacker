@@ -37,6 +37,8 @@ type ToHost =
   | { readonly t: 'hello'; readonly nickname: string }
   /** 준비를 눌렀다. 모두가 누르면 방장이 판을 연다 */
   | { readonly t: 'ready' }
+  /** 판이 끝난 뒤 계속하기를 눌렀다 */
+  | { readonly t: 'rematch' }
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
   | { readonly t: 'drop'; readonly word: string; readonly aimX: number }
   /** 상대 턴에 단어를 지목한다 (강제력 없음) */
@@ -80,8 +82,19 @@ type ToGuest =
   /** 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다 */
   | { readonly t: 'sync'; readonly bodies: readonly BodyFrame[] }
   | { readonly t: 'over'; readonly winner: PlayerId | null }
+  /** 판이 끝난 뒤 계속하기를 누른 사람들 */
+  | { readonly t: 'rematchList'; readonly ready: readonly PlayerId[] }
+  /** 다음 판을 연다. 시드가 바뀌므로 단어도 새로 나온다 */
+  | { readonly t: 'restart'; readonly seed: number }
 
-type Message = ToHost | ToGuest
+/**
+ * 어느 쪽이든 보낼 수 있는 것.
+ * 나가기는 방장도 참가자도 누를 수 있고, 받는 쪽은 "끊긴 것"이 아니라
+ * "일부러 나간 것"으로 구분해야 한다 — 안내가 달라진다.
+ */
+type Either = { readonly t: 'bye' }
+
+type Message = ToHost | ToGuest | Either
 
 interface BodyFrame {
   /** 양쪽이 합의한 물건 식별자. Rapier 핸들은 클라이언트마다 달라 기준이 될 수 없다 */
@@ -139,6 +152,22 @@ function parseMessage(raw: unknown): Message | null {
       return { t: 'full' }
     case 'ready':
       return { t: 'ready' }
+    case 'rematch':
+      return { t: 'rematch' }
+    case 'bye':
+      return { t: 'bye' }
+    case 'restart':
+      if (!isFiniteNumber(raw['seed'])) return null
+      return { t: 'restart', seed: raw['seed'] }
+    case 'rematchList': {
+      if (!Array.isArray(raw['ready'])) return null
+      const ready: PlayerId[] = []
+      for (const id of raw['ready']) {
+        if (isShortString(id, 64)) ready.push(id)
+        if (ready.length >= MAX_PLAYERS) break
+      }
+      return { t: 'rematchList', ready }
+    }
     case 'roster':
       if (!Array.isArray(raw['players'])) return null
       return { t: 'roster', players: parsePlayers(raw['players']) }

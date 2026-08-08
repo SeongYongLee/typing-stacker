@@ -59,8 +59,8 @@ class SoundBoard {
     const ctx = this.bus.context
     const out = this.bus.bgm
     const noise = this.bus.noiseBuffer
-    const { muted, bgm } = this.bus.current
-    const wanted = bgm && !muted ? this.wantedTrack : null
+    const { bgmVolume } = this.bus.current
+    const wanted = bgmVolume > 0 ? this.wantedTrack : null
 
     if (wanted === null || ctx === null || out === null || noise === null) {
       this.music.stop()
@@ -73,15 +73,15 @@ class SoundBoard {
     const ctx = this.bus.context
     const out = this.bus.sfx
     const noise = this.bus.noiseBuffer
-    // 첫 제스처 전이거나 음소거면 아무것도 예약하지 않는다
-    if (ctx === null || out === null || noise === null || this.bus.current.muted) {
+    // 첫 제스처 전이거나 효과음을 껐으면 아무것도 예약하지 않는다.
+    // 게인이 0이라 들리지 않기도 하지만, 무너질 때 헛도는 노드 수십 개를 아낀다
+    if (ctx === null || out === null || noise === null || this.bus.current.sfxVolume <= 0) {
       return
     }
 
     const now = ctx.currentTime
     const voice: Voice = { ctx, out, noise, at: now }
 
-    // 판이 시작됐다는 것 자체는 소리를 내지 않는다. 음악만 되살린다
     /*
      * 판이 시작됐다는 것 자체는 소리를 내지 않는다.
      * 어떤 곡을 틀지는 화면이 정한다 — 사건은 무슨 일이 일어났는지만 말한다.
@@ -96,7 +96,7 @@ class SoundBoard {
 
     switch (event.kind) {
       case 'impact':
-        voices.impact(voice, event.strength, event.size)
+        voices.impact(voice, event.strength, event.size, event.material, event.tone)
         break
       case 'typed':
         voices.typeTick(voice)
@@ -108,7 +108,7 @@ class SoundBoard {
         voices.wordMiss(voice)
         break
       case 'drop':
-        voices.dropWhoosh(voice, event.hidden)
+        voices.dropWhoosh(voice, event.material, event.tone, event.hidden)
         break
       case 'quake':
         voices.quake(voice, event.strength)

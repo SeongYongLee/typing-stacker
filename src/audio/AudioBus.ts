@@ -7,6 +7,15 @@ import {
 } from '../storage/audioSettings.ts'
 
 /**
+ * 배경음악이 효과음 대비 갖는 상한.
+ *
+ * 사용자가 배경음악을 최대로 올려도 효과음의 이만큼까지만 올라간다. 균형을 값 하나로
+ * 지키는 자리라, 효과음 전체를 손볼 때는 여기도 함께 봐야 한다 — 한쪽만 내리면
+ * 균형이 뒤집혀 음악이 앞으로 나온다.
+ */
+const BGM_HEADROOM = 0.38
+
+/**
  * 소리가 나가는 길.
  *
  * `renderer/`가 canvas를 아는 유일한 자리이듯, WebAudio를 아는 자리는 `audio/`뿐이다.
@@ -184,17 +193,16 @@ class AudioBus {
     if (this.master === null || this.bgmGain === null || this.sfxGain === null) {
       return
     }
-    const { muted, volume, bgm } = this.settings
-    this.master.gain.value = muted ? 0 : volume
-    this.sfxGain.gain.value = 1
+    const { sfxVolume, bgmVolume } = this.settings
+    // 마스터는 이제 통로일 뿐이다. 음량은 효과음과 배경음악이 각자 정한다
+    this.master.gain.value = 1
+    this.sfxGain.gain.value = sfxVolume
     /*
-     * 배경음악은 효과음보다 한참 아래에 둔다. 이 게임에서 귀가 실제로 쓰는 정보는
-     * 얹혔는지·놓쳤는지이고, 음악은 그 뒤에 깔려 있기만 하면 된다.
-     *
-     * 효과음을 낮출 때 이 값도 함께 낮춰야 한다. 한쪽만 내리면 균형이 뒤집혀서
-     * 음악이 앞으로 나온다 — 줄이려던 것과 반대의 결과가 된다.
+     * 배경음악은 효과음과 같은 1로 두지 않는다. 이 게임에서 귀가 실제로 쓰는 정보는
+     * 얹혔는지·놓쳤는지이고, 음악은 그 뒤에 깔려 있기만 하면 된다. 사용자가 고르는
+     * 값에 이 비율을 곱해서, "보통"으로 둬도 음악이 효과음을 덮지 않게 한다.
      */
-    this.bgmGain.gain.value = bgm ? 0.26 : 0
+    this.bgmGain.gain.value = bgmVolume * BGM_HEADROOM
   }
 
   dispose(): void {

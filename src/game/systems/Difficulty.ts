@@ -23,7 +23,11 @@ import { CAMERA_START_TOP } from './Camera.ts'
 
 /** 판을 여는 밀도. 무엇이 나오는지 보고 어디에 놓을지 정할 틈이 있다 */
 const OPENING: DifficultyLevel = {
-  spawnInterval: 2.4,
+  /*
+   * 판을 여는 간격. 여기서 급하면 뒤가 아무리 여유로워도 게임 전체가 급해 보인다.
+   * 무엇이 나오는지 보고 어디에 놓을지 정하는 데 한 번은 쉴 틈이 있어야 한다.
+   */
+  spawnInterval: 3.2,
   fallDuration: 7.5,
   aimSpeed: 0.38,
   maxConcurrent: 3,

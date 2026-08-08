@@ -1,17 +1,16 @@
-import {
-  init,
+// 타입만 가져온다. 값으로 쓰면 이 덩이가 메인 번들에 실린다 — 아래 ensureInit 참고
+import type {
   ColliderDesc,
-  JointData,
-  RigidBodyDesc,
+  ImpulseJoint,
+  RigidBody,
   World,
-  type ImpulseJoint,
-  type RigidBody,
 } from '@dimforge/rapier2d-compat'
 import {
   ANCHOR_ANGULAR_DAMPING,
   ANCHOR_LINEAR_DAMPING,
   ARENA,
   HEAVY_MASS,
+  IMPACT_MIN_SPEED,
   QUAKE_MIN_SIZE,
   QUAKE_MIN_SPEED,
   QUAKE_REARM_DISTANCE,
@@ -31,16 +30,47 @@ import type {
 import { isEscaped, isOutOfSight } from './collapseDetector.ts'
 
 /**
- * WASM 초기화는 프로세스에 딱 한 번이어야 한다.
- * init()을 두 번 겹쳐 호출하면 모듈이 두 번 인스턴스화되고, 먼저 만들어진 World가
- * 낡은 인스턴스를 붙들게 되어 "recursive use of an object" 로 터진다.
- * React StrictMode가 이펙트를 두 번 돌리기 때문에 실제로 밟는 경로다.
+ * Rapier 모듈을 **필요할 때 받아온다.**
+ *
+ * 정적으로 import하면 이 덩이가 메인 번들에 들어간다. `-compat` 패키지는 WASM을
+ * base64로 JS 안에 박아두므로 그 크기가 1.5MB가 넘고(전체 번들의 77%), 브라우저는
+ * **그것을 다 받아 파싱할 때까지 화면에 아무것도 그리지 못한다.** 동적 import로
+ * 갈라두면 타이틀 화면이 먼저 뜨고 물리는 그 뒤에 따라온다.
+ *
+ * 타이틀의 "혼자 하기"는 여전히 물리가 준비될 때까지 눌리지 않는다. 이 변경이
+ * 앞당기는 것은 **첫 그림**이지 시작 가능 시점이 아니다.
+ *
+ * WASM 초기화는 프로세스에 딱 한 번이어야 한다. init()을 두 번 겹쳐 호출하면
+ * 모듈이 두 번 인스턴스화되고, 먼저 만들어진 World가 낡은 인스턴스를 붙들게 되어
+ * "recursive use of an object" 로 터진다. React StrictMode가 이펙트를 두 번 돌리기
+ * 때문에 실제로 밟는 경로다 — 그래서 프로미스를 메모이즈한다.
  */
-let initPromise: Promise<void> | null = null
+type Rapier = typeof import('@dimforge/rapier2d-compat')
 
-function ensureInit(): Promise<void> {
-  initPromise ??= init()
+let initPromise: Promise<Rapier> | null = null
+let loaded: Rapier | null = null
+
+function ensureInit(): Promise<Rapier> {
+  initPromise ??= (async () => {
+    const module = await import('@dimforge/rapier2d-compat')
+    await module.init()
+    loaded = module
+    return module
+  })()
   return initPromise
+}
+
+/**
+ * 받아둔 모듈. `PhysicsWorld.create()`를 기다린 뒤에만 쓸 수 있다.
+ *
+ * 못 받은 상태에서 부르면 조용히 넘어가지 않고 바로 터뜨린다 — 물리 없이 만들어진
+ * World는 그 자체로 고장이고, 나중에 이상한 자리에서 드러나면 원인을 찾기 어렵다.
+ */
+function rapier(): Rapier {
+  if (loaded === null) {
+    throw new Error('Rapier를 아직 받지 않았다. PhysicsWorld.create()를 먼저 기다려야 한다')
+  }
+  return loaded
 }
 
 /** 버퍼를 제자리에서 갱신하기 위해 readonly를 벗긴다 */
@@ -83,8 +113,26 @@ interface SettleEvent {
   readonly topY: number
 }
 
+/**
+ * 물건이 무언가에 부딪힌 순간.
+ *
+ * `settled`와 따로 두는 이유는 **시점이 다르기** 때문이다. 자리를 잡았다는 판정은
+ * 느려진 상태가 SETTLE_HOLD_SEC(0.35초)만큼 이어져야 나오는데, 소리는 부딪히는
+ * 그 순간에 나야 한다 — 0.35초 늦은 "쿵"은 화면과 어긋난 것으로 들린다.
+ */
+interface ImpactEvent {
+  readonly variant: ItemVariant
+  /** 부딪히기 직전 속도 x 질량 */
+  readonly impact: number
+}
+
 interface StepResult {
   readonly settled: readonly SettleEvent[]
+  /**
+   * 이번 스텝에 부딪힌 물건들. quake와 달리 **모든** 물건을 담는다 —
+   * quake는 크고 무거운 것만 보므로(entry.shakes) 가벼운 것이 얹히는 순간을 놓친다.
+   */
+  readonly impacts: readonly ImpactEvent[]
   /**
    * 이번 스텝에 받침대를 벗어난 물건들의 **주인**.
    * 개수가 아니라 주인을 돌려주는 이유는, 떨어뜨린 사람이 아니라 쌓은 사람이
@@ -119,6 +167,12 @@ interface TrackedBody {
   settled: boolean
   previousSpeed: number
   impacted: boolean
+  /**
+   * 부딪힘을 이미 소리로 알린 물건인지.
+   * `impacted`와 따로 두는 이유는 그쪽이 지진 전용(entry.shakes)이라 가벼운 물건은
+   * 아예 들어오지 않기 때문이다. 한 번 잠가두면 튕기며 나는 연발음도 막힌다.
+   */
+  struck: boolean
   /** 감쇠를 크게 걸어 잠가둔 상태인지 */
   anchored: boolean
   /** 이탈로 이미 세어둔 물건인지. 날아가는 동안 중복으로 세지 않기 위한 표시 */
@@ -173,15 +227,15 @@ function place(
 function colliderFor(shape: PrimitiveShape): ColliderDesc | null {
   switch (shape.kind) {
     case 'circle':
-      return shape.radius < MIN_HALF_EXTENT ? null : ColliderDesc.ball(shape.radius)
+      return shape.radius < MIN_HALF_EXTENT ? null : rapier().ColliderDesc.ball(shape.radius)
     case 'box':
       return shape.hw < MIN_HALF_EXTENT || shape.hh < MIN_HALF_EXTENT
         ? null
-        : ColliderDesc.cuboid(shape.hw, shape.hh)
+        : rapier().ColliderDesc.cuboid(shape.hw, shape.hh)
     case 'capsule':
       return shape.radius < MIN_HALF_EXTENT
         ? null
-        : ColliderDesc.capsule(shape.halfHeight, shape.radius)
+        : rapier().ColliderDesc.capsule(shape.halfHeight, shape.radius)
     case 'polygon': {
       // 바운딩 박스가 아니라 실질 두께를 본다 — 대각선으로 누운 얇은 삼각형도 걸러야 한다
       if (shape.points.length < 3 || polygonThickness(shape.points) < MIN_HALF_EXTENT * 2) {
@@ -192,7 +246,7 @@ function colliderFor(shape: PrimitiveShape): ColliderDesc | null {
         flat[index * 2] = point.x
         flat[index * 2 + 1] = point.y
       })
-      return ColliderDesc.convexHull(flat)
+      return rapier().ColliderDesc.convexHull(flat)
     }
   }
 }
@@ -212,7 +266,7 @@ class PhysicsWorld {
   private accumulator = 0
 
   private constructor() {
-    this.world = new World({ x: 0, y: ARENA.gravity })
+    this.world = new (rapier().World)({ x: 0, y: ARENA.gravity })
     this.world.timestep = FIXED_STEP
     this.createPlatform()
   }
@@ -245,7 +299,7 @@ class PhysicsWorld {
     owner: OwnerId,
     itemId = 0,
   ): number {
-    const bodyDesc = RigidBodyDesc.dynamic()
+    const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)
       .setLinearDamping(LINEAR_DAMPING)
       .setAngularDamping(variant.angularDamping)
@@ -298,6 +352,7 @@ class PhysicsWorld {
       settled: false,
       previousSpeed: 0,
       impacted: false,
+      struck: false,
       anchored: false,
       dislodged: false,
       lost: false,
@@ -358,7 +413,7 @@ class PhysicsWorld {
     const mid = { x: (posA.x + posB.x) / 2, y: (posA.y + posB.y) / 2 }
 
     const joint = this.world.createImpulseJoint(
-      JointData.fixed(
+      rapier().JointData.fixed(
         toLocal(mid, posA, rotA),
         0,
         toLocal(mid, posB, rotB),
@@ -507,6 +562,7 @@ class PhysicsWorld {
     this.weldSticky()
 
     const settled: SettleEvent[] = []
+    const impacts: ImpactEvent[] = []
     const goneHandles: number[] = []
     const escaped: OwnerId[] = []
     let quake = 0
@@ -540,6 +596,8 @@ class PhysicsWorld {
         Math.hypot(x - entry.restX, y - entry.restY) >= QUAKE_REARM_DISTANCE
       ) {
         entry.impacted = false
+        // 무너지는 중이라면 다시 부딪힐 때 또 소리가 나야 한다
+        entry.struck = false
         entry.dislodged = true
         entry.restX = x
         entry.restY = y
@@ -564,6 +622,24 @@ class PhysicsWorld {
         entry.restY = y
         quake = Math.max(quake, entry.previousSpeed * entry.body.mass())
       }
+
+      /*
+       * 소리를 낼 부딪힘은 같은 방식으로 잡되 문턱만 낮춘다.
+       * 위의 지진 판정은 크고 무거운 물건만 보므로(entry.shakes) 가벼운 것이
+       * 탑 위에 얹히는 순간이 통째로 빠진다 — 정작 가장 자주 일어나는 일이다.
+       */
+      if (
+        !entry.struck &&
+        entry.previousSpeed >= IMPACT_MIN_SPEED &&
+        speed < entry.previousSpeed * 0.55
+      ) {
+        entry.struck = true
+        impacts.push({
+          variant: entry.variant,
+          impact: entry.previousSpeed * entry.body.mass(),
+        })
+      }
+
       entry.previousSpeed = speed
 
       if (entry.settled) {
@@ -603,7 +679,7 @@ class PhysicsWorld {
       }
     }
 
-    return { settled, escaped, quake }
+    return { settled, impacts, escaped, quake }
   }
 
   /**
@@ -837,13 +913,13 @@ class PhysicsWorld {
 
   private createPlatform(): void {
     const body = this.world.createRigidBody(
-      RigidBodyDesc.fixed().setTranslation(
+      rapier().RigidBodyDesc.fixed().setTranslation(
         0,
         ARENA.platformTop - ARENA.platformHalfHeight,
       ),
     )
     this.world.createCollider(
-      ColliderDesc.cuboid(ARENA.platformHalfWidth, ARENA.platformHalfHeight)
+      rapier().ColliderDesc.cuboid(ARENA.platformHalfWidth, ARENA.platformHalfHeight)
         .setFriction(0.9)
         .setRestitution(0.02),
       body,
@@ -852,4 +928,4 @@ class PhysicsWorld {
 }
 
 export { PhysicsWorld }
-export type { SettleEvent, StepResult }
+export type { SettleEvent, ImpactEvent, StepResult }

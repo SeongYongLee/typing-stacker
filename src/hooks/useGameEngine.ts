@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { soundBoard } from '../audio/SoundBoard.ts'
 import { GameEngine, type GameState } from '../game/core/GameEngine.ts'
-import { WORDS } from '../game/data/words.ts'
+import { ALL_VARIANTS } from '../game/data/words.ts'
 import { preloadSprites } from '../game/renderer/spriteCache.ts'
 import { loadCollection, saveCollection } from '../storage/collection.ts'
 
 /** 게임에 나오는 모든 그림. 판이 시작되기 전에 이만큼을 받아둔다 */
-const SPRITE_SOURCES = WORDS.flatMap((entry) => entry.variants.map((item) => item.sprite))
+const SPRITE_SOURCES = ALL_VARIANTS.map((item) => item.sprite)
 
 interface UseGameEngine {
   readonly engine: GameEngine | null
@@ -57,6 +58,8 @@ function useGameEngine(): UseGameEngine {
       created = instance
       instance.onStateChange(setState)
       instance.onCollectionChange(saveCollection)
+      // 엔진은 소리를 모른다. 사건을 소리로 바꾸는 것은 이 경계의 일이다
+      instance.onEvent((event) => soundBoard().handle(event))
       setEngine(instance)
     })
 

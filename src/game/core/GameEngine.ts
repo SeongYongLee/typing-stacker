@@ -1,6 +1,7 @@
 import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
+  IMPACT_FULL_SCALE,
   INVULNERABLE_SEC,
   LIVES,
   SOLO_OWNER,
@@ -22,6 +23,7 @@ import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
+import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats } from '../types/game.ts'
 import { GameLoop } from './GameLoop.ts'
 
@@ -107,6 +109,11 @@ class GameEngine {
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: GameState) => void) | null = null
+  /**
+   * 사건을 받아가는 쪽(지금은 소리). 렌더러와 같은 자리다 —
+   * 엔진은 무슨 일이 일어났는지만 말하고, 그것을 무엇으로 바꿀지는 바깥이 정한다.
+   */
+  private events: GameEventSink | null = null
 
   private constructor(physics: PhysicsWorld, seed: number, known: readonly string[]) {
     this.physics = physics
@@ -130,6 +137,11 @@ class GameEngine {
   onStateChange(listener: (state: GameState) => void): void {
     this.listener = listener
     this.emit()
+  }
+
+  /** 사건을 받아간다. 붙지 않으면 엔진은 아무것도 내보내지 않는다 */
+  onEvent(sink: GameEventSink): void {
+    this.events = sink
   }
 
   attachCanvas(canvas: HTMLCanvasElement): void {
@@ -168,6 +180,7 @@ class GameEngine {
     this.difficultyPeak = 0
     this.physics.reset()
     this.loop.start()
+    this.fire({ kind: 'runStart' })
     this.emit()
   }
 
@@ -203,18 +216,21 @@ class GameEngine {
         itemLabel: null,
         hidden: false,
       }
+      this.fire({ kind: 'wordMiss' })
       this.emit()
       return
     }
 
     this.spawner.remove(result.word.id)
     this.score.onWordMatched(result.word.word)
+    this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     const variant = resolveItem(result.word.word, this.rng)
     this.queueDrop(variant, this.aimer.worldX)
     this.discover(variant)
     if (variant.hidden) {
       this.hiddenReveal = { variant, elapsed: 0 }
+      this.fire({ kind: 'reveal' })
     }
 
     this.feedback = {
@@ -251,7 +267,40 @@ class GameEngine {
     this.loop.stop()
     this.renderer = null
     this.listener = null
+    this.events = null
     this.physics.dispose()
+  }
+
+  private fire(event: GameEvent): void {
+    this.events?.(event)
+  }
+
+  /**
+   * 부딪힘을 사건으로 흘린다.
+   *
+   * 세기를 0~1로 눌러 보내는 이유는 받는 쪽이 물리 단위를 몰라도 되게 하려는 것이다.
+   * 지진은 이미 화면을 흔들고 있으므로 소리에도 따로 알려서, 쿵 소리와 흔들림이
+   * 같은 순간에 오게 한다.
+   */
+  private fireImpacts(
+    impacts: readonly { readonly variant: ItemVariant; readonly impact: number }[],
+    quake: number,
+  ): void {
+    if (this.events === null) {
+      return
+    }
+    for (const hit of impacts) {
+      this.fire({
+        kind: 'impact',
+        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
+        size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
+        material: hit.variant.material,
+        tone: hit.variant.tone,
+      })
+    }
+    if (quake > 0) {
+      this.fire({ kind: 'quake', strength: Math.min(quake / QUAKE_IMPACT_SCALE, 1) })
+    }
   }
 
   private advanceQuake(dt: number): void {
@@ -283,12 +332,26 @@ class GameEngine {
 
   private queueDrop(variant: ItemVariant, x: number): void {
     if (this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
-      this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER)
-      this.sinceLastDrop = 0
+      this.dropNow(variant, x)
       return
     }
     // 쿨다운 중이면 조준한 x를 그대로 들고 대기한다. 입력을 버리지는 않는다.
     this.dropQueue.push({ variant, x })
+  }
+
+  /**
+   * 물건을 실제로 세계에 떨군다.
+   * 대기하다 떨어진 것도 여기를 지나므로, 낙하음이 물건이 생기는 순간과 어긋나지 않는다.
+   */
+  private dropNow(variant: ItemVariant, x: number): void {
+    this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER)
+    this.sinceLastDrop = 0
+    this.fire({
+      kind: 'drop',
+      hidden: variant.hidden,
+      material: variant.material,
+      tone: variant.tone,
+    })
   }
 
   private readonly update = (dt: number): void => {
@@ -299,9 +362,12 @@ class GameEngine {
       this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
       const result = this.physics.step(dt)
       this.applyQuake(result.quake)
+      // 쏟아지는 동안에도 부딪히는 소리는 나야 한다. 무너짐은 이 게임의 결말이다
+      this.fireImpacts(result.impacts, result.quake)
       if (this.collapseTimer >= COLLAPSE_VIEW_SEC) {
         this.phase = 'over'
         this.loop.stop()
+        this.fire({ kind: 'gameOver', won: null })
       }
       this.emit()
       return
@@ -342,13 +408,13 @@ class GameEngine {
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
       if (next !== undefined) {
-        this.physics.spawnItemAt(next.variant, next.x, spawnYFor(this.cameraY), SOLO_OWNER)
-        this.sinceLastDrop = 0
+        this.dropNow(next.variant, next.x)
       }
     }
 
-    const { settled, escaped, quake } = this.physics.step(dt)
+    const { settled, impacts, escaped, quake } = this.physics.step(dt)
     this.applyQuake(quake)
+    this.fireImpacts(impacts, quake)
     for (const event of settled) {
       this.score.onSettled(event.variant, event.topY)
     }
@@ -364,9 +430,11 @@ class GameEngine {
       this.invulnerableLeft = INVULNERABLE_SEC
       // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
       this.score.onLifeLost()
+      this.fire({ kind: 'lifeLost', livesLeft: this.lives })
       if (this.lives === 0) {
         this.phase = 'collapsing'
         this.collapseTimer = 0
+        this.fire({ kind: 'collapse' })
       }
     }
 
@@ -403,6 +471,7 @@ class GameEngine {
     }
     // 합성으로 얻은 것도 히든이다 — 운으로 만난 것과 같은 자리에서 알린다
     this.hiddenReveal = { variant: match.recipe.result, elapsed: 0 }
+    this.fire({ kind: 'merge' })
     this.score.onCrafted(match.recipe.result)
     this.discover(match.recipe.result)
   }

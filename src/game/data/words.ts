@@ -932,6 +932,14 @@ const WORDS: readonly WordEntry[] = [
   },
 ]
 
+/**
+ * 이 게임에 있는 물건 전부.
+ *
+ * 도감·스프라이트 미리받기·재질 표처럼 **"물건이면 다"**를 뜻하는 자리는 이것을 쓴다.
+ * 지금은 단어에 매달린 것뿐이지만, 합성으로만 나오는 물건이 생기면 여기에 합쳐진다.
+ */
+const ALL_VARIANTS: readonly ItemVariant[] = WORDS.flatMap((entry) => entry.variants)
+
 const WORD_BY_TEXT = new Map(WORDS.map((entry) => [entry.word, entry]))
 
 /**
@@ -943,4 +951,4 @@ const VARIANT_BY_ID = new Map(
   WORDS.flatMap((entry) => entry.variants.map((item) => [item.id, item] as const)),
 )
 
-export { WORDS, WORD_BY_TEXT, VARIANT_BY_ID }
+export { WORDS, ALL_VARIANTS, WORD_BY_TEXT, VARIANT_BY_ID }

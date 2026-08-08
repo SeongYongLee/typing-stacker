@@ -9,6 +9,8 @@
  * 가벼운 것이 톡 닿는 것과 비행기가 쿵 떨어지는 것이 같은 소리를 내면
  * 화면과 귀가 어긋난다.
  */
+import type { Material } from './game.ts'
+
 type GameEvent =
   /** 판이 시작됐다 */
   | { readonly kind: 'runStart' }
@@ -16,14 +18,32 @@ type GameEvent =
   | { readonly kind: 'wordHit'; readonly combo: number }
   /** 아무 단어와도 맞지 않았다 */
   | { readonly kind: 'wordMiss' }
-  /** 물건이 손을 떠났다 */
-  | { readonly kind: 'drop'; readonly hidden: boolean }
+  /**
+   * 물건이 손을 떠났다.
+   *
+   * 무엇이 떨어지는지가 **닿기 전에** 들려야 한다. 이 게임에서 물건의 정체는 Enter를
+   * 친 순간 처음 공개되는데, 그때 눈은 다음 단어를 쫓고 있어서 화면을 못 볼 때가 많다.
+   */
+  | {
+      readonly kind: 'drop'
+      readonly hidden: boolean
+      readonly material: Material
+      readonly tone: number
+    }
   /**
    * 물건이 무언가에 부딪혔다.
-   * strength(0~1)는 부딪힌 세기, size는 그린 크기의 큰 변(월드 단위)이다 —
-   * 큰 물건일수록 낮게 울려야 한다.
+   *
+   * strength(0~1)는 부딪힌 세기, size는 그린 크기의 큰 변(월드 단위),
+   * material은 무엇으로 만들어졌는가, tone(0~1)은 같은 재질 안에서 이 물건을
+   * 가르는 값이다. 넷이 모여야 "무엇이 얼마나 세게 얹혔는지"가 소리만으로 들린다.
    */
-  | { readonly kind: 'impact'; readonly strength: number; readonly size: number }
+  | {
+      readonly kind: 'impact'
+      readonly strength: number
+      readonly size: number
+      readonly material: Material
+      readonly tone: number
+    }
   /** 무겁고 큰 물건이 부딪혀 화면이 흔들린다. strength는 0~1 */
   | { readonly kind: 'quake'; readonly strength: number }
   /** 재료가 합쳐져 새 물건이 됐다 */

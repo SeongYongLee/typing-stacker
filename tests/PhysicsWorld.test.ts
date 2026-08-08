@@ -7,8 +7,15 @@ import { WORDS } from '../src/game/data/words.ts'
 import type { ItemVariant, OwnerId } from '../src/game/types/game.ts'
 
 /**
- * 쌓기 기준 물건 — 넓고 납작하며 마찰이 큰 것을 고른다.
+ * 쌓기 기준 물건 — 네모나고, 잘 붙잡고, 구르지 않는 것을 고른다.
  * 이름으로 찾지 않는 이유는 아트가 교체되면 단어 테이블이 통째로 바뀌기 때문이다.
+ *
+ * 예전에는 `마찰 × 가로세로비`로 골라 **가장 납작한 것**이 이겼다. 물건이 57종일
+ * 때는 그것이 우연히 잘 쌓이는 물건이었는데, 안경(가로세로 3.2)이 들어오자 그쪽이
+ * 이겨버렸다 — 얇은 것은 서로 미끄러져 옆으로 퍼지지 위로 쌓이지 않는다. 실제로
+ * 넷을 얹었더니 한 겹 반 높이에서 멈췄다.
+ *
+ * 잘 쌓이는 조건은 납작함이 아니라 **밑면이 평평하고 안 구르는 것**이다.
  */
 function stackable(): ItemVariant {
   let best: ItemVariant | null = null
@@ -16,14 +23,17 @@ function stackable(): ItemVariant {
   for (const entry of WORDS) {
     for (const item of entry.variants) {
       const { hw, hh } = shapeBounds(item.shape)
-      const score = item.friction * (hw / hh)
+      const ratio = hw / hh
+      // 접시처럼 얇은 것도, 막대처럼 선 것도 기준이 될 수 없다
+      if (ratio < 0.7 || ratio > 1.6) continue
+      const score = item.friction * item.angularDamping
       if (score > bestScore) {
         bestScore = score
         best = item
       }
     }
   }
-  if (best === null) throw new Error('단어 테이블이 비어있다')
+  if (best === null) throw new Error('쌓을 만한 물건이 테이블에 없다')
   return best
 }
 

@@ -1,3 +1,5 @@
+import type { Material } from '../game/types/game.ts'
+
 /**
  * 소리를 코드로 만든다. 오디오 파일은 하나도 쓰지 않는다.
  *
@@ -174,53 +176,260 @@ function wordMiss(voice: Voice): void {
 }
 
 /**
+ * 재질마다 부딪힘의 성질이 다르다.
+ *
+ * `body`는 몸통 저음의 기준 음높이(Hz)이고 나머지는 그 위에 무엇을 얹을지다.
+ * 실제 물건이 그렇듯 **단단할수록 높고 짧게, 무를수록 낮고 뭉근하게** 울린다.
+ */
+interface MaterialVoice {
+  /** 몸통 저음의 기준. 물건 크기에 따라 여기서 더 내려간다 */
+  readonly body: number
+  /** 몸통이 울리는 길이(초). 짧으면 "톡", 길면 "웅" */
+  readonly ring: number
+  /** 몸통 음량 배수 */
+  readonly bodyGain: number
+  /** 몸통 위에 얹는 배음비. 비어 있으면 순수한 저음뿐이다 */
+  readonly partials: readonly (readonly [ratio: number, gain: number, ring: number])[]
+  /** 부딪히는 "탁"을 만드는 잡음 */
+  readonly tick: {
+    readonly filter: BiquadFilterType
+    readonly freq: number
+    readonly toFreq?: number
+    readonly gain: number
+    readonly duration: number
+  } | null
+  /** 음높이를 개체마다 몇 반음까지 밀지 */
+  readonly spread: number
+}
+
+const MATERIAL_VOICES: Readonly<Record<Material, MaterialVoice>> = {
+  /* 유리 — 맑은 정수배 배음이 길게 남는다 */
+  glass: {
+    body: 210,
+    ring: 0.3,
+    bodyGain: 0.7,
+    partials: [
+      [2.02, 0.4, 0.5],
+      [3.98, 0.16, 0.34],
+    ],
+    tick: { filter: 'highpass', freq: 1600, gain: 0.5, duration: 0.02 },
+    spread: 9,
+  },
+  /* 금속 — 정수배가 아닌 배음이라 어긋난 채로 울린다. 그게 금속의 성질이다 */
+  metal: {
+    body: 165,
+    ring: 0.42,
+    bodyGain: 0.75,
+    partials: [
+      [2.76, 0.3, 0.6],
+      [5.4, 0.1, 0.42],
+    ],
+    tick: { filter: 'bandpass', freq: 1900, gain: 0.4, duration: 0.025 },
+    spread: 10,
+  },
+  /* 나무 — 배음 없이 짧게 끊긴다 */
+  wood: {
+    body: 190,
+    ring: 0.1,
+    bodyGain: 0.85,
+    partials: [[2.4, 0.12, 0.06]],
+    tick: { filter: 'lowpass', freq: 1400, gain: 0.55, duration: 0.02 },
+    spread: 5,
+  },
+  /* 마른 것 — 몸통이 거의 없고 잡음이 전부다 */
+  paper: {
+    body: 240,
+    ring: 0.05,
+    bodyGain: 0.18,
+    partials: [],
+    tick: { filter: 'bandpass', freq: 2600, toFreq: 1100, gain: 0.7, duration: 0.09 },
+    spread: 4,
+  },
+  /* 천 — 넷 중 가장 조용하다. 얹혔다는 것만 겨우 알린다 */
+  cloth: {
+    body: 120,
+    ring: 0.07,
+    bodyGain: 0.3,
+    partials: [],
+    tick: { filter: 'lowpass', freq: 320, gain: 0.5, duration: 0.05 },
+    spread: 3,
+  },
+  /* 단단한 플라스틱 — 마른 "딱". 울림이 거의 없다 */
+  plastic: {
+    body: 230,
+    ring: 0.09,
+    bodyGain: 0.7,
+    partials: [[3.1, 0.14, 0.05]],
+    tick: { filter: 'bandpass', freq: 2100, gain: 0.5, duration: 0.018 },
+    spread: 6,
+  },
+  /* 고무 — 음높이가 아래로 훅 떨어졌다 살짝 되돌아온다. 튀는 느낌은 거기서 온다 */
+  rubber: {
+    body: 150,
+    ring: 0.16,
+    bodyGain: 0.8,
+    partials: [],
+    tick: { filter: 'lowpass', freq: 700, gain: 0.3, duration: 0.03 },
+    spread: 5,
+  },
+  /* 기계 — 무겁게 내려앉고 끝에 금속이 한 번 스친다 */
+  tech: {
+    body: 95,
+    ring: 0.22,
+    bodyGain: 1,
+    partials: [[6.2, 0.07, 0.16]],
+    tick: { filter: 'lowpass', freq: 900, gain: 0.45, duration: 0.03 },
+    spread: 3,
+  },
+  /* 물컹한 것 — 음높이가 아래로 미끄러진다. "퍽" */
+  squish: {
+    body: 175,
+    ring: 0.13,
+    bodyGain: 0.6,
+    partials: [],
+    tick: { filter: 'lowpass', freq: 520, toFreq: 200, gain: 0.55, duration: 0.06 },
+    spread: 9,
+  },
+  /* 번개 — 물건이 아니다. 잡음이 튀고 높은 음이 하나 남는다 */
+  spark: {
+    body: 380,
+    ring: 0.2,
+    bodyGain: 0.35,
+    partials: [[2.5, 0.3, 0.26]],
+    tick: { filter: 'highpass', freq: 2400, toFreq: 4200, gain: 0.6, duration: 0.07 },
+    spread: 9,
+  },
+}
+
+/** 재질마다 떨어지는 소리도 다르다. 무엇이 오는지 닿기 전에 들려야 한다 */
+interface DropVoice {
+  readonly filter: BiquadFilterType
+  readonly from: number
+  readonly to: number
+  readonly q: number
+  readonly gain: number
+  readonly duration: number
+}
+
+const DROP_VOICES: Readonly<Record<Material, DropVoice>> = {
+  // 맑은 것들은 높은 데서 훑고 지나간다
+  glass: { filter: 'bandpass', from: 1800, to: 700, q: 1.4, gain: 0.03, duration: 0.26 },
+  metal: { filter: 'bandpass', from: 1500, to: 600, q: 1.6, gain: 0.032, duration: 0.28 },
+  // 마른 것은 바스락거리며 내려온다
+  paper: { filter: 'bandpass', from: 2400, to: 1500, q: 0.6, gain: 0.036, duration: 0.34 },
+  cloth: { filter: 'lowpass', from: 700, to: 300, q: 0.5, gain: 0.03, duration: 0.32 },
+  wood: { filter: 'bandpass', from: 900, to: 380, q: 0.8, gain: 0.034, duration: 0.24 },
+  plastic: { filter: 'bandpass', from: 1100, to: 420, q: 0.9, gain: 0.032, duration: 0.24 },
+  rubber: { filter: 'lowpass', from: 800, to: 340, q: 0.7, gain: 0.034, duration: 0.26 },
+  // 무거운 것은 낮게 깔려 온다 — 크게 부딪힐 것이 온다는 예고가 된다
+  tech: { filter: 'lowpass', from: 620, to: 190, q: 0.7, gain: 0.042, duration: 0.34 },
+  squish: { filter: 'lowpass', from: 900, to: 260, q: 0.6, gain: 0.034, duration: 0.28 },
+  spark: { filter: 'highpass', from: 900, to: 3200, q: 0.8, gain: 0.03, duration: 0.22 },
+}
+
+/** 개체별 tone(0~1)을 반음 단위 배수로 바꾼다. 0.5가 기준음이다 */
+function detuneRatio(tone: number, spread: number): number {
+  return 2 ** (((tone - 0.5) * spread) / 12)
+}
+
+/**
  * 물건이 손을 떠났다.
  *
- * 히든이면 훑는 방향을 뒤집어 위로 올린다 — 무언가 다른 것이 온다는 신호가
- * 물건이 보이기 전에 먼저 도착한다.
+ * 재질마다 훑는 대역이 다르다 — 무엇이 떨어지는지가 **닿기 전에** 들려야 하기
+ * 때문이다. 이 게임에서 물건의 정체는 Enter를 친 순간 처음 공개되는데, 그때 눈은
+ * 다음 단어를 쫓고 있어서 화면을 못 볼 때가 많다.
+ *
+ * 히든이면 위로 올라가는 소리를 하나 더 얹는다. 방향이 뒤집히면 그것만으로
+ * "다른 것이 온다"가 전해진다.
  */
-function dropWhoosh(voice: Voice, hidden: boolean): void {
+function dropWhoosh(voice: Voice, material: Material, tone: number, hidden: boolean): void {
+  const recipe = DROP_VOICES[material]
+  const shift = detuneRatio(tone, 4)
   burst(voice, {
-    filter: 'bandpass',
-    freq: hidden ? 380 : 950,
-    toFreq: hidden ? 1450 : 300,
+    filter: recipe.filter,
+    freq: recipe.from * shift,
+    toFreq: recipe.to * shift,
     // Q를 낮추면 훑는 소리가 휘파람이 아니라 바람에 가까워진다
-    q: 0.7,
-    gain: 0.04,
-    duration: 0.3,
+    q: recipe.q,
+    gain: recipe.gain,
+    duration: recipe.duration,
     attack: 0.06,
   })
+  if (hidden) {
+    burst(voice, {
+      filter: 'bandpass',
+      freq: 700,
+      toFreq: 2200,
+      q: 1.2,
+      gain: 0.022,
+      duration: 0.3,
+      attack: 0.08,
+    })
+  }
 }
 
 /**
  * 무언가에 부딪혔다.
  *
- * 세기는 음량과 길이로, 물건의 크기는 음높이로 간다. 큰 것이 낮게 울리는 것은
- * 실제 물건이 그렇기 때문이고, 그래야 화면을 보지 않아도 무엇이 얹혔는지 안다.
+ * 네 가지가 소리를 정한다.
+ *
+ * | 무엇이 | 무엇으로 |
+ * |---|---|
+ * | 재질 | 배음의 성질과 울림의 길이 — 유리는 맑게 남고 천은 거의 안 남는다 |
+ * | 물건 크기 | 몸통의 음높이. 큰 것이 낮게 울리는 것은 실제 물건이 그렇기 때문이다 |
+ * | 부딪힌 세기 | 음량과 길이 |
+ * | 개체(tone) | 같은 재질 안에서 몇 반음 밀기 — 유리잔과 칵테일을 가른다 |
+ *
+ * 그래야 화면을 보지 않아도 **무엇이 얼마나 세게 얹혔는지**를 안다.
  */
-function impact(voice: Voice, strength: number, size: number): void {
-  const body = clamp(150 - size * 72, 50, 150)
+function impact(
+  voice: Voice,
+  strength: number,
+  size: number,
+  material: Material,
+  itemTone: number,
+): void {
+  const recipe = MATERIAL_VOICES[material]
+  // 큰 물건일수록 낮게. 재질이 정한 기준음에서 크기만큼 내려간다
+  const body = clamp(recipe.body - size * 78, 44, 320) * detuneRatio(itemTone, recipe.spread)
+  const level = 0.05 + strength * 0.28
+
   tone(voice, {
     type: 'sine',
     freq: body,
     toFreq: body * 0.6,
-    gain: 0.05 + strength * 0.28,
-    duration: 0.09 + strength * 0.16,
+    gain: level * recipe.bodyGain,
+    duration: recipe.ring + strength * 0.12,
     // 완전히 가파르게 두면 저음이 아니라 딱 소리가 먼저 들린다
     attack: 0.006,
   })
+
+  for (const [ratio, gain, ring] of recipe.partials) {
+    tone(voice, {
+      type: 'sine',
+      freq: body * ratio,
+      gain: level * gain,
+      duration: ring + strength * 0.1,
+      attack: 0.004,
+    })
+  }
+
   /*
    * 부딪히는 "탁"은 잡음이 만든다. 예전에는 세게 부딪힐수록 3.8kHz까지 열려서
    * 무거운 물건이 떨어질 때가 가장 날카로웠다 — 정작 묵직하게 들려야 할 순간에.
-   * 이제 열리는 폭을 좁히고, 세기는 음량이 아니라 저음 쪽이 받는다.
+   * 이제 열리는 폭을 재질이 정하고, 세기는 음량으로만 받는다.
    */
-  burst(voice, {
-    filter: 'lowpass',
-    freq: 380 + strength * 1150,
-    gain: 0.014 + strength * 0.042,
-    duration: 0.03,
-    attack: 0.004,
-  })
+  const tick = recipe.tick
+  if (tick !== null) {
+    burst(voice, {
+      filter: tick.filter,
+      freq: tick.freq,
+      toFreq: tick.toFreq,
+      gain: (0.014 + strength * 0.042) * tick.gain * 2,
+      duration: tick.duration,
+      attack: 0.004,
+    })
+  }
 }
 
 /** 무겁고 큰 것이 떨어졌다. 화면이 흔들리는 그 순간의 저음 */

@@ -20,6 +20,35 @@ type ShapeDef =
   | PrimitiveShape
   | { readonly kind: 'compound'; readonly parts: readonly ShapePart[] }
 
+/**
+ * 부딪혔을 때 어떤 소리가 나는가.
+ *
+ * 실제 물질이 아니라 **귀에 들리는 결과**로 나눈 분류다. 그래서 나뭇잎과 피자 박스가
+ * 같은 `paper`이고(둘 다 마른 것이 스치는 소리), 스테인리스 텀블러와 자전거가
+ * 같은 `metal`이다. 어느 물건이 무엇인지는 `data/materials.ts`의 표에 있다.
+ */
+type Material =
+  /** 유리와 담긴 음료 — 맑게 울린다 */
+  | 'glass'
+  /** 금속 — 배음이 어긋나게 남는다 */
+  | 'metal'
+  /** 나무 — 짧고 둔한 "톡" */
+  | 'wood'
+  /** 마른 것 — 거의 잡음뿐인 "바스락" */
+  | 'paper'
+  /** 천과 솜 — 가장 조용한 "푹" */
+  | 'cloth'
+  /** 단단한 플라스틱 — 마른 "딱" */
+  | 'plastic'
+  /** 고무 — 튄다 */
+  | 'rubber'
+  /** 기계 — 무겁게 내려앉고 끝에 금속이 한 번 */
+  | 'tech'
+  /** 물컹한 것 — "퍽" */
+  | 'squish'
+  /** 번개. 물건이 아니다 */
+  | 'spark'
+
 interface ItemVariant {
   readonly id: string
   readonly label: string
@@ -57,6 +86,16 @@ interface ItemVariant {
   readonly sticky: boolean
   readonly hidden: boolean
   readonly scoreBonus: number
+  /** 부딪혔을 때 어떤 소리가 나는가. `data/materials.ts`의 표가 정한다 */
+  readonly material: Material
+  /**
+   * 같은 재질 안에서 이 물건을 가르는 값(0~1). id에서 뽑는다.
+   *
+   * 재질만으로는 유리잔과 칵테일이 똑같은 소리를 낸다. 이 값으로 음높이를 몇 반음
+   * 밀어 물건마다 제 소리를 갖게 하되, id의 함수이므로 **같은 물건은 언제나 같은
+   * 소리**를 낸다 — 그래야 반복하는 동안 "저건 텀블러다"가 귀에 익는다.
+   */
+  readonly tone: number
 }
 
 interface WordEntry {
@@ -140,6 +179,7 @@ export type {
   PrimitiveShape,
   ShapePart,
   ShapeDef,
+  Material,
   ItemVariant,
   WordEntry,
   Side,

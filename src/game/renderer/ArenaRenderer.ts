@@ -44,13 +44,21 @@ interface ArenaRenderState {
 
 const COLORS = {
   frame: '#262b3d',
-  platform: '#4a5171',
-  platformTop: '#6b74a0',
-  aim: '#ffcf5c',
   aimTrack: 'rgba(255, 207, 92, 0.16)',
   danger: 'rgba(255, 107, 107, 0.5)',
   hidden: '#ffcf5c',
 } as const
+
+const ARENA_ART = {
+  platform: `${import.meta.env.BASE_URL}arena/stack-platform-log.png`,
+  arrow: `${import.meta.env.BASE_URL}arena/stack-drop-arrow.png`,
+} as const
+
+const ARENA_ART_SOURCES = Object.values(ARENA_ART)
+
+/* 투명 여백을 빼고 그려, 그림의 윗면과 화살표 끝이 물리 위치에 맞는다. */
+const LOG_CROP = { x: 72, y: 26, width: 1391, height: 268 } as const
+const ARROW_CROP = { x: 208, y: 123, width: 621, height: 776 } as const
 
 /**
  * index.css의 --sans와 같은 스택.
@@ -189,10 +197,28 @@ class ArenaRenderer {
     const width = ARENA.platformHalfWidth * 2 * this.scale
     const top = this.toScreenY(ARENA.platformTop)
     const height = ARENA.platformHalfHeight * 2 * this.scale
+    const log = sprite(ARENA_ART.platform)
 
-    ctx.fillStyle = COLORS.platform
+    if (log !== null) {
+      const logHeight = width * (LOG_CROP.height / LOG_CROP.width)
+      ctx.drawImage(
+        log,
+        LOG_CROP.x,
+        LOG_CROP.y,
+        LOG_CROP.width,
+        LOG_CROP.height,
+        left,
+        top,
+        width,
+        logHeight,
+      )
+      return
+    }
+
+    // 이미지를 못 받아도 물리 받침대가 보이지 않는 상태로 플레이시키지 않는다.
+    ctx.fillStyle = '#4a5171'
     ctx.fillRect(left, top, width, height)
-    ctx.fillStyle = COLORS.platformTop
+    ctx.fillStyle = '#6b74a0'
     ctx.fillRect(left, top, width, Math.max(2, height * 0.16))
   }
 
@@ -202,19 +228,39 @@ class ArenaRenderer {
     const top = this.toScreenY(ARENA.height + this.cameraY)
     // 조준선은 쌓인 것의 꼭대기에서 끝난다 — 실제로 물건이 닿을 자리다
     const trackBottom = this.toScreenY(stackTop)
+    const arrow = sprite(ARENA_ART.arrow)
+    const arrowWidth = Math.min(44, Math.max(32, this.scale * 0.36))
+    const arrowHeight = arrowWidth * (ARROW_CROP.height / ARROW_CROP.width)
+    const arrowTop = top + 2
+    const trackTop = arrow === null ? top + 22 : arrowTop + arrowHeight
 
     ctx.save()
     ctx.strokeStyle = COLORS.aimTrack
     ctx.lineWidth = 2
     ctx.setLineDash([4, 10])
     ctx.beginPath()
-    ctx.moveTo(x, top + 22)
+    ctx.moveTo(x, trackTop)
     ctx.lineTo(x, trackBottom)
     ctx.stroke()
     ctx.restore()
 
+    if (arrow !== null) {
+      ctx.drawImage(
+        arrow,
+        ARROW_CROP.x,
+        ARROW_CROP.y,
+        ARROW_CROP.width,
+        ARROW_CROP.height,
+        x - arrowWidth / 2,
+        arrowTop,
+        arrowWidth,
+        arrowHeight,
+      )
+      return
+    }
+
     ctx.save()
-    ctx.fillStyle = COLORS.aim
+    ctx.fillStyle = '#ffcf5c'
     ctx.beginPath()
     ctx.moveTo(x, top + 20)
     ctx.lineTo(x - 9, top + 2)
@@ -420,5 +466,5 @@ class ArenaRenderer {
   }
 }
 
-export { ArenaRenderer }
+export { ArenaRenderer, ARENA_ART_SOURCES }
 export type { ArenaRenderState, HiddenReveal }

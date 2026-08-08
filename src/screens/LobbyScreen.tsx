@@ -51,6 +51,18 @@ const buttonStyle: CSSProperties = {
   color: '#1a1405',
 }
 
+/** 이름 칸을 버튼 무리에서 떼어놓는 판 */
+const nameFieldStyle: CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  padding: '14px 16px 16px',
+  margin: '6px 0 10px',
+  borderRadius: 14,
+  background: 'rgba(255, 255, 255, 0.025)',
+  border: '1px solid #232839',
+  textAlign: 'left',
+}
+
 const ghostButtonStyle: CSSProperties = {
   ...buttonStyle,
   background: 'transparent',
@@ -150,8 +162,13 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           상대 차례에 단어를 치면 그 단어를 지목할 수 있다.
         </p>
 
-        {/* 내 이름 — 비워두면 둘 다 '이름없음'이 되어 누가 누구인지 알 수 없다 */}
-        <div style={{ display: 'grid', gap: 6 }}>
+        {/*
+          * 내 이름 — 비워두면 둘 다 '이름없음'이 되어 누가 누구인지 알 수 없다.
+          *
+          * 버튼들과 같은 간격으로 세워두면 이것도 누르는 것처럼 읽힌다. 이름은 **고르는
+          * 값**이지 행동이 아니므로, 옅은 판에 얹고 아래위로 떼어 무리에서 빼둔다.
+          */}
+        <div style={nameFieldStyle}>
           <label
             htmlFor="nickname"
             style={{ fontSize: 12, color: '#8b93b0', letterSpacing: '0.06em' }}
@@ -317,11 +334,7 @@ function ReadyRoom({
           })}
         </div>
 
-        <p style={{ color: '#6a7290', margin: 0, fontSize: 13, lineHeight: 1.7 }}>
-          받침대 하나를 함께 쓴다. 번갈아 쌓고,{' '}
-          <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
-        </p>
-
+        {/* 규칙 설명은 바로 앞 화면에서 이미 읽었다. 여기서 볼 것은 상대와 준비 상태뿐이다 */}
         <MenuButton selected={!iAmReady} onClick={onReady} disabled={iAmReady} primary>
           {iAmReady ? `상대를 기다린다… (${waitingFor}명)` : '준비 (Enter)'}
         </MenuButton>

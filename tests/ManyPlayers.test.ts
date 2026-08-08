@@ -30,6 +30,8 @@ function seatsOf(count: number): Seat[] {
     const session = MatchSession.attach(link, (on) => link.listen(on), {
       nickname: `사람${index}`,
       deviceId: `dev-${index}`,
+      // 셈은 따로 시험한다 — 판이 열리는지 보려는 여기서는 건너뛴다
+      countdownSec: 0,
       onPhase: (next) => {
         phase = next
       },

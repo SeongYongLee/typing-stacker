@@ -342,6 +342,8 @@ function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: stri
  * **누가 누구를 노렸는지 이름을 다 댄다.** 여덟이 붙으면 "상대"로는 누가 누구에게
  * 당했는지 알 수 없고, 하트를 훑어 역산해야 한다.
  */
+const AIM_NOTICE_MS = 3600
+
 function AimNotice({ state }: { state: MatchViewState }) {
   const aim = state.lastAim
   const seq = aim?.seq ?? 0
@@ -376,13 +378,14 @@ function AimNotice({ state }: { state: MatchViewState }) {
         { opacity: 0, transform: 'scale(0.85)' },
         { opacity: 1, transform: 'scale(1.12)', offset: 0.2 },
         { opacity: 1, transform: 'scale(1)', offset: 0.35 },
-        { opacity: 1, transform: 'scale(1)', offset: 0.8 },
+        { opacity: 1, transform: 'scale(1)', offset: 0.88 },
         { opacity: 0, transform: 'scale(1)' },
       ],
-      { duration: 2000, easing: 'ease-out' },
+      // 반 칸은 하트만 봐서는 알아채기 어렵다. 읽고 이해할 시간까지 두고 남긴다
+      { duration: AIM_NOTICE_MS, easing: 'ease-out' },
     )
     clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setShown(null), 2000)
+    timer.current = window.setTimeout(() => setShown(null), AIM_NOTICE_MS)
     // seq가 바뀔 때만 새 알림이다 — 같은 노림을 매 프레임 다시 띄우지 않는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq])

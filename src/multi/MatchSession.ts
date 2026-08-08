@@ -10,6 +10,15 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
 /** 붙은 뒤 시작 신호를 이만큼 기다린다. 넘으면 양쪽이 영원히 기다리는 대신 실패로 끊는다 */
 const HANDSHAKE_TIMEOUT_MS = 10000
 
+/**
+ * 모두 준비한 뒤 판이 열리기까지의 셈.
+ *
+ * 준비를 누르는 순간 바로 시작하면 첫 단어가 이미 내려오고 있다 — 누른 사람은
+ * 마우스에 손이 가 있고 키보드로 옮길 틈이 없다. 특히 마지막에 누른 사람이 아니면
+ * 언제 시작되는지 모른 채 당한다.
+ */
+const COUNTDOWN_SEC = 3
+
 
 /**
  * 방을 만들고 상대가 들어와 판이 시작되기까지의 절차.
@@ -45,11 +54,27 @@ type SessionPhase =
       readonly ready: readonly PlayerId[]
       readonly selfId: PlayerId
     }
+  /**
+   * 모두 준비했고 곧 시작한다. 남은 셈을 화면이 크게 보여준다.
+   * 양쪽이 각자 세지만 시작 신호를 받은 시점이 기준이라 거의 같이 끝난다.
+   */
+  | {
+      readonly kind: 'countdown'
+      readonly players: readonly PlayerInfo[]
+      readonly secondsLeft: number
+    }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
 
 interface SessionOptions {
   readonly nickname: string
+  /**
+   * 시작까지 세는 초. 0이면 곧바로 연다.
+   *
+   * 개발용 루프백은 0으로 둔다 — 그 화면은 대전 규칙을 눌러보려고 있는 것이라
+   * 매번 셋을 세고 기다리면 확인이 번거로워진다.
+   */
+  readonly countdownSec?: number
   /** 이 기기의 id. 레이팅을 판 너머로 묶는 유일한 열쇠다 */
   readonly deviceId: string
   readonly onPhase: (phase: SessionPhase) => void
@@ -60,6 +85,8 @@ class MatchSession {
   private engine: MatchEngine | null = null
   private readonly nickname: string
   private readonly deviceId: string
+  private readonly countdownSec: number
+  private countdownTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onPhase: (phase: SessionPhase) => void
   private disposed = false
   /** 참가자 쪽에서 start를 두 번 받아도 판을 두 번 만들지 않게 */
@@ -81,6 +108,7 @@ class MatchSession {
   private constructor(options: SessionOptions) {
     this.nickname = sanitizeNickname(options.nickname)
     this.deviceId = options.deviceId
+    this.countdownSec = options.countdownSec ?? COUNTDOWN_SEC
     this.onPhase = options.onPhase
   }
 
@@ -236,7 +264,7 @@ class MatchSession {
     }
 
     if (!transport.isHost && event.message.t === 'start') {
-      void this.begin(event.message.players, event.message.seed)
+      this.countDown(event.message.players, event.message.seed)
     }
   }
 
@@ -283,12 +311,19 @@ class MatchSession {
     }
     const seed = Date.now() >>> 0
     transport.broadcast({ t: 'start', seed, players: this.roster })
-    void this.begin(this.roster, seed)
+    this.countDown(this.roster, seed)
   }
 
   private emitReady(): void {
     const transport = this.transport
-    if (transport === null || this.started) {
+    /*
+     * 이미 세고 있으면 준비 화면으로 되돌리지 않는다.
+     *
+     * 세는 중에 누가 준비를 다시 누르면 방장이 명단을 다시 알리는데, 그때마다
+     * 준비 화면이 다시 뜨면 셈이 화면에서 사라진다 — 판은 열리는데 아무도
+     * 언제 열리는지 못 본다.
+     */
+    if (transport === null || this.started || this.countdownTimer !== null) {
       return
     }
     this.onPhase({
@@ -320,6 +355,41 @@ class MatchSession {
       clearTimeout(this.handshakeTimer)
       this.handshakeTimer = null
     }
+  }
+
+  /**
+   * 시작까지 센다. 다 세면 판을 연다.
+   *
+   * 이미 세고 있으면 다시 시작하지 않는다 — start가 두 번 오더라도(재전송, 이중 이펙트)
+   * 셈이 되돌아가면 안 된다.
+   */
+  private countDown(players: readonly PlayerInfo[], seed: number): void {
+    if (this.started || this.countdownTimer !== null) {
+      return
+    }
+    if (this.countdownSec <= 0) {
+      void this.begin(players, seed)
+      return
+    }
+
+    this.roster = players
+    let left = this.countdownSec
+    this.onPhase({ kind: 'countdown', players, secondsLeft: left })
+
+    const tick = () => {
+      left -= 1
+      if (this.disposed) {
+        return
+      }
+      if (left <= 0) {
+        this.countdownTimer = null
+        void this.begin(players, seed)
+        return
+      }
+      this.onPhase({ kind: 'countdown', players, secondsLeft: left })
+      this.countdownTimer = setTimeout(tick, 1000)
+    }
+    this.countdownTimer = setTimeout(tick, 1000)
   }
 
   /** 양쪽이 같은 명단과 같은 시드로 판을 만든다 */
@@ -367,6 +437,10 @@ class MatchSession {
 
   dispose(): void {
     this.disposed = true
+    if (this.countdownTimer !== null) {
+      clearTimeout(this.countdownTimer)
+      this.countdownTimer = null
+    }
     this.clearHandshakeTimeout()
     // 상대가 영문을 모른 채 기다리지 않게, 끊기 전에 나간다고 알린다
     this.engine?.announceLeave()

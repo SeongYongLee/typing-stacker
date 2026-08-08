@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { WORDS } from '../game/data/words.ts'
+import { play } from '../components/animate.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
+import { useStartAlert } from '../hooks/useStartAlert.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
 import { MAX_PLAYERS, NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
@@ -153,6 +155,10 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
 
   if (phase?.kind === 'waiting') {
     return <WaitingRoom roomCode={phase.roomCode} onBack={onBack} />
+  }
+
+  if (phase?.kind === 'countdown') {
+    return <Countdown phase={phase} />
   }
 
   if (phase?.kind === 'ready') {
@@ -370,6 +376,58 @@ function ReadyRoom({
         <MenuButton selected={false} onClick={onBack}>
           나가기 (Esc)
         </MenuButton>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 시작까지 세는 화면.
+ *
+ * 준비를 누르는 순간 바로 시작하면 첫 단어가 이미 내려오고 있다 — 누른 사람은
+ * 마우스에 손이 가 있고 키보드로 옮길 틈이 없다. 특히 마지막에 누른 사람이 아니면
+ * 언제 열리는지 모른 채 당한다.
+ *
+ * 숫자를 크게 두는 이유는 **눈이 여기 하나에만 있게** 하려는 것이다. 명단이나 규칙을
+ * 같이 두면 그것을 읽다가 시작을 놓친다.
+ */
+function Countdown({ phase }: { phase: Extract<SessionPhase, { kind: 'countdown' }> }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+
+  // 탭을 보고 있지 않으면 소리와 제목으로 부른다 — 첫 차례를 그대로 날리게 된다
+  useStartAlert(true)
+
+  useEffect(() => {
+    // 숫자가 바뀔 때마다 한 번 크게 튄다. 초 단위라 움직임이 없으면 멈춘 것처럼 보인다
+    play(
+      ref.current,
+      [
+        { transform: 'scale(1.4)', opacity: 0.2 },
+        { transform: 'scale(1)', opacity: 1 },
+      ],
+      { duration: 380, easing: 'ease-out' },
+    )
+  }, [phase.secondsLeft])
+
+  return (
+    <div style={rootStyle}>
+      <div style={{ ...panelStyle, gap: 10 }} data-countdown={phase.secondsLeft}>
+        <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
+          곧 시작한다. 손을 올리자
+        </p>
+        <div
+          ref={ref}
+          style={{
+            font: '700 96px/1 var(--sans)',
+            color: '#ffcf5c',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {phase.secondsLeft}
+        </div>
+        <p style={{ color: '#4a5171', margin: 0, fontSize: 13 }}>
+          {phase.players.map((player) => player.nickname).join(' · ')}
+        </p>
       </div>
     </div>
   )

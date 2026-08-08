@@ -36,6 +36,8 @@ function pair(): { host: Side; guest: Side } {
   const hostSession = MatchSession.attach(hostLink, (on) => hostLink.listen(on), {
     nickname: '자두',
     deviceId: 'dev-host',
+    // 셈은 따로 시험한다 — 판이 열리는지 보려는 여기서는 건너뛴다
+    countdownSec: 0,
     onPhase: (phase) => {
       hostPhase = phase
     },
@@ -43,6 +45,7 @@ function pair(): { host: Side; guest: Side } {
   const guestSession = MatchSession.attach(guestLink, (on) => guestLink.listen(on), {
     nickname: '세이지',
     deviceId: 'dev-guest',
+    countdownSec: 0,
     onPhase: (phase) => {
       guestPhase = phase
     },

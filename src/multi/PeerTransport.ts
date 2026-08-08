@@ -49,16 +49,23 @@ const ICE_SERVERS: RTCIceServer[] = [
 ]
 
 /**
- * 개발 중에는 PeerJS의 시그널링 로그를 켠다(경고·에러 수준).
- * 연결이 안 될 때 브로커까지 갔는지, 상대 id를 찾았는지가 여기서 갈린다.
+ * 진단 로그를 켤지.
+ *
+ * 개발 중에는 늘 켜고, **배포된 곳에서는 `?debug=1`일 때만** 켠다.
+ * 연결 실패는 망마다 원인이 달라서 배포된 주소에서 재현되는 경우가 많은데,
+ * 그때 콘솔이 비어 있으면 남는 것이 "안 된다"뿐이다 — 증거를 남길 길을 열어둔다.
  */
+const DIAGNOSTICS =
+  import.meta.env.DEV ||
+  (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'))
+
 const peerOptions = {
-  debug: import.meta.env.DEV ? 2 : 0,
+  debug: DIAGNOSTICS ? 2 : 0,
   config: { iceServers: ICE_SERVERS },
 } as const
 
 /**
- * 연결이 어디까지 갔는지 콘솔에 남긴다. **개발 모드에서만** 붙인다.
+ * 연결이 어디까지 갔는지 콘솔에 남긴다. 개발 모드와 `?debug=1`에서만 붙인다.
  *
  * "안 붙는다"의 원인은 네 갈래인데 화면으로는 구분되지 않는다.
  *   ① 내 후보를 못 모음  ② 상대 후보가 안 옴(시그널링)  ③ 후보는 다 있는데 짝이 안 지어짐
@@ -67,7 +74,7 @@ const peerOptions = {
  * 남기는데, 같은 망의 두 기기가 못 붙는 흔한 이유가 공유기의 멀티캐스트 차단이기 때문이다.
  */
 function traceIce(label: string, connection: DataConnection): void {
-  if (!import.meta.env.DEV) {
+  if (!DIAGNOSTICS) {
     return
   }
   const say = (message: string): void => console.info(`[대전:${label}] ${message}`)

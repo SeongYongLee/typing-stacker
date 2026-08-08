@@ -56,6 +56,23 @@ const SYNC_INTERVAL_SEC = 2.5
  */
 const AIM_DAMAGE = 0.5
 
+/**
+ * 판을 가리키는 이름. 인원이 몇이든 길이가 같다.
+ *
+ * 참가자 전원이 각자 만들어도 같은 값이 나와야 한다 — 서버가 여러 보고를 한 판으로
+ * 묶는 기준이기 때문이다. 그래서 기기 id를 정렬한 뒤 접는다(FNV-1a).
+ * 시드와 인원이 함께 들어가므로 서로 다른 판이 같은 이름을 갖는 일은 사실상 없다.
+ */
+function matchIdOf(seed: number, devices: readonly string[]): string {
+  const joined = [...devices].sort().join('.')
+  let hash = 0x811c9dc5
+  for (let i = 0; i < joined.length; i += 1) {
+    hash ^= joined.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return `${seed}-${devices.length}-${hash.toString(36)}`
+}
+
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
 
@@ -284,11 +301,16 @@ class MatchEngine {
     /*
      * 판 이름은 시작할 때 한 번 만든다. 기기 id를 정렬해 넣으므로 방장과 참가자가
      * 각자 만들어도 같은 값이 나온다 — 따로 주고받을 필요가 없다.
+     *
+     * **id를 그대로 이어 붙이지 않는다.** 그렇게 했더니 여덟이 붙었을 때 UUID 여덟 개가
+     * 들어가 300자를 넘겼고, 서버의 길이 상한에 걸려 그 판이 통째로 버려졌다.
+     * 인원이 늘 때마다 상한을 올리는 것은 같은 함정을 다시 놓는 것이라, 길이가
+     * 인원에 비례하지 않게 줄여서 넣는다.
      */
-    this.matchId = `${options.seed}-${options.players
-      .map((player) => player.device)
-      .sort()
-      .join('.')}`
+    this.matchId = matchIdOf(
+      options.seed,
+      options.players.map((player) => player.device),
+    )
     this.transport = options.transport
     this.onFailure = options.onFailure ?? null
     this.onRestart = options.onRestart ?? null
@@ -1047,5 +1069,5 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, DROP_INTERVAL_SEC, AIM_DAMAGE }
+export { MatchEngine, DROP_INTERVAL_SEC, AIM_DAMAGE, matchIdOf }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

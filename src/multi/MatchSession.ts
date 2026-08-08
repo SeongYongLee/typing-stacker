@@ -1,5 +1,7 @@
 import { MatchEngine } from './MatchEngine.ts'
 import { PeerTransport } from './PeerTransport.ts'
+import { RelayTransport } from './RelayTransport.ts'
+import { createRoomCode } from './protocol.ts'
 import { sanitizeNickname } from './protocol.ts'
 import type { PlayerInfo } from './protocol.ts'
 import { failure } from './Transport.ts'
@@ -7,6 +9,15 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
 
 /** 붙은 뒤 시작 신호를 이만큼 기다린다. 넘으면 양쪽이 영원히 기다리는 대신 실패로 끊는다 */
 const HANDSHAKE_TIMEOUT_MS = 10000
+
+/**
+ * 중계 서버 주소. 설정돼 있으면 P2P 대신 중계로 붙는다.
+ *
+ * P2P는 NAT을 통과해야만 동작하는데 그 조건이 망마다 달라서, 같은 Wi-Fi의 두 기기조차
+ * 못 붙는 경우가 있다(공유기의 멀티캐스트 차단 + 헤어핀 NAT). 중계는 그 조건을 없앤다.
+ * 주소가 없으면 P2P로 떨어지므로, 서버를 띄우지 않아도 예전처럼 동작은 한다.
+ */
+const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? ''
 
 /**
  * 방을 만들고 상대가 들어와 판이 시작되기까지의 절차.
@@ -90,10 +101,7 @@ class MatchSession {
   ): Promise<void> {
     const handlers = { onEvent: (event: TransportEvent) => this.handleEvent(event) }
     try {
-      const transport =
-        mode.kind === 'host'
-          ? await PeerTransport.host(handlers)
-          : await PeerTransport.join(mode.code, handlers)
+      const transport = await openTransport(mode, handlers)
 
       if (this.disposed) {
         transport.close()
@@ -222,6 +230,25 @@ class MatchSession {
     this.transport?.close()
     this.transport = null
   }
+}
+
+/**
+ * 중계 주소가 있으면 중계로, 없으면 P2P로 붙는다.
+ * 방 코드를 만드는 쪽이 갈리는데, P2P는 코드가 곧 peer id라 전송로가 정하고
+ * 중계는 우리가 정해 서버에 알려준다.
+ */
+function openTransport(
+  mode: { kind: 'host' } | { kind: 'join'; code: string },
+  handlers: { onEvent: (event: TransportEvent) => void },
+): Promise<Transport> {
+  if (RELAY_URL === '') {
+    return mode.kind === 'host'
+      ? PeerTransport.host(handlers)
+      : PeerTransport.join(mode.code, handlers)
+  }
+  return mode.kind === 'host'
+    ? RelayTransport.host(RELAY_URL, createRoomCode(Math.random), handlers)
+    : RelayTransport.join(RELAY_URL, mode.code, handlers)
 }
 
 function asFailure(error: unknown): TransportFailure {

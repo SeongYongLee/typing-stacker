@@ -156,4 +156,32 @@ SPRITE_ROOT=~/Downloads node scripts/prepare-sprites.cjs
 
 싱글 모드는 플레이 가능하다. 물건은 전부 스티커 아트이고(20종, 단어 13개), 이모지는 쓰지 않는다. 아트가 더 준비되면 파이프라인에 넣고 단어를 늘리면 된다. 1대1 멀티는 다음 작업이고, 남은 과제와 판단 근거는 `CLAUDE.md`에 정리해뒀다.
 
+## 1대1 대전 — 중계 서버
+
+대전은 **중계 서버를 거쳐** 붙는다. 처음에는 WebRTC로 직접 붙였는데, NAT을 통과해야만
+동작하는 구조라 같은 Wi-Fi의 두 기기조차 못 붙는 경우가 있었다 — 공유기가 멀티캐스트를
+막으면 Chrome이 가려둔 mDNS 후보를 상대가 풀지 못하고, 같은 공인 IP 뒤라 헤어핀 NAT까지
+필요하다. 그 구멍을 메우는 TURN은 공용 무료 서버가 더 이상 없다(peerjs·openrelay 모두
+사라졌고, 각각 몇 시간씩 원인을 찾은 뒤에야 알았다).
+
+중계는 그 조건을 통째로 없앤다. 양쪽 모두 **바깥으로 나가는 WebSocket 하나**만 열면 되고
+그건 어떤 망에서도 열린다. 턴제 게임이라 한 번 더 거치는 지연은 문제되지 않는다.
+
+```bash
+pnpm relay:dev                                    # 로컬 중계 (localhost:8787)
+VITE_RELAY_URL=ws://localhost:8787 pnpm dev       # 앱이 그 중계를 쓰게 한다
+
+pnpm relay:deploy                                 # Cloudflare에 올린다 (wrangler login 필요)
+```
+
+올린 뒤 저장소 **Settings → Secrets and variables → Actions → Variables**에
+`RELAY_URL`을 `wss://<이름>.<계정>.workers.dev`로 넣으면 배포본이 중계를 쓴다.
+비어 있으면 P2P로 떨어지므로, 서버 없이도 배포는 된다.
+
+방 하나가 Durable Object 하나다(`worker/src/index.ts`). 같은 코드는 언제나 같은
+인스턴스로 가므로 방을 찾는 절차가 필요 없고, 전송로는 `Transport` 인터페이스 뒤에 있어
+게임 코드는 P2P인지 중계인지 모른다.
+
+## 배포
+
 `main`에 푸시하면 GitHub Actions가 typecheck·테스트를 돌린 뒤 GitHub Pages로 배포한다. Pages는 저장소 이름을 경로로 붙이므로 빌드에서만 `base`를 바꾸고, 런타임에서 만드는 스프라이트 경로는 `import.meta.env.BASE_URL`을 앞에 붙인다 — 로컬 개발 서버는 계속 루트로 뜬다.

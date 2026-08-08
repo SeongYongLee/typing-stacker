@@ -13,7 +13,9 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "relay:dev": "wrangler dev --config worker/wrangler.toml --port 8787",
+    "relay:deploy": "wrangler deploy --config worker/wrangler.toml"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.19.3",
@@ -30,6 +32,7 @@
     "playwright-core": "^1.62.1",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.119.0"
   }
 }

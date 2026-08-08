@@ -1,0 +1,13 @@
+name = "typing-stacker-relay"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# 방 하나가 Durable Object 하나다. 같은 방 코드는 언제나 같은 인스턴스로 간다 —
+# 그래서 방장과 참가자가 서로를 찾는 데 별도의 조율이 필요 없다.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "MatchRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["MatchRoom"]

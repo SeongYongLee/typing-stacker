@@ -13,7 +13,16 @@
  *
  * 대전 결과는 다르게 막는다 — **양쪽이 보고해서 일치할 때만** 반영한다. 한쪽 말만 믿으면
  * "내가 이겼다"를 그냥 보내면 되기 때문이다.
+ *
+ * ## 자동매칭도 여기 있다
+ *
+ * 짝을 찾으려면 **그 사람의 레이팅을 알아야 하는데**, 그 값을 클라이언트가 보내게 하면
+ * 아무 티어나 적어 보낼 수 있다. 레이팅의 주인이 이 저장소라 큐도 여기 둔다 —
+ * 들어온 기기 id로 표를 직접 찾아 쓰므로 아무것도 믿지 않아도 된다.
  */
+
+import { findPair, waitedSecOf, bandOf, type Waiting } from './matching.ts'
+import { START_RATING, TIERS, tierIndexOf } from './tiers.ts'
 
 /** 기기 id의 최대 길이. UUID가 36자다 */
 const MAX_ID = 64
@@ -24,6 +33,30 @@ const MAX_NAME = 12
 const MAX_PLAYERS = 8
 /** 랭킹에 돌려주는 인원 */
 const TOP = 20
+
+/** 자동매칭으로 맺는 인원 */
+const QUEUE_MATCH_SIZE = 2
+
+/**
+ * 이만큼 물어보지 않으면 줄에서 치운다.
+ *
+ * 브라우저는 창을 닫을 때 알려주지 않으므로 **멎은 것으로만 사라진 것을 안다.**
+ * 물어보는 주기(1.5초)의 몇 배로 둔다 — 짧으면 잠깐 끊긴 사람이 줄에서 빠지고,
+ * 길면 이미 없는 사람과 짝이 맺어져 아무도 오지 않는 방이 열린다.
+ */
+const QUEUE_STALE_MS = 6000
+
+/** 방 코드. 클라이언트의 것과 같은 글자만 쓴다 — 헷갈리는 l·o·i·1·0을 뺀 것이다 */
+const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
+const ROOM_CODE_LENGTH = 8
+
+interface QueueRow {
+  device: string
+  name: string
+  since: number
+  seen: number
+  code: string | null
+}
 
 /**
  * 사람이 낼 수 있는 값의 한계.
@@ -64,8 +97,11 @@ interface RatingRow {
   at: number
 }
 
-/** 레이팅 시작값. 티어 구간의 한가운데에 둔다 */
-const START_RATING = 1000
+/*
+ * 티어 표는 따로 산다. 순위를 매기는 이곳과 짝을 찾는 곳(matching)이 같은 경계를
+ * 봐야 하는데, 여기 두면 한쪽이 import하면서 서로를 부르게 된다.
+ */
+
 
 /**
  * 한 판이 움직이는 폭.
@@ -201,6 +237,26 @@ export class Board {
         PRIMARY KEY (matchId, reporter)
       )
     `)
+    /*
+     * 자동매칭에서 짝을 기다리는 사람들.
+     *
+     * `since`는 줄에 선 시각이고 `seen`은 마지막으로 물어본 시각이다. **둘을 갈라야 한다** —
+     * 대역은 기다린 만큼 넓어지므로 `since`가 움직이면 안 되고, 창을 닫고 사라진 사람은
+     * `seen`이 멎는 것으로만 알 수 있다(브라우저는 떠날 때 알려주지 않는다).
+     *
+     * `code`는 짝이 맺어진 뒤 들어간다. 지우지 않고 남겨두는 이유는 응답이 한 번
+     * 유실되어도 다음에 물어볼 때 같은 값을 받아야 하기 때문이다 — 한쪽만 방으로
+     * 들어가면 그 사람은 아무도 오지 않는 방에서 혼자 기다린다.
+     */
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS queue (
+        device TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        since INTEGER NOT NULL,
+        seen INTEGER NOT NULL,
+        code TEXT
+      )
+    `)
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -219,6 +275,12 @@ export class Board {
       }
       if (request.method === 'POST' && path === '/rank/match') {
         return json(this.reportMatch(await request.json()))
+      }
+      if (request.method === 'POST' && path === '/rank/queue') {
+        return json(this.enterQueue(await request.json()))
+      }
+      if (request.method === 'POST' && path === '/rank/queue/leave') {
+        return json(this.leaveQueue(await request.json()))
       }
     } catch {
       // 망가진 본문 하나로 서버가 500을 뱉지 않게 한다 — 게임은 이 응답 없이도 돌아간다
@@ -400,6 +462,100 @@ export class Board {
     }
   }
 
+  /**
+   * 자동매칭. 줄에 서고, 그때마다 짝이 맺어졌는지 본다.
+   *
+   * **되풀이해 물어보는 방식이다.** WebSocket을 하나 더 열면 즉시 알릴 수 있지만,
+   * 그러면 방으로 붙는 소켓과 큐를 보는 소켓 둘을 동시에 들고 수명을 맞춰야 한다 —
+   * 붙는 순간이 곧 소켓을 갈아타는 순간이라 그 경계가 까다롭다. 몇 초 늦게 알려주는
+   * 대신 붙일 자리가 적은 쪽을 골랐다. 랭킹과 같은 평범한 fetch다.
+   *
+   * 짝을 찾는 판단은 `matching.ts`에 있다. 여기서는 표를 읽고 쓰는 일만 한다.
+   */
+  private enterQueue(raw: unknown): unknown {
+    const device = text((raw as Record<string, unknown>)?.['device'], MAX_ID)
+    const name = text((raw as Record<string, unknown>)?.['name'], MAX_NAME) ?? '익명'
+    if (device === null) {
+      return { error: 'invalid' }
+    }
+    const now = Date.now()
+
+    // 창을 닫고 사라진 사람을 먼저 치운다. 남겨두면 있지도 않은 사람과 짝이 맺어진다
+    this.sql.exec('DELETE FROM queue WHERE seen < ?', now - QUEUE_STALE_MS)
+
+    /*
+     * 줄에 세운다. **이미 서 있으면 `since`를 그대로 둔다** — 물어볼 때마다 갱신하면
+     * 기다린 시간이 늘 0이 되어 대역이 영영 안 넓어진다.
+     */
+    this.sql.exec(
+      `INSERT INTO queue (device, name, since, seen, code)
+       VALUES (?, ?, ?, ?, NULL)
+       ON CONFLICT(device) DO UPDATE SET name = excluded.name, seen = excluded.seen`,
+      device, name, now, now,
+    )
+
+    const mine = this.queueRowOf(device)
+    if (mine?.code != null) {
+      return { state: 'matched', code: mine.code, players: QUEUE_MATCH_SIZE }
+    }
+
+    const open = this.sql
+      .exec<QueueRow>('SELECT * FROM queue WHERE code IS NULL')
+      .toArray()
+    const waiting: Waiting[] = open.map((row) => ({
+      device: row.device,
+      rating: this.ratingOf(row.device, row.name).rating,
+      since: row.since,
+    }))
+
+    const pair = findPair(waiting, now)
+    if (pair !== null) {
+      const code = roomCode()
+      for (const one of pair) {
+        this.sql.exec('UPDATE queue SET code = ? WHERE device = ?', code, one.device)
+      }
+      if (pair.some((one) => one.device === device)) {
+        return { state: 'matched', code, players: QUEUE_MATCH_SIZE }
+      }
+    }
+
+    /*
+     * 아직 못 붙었으면 **얼마나 기다렸고 지금 어디까지 받아들이는지**를 함께 알린다.
+     * 숫자가 없으면 기다리는 사람은 고장난 것과 구분할 수 없다.
+     */
+    const self = waiting.find((one) => one.device === device)
+    const waited = self === undefined ? 0 : waitedSecOf(self, now)
+    const band = bandOf(waited)
+    const others = this.sql
+      .exec<{ n: number }>('SELECT COUNT(*) AS n FROM queue WHERE code IS NULL')
+      .toArray()[0]
+    return {
+      state: 'waiting',
+      waiting: others?.n ?? 1,
+      waitedSec: Math.round(waited),
+      /** 지금 어디까지 받아들이는가. 화면이 "같은 티어" / "옆 티어까지"로 풀어 쓴다 */
+      band: Math.min(band, TIERS.length),
+      tier: self === undefined ? 0 : tierIndexOf(self.rating),
+    }
+  }
+
+  /** 줄에서 빠진다. 이것 없이도 `seen`이 멎어 치워지지만, 그동안 남을 헛되게 기다리게 한다 */
+  private leaveQueue(raw: unknown): unknown {
+    const device = text((raw as Record<string, unknown>)?.['device'], MAX_ID)
+    if (device === null) {
+      return { error: 'invalid' }
+    }
+    this.sql.exec('DELETE FROM queue WHERE device = ?', device)
+    return { ok: true }
+  }
+
+  private queueRowOf(device: string): QueueRow | null {
+    return (
+      this.sql.exec<QueueRow>('SELECT * FROM queue WHERE device = ?', device).toArray()[0] ??
+      null
+    )
+  }
+
   private bestOf(id: string): RunRow | null {
     return this.sql.exec<RunRow>('SELECT * FROM runs WHERE id = ?', id).toArray()[0] ?? null
   }
@@ -422,15 +578,6 @@ export class Board {
       .toArray()
   }
 }
-
-/** 레이팅 구간에 이름을 붙인다. 숫자만 보여주면 잘하고 있는지 알 수 없다 */
-const TIERS = [
-  { name: '브론즈', from: 0 },
-  { name: '실버', from: 900 },
-  { name: '골드', from: 1100 },
-  { name: '플래티넘', from: 1300 },
-  { name: '다이아', from: 1500 },
-] as const
 
 function parseRun(raw: unknown): RunRow | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -570,6 +717,19 @@ function num(value: unknown): number | null {
 function int(value: unknown): number | null {
   const parsed = num(value)
   return parsed === null ? null : Math.floor(parsed)
+}
+
+/**
+ * 방 코드를 만든다. 서버가 만드는 이유는 자동매칭에서 **두 사람이 같은 코드를 알아야**
+ * 하는데 서로를 모르기 때문이다. 코드로 모을 때는 여전히 클라이언트가 만든다.
+ */
+function roomCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(ROOM_CODE_LENGTH))
+  let code = ''
+  for (const byte of bytes) {
+    code += ROOM_CODE_ALPHABET[byte % ROOM_CODE_ALPHABET.length]
+  }
+  return code
 }
 
 function json(body: unknown, status = 200): Response {

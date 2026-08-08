@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import type { MatchViewState } from '../multi/MatchEngine.ts'
-import { MatchSession, type SessionPhase } from '../multi/MatchSession.ts'
+import { MatchSession, type OpenMode, type SessionPhase } from '../multi/MatchSession.ts'
 import { loadProfile } from '../storage/profile.ts'
 
 interface JoinRequest {
-  readonly mode: { readonly kind: 'host' } | { readonly kind: 'join'; readonly code: string }
+  readonly mode: OpenMode
   readonly nickname: string
 }
 

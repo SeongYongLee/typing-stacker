@@ -11,6 +11,15 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
 const HANDSHAKE_TIMEOUT_MS = 10000
 
 /**
+ * 자동매칭에서 상대가 준비를 누르기를 이만큼 기다린다.
+ *
+ * 넉넉해야 한다 — 상대는 방금 다른 창을 보고 있었을 수 있고, 이 시한에 걸리면
+ * 성실히 기다린 사람이 줄로 되돌려보내진다. 그렇다고 길게 두면 이미 떠난 사람을
+ * 그만큼 기다리는 셈이다. 준비 버튼 하나 누르는 데 필요한 시간의 몇 배로 잡았다.
+ */
+const READY_TIMEOUT_MS = 30000
+
+/**
  * 모두 준비한 뒤 판이 열리기까지의 셈.
  *
  * 준비를 누르는 순간 바로 시작하면 첫 단어가 이미 내려오고 있다 — 누른 사람은
@@ -43,6 +52,14 @@ type SessionPhase =
   /** 방장이 상대를 기다리는 중. 이 코드를 상대에게 전달해야 한다 */
   | { readonly kind: 'waiting'; readonly roomCode: string }
   /**
+   * 자동매칭으로 방을 받았고 상대가 들어오기를 기다린다.
+   *
+   * `waiting`과 나눠둔 이유는 **보여줄 코드가 없기 때문이다.** 자동매칭의 코드는
+   * 서버가 만들어 둘에게만 알려준 것이라 남에게 전달할 일이 없고, 그것을 화면에 띄우면
+   * "이 코드를 알려주라"는 뜻으로 읽힌다. 둘 중 먼저 도착한 쪽만 잠깐 이 상태에 있는다.
+   */
+  | { readonly kind: 'pairing' }
+  /**
    * 명단이 정해졌고 양쪽이 준비를 누르기를 기다린다.
    *
    * 상대가 들어오자마자 시작하면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
@@ -65,6 +82,17 @@ type SessionPhase =
     }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
+
+/**
+ * 방에 붙는 세 가지 길.
+ *
+ * `auto`가 `host`와 갈라져 있는 이유는 **코드를 이미 알고 있다는 것**이다. 방을 열되
+ * 그 코드는 서버가 정해준 것이라 새로 만들지 않고, 상대도 같은 코드로 방을 열며 들어온다.
+ */
+type OpenMode =
+  | { readonly kind: 'host' }
+  | { readonly kind: 'join'; readonly code: string }
+  | { readonly kind: 'auto'; readonly code: string }
 
 interface SessionOptions {
   readonly nickname: string
@@ -92,6 +120,9 @@ class MatchSession {
   /** 참가자 쪽에서 start를 두 번 받아도 판을 두 번 만들지 않게 */
   private started = false
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null
+  /** 자동매칭으로 붙었는가. 준비 시한을 두는 것도, 코드를 감추는 것도 이 경우뿐이다 */
+  private autoMatched = false
+  private readyTimer: ReturnType<typeof setTimeout> | null = null
   /** 준비 단계의 명단. 방장이 정하고 참가자는 받아 쓴다 */
   private roster: readonly PlayerInfo[] = []
   private readonly ready = new Set<PlayerId>()
@@ -112,8 +143,9 @@ class MatchSession {
     this.onPhase = options.onPhase
   }
 
-  static open(mode: { kind: 'host' } | { kind: 'join'; code: string }, options: SessionOptions): MatchSession {
+  static open(mode: OpenMode, options: SessionOptions): MatchSession {
     const session = new MatchSession(options)
+    session.autoMatched = mode.kind === 'auto'
     session.onPhase({ kind: 'connecting' })
     void session.connect(mode)
     return session
@@ -144,9 +176,7 @@ class MatchSession {
     return session
   }
 
-  private async connect(
-    mode: { kind: 'host' } | { kind: 'join'; code: string },
-  ): Promise<void> {
+  private async connect(mode: OpenMode): Promise<void> {
     const handlers = { onEvent: (event: TransportEvent) => this.handleEvent(event) }
     try {
       const transport = await openTransport(mode, handlers)
@@ -158,7 +188,16 @@ class MatchSession {
       this.transport = transport
 
       if (transport.isHost) {
-        this.onPhase({ kind: 'waiting', roomCode: transport.roomCode ?? '' })
+        /*
+         * 자동매칭에서는 **둘 다 방을 만들며 붙는다.** 서로를 모르니 누가 방을 열지
+         * 정해줄 수가 없어서, 중계가 먼저 도착한 쪽을 방장으로 삼게 맡긴다.
+         * 그래서 여기서 방장이 되었다는 것은 "내가 조금 빨랐다"는 뜻일 뿐이다.
+         */
+        this.onPhase(
+          this.autoMatched
+            ? { kind: 'pairing' }
+            : { kind: 'waiting', roomCode: transport.roomCode ?? '' },
+        )
       } else {
         // 참가자는 붙자마자 자기를 알린다. 방장이 명단을 만들 수 있어야 한다
         this.onPhase({ kind: 'handshaking' })
@@ -326,12 +365,40 @@ class MatchSession {
     if (transport === null || this.started || this.countdownTimer !== null) {
       return
     }
+    this.armReadyTimeout()
     this.onPhase({
       kind: 'ready',
       players: this.roster,
       ready: [...this.ready],
       selfId: transport.selfId,
     })
+  }
+
+  /**
+   * 자동매칭에서만 준비에 시한을 둔다.
+   *
+   * 코드로 모을 때는 아는 사람끼리라 안 누르면 말로 해결한다. 모르는 사람과 붙으면
+   * **창을 열어두고 가버린 것과 구분할 수 없어서**, 시한이 없으면 준비를 누른 쪽이
+   * 영원히 그 화면에 남는다. 시한이 지나면 실패로 알리고, 화면은 그것을 받아 다시
+   * 줄에 세운다 — 이 층은 줄을 모르므로 여기서 하는 일은 끊는 것까지다.
+   */
+  private armReadyTimeout(): void {
+    if (!this.autoMatched || this.readyTimer !== null) {
+      return
+    }
+    this.readyTimer = setTimeout(() => {
+      this.readyTimer = null
+      if (!this.started && !this.disposed) {
+        this.onPhase({ kind: 'failed', failure: failure('readyTimeout') })
+      }
+    }, READY_TIMEOUT_MS)
+  }
+
+  private clearReadyTimeout(): void {
+    if (this.readyTimer !== null) {
+      clearTimeout(this.readyTimer)
+      this.readyTimer = null
+    }
   }
 
   /**
@@ -367,6 +434,8 @@ class MatchSession {
     if (this.started || this.countdownTimer !== null) {
       return
     }
+    // 다 준비했으므로 준비 시한은 여기서 끝난다
+    this.clearReadyTimeout()
     if (this.countdownSec <= 0) {
       void this.begin(players, seed)
       return
@@ -442,6 +511,7 @@ class MatchSession {
       this.countdownTimer = null
     }
     this.clearHandshakeTimeout()
+    this.clearReadyTimeout()
     // 상대가 영문을 모른 채 기다리지 않게, 끊기 전에 나간다고 알린다
     this.engine?.announceLeave()
     this.engine?.dispose()
@@ -453,11 +523,20 @@ class MatchSession {
 
 /** 방 코드는 우리가 만들어 서버에 알려준다 — 서버는 그 이름의 방을 열어줄 뿐이다 */
 function openTransport(
-  mode: { kind: 'host' } | { kind: 'join'; code: string },
+  mode: OpenMode,
   handlers: { onEvent: (event: TransportEvent) => void },
 ): Promise<Transport> {
-  return mode.kind === 'host'
-    ? RelayTransport.host(RELAY_URL, createRoomCode(Math.random), handlers)
+  if (mode.kind === 'host') {
+    return RelayTransport.host(RELAY_URL, createRoomCode(Math.random), handlers)
+  }
+  /*
+   * 자동매칭도 **방을 만들며** 붙는다(`host`). 서로를 모르니 누가 열지 정해줄 수 없어서
+   * 둘 다 열려고 하고, 중계가 먼저 온 쪽을 방장으로 삼는다. `join`으로 붙이면 늦게 온
+   * 쪽이 "그 코드로 기다리는 방이 없다"를 받는데, 그건 누가 먼저 붙느냐에 달린 것이라
+   * 절반의 확률로 실패한다.
+   */
+  return mode.kind === 'auto'
+    ? RelayTransport.host(RELAY_URL, mode.code, handlers)
     : RelayTransport.join(RELAY_URL, mode.code, handlers)
 }
 
@@ -474,4 +553,4 @@ function asFailure(error: unknown): TransportFailure {
 }
 
 export { MatchSession }
-export type { SessionPhase, SessionOptions }
+export type { SessionPhase, SessionOptions, OpenMode }

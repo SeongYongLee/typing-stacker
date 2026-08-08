@@ -53,6 +53,14 @@ type TransportFailureKind =
    * 않는 것이고, 타임아웃이 없으면 양쪽이 영원히 기다린다.
    */
   | 'handshakeStalled'
+  /**
+   * 붙었는데 상대가 준비를 누르지 않았다.
+   *
+   * 자동매칭에서만 나온다. 코드로 모을 때는 아는 사람끼리라 안 누르면 말로 해결하지만,
+   * 모르는 사람과 붙으면 **상대가 창을 열어두고 가버린 것과 구분할 수 없다.**
+   * 시한이 없으면 준비를 누른 쪽이 영원히 그 화면에 남는다.
+   */
+  | 'readyTimeout'
   | 'unknown'
 
 interface TransportFailure {
@@ -70,6 +78,7 @@ const FAILURE_TEXT: Record<TransportFailureKind, string> = {
   peerLost: '상대와의 연결이 끊겼다.',
   handshakeStalled:
     '상대와 붙었는데 시작 신호가 오지 않았다. 양쪽 다 나갔다가 방을 새로 만들어보자.',
+  readyTimeout: '상대가 준비하지 않았다. 다시 상대를 찾아보자.',
   unknown: '연결에 실패했다.',
 }
 

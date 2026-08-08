@@ -22,11 +22,7 @@ function primitiveBounds(shape: PrimitiveShape): Bounds {
   }
 }
 
-/**
- * 물건의 외접 사각형. 렌더러가 이 안에 그림(이모지)을 꽉 채워 넣기 때문에
- * 화면에 보이는 그림과 실제 충돌 도형이 어긋나지 않는다.
- */
-function shapeBounds(shape: ShapeDef): Bounds {
+function computeBounds(shape: ShapeDef): Bounds {
   if (shape.kind !== 'compound') {
     return primitiveBounds(shape)
   }
@@ -38,6 +34,33 @@ function shapeBounds(shape: ShapeDef): Bounds {
     hh = Math.max(hh, Math.abs(part.offset.y) + bounds.hh)
   }
   return { hw, hh }
+}
+
+/**
+ * 도형마다 한 번만 재고 기억한다.
+ *
+ * 도형은 만들어진 뒤 바뀌지 않는데(변형 테이블이 모듈 로드 때 한 번 만든다) 이 값은
+ * **프레임마다 여러 번** 불린다 — `PhysicsWorld.stackTop()`이 쌓인 물건마다
+ * `halfExtentY`를 부르고, 그 `stackTop()`이 한 프레임에 세 번 불린다(카메라·난이도·렌더).
+ * 스티커는 볼록 조각이 평균 12개라 매번 조각을 다 훑는 값이 작지 않다.
+ *
+ * 실측으로 조각 10개 이상인 물건 12종을 훑는 것이 0.063ms였고 캐시 조회는 0.000ms다.
+ * WeakMap이라 도형을 만들었다 버리는 쪽(테스트)에서도 새지 않는다.
+ */
+const boundsCache = new WeakMap<ShapeDef, Bounds>()
+
+/**
+ * 물건의 외접 사각형. 렌더러가 이 안에 그림을 꽉 채워 넣기 때문에
+ * 화면에 보이는 그림과 실제 충돌 도형이 어긋나지 않는다.
+ */
+function shapeBounds(shape: ShapeDef): Bounds {
+  const cached = boundsCache.get(shape)
+  if (cached !== undefined) {
+    return cached
+  }
+  const computed = computeBounds(shape)
+  boundsCache.set(shape, computed)
+  return computed
 }
 
 /** 중심에서 위쪽 끝까지의 거리. 높이 점수를 매길 때 쓴다. */

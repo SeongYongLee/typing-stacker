@@ -2,7 +2,7 @@ import { MatchEngine } from './MatchEngine.ts'
 import { RelayTransport } from './RelayTransport.ts'
 import { createRoomCode } from './protocol.ts'
 import { sanitizeNickname } from './protocol.ts'
-import type { PlayerInfo } from './protocol.ts'
+import type { PlayerId, PlayerInfo } from './protocol.ts'
 import { failure } from './Transport.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 
@@ -48,6 +48,18 @@ type SessionPhase =
   | { readonly kind: 'handshaking' }
   /** 방장이 상대를 기다리는 중. 이 코드를 상대에게 전달해야 한다 */
   | { readonly kind: 'waiting'; readonly roomCode: string }
+  /**
+   * 명단이 정해졌고 양쪽이 준비를 누르기를 기다린다.
+   *
+   * 상대가 들어오자마자 시작하면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
+   * 없다 — 첫 단어가 이미 내려오고 있다.
+   */
+  | {
+      readonly kind: 'ready'
+      readonly players: readonly PlayerInfo[]
+      readonly ready: readonly PlayerId[]
+      readonly selfId: PlayerId
+    }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
 
@@ -65,6 +77,9 @@ class MatchSession {
   /** 참가자 쪽에서 start를 두 번 받아도 판을 두 번 만들지 않게 */
   private started = false
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null
+  /** 준비 단계의 명단. 방장이 정하고 참가자는 받아 쓴다 */
+  private roster: readonly PlayerInfo[] = []
+  private readonly ready = new Set<PlayerId>()
 
   private constructor(options: SessionOptions) {
     this.nickname = sanitizeNickname(options.nickname)
@@ -167,19 +182,89 @@ class MatchSession {
     }
 
     if (transport.isHost && event.message.t === 'hello') {
-      const players: PlayerInfo[] = [
+      this.roster = [
         { id: transport.selfId, nickname: this.nickname },
         { id: event.from, nickname: event.message.nickname },
       ]
-      const seed = Date.now() >>> 0
-      transport.broadcast({ t: 'start', seed, players })
-      void this.begin(players, seed)
+      this.clearHandshakeTimeout()
+      transport.broadcast({ t: 'roster', players: this.roster })
+      this.emitReady()
+      return
+    }
+
+    // 참가자가 준비를 눌렀다. 판을 여는 것은 모두가 눌렀을 때다
+    if (transport.isHost && event.message.t === 'ready') {
+      this.ready.add(event.from)
+      this.publishReady()
+      return
+    }
+
+    if (!transport.isHost && event.message.t === 'roster') {
+      this.roster = event.message.players
+      this.clearHandshakeTimeout()
+      this.emitReady()
+      return
+    }
+
+    if (!transport.isHost && event.message.t === 'readyList') {
+      this.ready.clear()
+      for (const id of event.message.ready) {
+        this.ready.add(id)
+      }
+      this.emitReady()
       return
     }
 
     if (!transport.isHost && event.message.t === 'start') {
       void this.begin(event.message.players, event.message.seed)
     }
+  }
+
+  /** 화면에서 준비를 눌렀다 */
+  setReady(): void {
+    const transport = this.transport
+    if (transport === null || this.started) {
+      return
+    }
+    if (transport.isHost) {
+      this.ready.add(transport.selfId)
+      this.publishReady()
+      return
+    }
+    // 참가자는 방장에게 청하고, 명단은 방장이 되돌려주는 것을 따른다
+    transport.broadcast({ t: 'ready' })
+  }
+
+  /** 방장만 부른다. 모두 준비됐으면 여기서 판이 열린다 */
+  private publishReady(): void {
+    const transport = this.transport
+    if (transport === null) {
+      return
+    }
+    transport.broadcast({ t: 'readyList', ready: [...this.ready] })
+    this.emitReady()
+
+    const allReady =
+      this.roster.length > 0 && this.roster.every((player) => this.ready.has(player.id))
+    if (!allReady) {
+      return
+    }
+    const seed = Date.now() >>> 0
+    transport.broadcast({ t: 'start', seed, players: this.roster })
+    void this.begin(this.roster, seed)
+  }
+
+  private emitReady(): void {
+    const transport = this.transport
+    if (transport === null || this.started) {
+      return
+    }
+    this.onPhase({
+      kind: 'ready',
+      players: this.roster,
+      ready: [...this.ready],
+      selfId: transport.selfId,
+    })
   }
 
   /**

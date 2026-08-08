@@ -269,4 +269,4 @@ function Delta({ amount }: { amount: number }) {
   )
 }
 
-export { Lives, Combo, Score }
+export { Lives, Combo, Score, Barrier, KEPT, LOST }

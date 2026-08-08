@@ -35,6 +35,8 @@ interface PlayerInfo {
 /** 참가자 → 방장 */
 type ToHost =
   | { readonly t: 'hello'; readonly nickname: string }
+  /** 준비를 눌렀다. 모두가 누르면 방장이 판을 연다 */
+  | { readonly t: 'ready' }
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
   | { readonly t: 'drop'; readonly word: string; readonly aimX: number }
   /** 상대 턴에 단어를 지목한다 (강제력 없음) */
@@ -44,6 +46,15 @@ type ToHost =
 type ToGuest =
   | { readonly t: 'welcome'; readonly you: PlayerId; readonly players: readonly PlayerInfo[] }
   | { readonly t: 'full' }
+  /**
+   * 명단이 정해졌다. 아직 시작은 아니다.
+   *
+   * 상대가 들어오자마자 판이 시작되면 누구와 붙는지 볼 겨를도, 손을 올릴 겨를도 없다.
+   * 그래서 명단을 먼저 알리고 양쪽이 준비를 누르기를 기다린다.
+   */
+  | { readonly t: 'roster'; readonly players: readonly PlayerInfo[] }
+  /** 지금까지 준비를 누른 사람들. 방장이 정하고 알린다 */
+  | { readonly t: 'readyList'; readonly ready: readonly PlayerId[] }
   | { readonly t: 'start'; readonly seed: number; readonly players: readonly PlayerInfo[] }
   /** 누가 무엇을 떨궜는지. 양쪽이 같은 물건을 같은 자리에 만들기 위한 것 */
   | {
@@ -126,6 +137,20 @@ function parseMessage(raw: unknown): Message | null {
       return { t: 'welcome', you: raw['you'], players: parsePlayers(raw['players']) }
     case 'full':
       return { t: 'full' }
+    case 'ready':
+      return { t: 'ready' }
+    case 'roster':
+      if (!Array.isArray(raw['players'])) return null
+      return { t: 'roster', players: parsePlayers(raw['players']) }
+    case 'readyList': {
+      if (!Array.isArray(raw['ready'])) return null
+      const ready: PlayerId[] = []
+      for (const id of raw['ready']) {
+        if (isShortString(id, 64)) ready.push(id)
+        if (ready.length >= MAX_PLAYERS) break
+      }
+      return { t: 'readyList', ready }
+    }
     case 'start':
       if (!isFiniteNumber(raw['seed']) || !Array.isArray(raw['players'])) return null
       return { t: 'start', seed: raw['seed'], players: parsePlayers(raw['players']) }

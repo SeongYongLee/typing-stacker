@@ -1,4 +1,5 @@
 import { sprite } from './spriteCache.ts'
+import { padRatio, rim } from './rimCache.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
 import type {
@@ -8,13 +9,6 @@ import type {
   ShapeDef,
   ShapePart,
 } from '../types/game.ts'
-
-/**
- * 주인 색 테두리. 누구 것인지만 알면 되므로 은은해야 한다 —
- * 진하면 그림보다 테두리가 먼저 보여서 물건을 알아보기 어려워진다.
- */
-const RIM_BLUR = 7
-const RIM_ALPHA = 0.85
 
 interface HiddenReveal {
   readonly label: string
@@ -320,12 +314,9 @@ class ArenaRenderer {
 
   /**
    * 그림을 물건의 원래 크기에 맞춰 그린다 — 보이는 것과 부딪히는 것이 같아야 한다.
-   *
-   * 주인 색은 **그림 실루엣을 따라** 두른다. 충돌 도형에 선을 그으면 다각형 윤곽이
-   * 그림 위에 겹쳐 보여서 물건 모양이 어긋나 보였다. 그림자는 알파를 따라 번지므로
-   * 실루엣이 그대로 나오고, 그 위에 그림을 다시 덮어 테두리만 남긴다.
+   * 주인 색 테두리는 미리 만들어 둔 것을 겹쳐 그린다 (rimCache).
    */
-  private drawSprite(src: string, bounds: Bounds, rim: string | null): boolean {
+  private drawSprite(src: string, bounds: Bounds, ownerColor: string | null): boolean {
     const img = sprite(src)
     if (img === null) {
       return false
@@ -336,13 +327,15 @@ class ArenaRenderer {
     const left = -width / 2
     const top = -height / 2
 
-    if (rim !== null) {
-      ctx.save()
-      ctx.shadowColor = rim
-      ctx.shadowBlur = RIM_BLUR
-      ctx.globalAlpha = RIM_ALPHA
-      ctx.drawImage(img, left, top, width, height)
-      ctx.restore()
+    if (ownerColor !== null) {
+      const glow = rim(img, ownerColor)
+      if (glow !== null) {
+        // 테두리 그림은 원본보다 여백만큼 크다. 같은 비율로 넓게 그려야 자리가 맞는다
+        const pad = padRatio(img)
+        const padX = width * pad.x
+        const padY = height * pad.y
+        ctx.drawImage(glow, left - padX, top - padY, width + padX * 2, height + padY * 2)
+      }
     }
 
     ctx.drawImage(img, left, top, width, height)

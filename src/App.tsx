@@ -63,7 +63,14 @@ function App() {
         <MatchScreen engine={phase.engine} state={match.state} onLeave={backToTitle} />
       )
     }
-    return <LobbyScreen phase={phase} onOpen={match.open} onBack={backToTitle} />
+    return (
+      <LobbyScreen
+        phase={phase}
+        onOpen={match.open}
+        onReady={match.setReady}
+        onBack={backToTitle}
+      />
+    )
   }
 
   if (route === 'title' || engine === null || state === null) {

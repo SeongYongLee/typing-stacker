@@ -1,4 +1,4 @@
-import { AIM_HALF_RANGE, LIVES } from '../game/config.ts'
+import { AIM_HALF_RANGE, ARENA, INVULNERABLE_SEC, LIVES } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
@@ -32,6 +32,9 @@ const SETTLE_QUIET_SEC = 0.6
 /** 물건이 영원히 구르는 경우를 대비한 상한 */
 const TURN_RESOLVE_TIMEOUT_SEC = 12
 
+/** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
+const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
+
 interface MatchViewState {
   readonly phase: 'playing' | 'over'
   readonly selfId: PlayerId
@@ -46,6 +49,15 @@ interface MatchViewState {
    * 아닌 것이 규칙인데 그렇게 말해주지 않아 판이 멈춘 것처럼 읽힌다.
    */
   readonly settling: boolean
+  /**
+   * 사람별 남은 무적 비율(1 → 0). 목숨을 잃은 직후 잠깐 붙는다.
+   *
+   * 없으면 탑이 한 번 무너질 때 그 사람의 물건이 줄줄이 벗어나며 목숨 셋이
+   * 한순간에 날아간다 — 만회할 틈이 없다. 싱글과 같은 규칙이다.
+   */
+  readonly invulnerable: readonly (readonly [PlayerId, number])[]
+  /** 방금 목숨을 잃은 사람. 누구인지가 핵심이라 가운데에 띄운다 */
+  readonly hurt: { readonly by: PlayerId; readonly lives: number } | null
   readonly words: readonly FallingWord[]
   readonly aimNormalized: number
   /** 상대가 지목한 단어. 강제력은 없고 표시만 한다 */
@@ -104,6 +116,16 @@ class MatchEngine {
   private nextItemId = 1
   /** 방장이 마지막으로 보낸 단어 밭의 판번호 */
   private sentWordVersion = -1
+  /**
+   * 사람별 남은 무적 시간(초).
+   *
+   * 방장은 이것으로 목숨을 깎을지 말지를 정하고, 참가자는 화면에 베리어를 그리는 데만 쓴다.
+   * 양쪽이 각자 굴려도 되는 이유는 판정이 방장 한 곳에서만 나기 때문이다 —
+   * 참가자 쪽 값이 조금 어긋나도 승패에 닿지 않는다.
+   */
+  private readonly invulnerable = new Map<PlayerId, number>()
+  /** 가장 최근에 목숨을 잃은 사람. 무적이 끝나면 지운다 */
+  private lastHurt: PlayerId | null = null
   /** 지금 화면이 올려다보는 높이. 탑을 따라 올라간다 */
   private cameraY = 0
   /** 이번 판에 닿았던 가장 높은 난이도 진행도(0~1) */
@@ -228,6 +250,29 @@ class MatchEngine {
       x: frame.x,
       y: frame.y,
     }))
+  }
+
+  /**
+   * 검사용 — 아레나 밖에 물건을 만들어 이탈을 일으킨다.
+   *
+   * 무적은 "여러 개가 한꺼번에 벗어날 때"만 드러나는 규칙인데, 그 상황을 실제 플레이로
+   * 만들려면 탑을 무너뜨려야 해서 재현이 불안정하다. 여기서는 원인을 직접 만든다.
+   */
+  debugEscape(owner: PlayerId, count: number): void {
+    const variant = WORDS[0]?.variants[0]
+    if (variant === undefined) {
+      return
+    }
+    for (let i = 0; i < count; i += 1) {
+      this.physics.spawnItemAt(
+        variant,
+        ARENA.halfWidth + 2 + i,
+        ARENA.platformTop + 1,
+        owner,
+        this.nextItemId,
+      )
+      this.nextItemId += 1
+    }
   }
 
   dispose(): void {
@@ -443,12 +488,62 @@ class MatchEngine {
 
   private applyLives(lives: readonly (readonly [PlayerId, number])[]): void {
     for (const [id, count] of lives) {
+      // 방장이 보낸 값과 비교해 **누가** 잃었는지를 알아낸다 — 연출에 필요한 것이 그것이다
+      let lost = false
       while (this.match.livesOf(id) > count) {
         this.match.loseLife(id)
+        lost = true
+      }
+      if (lost) {
+        this.markHurt(id)
       }
     }
     this.match.ensureTurnAlive()
     this.emit()
+  }
+
+  /**
+   * 목숨을 잃은 직후 잠깐 무적을 준다.
+   *
+   * 탑이 한 번 무너지면 그 사람의 물건이 줄줄이 벗어난다. 그때마다 깎으면 목숨 셋이
+   * 한순간에 날아가 만회할 틈이 없다. 방장은 이 값으로 판정하고, 양쪽 다 화면에 그린다.
+   */
+  private markHurt(owner: PlayerId): void {
+    this.invulnerable.set(owner, INVULNERABLE_SEC)
+    this.lastHurt = owner
+  }
+
+  /**
+   * 화면에 넘길 남은 비율. 아무도 무적이 아니면 **같은 빈 배열을 돌려준다** —
+   * 매 프레임 새 배열을 만들면 그것만으로 쓰레기가 쌓인다.
+   */
+  private invulnerableRatios(): readonly (readonly [PlayerId, number])[] {
+    if (this.invulnerable.size === 0) {
+      return NO_INVULNERABLE
+    }
+    const ratios: [PlayerId, number][] = []
+    for (const [id, left] of this.invulnerable) {
+      ratios.push([id, left / INVULNERABLE_SEC])
+    }
+    return ratios
+  }
+
+  private isInvulnerable(owner: PlayerId): boolean {
+    return (this.invulnerable.get(owner) ?? 0) > 0
+  }
+
+  private tickInvulnerable(dt: number): void {
+    for (const [id, left] of this.invulnerable) {
+      const next = left - dt
+      if (next <= 0) {
+        this.invulnerable.delete(id)
+        if (this.lastHurt === id) {
+          this.lastHurt = null
+        }
+      } else {
+        this.invulnerable.set(id, next)
+      }
+    }
   }
 
   private readonly update = (dt: number): void => {
@@ -467,6 +562,7 @@ class MatchEngine {
       difficultyProgress(this.physics.stackTop()),
     )
     const difficulty = difficultyAt(this.difficultyPeak)
+    this.tickInvulnerable(dt)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
      * 단어 밭은 방장이 소유한다. 참가자의 스포너는 따라가기만 하고 스스로 내지 않는다 —
@@ -495,10 +591,17 @@ class MatchEngine {
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
   private hostJudge(dt: number, escaped: readonly OwnerId[]): void {
-    if (escaped.length > 0) {
-      for (const owner of escaped) {
-        this.match.loseLife(owner)
+    let anyLost = false
+    for (const owner of escaped) {
+      // 무적인 사람의 물건은 세계에서 치우되 목숨은 깎지 않는다
+      if (this.isInvulnerable(owner)) {
+        continue
       }
+      this.match.loseLife(owner)
+      this.markHurt(owner)
+      anyLost = true
+    }
+    if (anyLost) {
       this.match.ensureTurnAlive()
       this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
     }
@@ -551,6 +654,11 @@ class MatchEngine {
       current: snapshot.current,
       myTurn: this.canDropNow(),
       settling: this.resolving && !snapshot.over && !this.connectionLost,
+      invulnerable: this.invulnerableRatios(),
+      hurt:
+        this.lastHurt === null
+          ? null
+          : { by: this.lastHurt, lives: this.match.livesOf(this.lastHurt) },
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,
       aimNormalized: this.aimer.normalized,

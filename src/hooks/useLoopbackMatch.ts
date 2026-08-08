@@ -31,9 +31,22 @@ function useLoopbackMatch(): UseLoopbackMatch {
   useEffect(() => {
     const [hostLink, guestLink] = LoopbackTransport.pair()
 
-    const side = (set: (next: LoopbackSide) => void) => ({
+    /*
+     * 붕괴처럼 "만들기 어려운 상황"을 검사에서 직접 일으키기 위한 통로.
+     * `data-aim`과 같은 성격의 테스트 훅이고, 개발용 진입에서만 존재한다.
+     */
+    const expose = (key: 'host' | 'guest', phase: SessionPhase) => {
+      if (phase.kind !== 'playing') {
+        return
+      }
+      const debug = (window as unknown as { __loopback?: Record<string, unknown> })
+      debug.__loopback = { ...debug.__loopback, [key]: phase.engine }
+    }
+
+    const side = (key: 'host' | 'guest', set: (next: LoopbackSide) => void) => ({
       onPhase: (phase: SessionPhase) => {
         set({ phase, state: null })
+        expose(key, phase)
         if (phase.kind === 'playing') {
           phase.engine.onStateChange((state) => set({ phase, state }))
         }
@@ -42,13 +55,22 @@ function useLoopbackMatch(): UseLoopbackMatch {
 
     const hostSession = MatchSession.attach(hostLink, (on) => hostLink.listen(on), {
       nickname: '방장',
-      ...side(setHost),
+      ...side('host', setHost),
     })
     const guestSession = MatchSession.attach(guestLink, (on) => guestLink.listen(on), {
       nickname: '참가자',
-      ...side(setGuest),
+      ...side('guest', setGuest),
     })
     sessions.current = [hostSession, guestSession]
+
+    /*
+     * 준비 단계는 자동으로 넘긴다. 이 화면은 **대전 규칙**을 눌러보려고 있는 것이지
+     * 로비를 확인하려는 것이 아니다 — 여기서 매번 준비를 눌러야 하면 확인이 번거로워진다.
+     * 두 세션이 다 만들어진 뒤에 부르는 이유는, 참가자가 붙는 순간에 부르면
+     * 아직 자기 자신을 가리킬 수 없기 때문이다.
+     */
+    hostSession.setReady()
+    guestSession.setReady()
 
     return () => {
       for (const session of sessions.current) {

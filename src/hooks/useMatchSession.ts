@@ -12,6 +12,8 @@ interface UseMatchSession {
   readonly state: MatchViewState | null
   readonly open: (request: JoinRequest) => void
   readonly leave: () => void
+  /** 준비 단계에서 준비를 누른다 */
+  readonly setReady: () => void
 }
 
 /**
@@ -57,7 +59,11 @@ function useMatchSession(): UseMatchSession {
     }
   }, [])
 
-  return { phase, state, open, leave }
+  const setReady = useCallback(() => {
+    sessionRef.current?.setReady()
+  }, [])
+
+  return { phase, state, open, leave, setReady }
 }
 
 export { useMatchSession }

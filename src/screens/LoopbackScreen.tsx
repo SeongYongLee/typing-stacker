@@ -110,6 +110,8 @@ function describe(side: LoopbackSide): string {
       return '붙었다 — 시작 신호를 기다린다'
     case 'waiting':
       return '상대를 기다리는 중'
+    case 'ready':
+      return `준비 확인 중 (${phase.ready.length}/${phase.players.length})`
     case 'playing':
       return '시작됨'
     case 'failed':

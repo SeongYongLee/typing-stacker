@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { MatchEngine, type MatchViewState } from '../src/multi/MatchEngine.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
@@ -300,6 +301,34 @@ describe('MatchEngine — 턴제 대전', () => {
     await pair.clock.advance(6)
     expect(pair.hostState().myTurn).toBe(false)
     expect(pair.hostState().suggestion).toBeNull()
+  })
+
+  /*
+   * 탑이 한 번 무너지면 그 사람의 물건이 줄줄이 벗어난다. 그때마다 깎으면 목숨 셋이
+   * 한순간에 날아가 만회할 틈이 없다. 싱글과 같은 규칙을 대전에도 둔다.
+   */
+  it('한 번 잃으면 잠깐 무적이고, 그 사실이 양쪽 화면에 보인다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+
+    // 방장 소유 물건 여럿을 한꺼번에 받침대 밖으로 던진다
+    pair.host.debugEscape('host-peer', 3)
+    await pair.clock.advance(0.1)
+
+    // 한 번만 깎였다
+    const livesOf = (state: MatchViewState) => new Map(state.lives).get('host-peer')
+    expect(livesOf(pair.hostState())).toBe(LIVES - 1)
+    expect(livesOf(pair.guestState())).toBe(LIVES - 1)
+
+    // 양쪽 다 누가 잃었는지 알고, 무적이 걸린 것도 안다
+    expect(pair.hostState().hurt?.by).toBe('host-peer')
+    expect(pair.guestState().hurt?.by).toBe('host-peer')
+    expect(new Map(pair.guestState().invulnerable).get('host-peer')).toBeGreaterThan(0)
+
+    // 무적이 끝나면 표시도 사라진다
+    await pair.clock.advance(INVULNERABLE_SEC + 0.2)
+    expect(pair.hostState().hurt).toBeNull()
+    expect(pair.guestState().invulnerable).toHaveLength(0)
   })
 
   it('턴이 끝나면 방장이 권위 키프레임을 보낸다', async () => {

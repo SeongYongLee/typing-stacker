@@ -1,14 +1,17 @@
 import { useState } from 'react'
+import { WORDS } from '../game/data/words.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
 import { NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
+import { ownerColorAt } from '../multi/ownerColors.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
 
 interface LobbyScreenProps {
   phase: SessionPhase | null
   onOpen: (request: JoinRequest) => void
+  onReady: () => void
   onBack: () => void
 }
 
@@ -54,8 +57,19 @@ const ghostButtonStyle: CSSProperties = {
   color: '#b6bdd4',
 }
 
-function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
-  const [nickname, setNickname] = useState('')
+/**
+ * 이름을 비워두면 둘 다 '이름없음'이 되어 누가 누구인지 알 수 없다.
+ * 게임에 나오는 단어 하나를 미리 넣어두면 그대로 시작해도 서로 구분된다 —
+ * 이름을 짓는 것이 대전에 들어가는 문턱이 되면 안 된다.
+ */
+function suggestName(): string {
+  const index = Math.floor(Math.random() * WORDS.length)
+  return WORDS[index]?.word ?? ''
+}
+
+function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
+  // 한 번만 뽑는다 — 리렌더마다 이름이 바뀌면 고칠 수가 없다
+  const [nickname, setNickname] = useState(suggestName)
   const [code, setCode] = useState('')
 
   const trimmedCode = code.trim().toLowerCase()
@@ -107,6 +121,10 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
 
   if (phase?.kind === 'waiting') {
     return <WaitingRoom roomCode={phase.roomCode} onBack={onBack} />
+  }
+
+  if (phase?.kind === 'ready') {
+    return <ReadyRoom phase={phase} onReady={onReady} onBack={onBack} />
   }
 
   if (phase?.kind === 'failed') {
@@ -211,6 +229,106 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
         <span style={{ fontSize: 12, color: '#4a5171', textAlign: 'center' }}>
           ↑↓로 고르고 Enter로 들어간다
         </span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 붙은 뒤 시작 전.
+ *
+ * 상대가 들어오자마자 판이 열리면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
+ * 없다 — 첫 단어가 이미 내려오고 있다. 양쪽이 준비를 눌러야 시작한다.
+ */
+function ReadyRoom({
+  phase,
+  onReady,
+  onBack,
+}: {
+  phase: Extract<SessionPhase, { kind: 'ready' }>
+  onReady: () => void
+  onBack: () => void
+}) {
+  const ready = new Set(phase.ready)
+  const iAmReady = ready.has(phase.selfId)
+  const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
+
+  useMenuKeys({
+    count: 1,
+    useTab: false,
+    onActivate: () => {
+      if (!iAmReady) {
+        onReady()
+      }
+    },
+    onCancel: onBack,
+  })
+
+  return (
+    <div style={rootStyle}>
+      <div style={panelStyle} data-ready-room={ready.size}>
+        <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
+          상대를 찾았다
+        </p>
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          {phase.players.map((player, index) => {
+            const isReady = ready.has(player.id)
+            const mine = player.id === phase.selfId
+            return (
+              <div
+                key={player.id}
+                data-ready={isReady ? 'yes' : 'no'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  background: '#0d0f16',
+                  border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
+                }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    background: ownerColorAt(index),
+                  }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    textAlign: 'left',
+                    fontSize: 17,
+                    fontWeight: mine ? 700 : 500,
+                    color: '#f2f4fb',
+                  }}
+                >
+                  {player.nickname}
+                  {mine && ' (나)'}
+                </span>
+                <span style={{ fontSize: 14, color: isReady ? '#6bffb0' : '#6a7290' }}>
+                  {isReady ? '준비됨' : '기다리는 중…'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        <p style={{ color: '#6a7290', margin: 0, fontSize: 13, lineHeight: 1.7 }}>
+          받침대 하나를 함께 쓴다. 번갈아 쌓고,{' '}
+          <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
+        </p>
+
+        <MenuButton selected={!iAmReady} onClick={onReady} disabled={iAmReady} primary>
+          {iAmReady ? `상대를 기다린다… (${waitingFor}명)` : '준비 (Enter)'}
+        </MenuButton>
+
+        <MenuButton selected={false} onClick={onBack}>
+          나가기 (Esc)
+        </MenuButton>
       </div>
     </div>
   )

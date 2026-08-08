@@ -235,8 +235,6 @@ const WORDS: readonly WordEntry[] = [
     variants: [
       variant({
         id: 'pizza-slice',
-        // 치즈가 늘어붙는다. 기울어진 곳에 얹혀도 흘러내리지 않는다
-        sticky: true,
         label: '피자 조각',
         sprite: 'pizza-slice',
         size: { width: 0.72 },
@@ -247,8 +245,7 @@ const WORDS: readonly WordEntry[] = [
       hiddenVariant({
         // 한 조각 시켰는데 한 판이 왔다. 넓고 평평해서 훨씬 잘 받쳐준다
         id: 'pizza-box',
-        // 넓고 평평해서 그 위로 다시 쌓기 좋다. 받침이 되어주는 물건
-        sticky: true,
+        // 넓고 평평해서 그 위로 다시 쌓기 좋다. 붙지 않아도 받침이 되어준다
         angularDamping: 4,
         label: '피자 한 판',
         sprite: 'pizza-box',

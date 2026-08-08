@@ -68,6 +68,8 @@ class MatchSession {
   /** 준비 단계의 명단. 방장이 정하고 참가자는 받아 쓴다 */
   private roster: readonly PlayerInfo[] = []
   private readonly ready = new Set<PlayerId>()
+  /** 방장이 모으는 참가자들. 방장 자신은 여기 없고 명단을 만들 때 앞에 붙는다 */
+  private readonly joined = new Map<PlayerId, PlayerInfo>()
   /**
    * 판을 거듭하며 쌓이는 승수.
    *
@@ -169,7 +171,23 @@ class MatchSession {
       return
     }
     if (event.kind === 'peerLeft') {
-      // 아직 시작도 못 했는데 상대가 사라졌다
+      /*
+       * 시작 전에 누가 나갔다. 여덟까지 붙으므로 **한 명이 나갔다고 판을 접지 않는다** —
+       * 명단에서 빼고 남은 사람들끼리 기다린다. 아무도 남지 않았을 때만 실패다.
+       */
+      if (transport.isHost) {
+        this.joined.delete(event.peer)
+        this.ready.delete(event.peer)
+        this.rebuildRoster()
+        if (this.joined.size > 0) {
+          transport.broadcast({ t: 'roster', players: this.roster })
+          this.publishReady()
+          return
+        }
+      } else if (this.roster.length > 2) {
+        // 참가자 쪽은 방장이 보내줄 새 명단을 기다린다
+        return
+      }
       this.onPhase({ kind: 'failed', failure: failure('peerLost') })
       return
     }
@@ -178,10 +196,16 @@ class MatchSession {
     }
 
     if (transport.isHost && event.message.t === 'hello') {
-      this.roster = [
-        { id: transport.selfId, nickname: this.nickname, device: this.deviceId },
-        { id: event.from, nickname: event.message.nickname, device: event.message.device },
-      ]
+      /*
+       * 명단에 **더한다.** 예전에는 [방장, 방금 온 사람] 둘로 덮어썼는데,
+       * 정원이 여덟이 된 지금 그러면 셋째가 들어오는 순간 둘째가 사라진다.
+       */
+      this.joined.set(event.from, {
+        id: event.from,
+        nickname: event.message.nickname,
+        device: event.message.device,
+      })
+      this.rebuildRoster()
       this.clearHandshakeTimeout()
       transport.broadcast({ t: 'roster', players: this.roster })
       this.emitReady()
@@ -229,6 +253,18 @@ class MatchSession {
     }
     // 참가자는 방장에게 청하고, 명단은 방장이 되돌려주는 것을 따른다
     transport.broadcast({ t: 'ready' })
+  }
+
+  /** 방장이 자기를 맨 앞에 두고 들어온 순서대로 명단을 만든다 — 그 순서가 곧 차례다 */
+  private rebuildRoster(): void {
+    const transport = this.transport
+    if (transport === null) {
+      return
+    }
+    this.roster = [
+      { id: transport.selfId, nickname: this.nickname, device: this.deviceId },
+      ...this.joined.values(),
+    ]
   }
 
   /** 방장만 부른다. 모두 준비됐으면 여기서 판이 열린다 */

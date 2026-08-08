@@ -7,10 +7,11 @@ function players(...ids: string[]): PlayerInfo[] {
 }
 
 describe('MatchState — 2명', () => {
-  it('둘 다 처음부터 떨굴 수 있다 — 차례를 기다리지 않는다', () => {
+  it('차례인 사람만 떨굴 수 있다 — 받침대가 하나이기 때문이다', () => {
     const match = new MatchState(players('a', 'b'), 3)
+    expect(match.currentPlayer).toBe('a')
     expect(match.canDrop('a')).toBe(true)
-    expect(match.canDrop('b')).toBe(true)
+    expect(match.canDrop('b')).toBe(false)
     expect(match.livesOf('a')).toBe(3)
     expect(match.over).toBe(false)
   })

@@ -125,10 +125,12 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
     >
       {state.players.map((player, index) => {
         const mine = player.id === state.selfId
-        // 자리를 잡는 동안에는 아무도 표시하지 않는다 — 아무의 차례도 아닌 것이 규칙이고,
-        // 여기만 이름표를 밝혀두면 아래 안내문("자리를 잡는 중")과 어긋나 보인다
-        // 턴이 없으니 이름표에 강조할 '차례'도 없다. 자기 자리만 알아볼 수 있으면 된다
-        const active = player.id === state.selfId
+        /*
+         * 차례인 사람을 밝힌다. 받침대가 하나라 "지금 누가 놓는가"가 판을 읽는 첫 정보다.
+         * 쿨타임이 도는 동안에도 밝혀둔다 — 차례는 이미 그 사람에게 넘어가 있고,
+         * 얼마나 남았는지는 아래 막대가 말한다.
+         */
+        const active = player.id === state.current
         const lives = livesOf.get(player.id) ?? 0
         return (
           <div
@@ -249,35 +251,42 @@ function InputRow({
 /**
  * 지금 내 타자가 무엇을 하는지 한 줄로 알려준다.
  *
- * 턴이 없어졌으므로 갈리는 것은 "떨굴 수 있는가" 하나다. 떨굴 수 없는 동안 친 단어는
- * 덫이 되므로, 그 사이가 비어 있는 시간이 아니라는 것을 말해줘야 한다.
+ * 갈리는 것이 셋이다 — **지금 칠 수 있는 내 차례**, **곧 오는 내 차례**(쿨타임이
+ * 도는 중), **남의 차례**. 둘로 뭉뚱그리면 "왜 안 되지"와 "곧 되는 건가"가 섞인다.
+ * 어느 경우든 친 단어가 버려지지는 않는다 — 떨구지 못하면 덫이 된다.
  */
 function ActionHint({ state }: { state: MatchViewState }) {
   if (state.phase === 'over') {
     return <span style={{ fontSize: 14, color: '#6a7290' }}>판이 끝났다</span>
   }
   const ready = state.canDrop
+  const soon = state.myTurn && !ready
+  const label = ready
+    ? '내 차례 — 단어를 치면 그 물건이 화살표 자리에 떨어진다'
+    : soon
+      ? '곧 내 차례 — 지금 친 단어는 덫이 된다'
+      : '상대 차례 — 단어를 치면 상대에게 덫을 건다'
+  const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#ff9f6b'
   return (
     <span
-      data-turn-hint={ready ? 'mine' : 'theirs'}
+      data-turn-hint={ready ? 'mine' : soon ? 'soon' : 'theirs'}
       style={{
         fontSize: 14,
-        color: ready ? '#6bffb0' : '#ff9f6b',
+        color,
         display: 'inline-flex',
         alignItems: 'center',
         gap: 8,
       }}
     >
-      {ready
-        ? '단어를 치면 그 물건이 화살표 자리에 떨어진다'
-        : '단어를 치면 상대에게 덫을 건다'}
-      {!ready && <CooldownBar ratio={state.dropCooldown} />}
+      {label}
+      {/* 대기는 모두가 함께 쓰므로 남의 차례일 때도 같은 값이 흐른다 */}
+      {!ready && <CooldownBar ratio={state.dropCooldown} color={color} />}
     </span>
   )
 }
 
 /** 다음에 떨굴 수 있을 때까지 남은 시간. 숫자보다 줄어드는 막대가 눈에 빨리 들어온다 */
-function CooldownBar({ ratio }: { ratio: number }) {
+function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: string }) {
   return (
     <span
       data-cooldown={ratio.toFixed(2)}
@@ -295,7 +304,7 @@ function CooldownBar({ ratio }: { ratio: number }) {
           display: 'block',
           width: `${Math.round(ratio * 100)}%`,
           height: '100%',
-          background: '#ff9f6b',
+          background: color,
         }}
       />
     </span>

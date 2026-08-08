@@ -59,9 +59,16 @@ interface MatchViewState {
   readonly selfId: PlayerId
   readonly players: readonly PlayerInfo[]
   readonly lives: readonly (readonly [PlayerId, number])[]
-  /** 지금 떨굴 수 있는지. 낙하 간격이 돌고 있으면 false */
+  /** 지금 떨굴 차례인 사람. 판이 끝났으면 null */
+  readonly current: PlayerId | null
+  /** 지금이 내 차례인가. 쿨타임이 남았어도 참일 수 있다 — 곧 내 순서라는 뜻이다 */
+  readonly myTurn: boolean
+  /** 지금 떨굴 수 있는지. 내 차례이면서 쿨타임이 끝났을 때만 참 */
   readonly canDrop: boolean
-  /** 낙하 간격이 얼마나 남았는지 0~1. 화면이 채워지는 눈금으로 그린다 */
+  /**
+   * 남은 쿨타임 0~1. 화면이 채워지는 눈금으로 그린다.
+   * **모두가 같은 값을 본다** — 받침대가 하나이듯 대기도 하나다.
+   */
   readonly dropCooldown: number
   /**
    * 사람별 남은 무적 비율(1 → 0). 목숨을 잃은 직후 잠깐 붙는다.
@@ -166,7 +173,16 @@ class MatchEngine {
   private elapsed = 0
 
   /** 사람별로 다음에 떨굴 수 있을 때까지 남은 시간(초) */
-  private readonly dropWait = new Map<PlayerId, number>()
+  /**
+   * 다음 사람이 떨굴 수 있게 되기까지 남은 시간(초). **모두가 함께 쓴다.**
+   *
+   * 사람마다 따로 돌리면 각자 자기 시계만 보면 되어 "받침대 하나를 함께 쓴다"가
+   * 사라진다. 하나로 두면 앞사람이 떨군 직후의 정적이 모두에게 같은 길이로 흐르고,
+   * 그것이 끝나는 순간이 곧 다음 사람의 차례다.
+   *
+   * 방장이 소유한다 — 참가자는 화면에 게이지를 그리는 데만 쓴다.
+   */
+  private dropCooldown = 0
   private sinceSync = 0
 
   /**
@@ -453,11 +469,12 @@ class MatchEngine {
 
   /** 지금 떨굴 수 있는지. 화면에 보여주는 값과 같은 기준이어야 한다 */
   private canDropNow(): boolean {
-    return this.match.canDrop(this.transport.selfId) && this.waitOf(this.transport.selfId) <= 0
+    return this.match.canDrop(this.transport.selfId) && this.dropCooldown <= 0
   }
 
-  private waitOf(id: PlayerId): number {
-    return this.dropWait.get(id) ?? 0
+  /** 남은 공유 쿨타임(초). 누구에게나 같은 값이다 */
+  private waitLeft(): number {
+    return this.dropCooldown
   }
 
   /**
@@ -503,7 +520,7 @@ class MatchEngine {
    * 자기 턴인지, 실제로 화면에 있던 단어인지, 조준이 범위 안인지 전부 확인한다.
    */
   private resolveDrop(by: PlayerId, word: string, rawAimX: number): void {
-    if (!this.match.canDrop(by) || this.waitOf(by) > 0) {
+    if (!this.match.canDrop(by) || this.dropCooldown > 0) {
       return
     }
     const target = this.spawner.words.find(
@@ -561,12 +578,23 @@ class MatchEngine {
 
     this.physics.spawnItemAt(variant, aimX, spawnYFor(this.cameraY), by, itemId)
     // 양쪽이 다 지나는 자리다 — 상대가 떨군 것도 소리로 들린다
-    this.fire({ kind: 'drop', hidden: variant.hidden })
+    this.fire({
+      kind: 'drop',
+      hidden: variant.hidden,
+      material: variant.material,
+      tone: variant.tone,
+    })
     if (variant.hidden) {
       this.fire({ kind: 'reveal' })
     }
-    // 떨군 사람만 잠깐 못 떨군다. 상대의 손은 멈추지 않는다
-    this.dropWait.set(by, DROP_INTERVAL_SEC)
+    /*
+     * 차례를 넘기고 모두가 함께 쓰는 쿨타임을 건다.
+     *
+     * 앞사람의 물건이 **자리를 잡기를 기다리지는 않는다.** 기다리게 하면 구르는
+     * 물건 하나에 판 전체가 몇 초씩 멈춘다. 쿨타임이 끝나는 순간 다음 사람이 친다.
+     */
+    this.match.nextTurn()
+    this.dropCooldown = DROP_INTERVAL_SEC
 
     if (by === this.transport.selfId) {
       this.feedbackSeq += 1
@@ -698,6 +726,8 @@ class MatchEngine {
         this.markHurt(id)
       }
     }
+    // 차례인 사람이 방금 탈락했으면 넘긴다 — 안 그러면 죽은 사람 차례에서 판이 멈춘다
+    this.match.ensureTurnAlive()
     this.emit()
   }
 
@@ -755,14 +785,9 @@ class MatchEngine {
 
     this.elapsed += dt
 
-    // 사람마다 따로 도는 낙하 간격. 0이 되면 그 사람이 다시 떨굴 수 있다
-    for (const [id, left] of this.dropWait) {
-      const next = left - dt
-      if (next <= 0) {
-        this.dropWait.delete(id)
-      } else {
-        this.dropWait.set(id, next)
-      }
+    // 모두가 함께 쓰는 쿨타임. 0이 되는 순간이 곧 다음 차례 사람의 시작이다
+    if (this.dropCooldown > 0) {
+      this.dropCooldown = Math.max(0, this.dropCooldown - dt)
     }
 
     /*
@@ -789,6 +814,8 @@ class MatchEngine {
         kind: 'impact',
         strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
         size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
+        material: hit.variant.material,
+        tone: hit.variant.tone,
       })
     }
     if (quake > 0) {
@@ -841,7 +868,9 @@ class MatchEngine {
       anyLost = true
     }
     if (anyLost) {
-        this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
+      // 참가자도 같은 순서로 건너뛰도록 양쪽이 똑같이 부른다
+      this.match.ensureTurnAlive()
+      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
     }
 
     if (this.match.over) {
@@ -891,10 +920,9 @@ class MatchEngine {
       players: this.match.players,
       lives: snapshot.lives,
       canDrop: this.canDropNow(),
-      dropCooldown: Math.min(
-        1,
-        Math.max(0, this.waitOf(this.transport.selfId) / DROP_INTERVAL_SEC),
-      ),
+      current: this.match.currentPlayer,
+      myTurn: this.match.currentPlayer === this.transport.selfId,
+      dropCooldown: Math.min(1, Math.max(0, this.waitLeft() / DROP_INTERVAL_SEC)),
       invulnerable: this.invulnerableRatios(),
       hurt:
         this.lastHurt === null

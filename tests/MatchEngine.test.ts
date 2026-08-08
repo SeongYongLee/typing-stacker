@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
-import { MatchEngine, type MatchViewState } from '../src/multi/MatchEngine.ts'
+import { DROP_INTERVAL_SEC, MatchEngine, type MatchViewState } from '../src/multi/MatchEngine.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import { FrameClock } from './helpers/frameClock.ts'
@@ -289,33 +289,47 @@ describe('MatchEngine — 대전', () => {
     expect(pair.hostState().feedback?.kind).toBe('miss')
   })
 
-  it('둘 다 처음부터 떨굴 수 있다 — 차례를 기다리지 않는다', async () => {
+  it('첫 차례는 명단의 첫 사람이고 양쪽이 같게 본다', async () => {
     pair = await makePair()
     await pair.clock.advance(0.5)
 
+    expect(pair.hostState().current).toBe('host-peer')
+    expect(pair.guestState().current).toBe('host-peer')
     expect(pair.hostState().canDrop).toBe(true)
-    expect(pair.guestState().canDrop).toBe(true)
+    expect(pair.guestState().canDrop).toBe(false)
   })
 
-  it('떨군 사람만 잠깐 못 떨군다 — 상대의 손은 멈추지 않는다', async () => {
+  /*
+   * 받침대가 하나뿐이라 한 번에 한 사람만 떨군다. 다만 앞사람의 물건이 **자리를
+   * 잡기를 기다리지는 않는다** — 기다리게 하면 구르는 물건 하나에 판이 몇 초씩 멈춘다.
+   * 대신 모두가 함께 쓰는 짧은 쿨타임이 끝나는 순간 다음 사람이 친다.
+   */
+  it('떨구면 곧바로 다음 사람 차례가 되고, 쿨타임은 모두가 함께 쓴다', async () => {
     pair = await makePair()
     await pair.clock.advance(1)
     dropSomething(pair)
     await pair.clock.advance(0.3)
 
+    // 차례는 이미 넘어갔지만 쿨타임이 도는 동안에는 아무도 떨구지 못한다
+    expect(pair.hostState().current).toBe('guest-peer')
+    expect(pair.guestState().current).toBe('guest-peer')
     expect(pair.hostState().canDrop).toBe(false)
-    expect(pair.guestState().canDrop).toBe(true)
+    expect(pair.guestState().canDrop).toBe(false)
+
+    // 남은 대기가 양쪽 화면에 같은 값으로 보인다
+    expect(pair.guestState().dropCooldown).toBeGreaterThan(0)
+    expect(pair.hostState().dropCooldown).toBeGreaterThan(0)
   })
 
-  it('간격이 지나면 다시 떨굴 수 있다', async () => {
+  it('쿨타임이 끝나면 다음 차례 사람만 떨굴 수 있다', async () => {
     pair = await makePair()
     await pair.clock.advance(1)
     dropSomething(pair)
-    await pair.clock.advance(0.3)
-    expect(pair.hostState().canDrop).toBe(false)
 
-    await pair.clock.advance(1.2)
-    expect(pair.hostState().canDrop).toBe(true)
+    await pair.clock.advance(DROP_INTERVAL_SEC + 0.2)
+    expect(pair.guestState().canDrop).toBe(true)
+    // 방금 떨군 사람은 자기 차례가 다시 올 때까지 못 떨군다
+    expect(pair.hostState().canDrop).toBe(false)
   })
 
   it('떨굴 수 없는 동안 친 단어는 덫이 되고 양쪽 다 본다', async () => {
@@ -348,7 +362,9 @@ describe('MatchEngine — 대전', () => {
     pair.host.submit(trap!)
     await pair.clock.advance(0.3)
 
-    // 참가자가 그 단어를 친다
+    // 참가자가 그 단어를 친다. **자기 차례가 되어야** 덫을 밟을 수 있다 —
+    // 쿨타임이 도는 동안 친 것은 떨구기가 아니라 또 하나의 덫이 된다
+    await pair.clock.advance(DROP_INTERVAL_SEC + 0.2)
     pair.guest.submit(trap!)
     await pair.clock.advance(0.6)
 

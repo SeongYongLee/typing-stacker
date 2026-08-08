@@ -3,10 +3,12 @@ import type { PlayerId, PlayerInfo } from './protocol.ts'
 /**
  * 대전의 규칙 상태 — 하트, 탈락, 승자.
  *
- * **턴은 없다.** 예전에는 한 사람씩 돌아가며 떨궜는데, 그러면 상대가 쌓는 동안
- * 내 손이 멈춰 있어야 했다. 타자게임에서 손을 멈추게 하는 것은 가장 큰 대가다.
- * 이제 둘 다 언제든 칠 수 있고, 물건이 한꺼번에 쏟아지는 것은 사람마다 따로 도는
- * 낙하 간격이 막는다(MatchEngine).
+ * **차례가 돌아간다.** 한 번에 한 사람만 떨군다 — 받침대가 하나뿐이라 동시에
+ * 떨구면 누구 물건이 무엇을 밀었는지 알 수 없고, 쌓기가 운이 된다.
+ *
+ * 다만 앞사람의 물건이 **자리를 잡기를 기다리지는 않는다.** 기다리게 하면 구르는
+ * 물건 하나에 판 전체가 멈춘다. 대신 모두가 함께 쓰는 짧은 쿨타임을 두고, 그것만
+ * 끝나면 다음 사람이 바로 친다 (MatchEngine).
  *
  * 2명을 특수 케이스로 두지 않는다. 인원이 늘어도 이 파일은 그대로다.
  * 마지막 한 명이 승자다.
@@ -18,6 +20,8 @@ class MatchState {
   private readonly lives = new Map<PlayerId, number>()
   /** 회복으로도 이 위로는 올라가지 못한다 — 방해를 쌓아 무한히 버티면 판이 끝나지 않는다 */
   private readonly maxLives: number
+  /** 지금 떨굴 차례인 사람의 자리. 탈락자를 건너뛰며 돈다 */
+  private turnIndex = 0
 
   constructor(players: readonly PlayerInfo[], livesPerPlayer: number) {
     if (players.length === 0) {
@@ -54,6 +58,50 @@ class MatchState {
     return this.order.find((player) => this.isAlive(player.id))?.id ?? null
   }
 
+  /** 지금 떨굴 차례인 사람. 판이 끝났으면 null */
+  get currentPlayer(): PlayerId | null {
+    if (this.over) {
+      return null
+    }
+    return this.order[this.turnIndex]?.id ?? null
+  }
+
+  /**
+   * 다음 사람에게 넘긴다. 탈락한 사람은 건너뛴다.
+   *
+   * 살아 있는 사람을 찾을 때까지 한 바퀴만 돈다 — 아무도 살아 있지 않으면
+   * 판이 이미 끝난 것이라 자리를 그대로 둔다.
+   */
+  nextTurn(): void {
+    for (let step = 1; step <= this.order.length; step += 1) {
+      const index = (this.turnIndex + step) % this.order.length
+      const candidate = this.order[index]
+      if (candidate !== undefined && this.isAlive(candidate.id)) {
+        this.turnIndex = index
+        return
+      }
+    }
+  }
+
+  /** 방장이 정한 차례를 그대로 따른다 (참가자 쪽) */
+  setTurn(id: PlayerId): void {
+    const index = this.order.findIndex((player) => player.id === id)
+    if (index >= 0) {
+      this.turnIndex = index
+    }
+  }
+
+  /**
+   * 차례인 사람이 방금 탈락했으면 다음으로 넘긴다.
+   * 이걸 하지 않으면 죽은 사람 차례에서 판이 멈춘다.
+   */
+  ensureTurnAlive(): void {
+    const current = this.order[this.turnIndex]
+    if (current === undefined || !this.isAlive(current.id)) {
+      this.nextTurn()
+    }
+  }
+
   livesOf(id: PlayerId): number {
     return this.lives.get(id) ?? 0
   }
@@ -64,11 +112,10 @@ class MatchState {
 
   /**
    * 그 사람이 지금 물건을 떨굴 수 있는가. 상대가 보낸 drop을 검증하는 문이다.
-   * 차례를 보지 않는다 — 살아 있고 판이 끝나지 않았으면 언제든 떨굴 수 있다.
-   * 얼마나 자주 떨구는지는 방장이 낙하 간격으로 따로 막는다.
+   * **자기 차례여야 한다.** 쿨타임이 남았는지는 시간을 아는 MatchEngine이 따로 본다.
    */
   canDrop(id: PlayerId): boolean {
-    return !this.over && this.isAlive(id)
+    return !this.over && this.isAlive(id) && this.currentPlayer === id
   }
 
   /**

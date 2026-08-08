@@ -209,5 +209,22 @@ function findMerge(graph: ContactGraph, recipes: readonly Recipe[]): MergeMatch 
   return null
 }
 
-export { findMerge }
+/**
+ * 개수만 보고 합칠 가능성이 남아 있는지. **접촉을 보기 전에** 묻는 문이다.
+ *
+ * 접촉 그래프를 세우는 것이 프레임에서 가장 비싼 일 중 하나인데(물건마다 콜라이더를
+ * 전부 훑고 WASM 경계를 넘는다) 재료로 쓰이는 물건은 전체의 일부라 대부분의 프레임에는
+ * 애초에 합칠 후보가 없다. 개수만 세는 것으로 그 일을 통째로 건너뛴다.
+ *
+ * 여기서 false가 나오는 경우는 `findMerge`도 반드시 null을 주는 경우다 —
+ * 재료 개수가 모자라면 어떻게 붙어 있든 레시피를 이룰 수 없다.
+ */
+function canMergeAnything(
+  recipes: readonly Recipe[],
+  counts: ReadonlyMap<string, number>,
+): boolean {
+  return satisfiable(recipes, counts).length > 0
+}
+
+export { findMerge, canMergeAnything }
 export type { ContactGraph, MergeMatch, TouchNode }

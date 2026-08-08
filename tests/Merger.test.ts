@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import { VARIANT_BY_ID } from '../src/game/data/words.ts'
-import { findMerge, type ContactGraph } from '../src/game/systems/Merger.ts'
+import { canMergeAnything, findMerge, type ContactGraph } from '../src/game/systems/Merger.ts'
 import type { Recipe } from '../src/game/data/recipes.ts'
 
 function variant(id: string) {
@@ -182,6 +182,60 @@ describe('RECIPES — 실제 데이터', () => {
     const { MAX_ITEM_HALF_WIDTH } = await import('../src/game/config.ts')
     for (const item of RECIPES) {
       expect(item.result.artBounds.hw, item.id).toBeLessThanOrEqual(MAX_ITEM_HALF_WIDTH)
+    }
+  })
+})
+
+describe('canMergeAnything — 접촉을 보기 전에 거르는 문', () => {
+  /*
+   * 이 문이 하는 일은 성능이지만, 규칙을 어기면 합성이 조용히 사라진다 —
+   * false를 잘못 내면 재료가 붙어 있어도 합쳐지지 않고 아무 신호도 남지 않는다.
+   * 그래서 "덜 걸러도 되지만 더 걸러선 안 된다"를 여기서 지킨다.
+   */
+  const counts = (entries: [string, number][]) => new Map(entries)
+
+  it('재료가 아예 없으면 거른다', () => {
+    expect(canMergeAnything([PAIR, TRIO, CROSS], counts([['bento', 3]]))).toBe(false)
+  })
+
+  it('재료가 하나뿐이면 거른다 — 쌍이 되어야 한다', () => {
+    expect(canMergeAnything([PAIR], counts([['clover', 1]]))).toBe(false)
+  })
+
+  it('개수가 갖춰지면 통과시킨다', () => {
+    expect(canMergeAnything([PAIR], counts([['clover', 2]]))).toBe(true)
+  })
+
+  it('같은 재료가 둘 필요한 레시피는 개수까지 본다', () => {
+    // leaf 하나 + snail 하나로는 TRIO(leaf, leaf, snail)를 이룰 수 없다
+    expect(canMergeAnything([TRIO], counts([['leaf', 1], ['snail', 1]]))).toBe(false)
+    expect(canMergeAnything([TRIO], counts([['leaf', 2], ['snail', 1]]))).toBe(true)
+  })
+
+  it('서로 다른 재료는 둘 다 있어야 한다', () => {
+    expect(canMergeAnything([CROSS], counts([['octopus', 2]]))).toBe(false)
+    expect(canMergeAnything([CROSS], counts([['octopus', 1], ['sausage', 1]]))).toBe(true)
+  })
+
+  /**
+   * 가장 중요한 성질 — **findMerge가 찾아내는 판을 거르지 않는다.**
+   * 이 문이 findMerge보다 엄격해지면 합성이 사라진다.
+   */
+  it('findMerge가 답을 찾는 판은 절대 거르지 않는다', () => {
+    const cases: ContactGraph[] = [
+      graph([[1, 'clover'], [2, 'clover']], [[1, 2]]),
+      graph([[1, 'leaf'], [2, 'leaf'], [3, 'snail']], [[1, 2], [2, 3]]),
+      graph([[1, 'octopus'], [2, 'sausage']], [[1, 2]]),
+      graph([[1, 'bento'], [2, 'clover'], [3, 'clover']], [[1, 2], [2, 3]]),
+    ]
+    const recipes = [PAIR, TRIO, CROSS]
+    for (const g of cases) {
+      expect(findMerge(g, recipes), JSON.stringify(g.nodes)).not.toBeNull()
+      const present = new Map<string, number>()
+      for (const node of g.nodes) {
+        present.set(node.variantId, (present.get(node.variantId) ?? 0) + 1)
+      }
+      expect(canMergeAnything(recipes, present), JSON.stringify(g.nodes)).toBe(true)
     }
   })
 })

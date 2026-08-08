@@ -15,7 +15,7 @@ import { Aimer } from '../systems/Aimer.ts'
 import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
 import { RECIPES } from '../data/recipes.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
-import { findMerge } from '../systems/Merger.ts'
+import { canMergeAnything, findMerge } from '../systems/Merger.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
@@ -381,6 +381,18 @@ class GameEngine {
    * 연쇄가 한 번에 하나씩 터지는 것으로 보인다.
    */
   private tryMerge(): void {
+    /*
+     * 접촉을 보기 전에 재료가 갖춰졌는지부터 묻는다.
+     *
+     * `contactGraph()`는 물건마다 콜라이더를 전부 훑고 WASM 경계를 여러 번 넘는 데다
+     * 접촉 쌍마다 열쇠 문자열을 만든다 — 한 프레임에서 물리 시뮬레이션 자체보다 비쌌다.
+     * 그런데 재료로 쓰이는 물건은 일부뿐이라 **대부분의 프레임에는 합칠 후보가 없다.**
+     * 개수만 세어보면 그 일을 통째로 건너뛸 수 있고, 걸러지는 경우는 어차피
+     * `findMerge`가 null을 주던 경우이므로 결과는 달라지지 않는다.
+     */
+    if (!canMergeAnything(RECIPES, this.physics.countsByVariant())) {
+      return
+    }
     const match = findMerge(this.physics.contactGraph(), RECIPES)
     if (match === null) {
       return

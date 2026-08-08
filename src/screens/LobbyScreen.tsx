@@ -51,6 +51,26 @@ const buttonStyle: CSSProperties = {
   color: '#1a1405',
 }
 
+/**
+ * 방을 여는 길과 들어가는 길 — 좌우로 나란히.
+ *
+ * 한 길을 한 덩어리로 감싸지 않고 **줄 단위로 채운다**(라벨·라벨 / 빈칸·코드칸 /
+ * 버튼·버튼). 덩어리로 감싸면 한쪽에만 있는 코드 칸 때문에 두 길의 라벨과 버튼
+ * 높이가 어긋난다 — 나란히 놓은 이유가 사라진다.
+ */
+const pathsStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '8px 14px',
+  alignItems: 'end',
+}
+
+const pathLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: '#6a7290',
+  letterSpacing: '0.06em',
+}
+
 /** 이름 칸을 버튼 무리에서 떼어놓는 판 */
 const nameFieldStyle: CSSProperties = {
   display: 'grid',
@@ -198,16 +218,18 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           )}
         </div>
 
-        <MenuButton
-          selected={menu.index === 0}
-          onClick={host}
-          onHover={() => menu.select(0)}
-          primary
-        >
-          방 만들기
-        </MenuButton>
+        {/*
+          * 방을 여는 길과 들어가는 길을 좌우로 나눈다. 세로로 쌓아두면 코드 칸이
+          * "방 만들기에 딸린 것"처럼 읽혀서, 코드를 받은 사람이 어디를 봐야 할지 헤맨다.
+          * 버튼은 아래로 붙여 두 길의 끝을 같은 높이에 둔다.
+          */}
+        <div style={pathsStyle}>
+          {/* 1행 — 두 길의 이름 */}
+          <span style={pathLabelStyle}>새로 연다</span>
+          <span style={pathLabelStyle}>코드를 받았다면</span>
 
-        <div style={{ display: 'grid', gap: 8 }}>
+          {/* 2행 — 코드 칸. 왼쪽은 적을 것이 없어 비운다 */}
+          <span />
           <input
             style={fieldStyle}
             value={code}
@@ -221,6 +243,16 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
               if (event.key === 'Enter') join()
             }}
           />
+
+          {/* 3행 — 두 길의 끝 */}
+          <MenuButton
+            selected={menu.index === 0}
+            onClick={host}
+            onHover={() => menu.select(0)}
+            primary
+          >
+            방 만들기
+          </MenuButton>
           <MenuButton
             selected={menu.index === 1}
             onClick={join}
@@ -230,11 +262,6 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
             코드로 참가
           </MenuButton>
         </div>
-
-        <p style={{ margin: 0, fontSize: 12, color: '#4a5171', lineHeight: 1.7 }}>
-          연결은 중계 서버를 거친다. 서로에게 IP가 보이지 않고, 오가는 것은{' '}
-          <strong style={{ color: '#6a7290' }}>닉네임과 게임 조작</strong>뿐이다.
-        </p>
 
         <MenuButton
           selected={menu.index === 2}

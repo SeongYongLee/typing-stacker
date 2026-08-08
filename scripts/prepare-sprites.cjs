@@ -12,16 +12,34 @@
  * 사용법: node scripts/prepare-sprites.cjs
  *   SPRITE_ROOT 환경변수로 원본 폴더들의 상위 경로를 바꿀 수 있다.
  *
- * 새 아트가 오면 SOURCES에 폴더와 [파일명, 이름] 쌍을 추가하고 다시 돌린다.
+ * 새 아트가 오면 원본 PNG를 assets-src/ 아래 폴더에 넣고 SOURCES에 폴더와
+ * [파일명, 이름] 쌍을 추가하고 다시 돌린다.
  * 파일명은 생성기가 붙인 것을 그대로 쓰고, 이름이 게임에서 쓰는 식별자다.
+ *
+ * **원본은 저장소 안(assets-src/)에 둔다.** 예전에는 ~/Downloads에 두었는데,
+ * 그 폴더가 정리되면 파이프라인을 다시 돌릴 수 없다 — 조각 수 상한이나 출력 형식처럼
+ * 파이프라인 상수를 나중에 다시 조정할 길이 영영 막힌다. 원본 53MB는 그 값을 한다.
+ * 산출물만 public/items에 들어가므로 빌드 결과에는 실리지 않는다.
  */
 const fs = require('fs')
 const path = require('path')
 const { chromium } = require('playwright-core')
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const SRC_ROOT = process.env.SPRITE_ROOT ?? path.join(process.env.HOME, 'Downloads')
+const SRC_ROOT = process.env.SPRITE_ROOT ?? path.join(__dirname, '..', 'assets-src')
 const OUT_DIR = path.join(__dirname, '..', 'public', 'items')
+
+/**
+ * 산출물 형식. 스티커 아트는 알파가 있는 그림이라 형식이 곧 로딩 시간이다 —
+ * 타이틀의 "혼자 하기"는 57장을 다 받을 때까지 눌리지 않으므로 그 시간이 곧 첫인상이다.
+ * PNG 4.05MB가 WebP q=0.92에서 0.95MB로 줄었다(77% 감소).
+ *
+ * 손실 압축이지만 충돌 도형은 **원본** 이미지의 알파 마스크에서 뽑으므로 물리에 닿지 않는다.
+ * 눈에 보이는 것만 확인하면 된다. 입력은 앞으로도 PNG다 — 바뀌는 것은 출력뿐이다.
+ */
+const OUT_FORMAT = { mime: 'image/webp', quality: 0.92, ext: '.webp' }
+/** 형식을 바꾸기 전에 남아 있던 산출물. 지우지 않으면 쓰이지도 않는 채로 빌드에 실린다 */
+const STALE_EXTS = ['.png']
 
 /**
  * 가장 큰 덩이의 이 비율에 못 미치는 떨어진 조각은 버린다.
@@ -136,6 +154,8 @@ const processInPage = ([
   maxPieces,
   targetPieces,
   scrapRatio,
+  outMime,
+  outQuality,
 ]) =>
   new Promise((resolve, reject) => {
     const img = new Image()
@@ -277,8 +297,15 @@ const processInPage = ([
       octx.imageSmoothingQuality = 'high'
       octx.drawImage(image, minX, minY, cropW, cropH, 0, 0, outW, outH)
 
+      const encoded = out.toDataURL(outMime, outQuality)
+      // 브라우저가 그 형식을 모르면 조용히 PNG를 돌려준다 — 모르고 지나가면
+      // 산출물 확장자와 실제 형식이 어긋나 배포된 뒤에야 드러난다
+      if (!encoded.startsWith(`data:${outMime};base64,`)) {
+        throw new Error(`${outMime}로 인코딩하지 못했다`)
+      }
+
       return {
-        dataUrl: out.toDataURL('image/png'),
+        dataUrl: encoded,
         aspect: Number((cropW / cropH).toFixed(4)),
         outW,
         outH,
@@ -587,12 +614,19 @@ async function main() {
       MAX_PIECES,
       TARGET_PIECES,
       SCRAP_RATIO,
+      OUT_FORMAT.mime,
+      OUT_FORMAT.quality,
     ])
 
-    const base64 = result.dataUrl.replace(/^data:image\/png;base64,/, '')
-    const outPath = path.join(OUT_DIR, name + '.png')
+    const base64 = result.dataUrl.slice(`data:${OUT_FORMAT.mime};base64,`.length)
+    const outPath = path.join(OUT_DIR, name + OUT_FORMAT.ext)
     fs.writeFileSync(outPath, Buffer.from(base64, 'base64'))
     const bytes = fs.statSync(outPath).size
+    for (const stale of STALE_EXTS) {
+      if (stale !== OUT_FORMAT.ext) {
+        fs.rmSync(path.join(OUT_DIR, name + stale), { force: true })
+      }
+    }
 
     summary.push({ name, ...result, bytes })
     console.log(
@@ -644,6 +678,12 @@ async function main() {
     '  readonly pieces: readonly (readonly (readonly [number, number])[])[]',
     '}',
     '',
+    '/**',
+    ' * 산출물 파일의 확장자. 형식을 바꿀 때 코드 쪽을 따라 고치지 않도록 여기서 낸다 —',
+    ' * 파이프라인의 OUT_FORMAT 하나만 바꾸면 words.ts가 만드는 경로까지 함께 따라온다.',
+    ' */',
+    `const SPRITE_EXT = '${OUT_FORMAT.ext}'`,
+    '',
     'const SPRITES = {',
   ]
   for (const item of summary) {
@@ -661,13 +701,17 @@ async function main() {
   lines.push('')
   lines.push('type SpriteName = keyof typeof SPRITES')
   lines.push('')
-  lines.push('export { SPRITES }')
+  lines.push('export { SPRITES, SPRITE_EXT }')
   lines.push('export type { SpriteMeta, SpriteName }')
   lines.push('')
 
   const generated = path.join(__dirname, '..', 'src', 'game', 'data', 'sprites.generated.ts')
   fs.writeFileSync(generated, lines.join('\n'))
-  console.log('\n생성:', path.relative(path.join(__dirname, '..'), generated))
+  const total = summary.reduce((sum, s) => sum + s.bytes, 0)
+  console.log(
+    `\n산출물 ${summary.length}장 · ${(total / 1048576).toFixed(2)}MB (${OUT_FORMAT.mime} q=${OUT_FORMAT.quality})`,
+  )
+  console.log('생성:', path.relative(path.join(__dirname, '..'), generated))
   await browser.close()
 }
 

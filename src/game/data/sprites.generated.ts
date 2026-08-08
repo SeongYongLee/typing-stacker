@@ -12,6 +12,12 @@ interface SpriteMeta {
   readonly pieces: readonly (readonly (readonly [number, number])[])[]
 }
 
+/**
+ * 산출물 파일의 확장자. 형식을 바꿀 때 코드 쪽을 따라 고치지 않도록 여기서 낸다 —
+ * 파이프라인의 OUT_FORMAT 하나만 바꾸면 words.ts가 만드는 경로까지 함께 따라온다.
+ */
+const SPRITE_EXT = '.webp'
+
 const SPRITES = {
   'airplane': {
     aspect: 1.5894,
@@ -1035,5 +1041,5 @@ const SPRITES = {
 
 type SpriteName = keyof typeof SPRITES
 
-export { SPRITES }
+export { SPRITES, SPRITE_EXT }
 export type { SpriteMeta, SpriteName }

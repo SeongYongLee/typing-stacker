@@ -1,5 +1,5 @@
 import { spriteBounds, spriteShape } from '../shapes.ts'
-import type { SpriteName } from './sprites.generated.ts'
+import { SPRITE_EXT, type SpriteName } from './sprites.generated.ts'
 import type { ItemVariant, WordEntry } from '../types/game.ts'
 
 /**
@@ -39,8 +39,9 @@ function variant(input: VariantInput): ItemVariant {
   return {
     id: input.id,
     label: input.label,
-    // GitHub Pages는 저장소 이름을 경로로 붙이므로 루트 절대 경로로 두면 404가 된다
-    sprite: `${import.meta.env.BASE_URL}items/${input.sprite}.png`,
+    // GitHub Pages는 저장소 이름을 경로로 붙이므로 루트 절대 경로로 두면 404가 된다.
+    // 확장자는 파이프라인이 정한 것을 따른다 — 형식을 바꿀 때 여기를 잊으면 전부 404다
+    sprite: `${import.meta.env.BASE_URL}items/${input.sprite}${SPRITE_EXT}`,
     color: input.color,
     shape: spriteShape(input.sprite, input.size),
     artBounds: spriteBounds(input.sprite, input.size),

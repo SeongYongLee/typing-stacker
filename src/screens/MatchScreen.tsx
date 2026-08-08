@@ -287,7 +287,9 @@ function ActionHint({ state }: { state: MatchViewState }) {
   const label = ready
     ? '내 차례 — 단어를 치면 그 물건이 화살표 자리에 떨어진다'
     : soon
-      ? '곧 내 차례 — 지금 친 단어는 덫이 된다'
+      // 덫 설명은 남의 차례일 때 한 번만 한다. 여기서 또 하면 짧은 대기 동안
+      // 읽을 것만 늘고, 정작 봐야 할 것(막대가 줄어드는 것)에서 눈을 뗀다
+      ? '곧 내 차례'
       : `${whose ?? '상대'} 차례 — 단어를 치면 덫을 건다`
   const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#ff9f6b'
   return (

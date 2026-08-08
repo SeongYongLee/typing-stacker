@@ -48,7 +48,7 @@ function LoopbackScreen({ onBack }: LoopbackScreenProps) {
   return (
     <div style={rootStyle}>
       <div style={bannerStyle}>
-        <span>루프백 (개발용) — 네트워크를 쓰지 않는다. 칠 쪽을 클릭한 뒤 입력한다</span>
+        <span>루프백 (개발용). 네트워크를 쓰지 않는다. 칠 쪽을 클릭한 뒤 입력한다</span>
         <button
           type="button"
           onClick={onBack}
@@ -90,7 +90,7 @@ function Pane({
       ) : (
         <div style={{ display: 'grid', placeItems: 'center', height: '100%', gap: 8 }}>
           <span style={{ color: '#6a7290', fontSize: 14 }}>
-            {label} — {describe(side)}
+            {label} · {describe(side)}
           </span>
         </div>
       )}
@@ -107,7 +107,7 @@ function describe(side: LoopbackSide): string {
     case 'connecting':
       return '연결 중'
     case 'handshaking':
-      return '붙었다 — 시작 신호를 기다린다'
+      return '붙었다. 시작 신호를 기다리는 중'
     case 'waiting':
       return '상대를 기다리는 중'
     case 'ready':
@@ -115,7 +115,7 @@ function describe(side: LoopbackSide): string {
     case 'playing':
       return '시작됨'
     case 'failed':
-      return `실패 — ${phase.failure.message}`
+      return `실패했다. ${phase.failure.message}`
   }
 }
 

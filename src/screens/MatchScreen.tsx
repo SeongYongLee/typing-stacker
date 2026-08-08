@@ -321,8 +321,8 @@ function HealNotice({ state }: { state: MatchViewState }) {
     const mine = heal.by === state.selfId
     setShown(
       mine
-        ? `덫이 먹혔다 — «${heal.word}» 로 하트 반 칸 회복`
-        : `상대의 덫 «${heal.word}» 를 쳤다 — 상대가 반 칸 회복`,
+        ? `덫이 먹혔다. ${heal.word} 로 하트가 반 칸 올랐다`
+        : `상대가 걸어둔 ${heal.word} 를 쳤다. 상대 하트가 반 칸 올랐다`,
     )
     clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setShown(null), 1800)
@@ -386,7 +386,7 @@ function Wins({ count }: { count: number }) {
         fontVariantNumeric: 'tabular-nums',
       }}
     >
-      {count > 0 ? `${count}승` : '—'}
+      {count > 0 ? `${count}승` : '-'}
     </span>
   )
 }

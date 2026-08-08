@@ -177,9 +177,10 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           1대1 대전
         </h1>
         <p style={{ color: '#6a7290', margin: 0, fontSize: 14, lineHeight: 1.8 }}>
-          받침대 하나를 함께 쓴다. 번갈아 쌓고, <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
+          받침대 하나를 함께 쓴다. 둘 다 언제든 칠 수 있고,{' '}
+          <strong style={{ color: '#b6bdd4' }}>내가 쌓은 물건이 떨어지면 내 목숨</strong>이 깎인다.
           <br />
-          상대 차례에 단어를 치면 그 단어를 지목할 수 있다.
+          떨군 직후에는 잠깐 못 떨군다. 그동안 친 단어는 상대에게 덫이 된다.
         </p>
 
         {/*
@@ -213,7 +214,7 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           />
           {nickname.trim().length === 0 && (
             <span style={{ fontSize: 12, color: '#8a7a4a' }}>
-              비워두면 <strong>이름없음</strong>으로 들어간다 — 둘 다 같은 이름이 된다.
+              비워두면 <strong>이름없음</strong>으로 들어간다. 둘 다 같은 이름이라 누가 누구인지 알기 어렵다.
             </span>
           )}
         </div>
@@ -225,7 +226,7 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           */}
         <div style={pathsStyle}>
           {/* 1행 — 두 길의 이름 */}
-          <span style={pathLabelStyle}>새로 연다</span>
+          <span style={pathLabelStyle}>새로 연다 (코드를 만든다)</span>
           <span style={pathLabelStyle}>코드를 받았다면</span>
 
           {/* 2행 — 코드 칸. 왼쪽은 적을 것이 없어 비운다 */}

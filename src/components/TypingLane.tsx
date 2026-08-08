@@ -6,7 +6,6 @@ import { play } from './animate.ts'
 interface TypingLaneProps {
   words: readonly FallingWord[]
   side: Side
-  /** 상대가 지목한 단어. 대전에서만 넘어온다 */
   /**
    * 덫이 걸린 단어 → 건 사람의 색.
    * 색까지 받는 이유는 **누가 걸었는지**가 테두리로 보여야 하기 때문이다 —

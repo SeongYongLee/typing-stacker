@@ -140,7 +140,7 @@ function Combo({ combo }: { combo: number }) {
           fontVariantNumeric: 'tabular-nums',
         }}
       >
-        {active ? `x${combo}` : '—'}
+        {active ? `x${combo}` : '-'}
       </span>
     </div>
   )

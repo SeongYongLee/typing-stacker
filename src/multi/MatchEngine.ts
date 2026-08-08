@@ -980,6 +980,9 @@ class MatchEngine {
       quakePhase: 0,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
+      // 통나무는 우선 혼자 하기에만 있다 — 대전은 자리를 방장이 정해 보내야 한다
+      ledges: [],
+      formingLedge: null,
       // 꼬리 부스러기가 이 값의 차이로 시간을 흘린다
       time: this.elapsed,
       impacts: this.frameImpacts,

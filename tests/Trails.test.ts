@@ -3,7 +3,7 @@ import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
 import { GLOWING_IDS } from '../src/game/data/glowItems.ts'
 import { TRAILS, trailOf, type Trail } from '../src/game/data/trails.ts'
 import { ALL_VARIANTS } from '../src/game/data/words.ts'
-import { fadeOf, trailPaint } from '../src/game/renderer/trailPaint.ts'
+import { fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
 import {
   FULL_SPEED,
   MAX_PARTICLES,
@@ -12,14 +12,22 @@ import {
   SPLASH_COUNT,
   SPLASH_FAN,
   SPLASH_MIN_STRENGTH,
+  STEAM_MAX,
   TrailField,
+  type Particle,
   type TrailBody,
 } from '../src/game/systems/TrailField.ts'
 
 function body(id: string, x: number, y: number, settled = false): TrailBody {
   const variant = ALL_VARIANTS.find((item) => item.id === id)
   if (variant === undefined) throw new Error(`없는 물건: ${id}`)
-  return { handle: 1, x, y, settled, variant: { id, color: variant.color } }
+  return {
+    handle: 1,
+    x,
+    y,
+    settled,
+    variant: { id, color: variant.color, artBounds: variant.artBounds },
+  }
 }
 
 /** 물건을 위에서 아래로 옮기며 프레임을 돌린다 */
@@ -346,6 +354,8 @@ describe('부스러기가 화면에 그려진다', () => {
     ownerColors: null,
     cameraY: 0,
     stackTop: 0.8,
+    ledges: [],
+    formingLedge: null,
     impacts: [],
   } as const
 
@@ -616,5 +626,95 @@ describe('물은 부채꼴로 솟는다', () => {
     }
     const later = Math.max(...field.particles.map((p) => p.vy))
     expect(later).toBeLessThan(top)
+  })
+})
+
+/**
+ * 김은 조건이 반대다.
+ *
+ * 다른 갈래는 **움직이는 동안** 흘리고 정착하면 멈추는데, 김은 얹힌 **뒤에** 올라온다.
+ * 떨어지는 동안 김이 나면 그건 김이 아니라 연기 꼬리다.
+ */
+describe('뜨거운 것은 얹힌 뒤 김을 낸다', () => {
+  function steamFor(id: string, settled: boolean, frames = 60): TrailField {
+    const field = new TrailField()
+    for (let i = 0; i < frames; i += 1) {
+      field.update([body(id, 0, 1, settled)], 1 / 60)
+    }
+    return field
+  }
+
+  it('정착하면 김이 오른다', () => {
+    const field = steamFor('frying-pan', true)
+    expect(field.particles.length).toBeGreaterThan(0)
+    expect(field.particles.every((p) => p.kind === 'steam')).toBe(true)
+  })
+
+  /** 떨어지는 동안 김이 나면 그건 연기 꼬리다 */
+  it('움직이는 동안에는 안 난다', () => {
+    const field = new TrailField()
+    let y = 5
+    for (let i = 0; i < 60; i += 1) {
+      y -= 4 / 60
+      field.update([body('frying-pan', 0, y, false)], 1 / 60)
+    }
+    expect(field.particles).toHaveLength(0)
+  })
+
+  /** 김은 중력 반대로 오른다 */
+  it('위로 오른다', () => {
+    const field = steamFor('iron', true, 20)
+    expect(field.particles.every((p) => p.vy > 0)).toBe(true)
+    const before = field.particles.map((p) => p.y)
+    for (let i = 0; i < 20; i += 1) {
+      field.update([], 1 / 60)
+    }
+    const after = field.particles.map((p) => p.y)
+    expect(Math.max(...after)).toBeGreaterThan(Math.max(...before))
+  })
+
+  /** 가운데에서 내면 김이 물건 속에서 솟아 나오는 것처럼 보인다 */
+  it('물건 위에서 시작한다', () => {
+    const pan = ALL_VARIANTS.find((item) => item.id === 'frying-pan')
+    const field = steamFor('frying-pan', true, 10)
+    for (const particle of field.particles) {
+      expect(particle.y).toBeGreaterThan(1)
+      expect(particle.y).toBeLessThanOrEqual(1 + (pan?.artBounds.hh ?? 0))
+    }
+  })
+
+  /** 김은 물건 색을 쓰지 않는다 — 남색 프라이팬에서 남색 김이 오르면 안 보인다 */
+  it('어느 물건에서 나든 같은 색이다', () => {
+    const pan = steamFor('frying-pan', true, 20).particles[0]?.color
+    const shirt = steamFor('burnt-hole-shirt', true, 20).particles[0]?.color
+    expect(pan).toBeDefined()
+    expect(pan).toBe(shirt)
+    expect(pan).not.toBe(ALL_VARIANTS.find((i) => i.id === 'frying-pan')?.color)
+  })
+
+  /**
+   * 상시 뿜는 유일한 갈래다. 전체 상한만 두면 뜨거운 물건이 몇 개 쌓였을 때
+   * 김이 자리를 다 차지해 떨어지는 물건의 꼬리가 사라진다.
+   */
+  it('김만 따로 상한이 있다', () => {
+    const field = new TrailField()
+    const hot = ['frying-pan', 'fried-egg', 'iron', 'burnt-hole-shirt']
+    for (let i = 0; i < 600; i += 1) {
+      field.update(
+        hot.map((id, index) => ({ ...body(id, index * 0.3, 1, true), handle: index + 1 })),
+        1 / 60,
+      )
+    }
+    const steam = field.particles.filter((p) => p.kind === 'steam').length
+    expect(steam).toBeLessThanOrEqual(STEAM_MAX)
+    expect(steam).toBeLessThan(MAX_PARTICLES)
+  })
+
+  /** 크기가 그대로면 위로 흐르는 점들이라 연기가 아니라 거품으로 보인다 */
+  it('살면서 커진다', () => {
+    const young = { life: 1, born: 1, kind: 'steam' as Trail } as Particle
+    const old = { life: 0.1, born: 1, kind: 'steam' as Trail } as Particle
+    expect(grownBy(old)).toBeGreaterThan(grownBy(young))
+    expect(grownBy({ ...young, kind: 'petal' })).toBe(1)
   })
 })

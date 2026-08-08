@@ -1,4 +1,4 @@
-import { trailOf, type Trail } from '../data/trails.ts'
+import { STEAM_COLOR, splashColorOf, trailOf, type Trail } from '../data/trails.ts'
 
 /**
  * 물건이 움직인 자리에 남는 부스러기들.
@@ -27,7 +27,12 @@ interface TrailBody {
   readonly x: number
   readonly y: number
   readonly settled: boolean
-  readonly variant: { readonly id: string; readonly color: string }
+  readonly variant: {
+    readonly id: string
+    readonly color: string
+    /** 그린 크기의 반높이. 김이 물건 **위에서** 피어오르게 하는 데 쓴다 */
+    readonly artBounds: { readonly hh: number }
+  }
 }
 
 /** 부딪힌 자리 하나 — 물리가 돌려주는 것 중 이 연출에 필요한 부분만 */
@@ -87,6 +92,13 @@ interface TrailSpec {
    * 기울기는 렌더러가 속도에서 낸다.
    */
   readonly spin: number
+  /**
+   * 살면서 얼마나 커지는가(0이면 그대로).
+   *
+   * 김에만 쓴다. 피어오르며 퍼지는 것이 김의 성질이고, 그게 없으면 위로 흐르는
+   * 점들이라 연기가 아니라 거품처럼 보인다.
+   */
+  readonly grow: number
 }
 
 /**
@@ -102,27 +114,32 @@ const SPECS: Readonly<Record<Trail, TrailSpec>> = {
     rate: 40, life: 0.55, size: 0.055, gravity: 0, inherit: 0.15, sway: 0, spread: 0.35,
     // 별은 제자리에서 천천히 돈다. 빠르게 돌리면 반짝임이 아니라 바람개비가 된다
     spin: 1.2,
+    grow: 0,
   },
   /* 튀어서 아래로 가속한다. 물건보다 빨리 떨어져 뒤로 처진다 */
   droplet: {
     rate: 22, life: 0.5, size: 0.045, gravity: 1.3, inherit: 0.35, sway: 0, spread: 0.5,
     // 방울은 진행 방향으로 늘어나야 하므로 돌지 않는다
     spin: 0,
+    grow: 0,
   },
   /* 좌우로 흔들리며 천천히 내려온다. 잎은 뒹굴어야 잎으로 보인다 */
   petal: {
     rate: 14, life: 1.5, size: 0.075, gravity: 0.18, inherit: 0.2, sway: 0.9, spread: 0.3,
     spin: 3.4,
+    grow: 0,
   },
   /* 가장 느리다. 크고 옅어서 거의 떠 있다 */
   fluff: {
     rate: 10, life: 2.2, size: 0.09, gravity: 0.06, inherit: 0.12, sway: 0.5, spread: 0.2,
     spin: 0.8,
+    grow: 0,
   },
   /* 작고 짧게 아래로 흩어진다. 부러진 조각처럼 빠르게 뒹군다 */
   crumb: {
     rate: 24, life: 0.65, size: 0.04, gravity: 1, inherit: 0.3, sway: 0, spread: 0.6,
     spin: 5,
+    grow: 0,
   },
   /*
    * 닿는 순간 위로 솟구치는 물. `rate`를 쓰지 않는다 — 흘리는 것이 아니라 한 번에
@@ -133,7 +150,17 @@ const SPECS: Readonly<Record<Trail, TrailSpec>> = {
    */
   splash: {
     rate: 0, life: 0.55, size: 0.038, gravity: 1.1, inherit: 0, sway: 0, spread: 0,
-    spin: 0,
+    spin: 0, grow: 0,
+  },
+  /*
+   * 얹힌 뒤 피어오르는 김. **중력이 음수라 위로 뜬다.**
+   *
+   * 다른 갈래와 조건이 반대다 — 속도가 아니라 **정착**했을 때 뿜고, 속도에 비례하지
+   * 않고 일정하게 낸다. 오래 살고(1.8초) 살면서 커지며 옅어진다.
+   */
+  steam: {
+    rate: 7, life: 1.8, size: 0.05, gravity: -0.12, inherit: 0, sway: 0.35, spread: 0.12,
+    spin: 0.4, grow: 1.1,
   },
 }
 
@@ -188,6 +215,14 @@ const FULL_SPEED = 6
  * 부스러기를 더하면 무엇이 떨어지는지가 오히려 안 보인다.
  */
 const MAX_PARTICLES = 420
+
+/**
+ * 김만 따로 두는 상한.
+ *
+ * 상시 뿜는 유일한 갈래라 전체 상한만 두면 뜨거운 물건이 몇 개 쌓였을 때 김이 자리를
+ * 다 차지해 **떨어지는 물건의 꼬리가 사라진다.** 김은 배경이고 꼬리는 정보다.
+ */
+const STEAM_MAX = 90
 
 /** 한 프레임에 흐를 수 있는 최대 시간(초). 탭이 가려졌다 돌아올 때 한꺼번에 튀지 않게 */
 const MAX_STEP = 0.05
@@ -266,6 +301,8 @@ class TrailField {
         continue
       }
       const spec = SPECS.splash
+      // 물건 색이 곧 담긴 것의 색은 아니다 — 생선은 살구빛인데 튀는 것은 물이다
+      const color = splashColorOf(hit.id, hit.color)
       const reachScale = SPLASH_FLOOR + (1 - SPLASH_FLOOR) * hit.strength
       const count = Math.max(6, Math.round(SPLASH_COUNT * reachScale))
       for (let i = 0; i < count; i += 1) {
@@ -294,7 +331,7 @@ class TrailField {
           born: spec.life,
           size: spec.size * (0.6 + this.random() * 0.8),
           kind: 'splash',
-          color: hit.color,
+          color,
           phase: 0,
           angle: 0,
           spin: 0,
@@ -327,7 +364,14 @@ class TrailField {
       const kind = trailOf(body.variant.id)
       const last = this.previous.get(body.handle)
       this.previous.set(body.handle, { x: body.x, y: body.y })
-      if (kind === null || last === undefined || body.settled) {
+      if (kind === null) {
+        continue
+      }
+      if (kind === 'steam') {
+        this.emitSteam(body, dt)
+        continue
+      }
+      if (last === undefined || body.settled) {
         continue
       }
       const vx = (body.x - last.x) / dt
@@ -338,13 +382,7 @@ class TrailField {
       }
       const spec = SPECS[kind]
       const strength = Math.min(speed / FULL_SPEED, 1)
-      /*
-       * 뿜을 몫을 소수점째로 쌓아둔다. 매 프레임 내림하면 느린 갈래(초당 6개)는
-       * 한 프레임 몫이 0.1이라 영영 하나도 안 나온다.
-       */
-      const owed = (this.debt.get(body.handle) ?? 0) + spec.rate * strength * dt
-      const count = Math.floor(owed)
-      this.debt.set(body.handle, owed - count)
+      const count = this.owe(body.handle, spec.rate * strength * dt)
       for (let i = 0; i < count; i += 1) {
         if (this.live.length >= MAX_PARTICLES) {
           return
@@ -366,6 +404,75 @@ class TrailField {
         })
       }
     }
+  }
+
+  /**
+   * 뜨거운 물건이 **얹힌 뒤** 김을 피워올린다.
+   *
+   * 다른 갈래와 조건이 반대다 — 움직이는 동안이 아니라 자리를 잡았을 때다. 떨어지는
+   * 동안 김이 나면 그건 김이 아니라 연기 꼬리이고, 정작 보여주려는 것은 **쌓인 탑이
+   * 아직 살아 있다**는 것이다.
+   *
+   * 속도에 비례하지 않고 일정하게 낸다. 김은 물건이 무엇을 하든 같은 빠르기로 오른다.
+   *
+   * **물건 위에서 시작한다.** 가운데에서 내면 김이 물건 속에서 솟아 나오는 것처럼
+   * 보인다 — 뜨거운 것은 윗면에서 오른다.
+   */
+  private emitSteam(body: TrailBody, dt: number): void {
+    if (!body.settled) {
+      return
+    }
+    /*
+     * 김만 따로 상한을 둔다. 상시 뿜는 유일한 갈래라, 전체 상한만 두면 뜨거운 물건이
+     * 몇 개 쌓였을 때 김이 자리를 다 차지해 **떨어지는 물건의 꼬리가 사라진다.**
+     */
+    if (this.count('steam') >= STEAM_MAX) {
+      return
+    }
+    const spec = SPECS.steam
+    const count = this.owe(body.handle, spec.rate * dt)
+    const top = body.y + body.variant.artBounds.hh * 0.7
+    for (let i = 0; i < count; i += 1) {
+      if (this.live.length >= MAX_PARTICLES) {
+        return
+      }
+      this.live.push({
+        x: body.x + (this.random() - 0.5) * spec.size * 3,
+        y: top,
+        vx: (this.random() - 0.5) * spec.spread,
+        vy: 0.25 + this.random() * 0.2,
+        life: spec.life * (0.65 + this.random() * 0.35),
+        born: spec.life,
+        size: spec.size * (0.7 + this.random() * 0.6),
+        kind: 'steam',
+        color: STEAM_COLOR,
+        phase: this.random() * 6,
+        angle: this.random() * Math.PI * 2,
+        spin: spec.spin * (this.random() < 0.5 ? -1 : 1),
+      })
+    }
+  }
+
+  /**
+   * 뿜을 몫을 소수점째로 쌓아두고 정수분만 돌려준다.
+   *
+   * 매 프레임 내림하면 느린 갈래(초당 7개)는 한 프레임 몫이 0.12라 영영 하나도 안 나온다.
+   */
+  private owe(handle: number, amount: number): number {
+    const owed = (this.debt.get(handle) ?? 0) + amount
+    const count = Math.floor(owed)
+    this.debt.set(handle, owed - count)
+    return count
+  }
+
+  private count(kind: Trail): number {
+    let total = 0
+    for (const particle of this.live) {
+      if (particle.kind === kind) {
+        total += 1
+      }
+    }
+    return total
   }
 
   /** 세계에서 사라진 물건의 기록을 치운다. 남겨두면 판이 길어질수록 쌓인다 */
@@ -393,5 +500,6 @@ export {
   SPLASH_MIN_STRENGTH,
   SPLASH_FAN,
   SPLASH_FLOOR,
+  STEAM_MAX,
 }
 export type { Particle, TrailBody, TrailHit, TrailSpec }

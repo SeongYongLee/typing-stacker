@@ -96,6 +96,8 @@ const BASE_STATE = {
   ownerColors: null,
   cameraY: 0,
   stackTop: 0.8,
+  ledges: [],
+  formingLedge: null,
   time: 0,
   impacts: [],
 } as const

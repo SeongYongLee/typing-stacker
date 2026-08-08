@@ -11,6 +11,7 @@ import {
   ARENA,
   HEAVY_MASS,
   IMPACT_MIN_SPEED,
+  LEDGE,
   QUAKE_MIN_SIZE,
   QUAKE_MIN_SPEED,
   QUAKE_REARM_DISTANCE,
@@ -274,6 +275,8 @@ class PhysicsWorld {
    * 같은 짝에 관절을 두 번 걸면 서로 당겨 물건이 떨리므로 반드시 한 번만 건다.
    */
   private readonly welds = new Map<string, ImpulseJoint>()
+  /** 히든을 만날 때마다 공중에 서는 작은 통나무. 판이 끝나면 함께 치운다 */
+  private readonly ledgeList: { x: number; y: number; halfWidth: number; body: RigidBody }[] = []
   private accumulator = 0
 
   private constructor() {
@@ -917,6 +920,10 @@ class PhysicsWorld {
     for (const entry of this.tracked.values()) {
       this.world.removeRigidBody(entry.body)
     }
+    for (const ledge of this.ledgeList) {
+      this.world.removeRigidBody(ledge.body)
+    }
+    this.ledgeList.length = 0
     this.tracked.clear()
     this.welds.clear()
     this.accumulator = 0
@@ -924,6 +931,31 @@ class PhysicsWorld {
 
   dispose(): void {
     this.world.free()
+  }
+
+  /**
+   * 공중에 작은 통나무를 세운다. 받침대와 같은 고정 몸체다.
+   *
+   * 마찰은 받침대와 같게 둔다 — 여기만 미끄러우면 "새 자리를 줬는데 얹히지 않는"
+   * 것이 되고, 여기만 잘 붙으면 본 받침대보다 좋은 자리가 되어 판이 통나무 위로 옮겨간다.
+   */
+  addLedge(x: number, y: number, halfWidth: number): void {
+    const body = this.world.createRigidBody(
+      rapier().RigidBodyDesc.fixed().setTranslation(x, y - LEDGE.halfHeight),
+    )
+    this.world.createCollider(
+      rapier()
+        .ColliderDesc.cuboid(halfWidth, LEDGE.halfHeight)
+        .setFriction(0.9)
+        .setRestitution(0.02),
+      body,
+    )
+    this.ledgeList.push({ x, y, halfWidth, body })
+  }
+
+  /** 지금 서 있는 통나무들. 렌더러가 그리고, 다음 자리를 고를 때 피할 곳이 된다 */
+  ledges(): readonly { x: number; y: number; halfWidth: number }[] {
+    return this.ledgeList
   }
 
   private createPlatform(): void {

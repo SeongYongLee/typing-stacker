@@ -71,6 +71,13 @@ function traceFluff(ctx: CanvasRenderingContext2D, { x, y, radius, angle }: Shap
   ctx.closePath()
 }
 
+/** 김은 둥근 덩이다. 각이 있으면 수증기가 아니라 조각으로 보인다 */
+function traceSteam(ctx: CanvasRenderingContext2D, { x, y, radius, angle }: ShapeArgs): void {
+  ctx.beginPath()
+  ctx.ellipse(x, y, radius * 1.1, radius * 0.95, angle, 0, Math.PI * 2)
+  ctx.closePath()
+}
+
 /** 세 각짜리 조각. 부스러기는 각이 있다 — 한 각만 길게 빼 부러진 것처럼 보이게 한다 */
 function traceCrumb(ctx: CanvasRenderingContext2D, { x, y, radius, angle }: ShapeArgs): void {
   ctx.beginPath()
@@ -98,6 +105,7 @@ const TRACERS: Readonly<
   crumb: traceCrumb,
   /* 퍼지는 물도 방울이다. 나아가는 방향으로 늘어나 흩어지는 결이 보인다 */
   splash: traceDroplet,
+  steam: traceSteam,
 }
 
 /** 그 갈래의 모양으로 경로를 만든다. 칠하는 것은 부르는 쪽이 한다 */

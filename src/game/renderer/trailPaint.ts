@@ -1,5 +1,5 @@
 import { glowColor } from './glow.ts'
-import type { Particle } from '../systems/TrailField.ts'
+import { SPECS, type Particle } from '../systems/TrailField.ts'
 import type { Trail } from '../data/trails.ts'
 
 /**
@@ -31,6 +31,8 @@ const PEAK: Readonly<Record<Trail, number>> = {
   crumb: 0.62,
   /* 퍼지는 물은 짧게 살아서 눈에 남는 시간이 적다. 그만큼 진해야 보인다 */
   splash: 0.85,
+  /* 김은 배경이다. 진하면 쌓인 물건을 가려 무엇이 얹혔는지가 안 보인다 */
+  steam: 0.22,
 }
 
 /** 반짝임만 빛을 더한다. 흩날리는 잎을 가산으로 그리면 색이 다 하얗게 뜬다 */
@@ -41,6 +43,8 @@ const ADDITIVE: Readonly<Record<Trail, boolean>> = {
   fluff: false,
   crumb: false,
   splash: false,
+  /* 옅게 덮어야 김이다. 빛을 더하면 뜨거운 것이 아니라 빛나는 것이 된다 */
+  steam: false,
 }
 
 /**
@@ -58,6 +62,8 @@ const NORMALIZED: Readonly<Record<Trail, boolean>> = {
   crumb: false,
   /* 물은 담긴 것의 색이어야 한다 — 맥주는 노랗고 딸기우유는 분홍이다 */
   splash: false,
+  /* 색이 이미 `STEAM_COLOR`로 정해져 있다. 밝기를 또 맞출 것이 없다 */
+  steam: false,
 }
 
 function parseHex(hex: string): { r: number; g: number; b: number } {
@@ -85,6 +91,21 @@ function fadeOf(particle: Particle): number {
   return remain * remain * rise
 }
 
+/**
+ * 살면서 커진 배수. 김에만 1을 넘는다(`SPECS.steam.grow`).
+ *
+ * 여기 두는 이유는 이것이 **보이는 크기**의 문제이기 때문이다 — `TrailField`가 든
+ * `size`는 태어날 때의 크기이고, 시간에 따라 어떻게 보일지는 칠하는 쪽이 정한다.
+ */
+function grownBy(particle: Particle): number {
+  const grow = SPECS[particle.kind].grow
+  if (grow === 0) {
+    return 1
+  }
+  const aged = 1 - Math.max(0, Math.min(1, particle.life / particle.born))
+  return 1 + grow * aged
+}
+
 function trailPaint(particle: Particle, scale: number): TrailPaint {
   const base = NORMALIZED[particle.kind]
     ? glowColor(particle.color)
@@ -98,5 +119,5 @@ function trailPaint(particle: Particle, scale: number): TrailPaint {
   }
 }
 
-export { trailPaint, fadeOf, PEAK, ADDITIVE, NORMALIZED }
+export { trailPaint, fadeOf, grownBy, PEAK, ADDITIVE, NORMALIZED }
 export type { TrailPaint }

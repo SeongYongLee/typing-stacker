@@ -24,7 +24,7 @@
  * **부딪히는 순간** 한 번 터진다. 그래서 아래 표에 배정된 물건이 없다 — 액체가 담긴
  * 것(`droplet`)이 닿을 때 `TrailField`가 만들어낸다.
  */
-type Trail = 'sparkle' | 'droplet' | 'petal' | 'fluff' | 'crumb' | 'splash'
+type Trail = 'sparkle' | 'droplet' | 'petal' | 'fluff' | 'crumb' | 'splash' | 'steam'
 
 const TRAILS: Readonly<Record<string, Trail>> = {
   /* 빛나는 것 — 반짝임을 흘린다. glowItems.ts와 같은 열 종 */
@@ -50,6 +50,8 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'shampoo-bottle': 'droplet',
   'electric-kettle': 'droplet',
   tumbler: 'droplet',
+  /* 담긴 것이 아니라 **젖은 것**. 생선이 퍼덕이면 물이 튄다 */
+  'salmon-fish': 'droplet',
 
   /* 식물 — 잎이 흩날린다. 단풍잎은 설명이 필요 없다 */
   clover: 'petal',
@@ -68,6 +70,22 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'wool-hat': 'fluff',
   scarf: 'fluff',
 
+  /*
+   * 뜨거운 것 — 김이 피어오른다.
+   *
+   * **다른 갈래와 조건이 반대다.** 나머지는 움직이는 동안 흘리고 정착하면 멈추는데,
+   * 김은 얹힌 **뒤에** 천천히 올라온다. 떨어지는 동안 김이 나면 그건 김이 아니라
+   * 연기 꼬리이고, 쌓인 탑에서 김이 오르는 것은 지금 화면에 없던 종류의 움직임이다.
+   *
+   * 아메리카노·전기주전자·붕어빵도 뜨겁지만 이미 다른 갈래를 갖고 있어 두었다.
+   * 한 물건이 갈래 둘을 갖는 구조는 아직 필요하지 않다 — 필요해지면 그때 만든다.
+   */
+  'frying-pan': 'steam',
+  'fried-egg': 'steam',
+  iron: 'steam',
+  /* 다리미에 탄 자국. 타고 나면 연기가 남는다 */
+  'burnt-hole-shirt': 'steam',
+
   /* 마르고 부스러지는 것 */
   broom: 'crumb',
   footprints: 'crumb',
@@ -77,10 +95,46 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'chocolate-donut': 'crumb',
 }
 
+/**
+ * 튀는 물의 색이 **물건 색과 다른** 물건들.
+ *
+ * 보통은 물건 색을 그대로 쓴다 — 맥주는 노랗고 딸기우유는 분홍이라, 담긴 것이 곧
+ * 물건의 색이다. 그런데 그게 맞지 않는 물건이 있다.
+ *
+ * **생선이 그렇다.** 물건 색은 살구빛(`#f08a6a`)이고 튀는 것은 물이다. 그대로 쓰면
+ * 살점이 튀는 것처럼 보인다 — 넣으려던 것이 "물 효과"인데 물로 안 읽힌다.
+ *
+ * 물뿌리개(초록)와 전기주전자(빨강)도 같은 어긋남이다. 그쪽은 **통의 색**이지
+ * 담긴 것의 색이 아니다. 반대로 샴푸통은 통 색이 곧 샴푸 색이라 두지 않았다.
+ *
+ * 물건마다 적지 않고 여기 모은 이유는 재질 표와 같다 — 어긋난 것이 몇 개인지
+ * 한눈에 보여야 새 아트가 올 때 빠뜨렸는지 알 수 있다.
+ */
+const SPLASH_COLORS: Readonly<Record<string, string>> = {
+  'salmon-fish': '#7ec8ef',
+  'watering-can': '#7ec8ef',
+  'electric-kettle': '#bcd6e6',
+}
+
+/**
+ * 김의 색. 물건 색을 아예 쓰지 않는다.
+ *
+ * 김은 **어느 물건에서 나든 같은 것**이다. 물건 색을 쓰면 남색 프라이팬에서 남색
+ * 김이 올라와 어두운 배경에서 보이지도 않고, 보이더라도 김이 아니라 물건이
+ * 번지는 것으로 읽힌다. 튀는 물이 담긴 것의 색을 따르는 것과 정반대 이유다 —
+ * 그쪽은 물건마다 다른 것이 맞고 이쪽은 같은 것이 맞다.
+ */
+const STEAM_COLOR = '#dfe6ee'
+
 /** 이 물건이 흘리는 것. 없으면 null — 대부분이 그렇다 */
 function trailOf(id: string): Trail | null {
   return TRAILS[id] ?? null
 }
 
-export { TRAILS, trailOf }
+/** 튈 때의 색. 어긋나는 물건만 표에 있고 나머지는 물건 색을 그대로 쓴다 */
+function splashColorOf(id: string, fallback: string): string {
+  return SPLASH_COLORS[id] ?? fallback
+}
+
+export { TRAILS, SPLASH_COLORS, STEAM_COLOR, trailOf, splashColorOf }
 export type { Trail }

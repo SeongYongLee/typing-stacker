@@ -4,6 +4,7 @@ import {
   HIDDEN_CHANCE,
   IMPACT_FULL_SCALE,
   INVULNERABLE_SEC,
+  LEDGE,
   LIVES,
   OPENING_HIDDEN_CHANCE,
   SOLO_OWNER,
@@ -12,11 +13,13 @@ import {
   QUAKE_MAX_AMPLITUDE,
 } from '../config.ts'
 import { VARIANT_BY_ID, WORDS } from '../data/words.ts'
+import { shapeBounds } from '../shapes.ts'
 import { PhysicsWorld, type ImpactEvent } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
 import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
 import { RECIPES } from '../data/recipes.ts'
+import { placeLedge } from '../systems/Ledge.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
 import { openingEntries } from '../systems/Opening.ts'
@@ -128,6 +131,8 @@ class GameEngine {
         duration: number
       }
     | null = null
+  /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
+  private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
   /**
@@ -210,6 +215,7 @@ class GameEngine {
     this.lives = LIVES
     this.invulnerableLeft = 0
     this.hiddenReveal = null
+    this.formingLedge = null
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
@@ -292,6 +298,10 @@ class GameEngine {
         elapsed: 0,
         duration: HIDDEN_REVEAL_SEC,
       }
+      /*
+       * 운으로 만난 히든에는 통나무를 주지 않는다. 여기 있었다가 뺐다 —
+       * 이유는 `growLedge`에.
+       */
       this.fire({ kind: 'reveal' })
     }
 
@@ -472,6 +482,7 @@ class GameEngine {
         this.hiddenReveal = null
       }
     }
+    this.advanceLedge(dt)
 
     /*
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
@@ -564,6 +575,7 @@ class GameEngine {
     this.fire({ kind: 'merge' })
     this.score.onCrafted(match.recipe.result)
     this.discover(match.recipe.result)
+    this.growLedge()
     /*
      * 앞머리 밭을 여기서 푼다. 목적이 "합성이라는 것이 있다"를 알리는 것이었으므로
      * 알린 이 순간이 끝나는 지점이다 — 시간이나 드롭 수로 끊으면 느린 사람은 배우기
@@ -580,6 +592,72 @@ class GameEngine {
   private discover(variant: ItemVariant): void {
     if (this.collection.add(variant.id)) {
       this.onDiscover?.(this.collection.ids)
+    }
+  }
+
+  /**
+   * **합성했을 때만** 공중에 작은 통나무를 하나 세운다.
+   *
+   * 판을 끝내는 것은 점수가 아니라 얹을 자리가 좁아지는 것이니, 자리를 하나 더 주는
+   * 것이 이 게임의 말로 된 보상이다. 자리를 고르는 규칙은 `systems/Ledge.ts`에 있다.
+   *
+   * ## 운으로 만난 히든에는 주지 않는다
+   *
+   * 처음에는 둘 다 줬다. 합성 결과물도 코드상 전부 히든이고 도감·연출에서 같게
+   * 다루므로 그게 일관돼 보였다. 그런데 **손으로 만든 것과 운으로 만난 것은 다르다.**
+   *
+   * 합성은 재료 둘을 알아보고, 둘 다 떨구고, 서로 닿게 놓아야 일어난다. 실측으로
+   * 재료가 갖춰져도 열에 일곱은 닿지 않는다 — 그 어려움을 넘은 대가가 새 자리다.
+   * 운으로 나온 히든은 아무것도 하지 않아도 나오므로, 거기에 같은 것을 주면
+   * **판을 여는 자리가 실력이 아니라 운으로 갈린다.**
+   *
+   * 빈도로도 그렇다. 둘 다 주면 판당 두 개꼴이라 보상이 아니라 절차가 된다.
+   *
+   * ## 자리가 없으면 그냥 지나간다
+   *
+   * 억지로 끼워 넣으면 통나무가 탑 속에 박혀 물건을 밀어내고, 보상이 오히려 판을
+   * 무너뜨린다.
+   *
+   * 물건의 크기는 회전을 무시하고 외접 사각형으로 본다. 기울어 누운 물건은 실제보다
+   * 넓게 잡히는데, 그쪽으로 틀리는 편이 안전하다 — 겹쳐 세우는 것보다 한 번 거르는
+   * 것이 싸다.
+   */
+  private growLedge(): void {
+    const items = this.physics.frames().flatMap((frame) => {
+      const variant = VARIANT_BY_ID.get(frame.variantId)
+      if (variant === undefined) {
+        return []
+      }
+      const { hw, hh } = shapeBounds(variant.shape)
+      return [{ x: frame.x, y: frame.y, hw, hh }]
+    })
+    const ledges = this.physics
+      .ledges()
+      .map((spot) => ({ ...spot, hw: spot.halfWidth, hh: LEDGE.halfHeight }))
+
+    const spot = placeLedge(items, ledges, this.physics.stackTop(), this.rng)
+    if (spot !== null) {
+      // 아직 세우지 않는다. 연출이 뭉쳐 다 앉은 뒤에 실제 통나무가 된다
+      this.formingLedge = { ...spot, elapsed: 0 }
+    }
+  }
+
+  /**
+   * 뭉쳐지던 것이 다 앉으면 그때 통나무를 세운다.
+   *
+   * **먼저 세워두고 연출만 얹으면 안 된다.** 아직 보이지도 않는 통나무가 물건을
+   * 받아내서 허공에 걸린 것처럼 보인다 — 보이는 것과 부딪히는 것이 어긋나면 안 된다는
+   * 이 프로젝트의 전제가 연출에도 그대로 적용된다.
+   */
+  private advanceLedge(dt: number): void {
+    const forming = this.formingLedge
+    if (forming === null) {
+      return
+    }
+    forming.elapsed += dt
+    if (forming.elapsed >= LEDGE.formSec) {
+      this.physics.addLedge(forming.x, forming.y, forming.halfWidth)
+      this.formingLedge = null
     }
   }
 
@@ -603,6 +681,16 @@ class GameEngine {
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
+      ledges: this.physics.ledges(),
+      formingLedge:
+        this.formingLedge === null
+          ? null
+          : {
+              x: this.formingLedge.x,
+              y: this.formingLedge.y,
+              halfWidth: this.formingLedge.halfWidth,
+              progress: Math.min(this.formingLedge.elapsed / LEDGE.formSec, 1),
+            },
       /*
        * 꼬리 부스러기가 이 값의 차이로 시간을 흘린다. `elapsed`가 아니라 `quakePhase`를
        * 쓰는 이유는 이쪽이 **판이 멈춰도 계속 흐르기** 때문이다 — 무너지는 장면에서

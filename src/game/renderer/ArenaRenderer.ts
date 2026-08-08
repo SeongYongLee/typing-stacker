@@ -2,10 +2,11 @@ import { glowScale, shakeScale, trailScale } from './displayPrefs.ts'
 import { glowAlpha, glowColor, glowStyle } from './glow.ts'
 import { trailPaint } from './trailPaint.ts'
 import { traceTrail } from './trailShape.ts'
+import { grownBy } from './trailPaint.ts'
 import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import { sprite } from './spriteCache.ts'
 import { padRatio, rim } from './rimCache.ts'
-import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
+import { ARENA, LEDGE, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
 import type {
   BodySnapshot,
@@ -92,6 +93,32 @@ interface ArenaRenderState {
   readonly cameraY: number
   /** 쌓인 것들의 꼭대기. 조준선이 여기까지 내려와 어디에 떨어질지 가리킨다 */
   readonly stackTop: number
+  /**
+   * 히든을 만나 공중에 선 작은 통나무들. 없으면 빈 배열이다.
+   *
+   * 받침대와 **같은 그림을 줄여서** 그린다 — 설명 없이 "여기도 받침대다"가 읽혀야
+   * 새 자리인 줄 알고 노린다. 다른 모양으로 그리면 장식으로 보고 지나친다.
+   */
+  readonly ledges: readonly {
+    readonly x: number
+    readonly y: number
+    /** 통나무마다 길이가 다르다 — 같은 것만 서면 새 자리로 안 읽힌다 */
+    readonly halfWidth: number
+  }[]
+  /**
+   * 지금 뭉쳐지고 있는 통나무. 다 앉으면 `ledges`로 옮겨간다.
+   *
+   * 히든 연출이 뜨는 자리에서 출발해 놓일 곳으로 날아가 앉는다 — **어디서 온
+   * 보상인지**가 보여야 히든과 통나무가 한 사건으로 읽힌다. 따로 툭 생기면
+   * 그저 발판이 하나 늘어난 것이 된다.
+   */
+  readonly formingLedge: {
+    readonly x: number
+    readonly y: number
+    readonly halfWidth: number
+    /** 0(히든 자리에서 출발) → 1(다 앉음) */
+    readonly progress: number
+  } | null
   /**
    * 판이 시작된 뒤 흐른 시간(초). 줄어들지 않는 값이어야 한다.
    *
@@ -217,6 +244,10 @@ class ArenaRenderer {
       this.drawHiddenReveal(state.hiddenReveal)
     }
     this.drawPlatform()
+    this.drawLedges(state.ledges)
+    if (state.formingLedge !== null) {
+      this.drawFormingLedge(state.formingLedge)
+    }
     if (state.showAim) {
       this.drawAim(state.aimX, state.stackTop)
     }
@@ -306,7 +337,11 @@ class ArenaRenderer {
       traceTrail(ctx, particle.kind, {
         x: this.toScreenX(particle.x),
         y: this.toScreenY(particle.y),
-        radius: Math.max(0.9, particle.size * this.scale),
+        /*
+         * 김은 피어오르며 퍼진다(`grow`). 크기가 그대로면 위로 흐르는 점들이라
+         * 연기가 아니라 거품으로 보인다.
+         */
+        radius: Math.max(0.9, particle.size * grownBy(particle) * this.scale),
         /*
          * 방울만 속도에서 기울기를 낸다 — 늘어난 방향이 나아가는 방향과 같아야
          * "튀었다"로 읽힌다. 나머지는 스스로 뒹군다.
@@ -384,6 +419,131 @@ class ArenaRenderer {
     ctx.fillRect(left, top, width, height)
     ctx.fillStyle = '#6b74a0'
     ctx.fillRect(left, top, width, Math.max(2, height * 0.16))
+  }
+
+  /**
+   * 공중에 선 작은 통나무들.
+   *
+   * 받침대와 **같은 그림을 줄여서** 그린다. 새 그림을 그리지 않아도 되는 데다,
+   * 무엇보다 같은 그림이라 "여기도 받침대다"가 설명 없이 읽힌다 — 다른 모양이면
+   * 장식으로 보고 지나쳐서, 자리를 하나 더 준 보상이 전달되지 않는다.
+   */
+  private drawLedges(
+    ledges: readonly { readonly x: number; readonly y: number; readonly halfWidth: number }[],
+  ): void {
+    if (ledges.length === 0) {
+      return
+    }
+    const { ctx } = this
+    const log = sprite(ARENA_ART.platform)
+    const height = LEDGE.halfHeight * 2 * this.scale
+
+    for (const ledge of ledges) {
+      const width = ledge.halfWidth * 2 * this.scale
+      const left = this.toScreenX(ledge.x - ledge.halfWidth)
+      const top = this.toScreenY(ledge.y)
+      if (log === null) {
+        ctx.fillStyle = '#4a5171'
+        ctx.fillRect(left, top, width, height)
+        continue
+      }
+      // 받침대는 그림 비율대로 늘어나지만 여기는 콜라이더 높이에 맞춘다 —
+      // 보이는 두께와 부딪히는 두께가 어긋나면 허공에 걸린 것처럼 보인다
+      ctx.drawImage(
+        log,
+        LOG_CROP.x,
+        LOG_CROP.y,
+        LOG_CROP.width,
+        LOG_CROP.height,
+        left,
+        top,
+        width,
+        height,
+      )
+    }
+  }
+
+  /**
+   * 히든 연출이 뭉쳐 통나무가 되는 장면.
+   *
+   * 히든이 뜨는 자리(아레나 위쪽 가운데)에서 출발해 놓일 곳으로 날아가 앉는다.
+   * **어디서 온 보상인지**가 보여야 히든과 통나무가 한 사건으로 읽힌다 — 따로 툭
+   * 생기면 발판이 하나 늘어난 것일 뿐이고, 그러면 히든을 노릴 이유가 되지 않는다.
+   *
+   * 크고 흐린 빛덩이로 출발해 **작고 또렷한 통나무**로 앉는다. 뭉쳐진다는 말이
+   * 그대로 크기와 진하기다.
+   */
+  private drawFormingLedge(forming: {
+    readonly x: number
+    readonly y: number
+    readonly halfWidth: number
+    readonly progress: number
+  }): void {
+    const { ctx } = this
+    const t = Math.min(Math.max(forming.progress, 0), 1)
+    // 출발은 빠르고 도착은 느리다. 끝에서 천천히 앉아야 "자리를 잡았다"로 읽힌다
+    const ease = 1 - (1 - t) * (1 - t) * (1 - t)
+
+    const fromX = this.toScreenX(0)
+    const fromY = this.toScreenY(ARENA.height * 0.74 + this.cameraY)
+    const toX = this.toScreenX(forming.x)
+    const toY = this.toScreenY(forming.y)
+    const cx = fromX + (toX - fromX) * ease
+    const cy = fromY + (toY - fromY) * ease
+
+    const width = forming.halfWidth * 2 * this.scale
+    const height = LEDGE.halfHeight * 2 * this.scale
+    const spread = 1 + (1 - ease) * 2.2
+
+    ctx.save()
+
+    // 뭉쳐지는 빛. 흩어져 있을수록 크고 흐리다
+    ctx.globalAlpha = 0.55 * (1 - ease * 0.7)
+    ctx.fillStyle = COLORS.hidden
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, (width / 2) * spread, (height / 2) * spread * 1.6, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // 통나무는 뭉쳐질수록 또렷해진다
+    const log = sprite(ARENA_ART.platform)
+    ctx.globalAlpha = ease * ease
+    if (log !== null) {
+      ctx.drawImage(
+        log,
+        LOG_CROP.x,
+        LOG_CROP.y,
+        LOG_CROP.width,
+        LOG_CROP.height,
+        cx - width / 2,
+        cy - height / 2,
+        width,
+        height,
+      )
+    } else {
+      ctx.fillStyle = '#4a5171'
+      ctx.fillRect(cx - width / 2, cy - height / 2, width, height)
+    }
+
+    // 다 앉는 순간 한 번 퍼진다. 여기서부터 실제로 물건을 받는다는 표시다
+    if (t > 0.8) {
+      const ring = (t - 0.8) / 0.2
+      ctx.globalAlpha = (1 - ring) * 0.6
+      ctx.strokeStyle = COLORS.hidden
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.ellipse(
+        toX,
+        toY,
+        (width / 2) * (1 + ring * 0.9),
+        (height / 2) * (1 + ring * 2.4),
+        0,
+        0,
+        Math.PI * 2,
+      )
+      ctx.stroke()
+    }
+
+    ctx.restore()
   }
 
   private drawAim(worldX: number, stackTop: number): void {

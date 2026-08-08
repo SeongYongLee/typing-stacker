@@ -1,19 +1,29 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Hud } from '../components/Hud.tsx'
 import { InputBar } from '../components/InputBar.tsx'
 import { StackArena } from '../components/StackArena.tsx'
+import { OptionsScreen } from './OptionsScreen.tsx'
 import { PauseOverlay } from './PauseOverlay.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
 import { ARENA_SCREEN_MAX_WIDTH } from '../game/config.ts'
 import type { GameEngine, GameState } from '../game/core/GameEngine.ts'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
+import { useMusicActive, useTypingSound } from '../hooks/useAudio.ts'
 
 interface GameScreenProps {
   engine: GameEngine
   state: GameState
   onRestart: () => void
   onHome: () => void
+}
+
+/** 옵션이 판 위에 뜰 때 쓰는 층. 일시정지 화면과 같은 어둡기라 자리가 이어져 보인다 */
+const overlayStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  background: 'rgba(13, 15, 22, 0.82)',
+  zIndex: 11,
 }
 
 const rootStyle: CSSProperties = {
@@ -63,6 +73,15 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   const { focus, clear } = input
 
   const paused = state.phase === 'paused'
+  // 옵션은 일시정지 위에 얹힌다 — 닫으면 멈춘 자리로 그대로 돌아온다
+  const [options, setOptions] = useState(false)
+
+  useTypingSound(input.tapSeq)
+  /*
+   * 멈춘 동안에는 음악도 멈춘다. 화면이 멈췄는데 음악만 계속 돌면 판이 아직
+   * 도는 것처럼 들려서, 일시정지가 정말 멈춘 것인지 헷갈린다.
+   */
+  useMusicActive(state.phase === 'playing')
 
   /*
    * Escape는 판을 멈춘다. 입력칸에 포커스가 있어도 들어야 하므로 window에서 듣는다 —
@@ -138,8 +157,18 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
       />
 
       {/* 화면 전체를 덮는다. 아레나 안쪽에만 두면 HUD와 입력칸이 살아 있는 것처럼 보인다 */}
-      {paused && (
-        <PauseOverlay onResume={resume} onRestart={onRestart} onHome={onHome} />
+      {paused && !options && (
+        <PauseOverlay
+          onResume={resume}
+          onRestart={onRestart}
+          onHome={onHome}
+          onOptions={() => setOptions(true)}
+        />
+      )}
+      {paused && options && (
+        <div style={overlayStyle}>
+          <OptionsScreen onBack={() => setOptions(false)} />
+        </div>
       )}
     </div>
   )

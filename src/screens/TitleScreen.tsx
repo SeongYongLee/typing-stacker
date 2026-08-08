@@ -5,6 +5,7 @@ import { LIVES } from '../game/config.ts'
 
 interface TitleScreenProps {
   onStart: () => void
+  onOptions: () => void
   /** 그림을 받은 비율(0~1). 기다리는 동안 얼마나 남았는지 보여준다 */
   progress: number
   onMultiplayer: () => void
@@ -28,11 +29,13 @@ const ruleStyle: CSSProperties = {
   maxWidth: 460,
 }
 
-function TitleScreen({ onStart, onMultiplayer, onCollection, ready, progress }: TitleScreenProps) {
+function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, progress }: TitleScreenProps) {
   const items = [
     { label: ready ? '혼자 하기' : `준비 중… ${Math.round(progress * 100)}%`, run: onStart, primary: true, disabled: !ready },
     { label: '1대1 대전', run: onMultiplayer, primary: false, disabled: !ready },
     { label: '도감', run: onCollection, primary: false, disabled: false },
+    // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
+    { label: '옵션', run: onOptions, primary: false, disabled: false },
   ]
 
   const menu = useMenuKeys({

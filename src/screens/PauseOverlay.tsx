@@ -6,6 +6,7 @@ interface PauseOverlayProps {
   onResume: () => void
   onRestart: () => void
   onHome: () => void
+  onOptions: () => void
 }
 
 const rootStyle: CSSProperties = {
@@ -25,10 +26,18 @@ const rootStyle: CSSProperties = {
  * 바로 빠져나올 수 있다. 기본 선택은 계속하기다. 대부분은 실수로 눌렀거나
  * 잠깐 멈춘 것이고, 그 경우 Escape든 Enter든 판으로 돌아간다.
  */
-function PauseOverlay({ onResume, onRestart, onHome }: PauseOverlayProps) {
+function PauseOverlay({ onResume, onRestart, onHome, onOptions }: PauseOverlayProps) {
+  /*
+   * 옵션을 나가는 길 앞에 둔다. 판을 멈추는 흔한 이유 하나가 "소리가 크다"인데,
+   * 그것이 처음으로/다시 하기 뒤에 있으면 조절하려다 판을 버리게 된다.
+   *
+   * 설정 값을 여기 늘어놓지 않고 옵션 화면으로 보내는 이유는, 항목이 늘수록
+   * 판으로 돌아가는 길이 설정들 사이에 묻히기 때문이다.
+   */
   const items = [
     { label: '계속하기', run: onResume, primary: true },
     { label: '다시 하기', run: onRestart, primary: false },
+    { label: '옵션', run: onOptions, primary: false },
     { label: '처음으로', run: onHome, primary: false },
   ]
 

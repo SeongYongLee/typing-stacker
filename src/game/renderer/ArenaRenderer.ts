@@ -1,3 +1,4 @@
+import { shakeScale } from './displayPrefs.ts'
 import { sprite } from './spriteCache.ts'
 import { padRatio, rim } from './rimCache.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
@@ -108,9 +109,14 @@ class ArenaRenderer {
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
 
     ctx.save()
-    if (state.quake > 0) {
+    /*
+     * 흔들림은 설정을 곱해 쓴다. 0이면 아예 흔들리지 않는다 —
+     * 흔들리는 화면이 어지러운 사람에게는 이 게임이 못 하는 게임이 된다.
+     */
+    const shake = state.quake * shakeScale()
+    if (shake > 0) {
       // 결정론적 흔들림 — 두 주파수를 겹쳐 규칙적으로 보이지 않게 한다
-      const amp = state.quake * this.scale
+      const amp = shake * this.scale
       const t = state.quakePhase
       ctx.translate(Math.sin(t * 47) * amp, Math.cos(t * 31) * amp * 0.7)
     }

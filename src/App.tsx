@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react'
+import { useAudioBoot } from './hooks/useAudio.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
 import { useMatchSession } from './hooks/useMatchSession.ts'
 import { CollectionScreen } from './screens/CollectionScreen.tsx'
+import { OptionsScreen } from './screens/OptionsScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { LobbyScreen } from './screens/LobbyScreen.tsx'
 import { LoopbackScreen } from './screens/LoopbackScreen.tsx'
@@ -10,7 +12,7 @@ import { ResultScreen } from './screens/ResultScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 
 /** 지금 어느 화면에 있는지. 싱글과 대전은 서로 다른 엔진을 쓴다 */
-type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'loopback'
+type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'options' | 'loopback'
 
 /**
  * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
@@ -27,6 +29,9 @@ function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
   const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
+
+  // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
+  useAudioBoot()
 
   const startSolo = useCallback(() => {
     if (engine === null) {
@@ -45,6 +50,10 @@ function App() {
 
   if (route === 'loopback') {
     return <LoopbackScreen onBack={() => setRoute('title')} />
+  }
+
+  if (route === 'options') {
+    return <OptionsScreen onBack={() => setRoute('title')} />
   }
 
   if (route === 'collection') {
@@ -79,6 +88,7 @@ function App() {
         onStart={startSolo}
         onMultiplayer={() => setRoute('lobby')}
         onCollection={() => setRoute('collection')}
+        onOptions={() => setRoute('options')}
         ready={engine !== null && state !== null && assetProgress >= 1}
         progress={assetProgress}
       />

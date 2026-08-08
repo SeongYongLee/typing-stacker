@@ -691,6 +691,34 @@ class PhysicsWorld {
    * 양쪽이 각자 물리를 돌리므로 턴 안에서 조금씩 어긋나는데, 턴이 끝날 때 여기서 되돌린다.
    * 없는 물건은 만들고, 방장에게 없는 물건은 지운다 — 방장이 본 것이 사실이다.
    */
+  /**
+   * 붙어 있는 짝을 **itemId로** 돌려준다. Rapier 핸들은 세계마다 달라 기준이 될 수 없다.
+   * 언제나 작은 id가 앞이고 정렬되어 있어, 양쪽 목록을 그대로 견줄 수 있다.
+   */
+  weldPairs(): [number, number][] {
+    const byHandle = new Map<number, number>()
+    for (const [handle, entry] of this.tracked) {
+      byHandle.set(handle, entry.itemId)
+    }
+    const pairs: [number, number][] = []
+    for (const key of this.welds.keys()) {
+      const [rawA, rawB] = key.split(':')
+      const a = byHandle.get(Number(rawA))
+      const b = byHandle.get(Number(rawB))
+      if (a === undefined || b === undefined) {
+        continue
+      }
+      pairs.push(a < b ? [a, b] : [b, a])
+    }
+    pairs.sort((x, y) => x[0] - y[0] || x[1] - y[1])
+    return pairs
+  }
+
+  /** 검사용 — weldPairs와 같은 값이다 */
+  debugWeldPairs(): [number, number][] {
+    return this.weldPairs()
+  }
+
   applyFrames(
     frames: readonly {
       itemId: number
@@ -701,6 +729,7 @@ class PhysicsWorld {
       rotation: number
     }[],
     lookup: (variantId: string) => ItemVariant | undefined,
+    welds: readonly (readonly [number, number])[] = [],
   ): void {
     const wanted = new Map(frames.map((frame) => [frame.itemId, frame]))
 
@@ -733,6 +762,39 @@ class PhysicsWorld {
       if (spawned !== undefined) {
         place(spawned, frame)
       }
+    }
+
+    this.applyWelds(welds)
+  }
+
+  /**
+   * 관절 구조를 방장의 것으로 갈아끼운다.
+   *
+   * **자리만 맞춰서는 부족하다.** 끈적함은 매 프레임 접촉을 보고 양쪽이 각자 정하는데,
+   * 접촉이 잡히는 순간이 한 프레임만 어긋나도 한쪽에만 관절이 생긴다. 관절은 한 번
+   * 생기면 영구적이라, 그 뒤로는 자리를 아무리 맞춰도 탑이 다르게 움직인다 —
+   * 사람 눈에는 "블럭 상황이 다르다"로 보인다.
+   *
+   * 통째로 지우고 다시 만든다. 지금 자리가 이미 방장의 것이므로, 다시 만든 관절은
+   * 방장이 굳혀둔 것과 같은 상대 자세를 갖는다.
+   */
+  private applyWelds(welds: readonly (readonly [number, number])[]): void {
+    for (const joint of this.welds.values()) {
+      this.world.removeImpulseJoint(joint, true)
+    }
+    this.welds.clear()
+
+    const byItem = new Map<number, { handle: number; entry: TrackedBody }>()
+    for (const [handle, entry] of this.tracked) {
+      byItem.set(entry.itemId, { handle, entry })
+    }
+    for (const [a, b] of welds) {
+      const left = byItem.get(a)
+      const right = byItem.get(b)
+      if (left === undefined || right === undefined) {
+        continue
+      }
+      this.weld(left.handle, left.entry, right.handle, right.entry)
     }
   }
 

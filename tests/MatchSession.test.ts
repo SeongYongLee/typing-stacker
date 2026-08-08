@@ -35,12 +35,14 @@ function pair(): { host: Side; guest: Side } {
 
   const hostSession = MatchSession.attach(hostLink, (on) => hostLink.listen(on), {
     nickname: '자두',
+    deviceId: 'dev-host',
     onPhase: (phase) => {
       hostPhase = phase
     },
   })
   const guestSession = MatchSession.attach(guestLink, (on) => guestLink.listen(on), {
     nickname: '세이지',
+    deviceId: 'dev-guest',
     onPhase: (phase) => {
       guestPhase = phase
     },

@@ -1,4 +1,11 @@
-import { AIM_HALF_RANGE, ARENA, INVULNERABLE_SEC, LIVES } from '../game/config.ts'
+import {
+  AIM_HALF_RANGE,
+  ARENA,
+  IMPACT_FULL_SCALE,
+  INVULNERABLE_SEC,
+  LIVES,
+  QUAKE_IMPACT_SCALE,
+} from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
@@ -10,6 +17,7 @@ import { resolveItem } from '../game/systems/ItemResolver.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
 import { WordSpawner } from '../game/systems/WordSpawner.ts'
+import type { GameEvent, GameEventSink } from '../game/types/events.ts'
 import type { FallingWord, OwnerId } from '../game/types/game.ts'
 import { MatchState } from './MatchState.ts'
 import { buildOwnerColors } from './ownerColors.ts'
@@ -75,6 +83,18 @@ interface MatchViewState {
    * 다시 시도해볼 것이 없으므로 남은 사람에게는 나가는 길만 열어준다.
    */
   readonly opponentLeft: boolean
+  /**
+   * 이 판을 가리키는 이름. 양쪽이 같은 값을 만든다.
+   *
+   * 레이팅은 **양쪽 보고가 일치할 때만** 움직이는데, 서버가 두 보고를 짝지으려면
+   * "같은 판"이라는 기준이 필요하다. 시드는 방장이 정해 양쪽이 나눠 가졌고
+   * 기기 id는 명단에 실려 있으므로, 둘을 합쳐 정렬하면 양쪽에서 같은 값이 나온다.
+   */
+  readonly matchId: string
+  /** 이긴 사람의 기기 id. 무승부거나 아직 안 끝났으면 빈 문자열 */
+  readonly winnerDevice: string
+  /** 내 상대의 기기 id */
+  readonly opponentDevice: string
 }
 
 interface MatchFeedback {
@@ -118,6 +138,7 @@ class MatchEngine {
    */
   private winsView: readonly (readonly [PlayerId, number])[] = []
   private rematchView: readonly PlayerId[] = []
+  private readonly matchId: string
 
   /**
    * 단어 밭을 굴리는 난수와 물건을 뽑는 난수를 나눠 둔다.
@@ -162,9 +183,24 @@ class MatchEngine {
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: MatchViewState) => void) | null = null
+  private events: GameEventSink | null = null
+  /**
+   * 마지막으로 소리로 알린 "떨굴 수 있는가".
+   * 턴이 넘어오는 순간은 방장과 참가자가 서로 다른 경로로 알게 되므로(한쪽은
+   * nextTurn, 다른 쪽은 turn 메시지) 두 곳에 소리를 심는 대신 값이 바뀌는 것을 본다.
+   */
+  private announcedCanDrop = false
 
   private constructor(physics: PhysicsWorld, options: MatchEngineOptions) {
     this.physics = physics
+    /*
+     * 판 이름은 시작할 때 한 번 만든다. 기기 id를 정렬해 넣으므로 방장과 참가자가
+     * 각자 만들어도 같은 값이 나온다 — 따로 주고받을 필요가 없다.
+     */
+    this.matchId = `${options.seed}-${options.players
+      .map((player) => player.device)
+      .sort()
+      .join('.')}`
     this.transport = options.transport
     this.onFailure = options.onFailure ?? null
     this.onRestart = options.onRestart ?? null
@@ -192,12 +228,22 @@ class MatchEngine {
 
   start(): void {
     this.loop.start()
+    this.fire({ kind: 'runStart' })
     this.emit()
   }
 
   onStateChange(listener: (state: MatchViewState) => void): void {
     this.listener = listener
     this.emit()
+  }
+
+  /** 사건을 받아간다. 싱글의 GameEngine과 같은 통로다 */
+  onEvent(sink: GameEventSink): void {
+    this.events = sink
+  }
+
+  private fire(event: GameEvent): void {
+    this.events?.(event)
   }
 
   attachCanvas(canvas: HTMLCanvasElement): void {
@@ -234,11 +280,14 @@ class MatchEngine {
         itemLabel: null,
         hidden: false,
       }
+      this.fire({ kind: 'wordMiss' })
       this.emit()
       return
     }
 
     const word = result.word.word
+    // 대전에는 콤보가 없다. 맞췄다는 사실만 알린다
+    this.fire({ kind: 'wordHit', combo: 0 })
     if (this.canDropNow()) {
       this.requestDrop(word)
       return
@@ -290,6 +339,11 @@ class MatchEngine {
    * 무적은 "여러 개가 한꺼번에 벗어날 때"만 드러나는 규칙인데, 그 상황을 실제 플레이로
    * 만들려면 탑을 무너뜨려야 해서 재현이 불안정하다. 여기서는 원인을 직접 만든다.
    */
+  /** 검사용 — 내 전송로 id. 이탈시킬 물건의 주인을 고르는 데 쓴다 */
+  debugSelf(): PlayerId {
+    return this.transport.selfId
+  }
+
   debugEscape(owner: PlayerId, count: number): void {
     const variant = WORDS[0]?.variants[0]
     if (variant === undefined) {
@@ -307,6 +361,14 @@ class MatchEngine {
     }
   }
 
+  /** 전송로 id를 기기 id로 옮긴다. 레이팅은 기기 단위로 쌓인다 */
+  private deviceOf(id: PlayerId | null): string {
+    if (id === null) {
+      return ''
+    }
+    return this.match.players.find((player) => player.id === id)?.device ?? ''
+  }
+
   /** 이긴 사람에게 1점. 무승부(둘 다 같은 붕괴로 탈락)면 아무도 못 얻는다 */
   private recordWin(winner: PlayerId | null): void {
     if (this.recorded) {
@@ -316,6 +378,8 @@ class MatchEngine {
     if (winner !== null) {
       this.wins.set(winner, (this.wins.get(winner) ?? 0) + 1)
     }
+    // 무승부(winner === null)는 이긴 것이 아니다
+    this.fire({ kind: 'gameOver', won: winner === this.transport.selfId })
     this.winsView = [...this.wins]
     /*
      * 판이 끝나면 무적 시계가 멈춘다(update가 먼저 빠져나간다). 그대로 두면 결과
@@ -366,6 +430,7 @@ class MatchEngine {
     this.loop.stop()
     this.renderer = null
     this.listener = null
+    this.events = null
     this.physics.dispose()
   }
 
@@ -479,6 +544,11 @@ class MatchEngine {
     }
 
     this.physics.spawnItemAt(variant, aimX, spawnYFor(this.cameraY), by, itemId)
+    // 양쪽이 다 지나는 자리다 — 상대가 떨군 것도 소리로 들린다
+    this.fire({ kind: 'drop', hidden: variant.hidden })
+    if (variant.hidden) {
+      this.fire({ kind: 'reveal' })
+    }
     this.resolving = true
     this.quietFor = 0
     this.resolveFor = 0
@@ -598,6 +668,7 @@ class MatchEngine {
       return
     }
     this.suggestion = { by, word }
+    this.fire({ kind: 'suggested' })
     this.emit()
   }
 
@@ -626,6 +697,8 @@ class MatchEngine {
   private markHurt(owner: PlayerId): void {
     this.invulnerable.set(owner, INVULNERABLE_SEC)
     this.lastHurt = owner
+    // 방장은 판정에서, 참가자는 lives 메시지에서 여기로 온다 — 소리는 한 자리에만 둔다
+    this.fire({ kind: 'lifeLost', livesLeft: this.match.livesOf(owner) })
   }
 
   /**
@@ -686,13 +759,40 @@ class MatchEngine {
      */
     this.spawner.update(dt, difficulty)
 
-    const { escaped } = this.physics.step(dt)
+    const { impacts, escaped, quake } = this.physics.step(dt)
+    for (const hit of impacts) {
+      this.fire({
+        kind: 'impact',
+        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
+        size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
+      })
+    }
+    if (quake > 0) {
+      this.fire({ kind: 'quake', strength: Math.min(quake / QUAKE_IMPACT_SCALE, 1) })
+    }
 
     if (this.transport.isHost) {
       this.broadcastWordsIfChanged()
       this.hostJudge(dt, escaped)
     }
+    this.noticeTurn()
     this.emit()
+  }
+
+  /**
+   * 떨굴 수 있게 된 순간을 알린다.
+   *
+   * 대전에서 가장 놓치기 쉬운 정보다 — 내 차례는 상대의 물건이 멈춘 뒤 조용히
+   * 시작되는데, 그때 눈은 내려오는 단어를 쫓고 있다. 소리가 없으면 몇 초를 그냥 흘린다.
+   */
+  private noticeTurn(): void {
+    const canDrop = this.canDropNow()
+    if (canDrop !== this.announcedCanDrop) {
+      this.announcedCanDrop = canDrop
+      if (canDrop) {
+        this.fire({ kind: 'turn' })
+      }
+    }
   }
 
   /** 밭이 바뀐 프레임에만 보낸다. 매 프레임 흘리면 무료 전송로의 한도를 태운다 */
@@ -782,6 +882,11 @@ class MatchEngine {
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
+      matchId: this.matchId,
+      winnerDevice: this.deviceOf(snapshot.winner),
+      opponentDevice: this.deviceOf(
+        this.match.players.find((player) => player.id !== this.transport.selfId)?.id ?? null,
+      ),
       wins: this.winsView,
       wantRematch: this.rematchView,
       opponentLeft: this.opponentLeft,

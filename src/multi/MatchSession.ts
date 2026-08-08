@@ -1,5 +1,6 @@
 import { MatchEngine } from './MatchEngine.ts'
 import { RelayTransport } from './RelayTransport.ts'
+import { RELAY_URL } from './relayUrl.ts'
 import { createRoomCode } from './protocol.ts'
 import { sanitizeNickname } from './protocol.ts'
 import type { PlayerId, PlayerInfo } from './protocol.ts'
@@ -9,22 +10,6 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
 /** 붙은 뒤 시작 신호를 이만큼 기다린다. 넘으면 양쪽이 영원히 기다리는 대신 실패로 끊는다 */
 const HANDSHAKE_TIMEOUT_MS = 10000
 
-/**
- * 중계 서버 주소.
- *
- * 직접 붙이는 길(WebRTC)은 NAT을 통과해야만 동작하는데 그 조건이 망마다 달라서, 같은
- * Wi-Fi의 두 기기도 LTE와 Wi-Fi도 붙지 못했다(멀티캐스트 차단·헤어핀 NAT·이동통신
- * CGNAT). 중계는 그 조건을 없앤다 — 바깥으로 나가는 WebSocket 하나면 되고 그건
- * 어디서나 열린다. 그래서 그 길은 남겨두지 않고 지웠다.
- *
- * **주소를 여기 적어두는 이유**는 이것이 비밀이 아니기 때문이다. 어차피 클라이언트
- * 번들에 그대로 실려 나가므로 숨겨봐야 얻는 게 없고, 대신 빌드 설정에 숨겨두면
- * 새로 받은 사람이 "왜 대전이 안 되지"를 코드에서 찾을 수 없다.
- * 로컬 중계로 시험할 때만 VITE_RELAY_URL로 덮어쓴다.
- */
-const DEFAULT_RELAY_URL = 'wss://typing-stacker-relay.typing-stacker-relay.workers.dev'
-
-const RELAY_URL = import.meta.env.VITE_RELAY_URL ?? DEFAULT_RELAY_URL
 
 /**
  * 방을 만들고 상대가 들어와 판이 시작되기까지의 절차.
@@ -65,6 +50,8 @@ type SessionPhase =
 
 interface SessionOptions {
   readonly nickname: string
+  /** 이 기기의 id. 레이팅을 판 너머로 묶는 유일한 열쇠다 */
+  readonly deviceId: string
   readonly onPhase: (phase: SessionPhase) => void
 }
 
@@ -72,6 +59,7 @@ class MatchSession {
   private transport: Transport | null = null
   private engine: MatchEngine | null = null
   private readonly nickname: string
+  private readonly deviceId: string
   private readonly onPhase: (phase: SessionPhase) => void
   private disposed = false
   /** 참가자 쪽에서 start를 두 번 받아도 판을 두 번 만들지 않게 */
@@ -90,6 +78,7 @@ class MatchSession {
 
   private constructor(options: SessionOptions) {
     this.nickname = sanitizeNickname(options.nickname)
+    this.deviceId = options.deviceId
     this.onPhase = options.onPhase
   }
 
@@ -120,7 +109,7 @@ class MatchSession {
     } else {
       session.onPhase({ kind: 'handshaking' })
       session.armHandshakeTimeout()
-      transport.broadcast({ t: 'hello', nickname: session.nickname })
+      transport.broadcast({ t: 'hello', nickname: session.nickname, device: session.deviceId })
     }
     return session
   }
@@ -144,7 +133,7 @@ class MatchSession {
         // 참가자는 붙자마자 자기를 알린다. 방장이 명단을 만들 수 있어야 한다
         this.onPhase({ kind: 'handshaking' })
         this.armHandshakeTimeout()
-        transport.broadcast({ t: 'hello', nickname: this.nickname })
+        transport.broadcast({ t: 'hello', nickname: this.nickname, device: this.deviceId })
       }
     } catch (error) {
       if (!this.disposed) {
@@ -190,8 +179,8 @@ class MatchSession {
 
     if (transport.isHost && event.message.t === 'hello') {
       this.roster = [
-        { id: transport.selfId, nickname: this.nickname },
-        { id: event.from, nickname: event.message.nickname },
+        { id: transport.selfId, nickname: this.nickname, device: this.deviceId },
+        { id: event.from, nickname: event.message.nickname, device: event.message.device },
       ]
       this.clearHandshakeTimeout()
       transport.broadcast({ t: 'roster', players: this.roster })

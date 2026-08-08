@@ -30,11 +30,19 @@ type PlayerId = string
 interface PlayerInfo {
   readonly id: PlayerId
   readonly nickname: string
+  /**
+   * 기기 id. 레이팅이 판을 넘어 쌓이려면 이 값이 필요하다 —
+   * `id`는 이 판에서만 쓰는 전송로 식별자라 다음 판이면 달라진다.
+   *
+   * 신원의 증거가 아니라 **기록을 묶는 이름표**다. 상대가 보낸 값이므로 위조할 수
+   * 있지만, 레이팅은 양쪽 보고가 일치할 때만 움직이므로 혼자 조작해서 얻을 것이 없다.
+   */
+  readonly device: string
 }
 
 /** 참가자 → 방장 */
 type ToHost =
-  | { readonly t: 'hello'; readonly nickname: string }
+  | { readonly t: 'hello'; readonly nickname: string; readonly device: string }
   /** 준비를 눌렀다. 모두가 누르면 방장이 판을 연다 */
   | { readonly t: 'ready' }
   /** 판이 끝난 뒤 계속하기를 눌렀다 */
@@ -138,7 +146,11 @@ function parseMessage(raw: unknown): Message | null {
 
   switch (raw['t']) {
     case 'hello':
-      return { t: 'hello', nickname: sanitizeNickname(raw['nickname']) }
+      return {
+        t: 'hello',
+        nickname: sanitizeNickname(raw['nickname']),
+        device: deviceId(raw['device']),
+      }
     case 'drop':
       if (!isShortString(raw['word'], 20) || !isFiniteNumber(raw['aimX'])) return null
       return { t: 'drop', word: raw['word'], aimX: raw['aimX'] }
@@ -250,7 +262,11 @@ function parsePlayers(raw: readonly unknown[]): PlayerInfo[] {
   const players: PlayerInfo[] = []
   for (const entry of raw) {
     if (!isRecord(entry) || !isShortString(entry['id'], 64)) continue
-    players.push({ id: entry['id'], nickname: sanitizeNickname(entry['nickname']) })
+    players.push({
+      id: entry['id'],
+      nickname: sanitizeNickname(entry['nickname']),
+      device: deviceId(entry['device']),
+    })
     if (players.length >= MAX_PLAYERS) break
   }
   return players
@@ -307,6 +323,11 @@ function parseFallingWord(raw: unknown): FallingWord | null {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
+}
+
+/** 기기 id. 없거나 이상하면 빈 문자열로 둔다 — 그 판은 레이팅에 반영되지 않는다 */
+function deviceId(raw: unknown): string {
+  return typeof raw === 'string' && raw.length > 0 && raw.length <= 64 ? raw : ''
 }
 
 /** 방 코드. Rng를 주입받아 테스트에서 재현할 수 있게 한다 */

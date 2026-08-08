@@ -126,6 +126,12 @@ interface RunStats {
   readonly maxCombo: number
   /** 분당 타수(두벌식 키 수 기준). 맞춘 단어만 세고 경과 시간으로 나눈다 */
   readonly kpm: number
+  /**
+   * 판이 이어진 시간(초).
+   * 랭킹 서버가 "이 개수를 이 시간에 쌓는 것이 가능한가"를 보는 데 쓴다 —
+   * 물리적으로 불가능한 값을 거르는 유일한 기준이다.
+   */
+  readonly durationSec: number
   readonly hiddenFound: readonly string[]
 }
 

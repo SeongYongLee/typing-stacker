@@ -26,6 +26,11 @@ class ScoreManager {
    */
   private hiddenList: readonly string[] = []
 
+  /** 지금 콤보. 맞춘 순간의 값을 이벤트에 실어 보내려는 통로다 */
+  get comboCount(): number {
+    return this.combo
+  }
+
   /** 콤보 배수. 물건이 멈출 때 그 시점의 배수가 점수에 곱해진다 */
   get multiplier(): number {
     return Math.min(1 + this.combo * SCORE.comboStep, SCORE.comboMaxMultiplier)
@@ -103,6 +108,7 @@ class ScoreManager {
       combo: this.combo,
       maxCombo: this.maxCombo,
       kpm: keystrokesPerMinute(this.keystrokes, elapsedSec),
+      durationSec: elapsedSec,
       hiddenFound: this.hiddenList,
     }
   }

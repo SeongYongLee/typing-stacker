@@ -8,7 +8,16 @@ compatibility_date = "2026-08-01"
 name = "ROOMS"
 class_name = "MatchRoom"
 
+# 기록은 한 곳에 모여야 순위를 매길 수 있다. 이름을 고정해 인스턴스 하나로 모은다
+[[durable_objects.bindings]]
+name = "BOARD"
+class_name = "Board"
+
 # SQLite 백엔드여야 무료 플랜에서 쓸 수 있다 (KV 백엔드 DO는 유료 전용이다)
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MatchRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Board"]

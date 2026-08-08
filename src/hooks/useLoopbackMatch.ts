@@ -55,10 +55,12 @@ function useLoopbackMatch(): UseLoopbackMatch {
 
     const hostSession = MatchSession.attach(hostLink, (on) => hostLink.listen(on), {
       nickname: '방장',
+      deviceId: 'dev-host',
       ...side('host', setHost),
     })
     const guestSession = MatchSession.attach(guestLink, (on) => guestLink.listen(on), {
       nickname: '참가자',
+      deviceId: 'dev-guest',
       ...side('guest', setGuest),
     })
     sessions.current = [hostSession, guestSession]

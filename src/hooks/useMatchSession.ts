@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { soundBoard } from '../audio/SoundBoard.ts'
 import type { MatchViewState } from '../multi/MatchEngine.ts'
 import { MatchSession, type SessionPhase } from '../multi/MatchSession.ts'
+import { loadProfile } from '../storage/profile.ts'
 
 interface JoinRequest {
   readonly mode: { readonly kind: 'host' } | { readonly kind: 'join'; readonly code: string }
@@ -40,10 +42,20 @@ function useMatchSession(): UseMatchSession {
       setState(null)
       sessionRef.current = MatchSession.open(request.mode, {
         nickname: request.nickname,
+        deviceId: loadProfile().id,
         onPhase: (next) => {
           setPhase(next)
           if (next.kind === 'playing') {
+            /*
+             * 붕괴처럼 만들기 어려운 상황을 검사에서 직접 일으키기 위한 통로.
+             * 개발 빌드에만 존재한다 — 루프백 화면의 것과 같은 성격이지만,
+             * 이쪽은 실제 중계를 거치는 경로라 배포본에 남기면 안 된다.
+             */
+            if (import.meta.env.DEV) {
+              ;(window as unknown as { __match?: unknown }).__match = next.engine
+            }
             next.engine.onStateChange(setState)
+            next.engine.onEvent((event) => soundBoard().handle(event))
           }
         },
       })

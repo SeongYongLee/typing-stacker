@@ -8,6 +8,9 @@ import type { MatchEngine, MatchViewState } from '../multi/MatchEngine.ts'
 import { ownerColorAt } from '../multi/ownerColors.ts'
 import { Barrier, KEPT, LOST } from '../components/Vitals.tsx'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
+import { useMatchRanking } from '../hooks/useMatchRanking.ts'
+import { tierOf, tierProgress } from '../rank/tiers.ts'
+import { useMusicActive, useTypingSound } from '../hooks/useAudio.ts'
 
 interface MatchScreenProps {
   engine: MatchEngine
@@ -42,6 +45,9 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   const rematch = useCallback(() => engine.requestRematch(), [engine])
   const input = useHangulInput(submit)
   const { focus } = input
+
+  useTypingSound(input.tapSeq)
+  useMusicActive(state.phase === 'playing')
 
   /*
    * 턴이 바뀌어도 **치던 글자는 지우지 않는다.**
@@ -472,6 +478,7 @@ function Verdict({
           <span style={{ color: '#b6bdd4', fontSize: 15 }}>{winnerName} 승</span>
         )}
         <span style={{ color: '#6a7290', fontSize: 14 }}>{tally}</span>
+        <TierPanel state={state} />
 
         {/*
           * 상대가 나갔으면 계속할 상대가 없다. 버튼을 남겨두고 눌리지 않게 하는 대신
@@ -572,6 +579,84 @@ function HurtNotice({
       <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
         목숨 −1 · 남은 {hurt.lives}개
       </div>
+    </div>
+  )
+}
+
+/**
+ * 티어와 이번 판의 변동.
+ *
+ * **격차가 클수록 변동이 0에 가까워진다**(Elo). 그래서 약한 상대를 반복해 이겨도
+ * 얻는 것이 없고, 매칭을 만들지 않고도 파밍이 자연히 막힌다. 대신 그런 상대에게
+ * 지면 크게 잃는다 — 그 비대칭이 억제력이라 숫자를 숨기지 않고 그대로 보여준다.
+ *
+ * 랭킹이 안 되어도 판은 그대로 끝난다. 이 칸만 조용히 비운다.
+ */
+function TierPanel({ state }: { state: MatchViewState }) {
+  const ranking = useMatchRanking(state)
+  const tier = tierOf(ranking.rating)
+  const progress = tierProgress(ranking.rating)
+
+  if (ranking.status === 'offline') {
+    return <span style={{ fontSize: 13, color: '#4a5171' }}>티어를 받지 못했다</span>
+  }
+  if (ranking.status === 'pending') {
+    return <span style={{ fontSize: 13, color: '#6a7290' }}>상대의 보고를 기다린다…</span>
+  }
+  if (ranking.status === 'disputed') {
+    return (
+      <span style={{ fontSize: 13, color: '#ff6b6b' }}>
+        양쪽 기록이 어긋나 이 판은 티어에 반영되지 않았다
+      </span>
+    )
+  }
+  if (ranking.status === 'idle') {
+    return null
+  }
+
+  return (
+    <div data-tier={tier.name} style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 17, fontWeight: 700, color: tier.color }}>{tier.name}</span>
+        <span style={{ fontSize: 15, color: '#b6bdd4', fontVariantNumeric: 'tabular-nums' }}>
+          {ranking.rating}
+        </span>
+        {ranking.delta !== null && ranking.delta !== 0 && (
+          <span
+            data-delta={ranking.delta}
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: ranking.delta > 0 ? '#6bffb0' : '#ff6b6b',
+            }}
+          >
+            {ranking.delta > 0 ? '+' : '−'}
+            {Math.abs(ranking.delta)}
+          </span>
+        )}
+      </div>
+      {/* 등급만 보여주면 그 안에서 오르내리는 것이 안 보여 한 판이 무의미해 보인다 */}
+      <div
+        style={{
+          width: 160,
+          height: 4,
+          borderRadius: 999,
+          background: '#232839',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${progress * 100}%`,
+            height: '100%',
+            background: tier.color,
+            transition: 'width 420ms ease-out',
+          }}
+        />
+      </div>
+      <span style={{ fontSize: 12, color: '#4a5171' }}>
+        {ranking.wins}승 {ranking.losses}패
+      </span>
     </div>
   )
 }

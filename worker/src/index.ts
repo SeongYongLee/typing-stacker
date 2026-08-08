@@ -13,6 +13,7 @@
 
 interface Env {
   ROOMS: DurableObjectNamespace
+  BOARD: DurableObjectNamespace
 }
 
 const MAX_PEERS = 2
@@ -40,8 +41,26 @@ const MAX_MESSAGE_BYTES = 64 * 1024
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
-    const code = url.pathname.replace(/^\/room\//, '').trim().toLowerCase()
 
+    // 출처 검사는 두 길 모두에 태운다 — 랭킹도 남이 쓰면 같은 한도를 태운다
+    const origin = request.headers.get('Origin')
+    if (origin !== null && !ALLOWED_ORIGINS.includes(origin)) {
+      return new Response('허용되지 않은 출처다', { status: 403 })
+    }
+
+    if (url.pathname.startsWith('/rank/')) {
+      if (request.method === 'OPTIONS') {
+        return cors(new Response(null, { status: 204 }), origin)
+      }
+      /*
+       * 기록은 한 곳에 모여야 순위를 매길 수 있으므로 **고정된 이름 하나**를 쓴다.
+       * 방과 달리 인스턴스가 하나뿐이라 쓰기가 직렬화되지만, 판이 끝날 때만 오간다.
+       */
+      const board = env.BOARD.get(env.BOARD.idFromName('global'))
+      return cors(await board.fetch(request), origin)
+    }
+
+    const code = url.pathname.replace(/^\/room\//, '').trim().toLowerCase()
     if (!/^[a-z0-9]{4,12}$/.test(code)) {
       return new Response('방 코드가 올바르지 않다', { status: 400 })
     }
@@ -49,16 +68,28 @@ export default {
       return new Response('WebSocket으로 붙어야 한다', { status: 426 })
     }
 
-    const origin = request.headers.get('Origin')
-    if (origin !== null && !ALLOWED_ORIGINS.includes(origin)) {
-      return new Response('허용되지 않은 출처다', { status: 403 })
-    }
-
     // 코드를 이름으로 쓰면 같은 코드가 항상 같은 방으로 간다
     const room = env.ROOMS.get(env.ROOMS.idFromName(code))
     return room.fetch(request)
   },
 }
+
+/**
+ * 랭킹은 WebSocket이 아니라 평범한 fetch라 브라우저가 CORS를 본다.
+ * 허용 목록은 위에서 이미 걸렀으므로 여기서는 통과시킨 출처만 되돌려준다.
+ */
+function cors(response: Response, origin: string | null): Response {
+  if (origin === null) {
+    return response
+  }
+  const headers = new Headers(response.headers)
+  headers.set('Access-Control-Allow-Origin', origin)
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  headers.set('Access-Control-Allow-Headers', 'Content-Type')
+  return new Response(response.body, { status: response.status, headers })
+}
+
+export { Board } from './board.ts'
 
 /**
  * 방 하나. 붙어 있는 둘 사이에서 메시지를 그대로 옮긴다.

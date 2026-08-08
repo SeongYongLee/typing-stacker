@@ -47,9 +47,22 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
   })
 
   it('hello는 닉네임이 이상해도 안전한 값으로 통과시킨다', () => {
-    expect(parseMessage({ t: 'hello', nickname: 42 })).toEqual({
+    expect(parseMessage({ t: 'hello', nickname: 42, device: 'dev-1' })).toEqual({
       t: 'hello',
       nickname: '이름없음',
+      device: 'dev-1',
+    })
+  })
+
+  /*
+   * 기기 id가 없으면 빈 문자열로 둔다 — 그 판은 레이팅에 반영되지 않을 뿐,
+   * 대전 자체는 되어야 한다. 옛 버전과 붙었을 때 판이 안 열리면 안 된다.
+   */
+  it('기기 id가 없으면 빈 값으로 통과시킨다', () => {
+    expect(parseMessage({ t: 'hello', nickname: '자두' })).toEqual({
+      t: 'hello',
+      nickname: '자두',
+      device: '',
     })
   })
 

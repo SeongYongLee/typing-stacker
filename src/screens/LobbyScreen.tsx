@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { MenuButton } from '../components/MenuButton.tsx'
+import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
 import { NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../multi/protocol.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
@@ -56,6 +58,40 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
   const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
 
+  const trimmedCode = code.trim().toLowerCase()
+  const codeReady = isRoomCode(trimmedCode)
+
+  const host = () => onOpen({ mode: { kind: 'host' }, nickname })
+  const join = () => {
+    if (codeReady) {
+      onOpen({ mode: { kind: 'join', code: trimmedCode }, nickname })
+    }
+  }
+  const actions = [
+    { label: '방 만들기', run: host, primary: true, disabled: false },
+    { label: '코드로 참가', run: join, primary: false, disabled: !codeReady },
+  ]
+
+  /*
+   * Tab은 가로채지 않는다. 이 화면에는 이름 칸과 방 코드 칸이 있어서,
+   * Tab을 메뉴가 먹으면 입력칸으로 갈 길이 막힌다.
+   */
+  const menu = useMenuKeys({
+    count: actions.length + 1,
+    useTab: false,
+    onActivate: (index) => {
+      if (index === actions.length) {
+        onBack()
+        return
+      }
+      const action = actions[index]
+      if (action !== undefined && !action.disabled) {
+        action.run()
+      }
+    },
+    onCancel: onBack,
+  })
+
   if (phase?.kind === 'connecting') {
     return <Notice title="연결 중…" detail="중개 서버를 거쳐 상대를 찾는다" onBack={onBack} />
   }
@@ -83,9 +119,6 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
       />
     )
   }
-
-  const trimmedCode = code.trim().toLowerCase()
-  const codeReady = isRoomCode(trimmedCode)
 
   return (
     <div style={rootStyle}>
@@ -118,6 +151,10 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
             placeholder="상대에게 이렇게 보인다"
             maxLength={NICKNAME_MAX}
             autoFocus
+            onKeyDown={(event) => {
+              // 이름을 치고 Enter를 누르면 방을 만든다 — 손을 떼지 않아도 된다
+              if (event.key === 'Enter') host()
+            }}
           />
           {nickname.trim().length === 0 && (
             <span style={{ fontSize: 12, color: '#8a7a4a' }}>
@@ -126,13 +163,14 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
           )}
         </div>
 
-        <button
-          type="button"
-          style={buttonStyle}
-          onClick={() => onOpen({ mode: { kind: 'host' }, nickname })}
+        <MenuButton
+          selected={menu.index === 0}
+          onClick={host}
+          onHover={() => menu.select(0)}
+          primary
         >
           방 만들기
-        </button>
+        </MenuButton>
 
         <div style={{ display: 'grid', gap: 8 }}>
           <input
@@ -144,17 +182,18 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
             spellCheck={false}
             autoCapitalize="off"
             aria-label="방 코드"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') join()
+            }}
           />
-          <button
-            type="button"
-            style={{ ...buttonStyle, opacity: codeReady ? 1 : 0.45 }}
+          <MenuButton
+            selected={menu.index === 1}
+            onClick={join}
+            onHover={() => menu.select(1)}
             disabled={!codeReady}
-            onClick={() =>
-              onOpen({ mode: { kind: 'join', code: trimmedCode }, nickname })
-            }
           >
             코드로 참가
-          </button>
+          </MenuButton>
         </div>
 
         <p style={{ margin: 0, fontSize: 12, color: '#4a5171', lineHeight: 1.7 }}>
@@ -162,9 +201,16 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
           <strong style={{ color: '#6a7290' }}>닉네임과 게임 조작</strong>뿐이다.
         </p>
 
-        <button type="button" style={ghostButtonStyle} onClick={onBack}>
-          돌아가기
-        </button>
+        <MenuButton
+          selected={menu.index === 2}
+          onClick={onBack}
+          onHover={() => menu.select(2)}
+        >
+          돌아가기 (Esc)
+        </MenuButton>
+        <span style={{ fontSize: 12, color: '#4a5171', textAlign: 'center' }}>
+          ↑↓로 고르고 Enter로 들어간다
+        </span>
       </div>
     </div>
   )

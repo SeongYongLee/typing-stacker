@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import { MenuButton } from '../components/MenuButton.tsx'
+import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { LIVES } from '../game/config.ts'
 
 interface TitleScreenProps {
@@ -28,18 +29,22 @@ const ruleStyle: CSSProperties = {
 }
 
 function TitleScreen({ onStart, onMultiplayer, onCollection, ready, progress }: TitleScreenProps) {
-  useEffect(() => {
-    if (!ready) {
-      return
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        onStart()
+  const items = [
+    { label: ready ? '혼자 하기' : `준비 중… ${Math.round(progress * 100)}%`, run: onStart, primary: true, disabled: !ready },
+    { label: '1대1 대전', run: onMultiplayer, primary: false, disabled: !ready },
+    { label: '도감', run: onCollection, primary: false, disabled: false },
+  ]
+
+  const menu = useMenuKeys({
+    count: items.length,
+    // 준비되지 않은 항목은 눌러도 아무 일이 없어야 한다 — 키보드도 마우스와 같게
+    onActivate: (index) => {
+      const item = items[index]
+      if (item !== undefined && !item.disabled) {
+        item.run()
       }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onStart, ready])
+    },
+  })
 
   return (
     <div style={rootStyle}>
@@ -77,62 +82,24 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, ready, progress }: 
           </li>
         </ul>
 
-        <button
-          type="button"
-          onClick={onStart}
-          disabled={!ready}
-          style={{
-            padding: '14px 40px',
-            fontSize: 18,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: '1px solid #48507a',
-            background: ready ? '#ffcf5c' : '#262b3d',
-            color: ready ? '#1a1405' : '#6a7290',
-            cursor: ready ? 'pointer' : 'default',
-          }}
-        >
-          {ready ? '혼자 하기 (Enter)' : `준비 중… ${Math.round(progress * 100)}%`}
-        </button>
+        <div style={{ display: 'grid', gap: 10, maxWidth: 260, margin: '0 auto' }}>
+          {items.map((item, index) => (
+            <MenuButton
+              key={item.label}
+              selected={menu.index === index}
+              onClick={item.run}
+              onHover={() => menu.select(index)}
+              primary={item.primary}
+              disabled={item.disabled}
+            >
+              {item.label}
+            </MenuButton>
+          ))}
+        </div>
 
-        <button
-          type="button"
-          onClick={onMultiplayer}
-          disabled={!ready}
-          style={{
-            display: 'block',
-            margin: '12px auto 0',
-            padding: '13px 34px',
-            fontSize: 16,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: '1px solid #48507a',
-            background: 'transparent',
-            color: ready ? '#b6bdd4' : '#4a5171',
-            cursor: ready ? 'pointer' : 'default',
-          }}
-        >
-          1대1 대전
-        </button>
-
-        <button
-          type="button"
-          onClick={onCollection}
-          style={{
-            display: 'block',
-            margin: '12px auto 0',
-            padding: '13px 34px',
-            fontSize: 16,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: '1px solid #48507a',
-            background: 'transparent',
-            color: '#b6bdd4',
-            cursor: 'pointer',
-          }}
-        >
-          도감
-        </button>
+        <p style={{ marginTop: 20, fontSize: 12, color: '#4a5171' }}>
+          ↑↓ 또는 Tab으로 고르고 Enter로 들어간다
+        </p>
       </div>
     </div>
   )

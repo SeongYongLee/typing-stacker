@@ -227,6 +227,26 @@ class GameEngine {
     this.emit()
   }
 
+  /**
+   * 판을 멈춘다. 루프는 계속 돌린다 — 멈추면 화면이 통째로 얼어붙어
+   * 일시정지 창 뒤로 아무것도 안 보인다. 대신 update가 시간을 흘리지 않는다.
+   */
+  pause(): void {
+    if (this.phase !== 'playing') {
+      return
+    }
+    this.phase = 'paused'
+    this.emit()
+  }
+
+  resume(): void {
+    if (this.phase !== 'paused') {
+      return
+    }
+    this.phase = 'playing'
+    this.emit()
+  }
+
   dispose(): void {
     this.loop.stop()
     this.renderer = null
@@ -288,6 +308,7 @@ class GameEngine {
     }
 
     if (this.phase !== 'playing') {
+      // 멈춘 동안에도 그리기는 이어진다 — 아래 render가 매 프레임 돈다
       return
     }
 

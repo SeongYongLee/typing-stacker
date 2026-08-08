@@ -1,4 +1,7 @@
+import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { MenuButton } from '../components/MenuButton.tsx'
+import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { RECIPES } from '../game/data/recipes.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
 import type { ItemVariant } from '../game/types/game.ts'
@@ -63,6 +66,29 @@ const gridStyle: CSSProperties = {
 }
 
 function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  /*
+   * 도감에는 누를 것이 돌아가기 하나뿐이라 항목을 오갈 것이 없다.
+   * 대신 화살표로 목록을 넘긴다 — 57칸이라 스크롤이 필요한데 마우스를 잡게 하면
+   * 키보드로 여기까지 온 흐름이 끊긴다.
+   */
+  useMenuKeys({ count: 1, onActivate: onBack, onCancel: onBack })
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const step =
+        event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
+      if (step === 0 || scrollRef.current === null) {
+        return
+      }
+      event.preventDefault()
+      scrollRef.current.scrollBy({ top: step * 140, behavior: 'smooth' })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const found = new Set(collected)
   const total = ALL_VARIANTS.length
 
@@ -75,7 +101,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
         </p>
       </div>
 
-      <div style={scrollStyle}>
+      <div ref={scrollRef} style={scrollStyle}>
         <div style={gridStyle} data-collection>
           {ALL_VARIANTS.map((item) => {
           const owned = found.has(item.id)
@@ -158,23 +184,11 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
         </div>
       </div>
 
-      <div style={{ textAlign: 'center', paddingTop: 20 }}>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            padding: '12px 32px',
-            fontSize: 15,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: '1px solid #48507a',
-            background: 'transparent',
-            color: '#b6bdd4',
-            cursor: 'pointer',
-          }}
-        >
-          돌아가기
-        </button>
+      <div style={{ display: 'grid', justifyItems: 'center', gap: 8, paddingTop: 20 }}>
+        <MenuButton selected onClick={onBack} style={{ width: 'auto' }}>
+          돌아가기 (Esc)
+        </MenuButton>
+        <span style={{ fontSize: 12, color: '#4a5171' }}>↑↓로 넘긴다</span>
       </div>
     </div>
   )

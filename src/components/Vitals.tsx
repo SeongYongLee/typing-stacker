@@ -198,23 +198,26 @@ function Score({ score }: { score: number }) {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, position: 'relative' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
       <span style={{ fontSize: 11, color: '#6a7290', letterSpacing: '0.08em' }}>점수</span>
-      <span
-        ref={valueRef}
-        data-score={score}
-        style={{
-          fontSize: 26,
-          fontWeight: 700,
-          lineHeight: 1,
-          color: '#ffcf5c',
-          fontVariantNumeric: 'tabular-nums',
-          display: 'inline-block',
-        }}
-      >
-        {score.toLocaleString('ko-KR')}
+      {/* 기준을 숫자로 잡는다. 바깥 상자에 붙이면 "점수" 라벨 위에 뜬다 */}
+      <span style={{ position: 'relative', display: 'inline-block' }}>
+        <span
+          ref={valueRef}
+          data-score={score}
+          style={{
+            fontSize: 26,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: '#ffcf5c',
+            fontVariantNumeric: 'tabular-nums',
+            display: 'inline-block',
+          }}
+        >
+          {score.toLocaleString('ko-KR')}
+        </span>
+        {delta !== null && <Delta key={delta.seq} amount={delta.amount} />}
       </span>
-      {delta !== null && <Delta key={delta.seq} amount={delta.amount} />}
     </div>
   )
 }

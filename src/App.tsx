@@ -80,7 +80,12 @@ function App() {
 
   return (
     <div style={{ position: 'relative', height: '100%' }}>
-      <GameScreen engine={engine} state={state} />
+      <GameScreen
+        engine={engine}
+        state={state}
+        onRestart={startSolo}
+        onHome={backToTitle}
+      />
       {state.phase === 'over' && (
         <ResultScreen
           stats={state.stats}

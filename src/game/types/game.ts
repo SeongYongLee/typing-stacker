@@ -108,7 +108,7 @@ interface BodySnapshot {
 }
 
 /** collapsing은 무너지는 장면을 잠깐 보여주는 구간 — 결과 화면이 그 위를 덮기 전에 */
-type GamePhase = 'title' | 'playing' | 'collapsing' | 'over'
+type GamePhase = 'title' | 'playing' | 'paused' | 'collapsing' | 'over'
 
 interface RunStats {
   /** 정확도 패널티까지 반영한 점수. 화면에 보이는 값이다 */

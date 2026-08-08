@@ -89,14 +89,15 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   /*
    * 멈추면 입력칸에서 포커스를 뗀다.
    *
-   * 이 게임은 판이 도는 내내 입력칸에 포커스가 있다. 그대로 두면 일시정지 메뉴의
-   * 화살표와 Enter가 전부 입력칸의 것으로 가서, 메뉴가 키보드로 움직이지 않는다.
+   * 이 게임은 판이 도는 내내 입력칸에 포커스가 있다. 그대로 두면 일시정지 메뉴와
+   * 결과 화면의 화살표·Enter가 전부 입력칸의 것으로 가서 메뉴가 움직이지 않는다.
+   * 판이 돌지 않는 동안에는 포커스를 떼어 둔다.
    */
   useEffect(() => {
-    if (paused) {
+    if (state.phase !== 'playing') {
       input.ref.current?.blur()
     }
-  }, [paused, input.ref])
+  }, [state.phase, input.ref])
 
   /**
    * 판이 새로 시작되면 지난 판의 잔여 텍스트를 비우고 포커스를 되돌린다.

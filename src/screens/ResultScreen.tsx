@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { MenuButton } from '../components/MenuButton.tsx'
+import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
 import { LIVES } from '../game/config.ts'
 import type { RunStats } from '../game/types/game.ts'
@@ -28,15 +29,17 @@ const panelStyle: CSSProperties = {
 }
 
 function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        onRestart()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onRestart])
+  const items = [
+    { label: '다시 하기', run: onRestart, primary: true },
+    { label: '처음으로', run: onHome, primary: false },
+  ]
+
+  const menu = useMenuKeys({
+    count: items.length,
+    onActivate: (index) => items[index]?.run(),
+    // 판이 끝난 화면에서 Esc는 나가는 길이다
+    onCancel: onHome,
+  })
 
   return (
     <div style={rootStyle}>
@@ -86,37 +89,18 @@ function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
         </div>
 
         <div style={{ display: 'grid', gap: 10, justifyItems: 'center' }}>
-          <button
-            type="button"
-            onClick={onRestart}
-            style={{
-              padding: '12px 34px',
-              fontSize: 16,
-              fontWeight: 600,
-              borderRadius: 10,
-              border: '1px solid #48507a',
-              background: '#ffcf5c',
-              color: '#1a1405',
-            }}
-          >
-            다시 하기 (Enter)
-          </button>
-          {/* 판이 끝났을 때 도감을 보거나 대전으로 갈 길이 없으면 새로고침밖에 없다 */}
-          <button
-            type="button"
-            onClick={onHome}
-            style={{
-              padding: '11px 30px',
-              fontSize: 15,
-              fontWeight: 600,
-              borderRadius: 10,
-              border: '1px solid #48507a',
-              background: 'transparent',
-              color: '#b6bdd4',
-            }}
-          >
-            처음으로
-          </button>
+          {items.map((item, index) => (
+            <MenuButton
+              key={item.label}
+              selected={menu.index === index}
+              onClick={item.run}
+              onHover={() => menu.select(index)}
+              primary={item.primary}
+              style={{ width: 'auto', minWidth: 190 }}
+            >
+              {item.label}
+            </MenuButton>
+          ))}
         </div>
       </div>
     </div>

@@ -58,7 +58,17 @@ const COLORS = {
  */
 const UI_FONT = "system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
 
-const WORLD_HEIGHT = ARENA.height - ARENA.killY
+/**
+ * 이탈선 아래로 남겨두는 여백(월드 단위).
+ *
+ * 이것이 없으면 이탈선이 캔버스 맨 아랫줄에 붙는다. 잰 값으로는 캔버스 끝이 763,
+ * 선이 760~762였다 — 레인의 점선 바닥과 뭉개져 굵은 얼룩처럼 보이고, 물건이
+ * 선을 넘어가는 장면은 화면 밖에서 일어나 보이지 않았다.
+ * 여백을 두면 넘어가는 순간이 보이고 두 선이 서로 떨어진다.
+ */
+const KILL_LINE_MARGIN = 0.55
+
+const WORLD_HEIGHT = ARENA.height - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
 
 class ArenaRenderer {
@@ -128,7 +138,11 @@ class ArenaRenderer {
   private cameraY = 0
 
   private toScreenY(worldY: number): number {
-    return this.cssHeight - (worldY - ARENA.killY - this.cameraY) * this.scale
+    return (
+      this.cssHeight -
+      KILL_LINE_MARGIN * this.scale -
+      (worldY - ARENA.killY - this.cameraY) * this.scale
+    )
   }
 
   private drawFrame(): void {

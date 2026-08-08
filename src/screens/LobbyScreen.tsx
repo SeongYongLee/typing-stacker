@@ -249,7 +249,6 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
             selected={menu.index === 0}
             onClick={host}
             onHover={() => menu.select(0)}
-            primary
           >
             방 만들기
           </MenuButton>

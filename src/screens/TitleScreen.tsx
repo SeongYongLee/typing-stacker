@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
 import { MenuButton } from '../components/MenuButton.tsx'
+import { useLeaderboard } from '../hooks/useLeaderboard.ts'
+import { TitleSidePanel } from './TitleSidePanel.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { LIVES } from '../game/config.ts'
 
@@ -30,9 +32,23 @@ const ruleStyle: CSSProperties = {
 }
 
 function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, progress }: TitleScreenProps) {
-  const items = [
-    { label: ready ? '혼자 하기' : `준비 중… ${Math.round(progress * 100)}%`, run: onStart, primary: true, disabled: !ready },
-    { label: '1대1 대전', run: onMultiplayer, primary: false, disabled: !ready },
+  const board = useLeaderboard()
+
+  const items: readonly {
+    label: string
+    run: () => void
+    primary: boolean
+    disabled: boolean
+    panel?: 'solo' | 'versus'
+  }[] = [
+    {
+      label: ready ? '혼자 하기' : `준비 중… ${Math.round(progress * 100)}%`,
+      run: onStart,
+      primary: true,
+      disabled: !ready,
+      panel: 'solo',
+    },
+    { label: '1대1 대전', run: onMultiplayer, primary: false, disabled: !ready, panel: 'versus' },
     { label: '도감', run: onCollection, primary: false, disabled: false },
     // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
     { label: '옵션', run: onOptions, primary: false, disabled: false },
@@ -84,19 +100,34 @@ function TitleScreen({ onStart, onMultiplayer, onCollection, onOptions, ready, p
           </li>
         </ul>
 
-        <div style={{ display: 'grid', gap: 10, maxWidth: 260, margin: '0 auto' }}>
-          {items.map((item, index) => (
-            <MenuButton
-              key={item.label}
-              selected={menu.index === index}
-              onClick={item.run}
-              onHover={() => menu.select(index)}
-              primary={item.primary}
-              disabled={item.disabled}
-            >
-              {item.label}
-            </MenuButton>
-          ))}
+        {/*
+          메뉴와 패널을 나란히 둔다. 패널은 자리를 항상 차지한다 — 항목을 오갈 때마다
+          나타났다 사라지면 메뉴가 좌우로 흔들려 무엇을 고르는 중인지 놓친다.
+        */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '260px auto',
+            gap: 20,
+            justifyContent: 'center',
+            alignItems: 'start',
+          }}
+        >
+          <div style={{ display: 'grid', gap: 10 }}>
+            {items.map((item, index) => (
+              <MenuButton
+                key={item.label}
+                selected={menu.index === index}
+                onClick={item.run}
+                onHover={() => menu.select(index)}
+                primary={item.primary}
+                disabled={item.disabled}
+              >
+                {item.label}
+              </MenuButton>
+            ))}
+          </div>
+          <TitleSidePanel kind={items[menu.index]?.panel ?? null} board={board} />
         </div>
 
         <p style={{ marginTop: 20, fontSize: 12, color: '#4a5171' }}>

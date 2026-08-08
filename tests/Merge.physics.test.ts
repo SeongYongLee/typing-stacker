@@ -29,6 +29,21 @@ function pairRecipe() {
   return found
 }
 
+/**
+ * 서로 다른 물건을 합치는 레시피 하나.
+ *
+ * 이쪽이 물리 위에서 한 번도 검사된 적이 없었다. 같은 재료 둘은 도형도 같아서
+ * 접촉이 쉽게 생기는데, 서로 다른 물건은 크기와 모양이 달라 위에 얹은 것이
+ * 미끄러져 내려앉을 수 있다 — 규칙만 맞고 실제로는 안 붙는 짝이 있을 수 있다.
+ */
+function crossRecipe() {
+  const found = RECIPES.find(
+    (item) => item.inputs.length === 2 && item.inputs[0] !== item.inputs[1],
+  )
+  if (found === undefined) throw new Error('서로 다른 재료짜리 레시피가 없다')
+  return found
+}
+
 function settle(world: PhysicsWorld, seconds: number): void {
   for (let t = 0; t < seconds; t += 1 / 60) {
     world.step(1 / 60)
@@ -42,12 +57,12 @@ function settle(world: PhysicsWorld, seconds: number): void {
  * 클로버 둘을 같은 x에 떨궈보면 0.45만큼 벌어져 닿지 않는다. 그 흔들림이
  * 이 게임의 재미이지만, 합성 규칙을 검사하려면 접촉 자체는 확정되어 있어야 한다.
  */
-function stackPair(world: PhysicsWorld, item: ItemVariant): void {
+function stackPair(world: PhysicsWorld, item: ItemVariant, second = item): void {
   world.spawnItemAt(item, 0, ARENA.platformTop + 0.5, SOLO_OWNER)
   settle(world, 1.5)
   const first = world.frames()[0]
   if (first === undefined) throw new Error('첫 재료가 받침대에 남지 않았다')
-  world.spawnItemAt(item, first.x, first.y + 0.35, SOLO_OWNER)
+  world.spawnItemAt(second, first.x, first.y + 0.35, SOLO_OWNER)
   settle(world, 1.5)
 }
 
@@ -73,6 +88,15 @@ describe('합성 — 물리와 함께', () => {
     const recipe = pairRecipe()
     const item = variant(recipe.inputs[0]!)
     stackPair(world, item)
+
+    const match = findMerge(world.contactGraph(), RECIPES)
+    expect(match?.recipe.id).toBe(recipe.id)
+  })
+
+  it('서로 다른 물건도 닿으면 합성 대상으로 잡힌다', () => {
+    world.reset()
+    const recipe = crossRecipe()
+    stackPair(world, variant(recipe.inputs[0]!), variant(recipe.inputs[1]!))
 
     const match = findMerge(world.contactGraph(), RECIPES)
     expect(match?.recipe.id).toBe(recipe.id)

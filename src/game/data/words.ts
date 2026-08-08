@@ -472,10 +472,21 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '딸기우유',
+    word: '우유',
     variants: [
       variant({
         // 네모난 우유갑. 서 있으면 안정적이다
+        id: 'milk-carton',
+        label: '우유',
+        sprite: 'milk-carton',
+        size: { height: 0.58 },
+        color: '#eef2f6',
+        density: 0.9,
+        friction: 0.75,
+        angularDamping: 3.0,
+      }),
+      hiddenVariant({
+        // 같은 우유갑인데 안에 든 것이 다르다. 크기와 무게가 같아 쌓기는 안 바뀐다
         id: 'strawberry-milk',
         label: '딸기우유',
         sprite: 'strawberry-milk',
@@ -764,10 +775,22 @@ const WORDS: readonly WordEntry[] = [
     ],
   },
   {
-    word: '해바라기',
+    word: '씨앗',
     variants: [
       variant({
-        // 줄기가 가늘고 꽃이 무겁다. 위가 무거우면 넘어진다
+        // 이 게임에서 가장 작은 물건. 어디에 얹어도 자리를 거의 안 먹는다
+        id: 'sunflower-seed',
+        label: '씨앗',
+        sprite: 'sunflower-seed',
+        size: { height: 0.4 },
+        color: '#4a3a2a',
+        density: 0.3,
+        friction: 0.7,
+        angularDamping: 1.2,
+      }),
+      hiddenVariant({
+        // 씨앗이 자란 모습. 줄기가 가늘고 꽃이 무거워 위가 무거우면 넘어진다.
+        // 가장 작은 물건을 쳤는데 두 배 넘게 큰 것이 떨어지는, 불리한 쪽 히든이다
         id: 'sunflower',
         label: '해바라기',
         sprite: 'sunflower',
@@ -930,15 +953,736 @@ const WORDS: readonly WordEntry[] = [
       }),
     ],
   },
+
+  /*
+   * 여기부터는 합성 재료로 들어온 물건들이다.
+   *
+   * 재료도 그냥 떨어지는 물건이라 다른 단어와 다를 것이 없다 — 쌓기만 해도 되고,
+   * 짝을 맞춰 붙이면 다른 것이 된다. 그래서 재료라고 따로 두지 않고 여기 함께 둔다.
+   * 무엇과 무엇이 짝인지는 `recipes.ts`가 안다.
+   *
+   * 크기는 아트가 온 표의 등급을 그대로 옮겼다:
+   * 아주작음 0.40 · 작음 0.55 · 보통 0.70 · 큼 0.85 · 아주큼 1.00.
+   */
+  {
+    word: '다리미',
+    variants: [
+      variant({
+        // 밑판이 넓고 평평하다. 무거운데 안 흔들리는 쪽
+        id: 'iron',
+        label: '다리미',
+        sprite: 'iron',
+        size: { width: 0.55 },
+        color: '#d94f3d',
+        density: 1.8,
+        friction: 0.8,
+        angularDamping: 3.0,
+      }),
+    ],
+  },
+  {
+    word: '셔츠',
+    variants: [
+      variant({
+        // 천이라 가볍고 잘 붙잡는다. 미끄러운 것 위에 깔면 도움이 된다
+        id: 'blue-shirt',
+        label: '셔츠',
+        sprite: 'blue-shirt',
+        size: { width: 0.7 },
+        color: '#7fc4e8',
+        density: 0.35,
+        friction: 0.9,
+        angularDamping: 3.2,
+      }),
+    ],
+  },
+  {
+    word: '계란',
+    variants: [
+      variant({
+        // 타원이라 구른다. 작은 대신 어디에 눕는지가 매번 다르다
+        id: 'egg',
+        label: '계란',
+        sprite: 'egg',
+        size: { height: 0.4 },
+        color: '#f3e3bd',
+        density: 0.6,
+        friction: 0.3,
+        restitution: 0.1,
+        angularDamping: 0.5,
+      }),
+    ],
+  },
+  {
+    word: '별',
+    variants: [
+      variant({
+        // 다섯 갈래가 걸려서 구르지 않는다. 위가 울퉁불퉁한 것이 흠
+        id: 'gold-star',
+        label: '별',
+        sprite: 'gold-star',
+        size: { width: 0.4 },
+        color: '#f5c33b',
+        density: 0.5,
+        friction: 0.8,
+        angularDamping: 2.0,
+      }),
+    ],
+  },
+  {
+    word: '달',
+    variants: [
+      variant({
+        // 초승달은 안쪽이 파인 활 모양이라 어느 쪽으로 눕느냐로 자리가 크게 갈린다
+        id: 'crescent-moon',
+        label: '달',
+        sprite: 'crescent-moon',
+        size: { height: 1 },
+        color: '#f6e58d',
+        density: 0.5,
+        friction: 0.75,
+        angularDamping: 1,
+      }),
+    ],
+  },
+  {
+    word: '벼',
+    variants: [
+      variant({
+        // 잎이 넓고 가벼워 위에 무거운 것이 오면 그대로 눌린다
+        id: 'rice-plant',
+        label: '벼',
+        sprite: 'rice-plant',
+        size: { height: 0.85 },
+        color: '#e8c249',
+        density: 0.3,
+        friction: 0.85,
+        angularDamping: 1.8,
+      }),
+    ],
+  },
+  {
+    word: '생선',
+    variants: [
+      variant({
+        // 길고 미끈하다. 이 게임에서 가장 잘 미끄러지는 축
+        id: 'salmon-fish',
+        label: '생선',
+        sprite: 'salmon-fish',
+        size: { width: 0.85 },
+        color: '#f08a6a',
+        density: 0.8,
+        friction: 0.3,
+        angularDamping: 1.5,
+      }),
+    ],
+  },
+  {
+    word: '거울',
+    variants: [
+      variant({
+        id: 'hand-mirror',
+        label: '거울',
+        sprite: 'hand-mirror',
+        size: { height: 0.55 },
+        color: '#bcd6e6',
+        density: 0.9,
+        friction: 0.5,
+        angularDamping: 1.4,
+      }),
+    ],
+  },
+  {
+    word: '지구본',
+    variants: [
+      variant({
+        // 공이 달렸는데 받침이 받쳐줘서 구르지는 않는다
+        id: 'desk-globe',
+        label: '지구본',
+        sprite: 'desk-globe',
+        size: { height: 0.7 },
+        color: '#5aa9dd',
+        density: 0.8,
+        friction: 0.8,
+        angularDamping: 2.6,
+      }),
+    ],
+  },
+  {
+    word: '창문',
+    variants: [
+      variant({
+        // 네모나고 평평하다. 밑에 깔면 그 위가 넓어진다
+        id: 'window',
+        label: '창문',
+        sprite: 'window',
+        size: { height: 0.85 },
+        color: '#a9d8ef',
+        density: 1.2,
+        friction: 0.85,
+        angularDamping: 4,
+      }),
+    ],
+  },
+  {
+    word: '야구배트',
+    variants: [
+      variant({
+        // 원통이라 눕히면 굴러간다
+        id: 'baseball-bat',
+        label: '야구 배트',
+        sprite: 'baseball-bat',
+        size: { height: 0.85 },
+        color: '#c08a4a',
+        density: 1,
+        friction: 0.4,
+        angularDamping: 0.6,
+      }),
+    ],
+  },
+  {
+    word: '하트',
+    variants: [
+      variant({
+        id: 'heart',
+        label: '하트',
+        sprite: 'heart',
+        size: { width: 0.4 },
+        color: '#e34b4b',
+        density: 0.5,
+        friction: 0.7,
+        restitution: 0.15,
+        angularDamping: 1.2,
+      }),
+    ],
+  },
+  {
+    word: '촛불',
+    variants: [
+      variant({
+        // 서 있는 원기둥. 눕기 전까지는 자리를 적게 쓴다
+        id: 'candle',
+        label: '촛불',
+        sprite: 'candle',
+        size: { height: 0.55 },
+        color: '#f2d9a0',
+        density: 0.7,
+        friction: 0.7,
+        angularDamping: 1.6,
+      }),
+    ],
+  },
+  {
+    word: '토끼',
+    variants: [
+      variant({
+        id: 'rabbit',
+        label: '토끼',
+        sprite: 'rabbit',
+        size: { width: 0.7 },
+        color: '#f0ece6',
+        density: 0.6,
+        friction: 0.75,
+      }),
+    ],
+  },
+  {
+    word: '거북이',
+    variants: [
+      variant({
+        // 등딱지가 둥글어서 그 위에 무엇을 얹기 어렵다
+        id: 'turtle',
+        label: '거북이',
+        sprite: 'turtle',
+        size: { width: 0.7 },
+        color: '#6aa84f',
+        density: 0.9,
+        friction: 0.7,
+        angularDamping: 2.2,
+      }),
+    ],
+  },
+  {
+    word: '열쇠',
+    variants: [
+      variant({
+        // 작고 납작하고 무겁다. 틈에 끼워 넣기 좋다
+        id: 'old-key',
+        label: '열쇠',
+        sprite: 'old-key',
+        size: { width: 0.4 },
+        color: '#c9a227',
+        density: 1.2,
+        friction: 0.5,
+      }),
+    ],
+  },
+  {
+    word: '지도',
+    variants: [
+      variant({
+        // 종이라 가볍고 평평하다
+        id: 'treasure-map',
+        label: '지도',
+        sprite: 'treasure-map',
+        size: { width: 0.55 },
+        color: '#e0c890',
+        density: 0.3,
+        friction: 0.9,
+        angularDamping: 3,
+      }),
+    ],
+  },
+  {
+    word: '자물쇠',
+    variants: [
+      variant({
+        // 작은데 가장 무거운 축. 얹으면 아래가 눌린다
+        id: 'padlock',
+        label: '자물쇠',
+        sprite: 'padlock',
+        size: { height: 0.4 },
+        color: '#b0a8a0',
+        density: 1.6,
+        friction: 0.7,
+        angularDamping: 3,
+      }),
+    ],
+  },
+  {
+    word: '깃털',
+    variants: [
+      variant({
+        // 이 게임에서 가장 가볍다. 무엇을 얹어도 버티지 못한다
+        id: 'quill-feather',
+        label: '깃털',
+        sprite: 'quill-feather',
+        size: { height: 0.55 },
+        color: '#e8e2d6',
+        density: 0.2,
+        friction: 0.85,
+        angularDamping: 2,
+      }),
+    ],
+  },
+  {
+    word: '망원경',
+    variants: [
+      variant({
+        // 삼각대가 벌어져 있어 아래는 넓고 위는 좁다
+        id: 'telescope',
+        label: '망원경',
+        sprite: 'telescope',
+        size: { height: 0.85 },
+        color: '#8896a8',
+        density: 0.9,
+        friction: 0.8,
+        angularDamping: 2.4,
+      }),
+    ],
+  },
+  {
+    word: '별똥별',
+    variants: [
+      variant({
+        // 꼬리가 길어 폭을 많이 먹는다. 가벼워서 밀리기도 쉽다
+        id: 'shooting-star',
+        label: '별똥별',
+        sprite: 'shooting-star',
+        size: { width: 1 },
+        color: '#ffd95e',
+        density: 0.4,
+        friction: 0.7,
+        angularDamping: 1.4,
+      }),
+    ],
+  },
+  {
+    word: '카메라',
+    variants: [
+      variant({
+        // 작은 상자. 무겁고 잘 안 흔들린다
+        id: 'camera',
+        label: '카메라',
+        sprite: 'camera',
+        size: { width: 0.55 },
+        color: '#5b6470',
+        density: 1.3,
+        friction: 0.8,
+        angularDamping: 3.4,
+      }),
+    ],
+  },
+  {
+    word: '발자국',
+    variants: [
+      variant({
+        /*
+         * 이 게임에서 유일하게 **여덟 덩이로 흩어진** 물건이다. 콜라이더는 한 몸에
+         * 붙은 조각 묶음이라 흩어져 있어도 함께 움직인다 — 떨어져 있는 만큼
+         * 아래를 넓게 짚어서, 좁은 자리에 얹으면 허공에 걸린 것처럼 보인다.
+         */
+        id: 'footprints',
+        label: '발자국',
+        sprite: 'footprints',
+        size: { height: 0.55 },
+        color: '#8a6242',
+        density: 0.5,
+        friction: 0.9,
+        angularDamping: 3,
+      }),
+    ],
+  },
+  {
+    word: '안경',
+    variants: [
+      variant({
+        // 가장 납작하다. 위가 평평해서 다음 것을 받아준다
+        id: 'round-glasses',
+        label: '안경',
+        sprite: 'round-glasses',
+        size: { width: 0.55 },
+        color: '#7a6a58',
+        density: 0.4,
+        friction: 0.6,
+      }),
+    ],
+  },
+  {
+    word: '책',
+    variants: [
+      variant({
+        // 두껍고 네모나다. 밑에 깔기 가장 좋은 물건
+        id: 'study-book',
+        label: '책',
+        sprite: 'study-book',
+        size: { width: 0.55 },
+        color: '#3f7ac0',
+        density: 1.4,
+        friction: 0.85,
+        angularDamping: 4,
+      }),
+    ],
+  },
+  {
+    word: '빗자루',
+    variants: [
+      variant({
+        // 비스듬히 누운 막대. 자루 쪽이 가늘어 그 위에는 아무것도 못 얹는다
+        id: 'broom',
+        label: '빗자루',
+        sprite: 'broom',
+        size: { height: 0.85 },
+        color: '#a97a45',
+        density: 0.5,
+        friction: 0.7,
+        angularDamping: 1.6,
+      }),
+    ],
+  },
+  {
+    word: '별가루',
+    variants: [
+      variant({
+        // 병에 담겨 있어 서 있다
+        id: 'stardust',
+        label: '별가루',
+        sprite: 'stardust',
+        size: { height: 0.55 },
+        color: '#c9a7f0',
+        density: 0.8,
+        friction: 0.7,
+        angularDamping: 2,
+      }),
+    ],
+  },
+  {
+    word: '거미줄',
+    variants: [
+      variant({
+        // 가볍고 잘 붙잡는다. 다만 그림의 구멍은 메워져 있어 보이는 것보다 넓게 부딪힌다
+        id: 'spider-web',
+        label: '거미줄',
+        sprite: 'spider-web',
+        size: { height: 0.7 },
+        color: '#e3ecf2',
+        density: 0.25,
+        friction: 0.9,
+        angularDamping: 2.6,
+      }),
+    ],
+  },
+  {
+    word: '나침반',
+    variants: [
+      variant({
+        // 둥글고 납작하고 묵직하다
+        id: 'compass',
+        label: '나침반',
+        sprite: 'compass',
+        size: { width: 0.4 },
+        color: '#c9a227',
+        density: 1.1,
+        friction: 0.6,
+        angularDamping: 1.8,
+      }),
+    ],
+  },
+  {
+    word: '종이비행기',
+    variants: [
+      variant({
+        // 종이라 거의 무게가 없다. 비행기와 이름만 닮았지 성격은 정반대다
+        id: 'paper-airplane',
+        label: '종이비행기',
+        sprite: 'paper-airplane',
+        size: { width: 0.55 },
+        color: '#eef2f6',
+        density: 0.25,
+        friction: 0.6,
+        angularDamping: 1.8,
+      }),
+    ],
+  },
 ]
 
 /**
- * 이 게임에 있는 물건 전부.
+ * 합성으로만 나오는 물건들.
+ *
+ * 이 게임의 물건은 원래 전부 어떤 단어에 속했고, 히든도 그 단어의 **다른 형태**였다 —
+ * 피자를 치면 가끔 피자 한 판이 나오는 식이다. 그런데 서로 다른 물건을 합친 결과는
+ * 재료 어느 쪽의 다른 형태도 아니다. 계란 프라이는 계란의 다른 형태가 아니고
+ * 금메달은 번개의 다른 형태가 아니다. 어느 단어에 매달아도 거짓말이 된다.
+ *
+ * 그래서 단어에 매달지 않는다. 이것들은 **타이핑으로는 절대 떨어지지 않는다.**
+ * `resolveItem`은 `WORDS`만 보므로 여기 있는 물건이 손을 거치지 않고 나올 길이 없고,
+ * 도감에서 이 칸들은 "운으로는 못 채우는 칸"이 된다.
+ *
+ * 크기는 재료 둘이 차지하던 폭보다 좁아야 한다. 합성은 자리를 되찾아주는 보상이고,
+ * 합쳐서 넓어지면 위태로울 때 합성을 피하게 된다. `tests/Merger.test.ts`가 지킨다.
+ */
+const CRAFTED: readonly ItemVariant[] = [
+  hiddenVariant({
+    // 다리미 밑판 모양 그대로 탄 자국이 남았다. 셔츠와 크기·무게가 같다
+    id: 'burnt-hole-shirt',
+    label: '구멍 난 셔츠',
+    sprite: 'burnt-hole-shirt',
+    size: { width: 0.7 },
+    color: '#7fc4e8',
+    density: 0.35,
+    friction: 0.9,
+    angularDamping: 3.2,
+  }),
+  hiddenVariant({
+    // 팬에 담긴 채로 나온다. 위가 평평해서 다음 것을 받아준다
+    id: 'fried-egg',
+    label: '계란 프라이',
+    sprite: 'fried-egg',
+    size: { width: 0.7 },
+    color: '#f7d34a',
+    density: 1.1,
+    friction: 0.8,
+    angularDamping: 3,
+  }),
+  hiddenVariant({
+    // 구름이라 거의 무게가 없다. 얹으면 위가 넓어지지만 아무것도 못 버틴다
+    id: 'fart-cloud',
+    label: '방귀 냄새',
+    sprite: 'fart-cloud',
+    size: { width: 0.55 },
+    color: '#b7d68a',
+    density: 0.15,
+    friction: 0.85,
+    angularDamping: 2.2,
+    scoreBonus: 200,
+  }),
+  hiddenVariant({
+    /*
+     * 광선 여덟 개가 원과 떨어져 있다. 발자국과 함께 이 게임에서 흩어진 물건이고,
+     * 그래서 실제로 짚는 자리가 그림보다 넓다 — 가장 크기도 하다.
+     */
+    id: 'sunlight',
+    label: '햇빛',
+    sprite: 'sunlight',
+    size: { width: 1 },
+    color: '#ffd233',
+    density: 0.35,
+    friction: 0.75,
+    angularDamping: 2,
+    scoreBonus: 250,
+  }),
+  hiddenVariant({
+    // 큰 재료 둘이 손바닥만 한 것 하나가 된다. 자리를 가장 많이 되찾아주는 합성
+    id: 'salmon-sushi',
+    label: '초밥',
+    sprite: 'salmon-sushi',
+    size: { width: 0.4 },
+    color: '#f2a07d',
+    density: 0.9,
+    friction: 0.8,
+    angularDamping: 2.6,
+    scoreBonus: 250,
+  }),
+  hiddenVariant({
+    // 매달린 공. 둥글어서 그 위에는 아무것도 못 얹는다
+    id: 'mirror-ball',
+    label: '미러볼',
+    sprite: 'mirror-ball',
+    size: { height: 0.85 },
+    color: '#cfe0ec',
+    density: 1,
+    friction: 0.55,
+    angularDamping: 1.6,
+  }),
+  hiddenVariant({
+    // 다섯 조각이 흩어져 있다. 낮고 넓게 깔려서 밑받침으로 쓸 만하다
+    id: 'glass-shards',
+    label: '유리조각',
+    sprite: 'glass-shards',
+    size: { width: 0.55 },
+    color: '#7ec8ef',
+    density: 1.2,
+    friction: 0.6,
+    angularDamping: 2.4,
+  }),
+  hiddenVariant({
+    // 가장 작은 결과물. 자리를 거의 안 먹는다
+    id: 'heart-ring',
+    label: '반지',
+    sprite: 'heart-ring',
+    size: { width: 0.4 },
+    color: '#e8b93c',
+    density: 1.3,
+    friction: 0.6,
+    angularDamping: 2,
+    scoreBonus: 300,
+  }),
+  hiddenVariant({
+    // 깃대가 서 있어 위가 좁다
+    id: 'racing-flag',
+    label: '레이싱 깃발',
+    sprite: 'racing-flag',
+    size: { height: 0.85 },
+    color: '#e8e8e8',
+    density: 0.5,
+    friction: 0.8,
+    angularDamping: 1.8,
+  }),
+  hiddenVariant({
+    // 작고 무겁고 둥글다. 얹으면 아래를 누르고 저는 잘 미끄러진다
+    id: 'gold-medal',
+    label: '금메달',
+    sprite: 'gold-medal',
+    size: { height: 0.4 },
+    color: '#f2c230',
+    density: 1.6,
+    friction: 0.5,
+    angularDamping: 1.4,
+    scoreBonus: 300,
+  }),
+  hiddenVariant({
+    // 뚜껑이 둥글어 그 위가 불안하다. 대신 넓고 무거워 밑에 깔면 든든하다
+    id: 'treasure-chest',
+    label: '보물상자',
+    sprite: 'treasure-chest',
+    size: { width: 0.85 },
+    color: '#a9762f',
+    density: 1.5,
+    friction: 0.85,
+    angularDamping: 3.4,
+    scoreBonus: 250,
+  }),
+  hiddenVariant({
+    id: 'secret-diary',
+    label: '비밀일기',
+    sprite: 'secret-diary',
+    size: { height: 0.55 },
+    color: '#c46a86',
+    density: 1.1,
+    friction: 0.85,
+    angularDamping: 3.4,
+  }),
+  hiddenVariant({
+    // 가장 큰 결과물. 재료 둘이 워낙 커서 그래도 자리는 줄어든다
+    id: 'spaceship',
+    label: '우주선',
+    sprite: 'spaceship',
+    size: { width: 1 },
+    color: '#dbe4ee',
+    density: 1.2,
+    friction: 0.7,
+    angularDamping: 2.6,
+    scoreBonus: 300,
+  }),
+  hiddenVariant({
+    id: 'travel-album',
+    label: '여행앨범',
+    sprite: 'travel-album',
+    size: { height: 0.55 },
+    color: '#c98a5a',
+    density: 1.1,
+    friction: 0.85,
+    angularDamping: 3.4,
+  }),
+  hiddenVariant({
+    // 넓고 평평한 판에 술이 달렸다. 위가 평평해서 받아주기 좋다
+    id: 'graduation-cap',
+    label: '졸업모자',
+    sprite: 'graduation-cap',
+    size: { width: 0.7 },
+    color: '#2f3542',
+    density: 0.6,
+    friction: 0.85,
+    angularDamping: 3,
+  }),
+  hiddenVariant({
+    // 가느다란 막대. 눕히면 구르고 그 위에는 아무것도 못 얹는다
+    id: 'magic-wand',
+    label: '마법봉',
+    sprite: 'magic-wand',
+    size: { height: 0.55 },
+    color: '#8e6fd0',
+    density: 0.6,
+    friction: 0.55,
+    angularDamping: 1.2,
+    scoreBonus: 250,
+  }),
+  hiddenVariant({
+    // 안테나가 위로 솟아 있다. 낮고 무거워 밑에 깔기 좋다
+    id: 'internet-router',
+    label: '인터넷 공유기',
+    sprite: 'internet-router',
+    size: { width: 0.55 },
+    color: '#4b5563',
+    density: 1.4,
+    friction: 0.8,
+    angularDamping: 3.4,
+  }),
+  hiddenVariant({
+    // 네모난 상자. 이 판에서 가장 쌓기 좋은 결과물이다
+    id: 'travel-suitcase',
+    label: '여행가방',
+    sprite: 'travel-suitcase',
+    size: { height: 0.85 },
+    color: '#b06a3c',
+    density: 1.3,
+    friction: 0.85,
+    angularDamping: 4,
+    scoreBonus: 250,
+  }),
+]
+
+/**
+ * 이 게임에 있는 물건 전부. 단어에 매달린 것과 합성으로만 나오는 것을 합친 것이다.
  *
  * 도감·스프라이트 미리받기·재질 표처럼 **"물건이면 다"**를 뜻하는 자리는 이것을 쓴다.
- * 지금은 단어에 매달린 것뿐이지만, 합성으로만 나오는 물건이 생기면 여기에 합쳐진다.
+ * `WORDS`만 훑으면 합성 결과물이 조용히 빠지는데, 그 실패는 도감에 칸이 안 생기거나
+ * 합성한 순간 그림이 없는 것으로 나타나 한참 뒤에야 드러난다.
  */
-const ALL_VARIANTS: readonly ItemVariant[] = WORDS.flatMap((entry) => entry.variants)
+const ALL_VARIANTS: readonly ItemVariant[] = [
+  ...WORDS.flatMap((entry) => entry.variants),
+  ...CRAFTED,
+]
 
 const WORD_BY_TEXT = new Map(WORDS.map((entry) => [entry.word, entry]))
 
@@ -948,7 +1692,7 @@ const WORD_BY_TEXT = new Map(WORDS.map((entry) => [entry.word, entry]))
  * 난수 소비 순서가 어긋나는 순간 서로 다른 물건을 쌓게 된다.
  */
 const VARIANT_BY_ID = new Map(
-  WORDS.flatMap((entry) => entry.variants.map((item) => [item.id, item] as const)),
+  ALL_VARIANTS.map((item) => [item.id, item] as const),
 )
 
-export { WORDS, ALL_VARIANTS, WORD_BY_TEXT, VARIANT_BY_ID }
+export { WORDS, CRAFTED, ALL_VARIANTS, WORD_BY_TEXT, VARIANT_BY_ID }

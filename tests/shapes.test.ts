@@ -46,9 +46,9 @@ describe('spriteShape', () => {
   })
 
   it('height로 지정해도 비율이 유지된다', () => {
-    const bounds = spriteBounds('bolt', { height: 0.8 })
+    const bounds = spriteBounds('lightning', { height: 0.8 })
     expect(bounds.hh * 2).toBeCloseTo(0.8)
-    expect((bounds.hw * 2) / (bounds.hh * 2)).toBeCloseTo(SPRITES.bolt.aspect, 4)
+    expect((bounds.hw * 2) / (bounds.hh * 2)).toBeCloseTo(SPRITES.lightning.aspect, 4)
   })
 
   it('콜라이더는 그림 크기를 넘지 않는다 — 빈 공간에서 부딪히지 않아야 한다', () => {

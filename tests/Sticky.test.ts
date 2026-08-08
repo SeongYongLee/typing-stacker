@@ -103,9 +103,26 @@ describe('끈적함 — 닿으면 붙는다', () => {
     }
   })
 
-  it('끈적함을 끄면 같은 물건이 흘러내린다 — 모양 덕이 아님을 보인다', () => {
+  it('끈적함을 끄면 붙지 않는다 — 모양 덕이 아님을 보인다', () => {
+    /*
+     * 처음에는 "끄면 흘러내린다"로 잰 높이를 비교했는데, 물건이 탑 위에 얹힐지
+     * 옆으로 굴러떨어질지는 우연이 크게 좌우해서 물건 하나만 늘어도 결과가 뒤집혔다.
+     * 갈리는 지점은 붙었느냐 아니냐이므로 그것을 직접 본다.
+     */
     for (const item of allVariants().filter((v) => v.sticky)) {
-      expect(dropFromContact(withoutSticky(item)), item.id).toBeGreaterThan(0.1)
+      const top = buildTower()
+      world.spawnItemAt(withoutSticky(item), top.x + 0.5, top.y, SOLO_OWNER)
+      run(0.6)
+      expect(weldCount(), item.id).toBe(0)
+    }
+  })
+
+  it('끈적하면 닿는 순간 붙는다', () => {
+    for (const item of allVariants().filter((v) => v.sticky)) {
+      const top = buildTower()
+      world.spawnItemAt(item, top.x + 0.5, top.y, SOLO_OWNER)
+      run(0.6)
+      expect(weldCount(), item.id).toBeGreaterThan(0)
     }
   })
 
@@ -206,7 +223,8 @@ describe('stackTop — 카메라가 보는 높이', () => {
     const one = world.stackTop()
     const base = world.frames()[0]
     if (base === undefined) throw new Error('받침이 남지 않았다')
-    world.spawnItemAt(BLOCK, base.x, base.y + 0.45, SOLO_OWNER)
+    // 물건 높이만큼 확실히 띄워야 옆으로 밀려나지 않고 위에 얹힌다
+    world.spawnItemAt(BLOCK, base.x, base.y + BLOCK.artBounds.hh * 2 + 0.1, SOLO_OWNER)
     run(2.5)
     expect(world.stackTop()).toBeGreaterThan(one)
   })

@@ -10,7 +10,11 @@ import { VARIANT_BY_ID } from '../game/data/words.ts'
  * 지금 존재하는 물건 id만 통과시키면, 이름이 바뀐 옛 기록이나 장난으로 넣은 값이
  * 도감에 유령 칸으로 남지 않는다.
  */
-const STORAGE_KEY = 'typing-stacker/collection/v1'
+/*
+ * 물건이 20종에서 57종으로 늘면서 판을 새로 열었다. 옛 기록을 그대로 두면
+ * 새 물건만 비어 있는 도감이 되어 "어디까지 모았나"가 뒤섞인다.
+ */
+const STORAGE_KEY = 'typing-stacker/collection/v2'
 
 function loadCollection(): string[] {
   try {

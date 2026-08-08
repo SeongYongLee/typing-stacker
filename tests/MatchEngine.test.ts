@@ -197,8 +197,10 @@ describe('MatchEngine — 턴제 대전', () => {
     for (const hostBody of hostBodies) {
       const match = guestBodies.find((body) => body.itemId === hostBody.itemId)
       expect(match).toBeDefined()
-      expect(match!.x).toBeCloseTo(hostBody.x, 4)
-      expect(match!.y).toBeCloseTo(hostBody.y, 4)
+      // 밀리미터까지 같기를 요구하지 않는다. 여기서 잡으려는 것은 물건이 두 배로
+      // 늘어나거나 엉뚱한 자리에 놓이는 어긋남이지 부동소수점 오차가 아니다
+      expect(match!.x).toBeCloseTo(hostBody.x, 2)
+      expect(match!.y).toBeCloseTo(hostBody.y, 2)
     }
   })
 

@@ -276,6 +276,9 @@ export class Board {
       if (request.method === 'POST' && path === '/rank/match') {
         return json(this.reportMatch(await request.json()))
       }
+      if (request.method === 'GET' && path === '/rank/queue/size') {
+        return json(this.queueSize())
+      }
       if (request.method === 'POST' && path === '/rank/queue') {
         return json(this.enterQueue(await request.json()))
       }
@@ -537,6 +540,24 @@ export class Board {
       band: Math.min(band, TIERS.length),
       tier: self === undefined ? 0 : tierIndexOf(self.rating),
     }
+  }
+
+  /**
+   * 줄에 몇 명이 서 있는지만 본다. **줄에 서지 않고** 묻는 길이다.
+   *
+   * 로비에서 "지금 몇 명 기다리는 중"을 보여주려면 이것이 필요하다. 누르기 전에
+   * 아는 것이 중요한데 — 아무도 없으면 눌러도 한참 기다릴 뿐이고, 그것을 모르면
+   * 자동매칭이 고장난 것처럼 보인다.
+   *
+   * 여기서도 멎은 사람을 먼저 치운다. 그러지 않으면 이미 떠난 사람이 계속 세어져
+   * "3명 기다리는 중"인데 눌러도 아무도 만나지 못한다.
+   */
+  private queueSize(): unknown {
+    this.sql.exec('DELETE FROM queue WHERE seen < ?', Date.now() - QUEUE_STALE_MS)
+    const row = this.sql
+      .exec<{ n: number }>('SELECT COUNT(*) AS n FROM queue WHERE code IS NULL')
+      .toArray()[0]
+    return { waiting: row?.n ?? 0 }
   }
 
   /** 줄에서 빠진다. 이것 없이도 `seen`이 멎어 치워지지만, 그동안 남을 헛되게 기다리게 한다 */

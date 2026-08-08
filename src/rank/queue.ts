@@ -80,6 +80,31 @@ async function leaveQueue(): Promise<void> {
   await post('/rank/queue/leave', { device: loadProfile().id }, true)
 }
 
+/**
+ * 줄에 몇 명이 서 있는지만 본다. **줄에 서지 않는다.**
+ *
+ * 로비에서 누르기 전에 보여주려는 것이다 — 아무도 없으면 눌러도 한참 기다릴 뿐이고,
+ * 그것을 모르면 자동매칭이 고장난 것처럼 보인다. 닿지 못하면 null이라 화면이
+ * "0명"과 "모른다"를 구분해서 그릴 수 있다.
+ */
+async function fetchQueueSize(): Promise<number | null> {
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS)
+  try {
+    const response = await fetch(`${BASE}/rank/queue/size`, { signal: abort.signal })
+    if (!response.ok) {
+      return null
+    }
+    const parsed: unknown = await response.json()
+    const waiting = (parsed as Record<string, unknown> | null)?.['waiting']
+    return typeof waiting === 'number' && Number.isFinite(waiting) ? waiting : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function numberOf(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
@@ -113,5 +138,5 @@ async function post(
   }
 }
 
-export { enterQueue, leaveQueue, POLL_MS }
+export { enterQueue, leaveQueue, fetchQueueSize, POLL_MS }
 export type { QueueStatus }

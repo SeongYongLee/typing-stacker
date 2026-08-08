@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { soundBoard } from '../audio/SoundBoard.ts'
 
 /**
  * 메뉴를 키보드로 움직인다.
@@ -67,9 +68,27 @@ function useMenuKeys({
   activate.current = onActivate
   cancel.current = onCancel
 
+  /*
+   * 골라진 자리를 ref로도 들고 있는다.
+   *
+   * setState 업데이터 안에서 읽으면 최신값을 얻을 수 있지만, 그 안에서 소리를 내거나
+   * 항목을 실행하면 StrictMode가 업데이터를 두 번 돌릴 때 그것도 두 번 일어난다.
+   * 부수효과는 업데이터 밖에 두고, 최신값은 여기서 읽는다.
+   */
+  const indexRef = useRef(initialIndex)
+
+  const moveTo = useCallback((next: number) => {
+    indexRef.current = next
+    setIndex(next)
+  }, [])
+
   // 항목이 줄어들면 골라진 자리가 사라질 수 있다
   useEffect(() => {
-    setIndex((current) => (current >= count ? Math.max(0, count - 1) : current))
+    if (indexRef.current >= count) {
+      const next = Math.max(0, count - 1)
+      indexRef.current = next
+      setIndex(next)
+    }
   }, [count])
 
   useEffect(() => {
@@ -101,24 +120,33 @@ function useMenuKeys({
       if (step !== 0) {
         event.preventDefault()
         // 끝에서 반대편으로 돌아간다 — 항목이 서너 개뿐이라 끝을 만날 일이 잦다
-        setIndex((current) => (current + step + count) % count)
+        moveTo((indexRef.current + step + count) % count)
+        soundBoard().handle({ kind: 'menuMove' })
         return
       }
 
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
-        setIndex((current) => {
-          activate.current(current)
-          return current
-        })
+        soundBoard().handle({ kind: 'menuSelect' })
+        activate.current(indexRef.current)
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, count, useTab])
+  }, [active, count, useTab, moveTo])
 
-  const select = useCallback((next: number) => setIndex(next), [])
+  /** 마우스가 올라왔다. 자리가 실제로 바뀔 때만 소리를 낸다 */
+  const select = useCallback(
+    (next: number) => {
+      if (next === indexRef.current) {
+        return
+      }
+      moveTo(next)
+      soundBoard().handle({ kind: 'menuMove' })
+    },
+    [moveTo],
+  )
 
   return { index, select }
 }

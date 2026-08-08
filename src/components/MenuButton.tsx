@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { soundBoard } from '../audio/SoundBoard.ts'
 
 /**
  * 키보드로 고르는 메뉴 버튼.
@@ -52,10 +53,16 @@ function MenuButton({
           color: selected ? '#ffcf5c' : '#b6bdd4',
         }
 
+  /* 키보드로 고르면 useMenuKeys가 소리를 낸다. 마우스로 누른 길에도 같은 소리가 나야 한다 */
+  const activate = () => {
+    soundBoard().handle({ kind: 'menuSelect' })
+    onClick()
+  }
+
   return (
     <button
       type="button"
-      onClick={disabled ? undefined : onClick}
+      onClick={disabled ? undefined : activate}
       onMouseEnter={disabled ? undefined : onHover}
       disabled={disabled}
       data-menu-item

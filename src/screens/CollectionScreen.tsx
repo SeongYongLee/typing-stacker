@@ -3,8 +3,7 @@ import type { CSSProperties } from 'react'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { RECIPES } from '../game/data/recipes.ts'
-import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
-import type { ItemVariant } from '../game/types/game.ts'
+import { ALL_VARIANTS, VARIANT_BY_ID } from '../game/data/words.ts'
 
 interface CollectionScreenProps {
   collected: readonly string[]
@@ -17,8 +16,10 @@ interface CollectionScreenProps {
  * 히든만 담으면 대부분이 물음표인 채로 시작해서 도감이 "아직 아무것도 없는 곳"이 된다.
  * 기본 물건이 먼저 채워지면 첫 판만으로도 칸이 메워지고, 그 사이에 비어 있는
  * 히든 칸이 눈에 띈다 — 무엇을 더 찾아야 하는지가 도감 자체에서 보인다.
+ *
+ * `ALL_VARIANTS`를 쓰는 것이 중요하다. 단어에 매달린 것만 훑으면 합성으로만 나오는
+ * 물건 18종이 통째로 빠지는데, 그건 도감에서 **가장 채우기 어려운 칸들**이다.
  */
-const ALL_VARIANTS: readonly ItemVariant[] = WORDS.flatMap((entry) => entry.variants)
 
 /** 이 물건을 만들 수 있는 레시피. 없으면 운으로만 만난다 */
 function recipeFor(id: string): readonly string[] | null {

@@ -17,6 +17,26 @@ interface Env {
 
 const MAX_PEERS = 2
 
+/**
+ * 이 주소들에서 열린 페이지만 받는다.
+ *
+ * 무료 한도(하루 요청 10만·13,000 GB-s)를 넘기면 그날은 대전이 막힌다. 우리가 쓰다
+ * 넘기는 것은 어쩔 수 없지만, **남이 이 중계를 공짜 인프라로 쓰다 넘기는 것**은 막아야 한다.
+ * 브라우저는 Origin 헤더를 위조할 수 없으므로 이것만으로 우연한 남용은 걸러진다.
+ */
+const ALLOWED_ORIGINS = [
+  'https://seongyonglee.github.io',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+]
+
+/**
+ * 한 메시지의 상한. 우리 프로토콜에서 가장 큰 것은 물리 키프레임인데 그래도 수 KB다.
+ * 상한이 없으면 중계를 데이터 파이프로 쓸 수 있고, 그건 곧 한도 소진이다.
+ */
+const MAX_MESSAGE_BYTES = 64 * 1024
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -27,6 +47,11 @@ export default {
     }
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('WebSocket으로 붙어야 한다', { status: 426 })
+    }
+
+    const origin = request.headers.get('Origin')
+    if (origin !== null && !ALLOWED_ORIGINS.includes(origin)) {
+      return new Response('허용되지 않은 출처다', { status: 403 })
     }
 
     // 코드를 이름으로 쓰면 같은 코드가 항상 같은 방으로 간다
@@ -94,6 +119,10 @@ export class MatchRoom {
   }
 
   webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer): void {
+    const size = typeof raw === 'string' ? raw.length : raw.byteLength
+    if (size > MAX_MESSAGE_BYTES) {
+      return
+    }
     const from = idOf(socket)
     const parsed = parse(raw)
     if (from === null || parsed === null) {

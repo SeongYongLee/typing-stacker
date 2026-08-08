@@ -63,7 +63,10 @@ describe('spriteShape', () => {
   it('모든 스프라이트의 실루엣 조각이 폴리곤으로 쓸 만하다', () => {
     for (const [name, meta] of Object.entries(SPRITES)) {
       expect(meta.aspect, `${name} 비율`).toBeGreaterThan(0)
-      expect(meta.outline.length, `${name} 윤곽 점 개수`).toBeGreaterThanOrEqual(3)
+      expect(meta.outlines.length, `${name} 덩어리 개수`).toBeGreaterThanOrEqual(1)
+      for (const outline of meta.outlines) {
+        expect(outline.length, `${name} 윤곽 점 개수`).toBeGreaterThanOrEqual(3)
+      }
       expect(meta.pieces.length, `${name} 조각 개수`).toBeGreaterThanOrEqual(1)
       for (const piece of meta.pieces) {
         expect(piece.length, `${name} 조각 점 개수`).toBeGreaterThanOrEqual(3)

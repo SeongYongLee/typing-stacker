@@ -1,4 +1,4 @@
-import { SPRITES, type SpriteName } from './data/sprites.generated.ts'
+import { SPRITES, type SpriteMeta, type SpriteName } from './data/sprites.generated.ts'
 import type { PrimitiveShape, ShapeDef, Vec2 } from './types/game.ts'
 
 interface Bounds {
@@ -70,9 +70,20 @@ function halfExtentY(shape: ShapeDef): number {
 
 type SpriteSize = { readonly width: number } | { readonly height: number }
 
+/**
+ * 생성 파일은 `as const`라 값 하나하나가 리터럴 타입이다. 이름으로 꺼내면 108장 전부의
+ * 리터럴을 합친 유니온이 되는데, 그걸 `map` 안으로 끌고 들어가면 타입이 터진다
+ * (`TS2590: union type that is too complex`). 물건이 57장일 때는 버텼고 108장에서 넘쳤다.
+ *
+ * 리터럴이 필요한 곳은 **이름**뿐이다. 꺼낸 값은 여기서 한 번 좁혀 쓴다.
+ */
+function metaOf(name: SpriteName): SpriteMeta {
+  return SPRITES[name]
+}
+
 /** 큰 변 하나만 정하면 나머지는 그림의 원래 비율을 따른다 — 물건이 찌그러지지 않는다 */
 function spriteBounds(name: SpriteName, size: SpriteSize): Bounds {
-  const { aspect } = SPRITES[name]
+  const { aspect } = metaOf(name)
   const width = 'width' in size ? size.width : size.height * aspect
   const height = 'width' in size ? size.width / aspect : size.height
   return { hw: width / 2, hh: height / 2 }
@@ -87,7 +98,7 @@ function spriteBounds(name: SpriteName, size: SpriteSize): Bounds {
  */
 function spriteShape(name: SpriteName, size: SpriteSize): ShapeDef {
   const { hw, hh } = spriteBounds(name, size)
-  const parts = SPRITES[name].pieces.map((piece) => ({
+  const parts = metaOf(name).pieces.map((piece) => ({
     shape: {
       kind: 'polygon' as const,
       points: piece.map(([x, y]): Vec2 => ({ x: x * hw, y: y * hh })),
@@ -97,10 +108,17 @@ function spriteShape(name: SpriteName, size: SpriteSize): ShapeDef {
   return { kind: 'compound', parts }
 }
 
-/** 그리기용 실루엣 윤곽선 (닫힌 폴리곤) */
-function spriteOutline(name: SpriteName, size: SpriteSize): Vec2[] {
+/**
+ * 그리기용 실루엣 윤곽선들 (각각 닫힌 폴리곤).
+ *
+ * 하나가 아니라 여럿인 것은 그림이 떨어진 덩어리로 이루어질 수 있기 때문이다 —
+ * 햇빛의 광선, 흩어진 유리조각, 발자국 여덟 개가 그렇다.
+ */
+function spriteOutlines(name: SpriteName, size: SpriteSize): Vec2[][] {
   const { hw, hh } = spriteBounds(name, size)
-  return SPRITES[name].outline.map(([x, y]) => ({ x: x * hw, y: y * hh }))
+  return metaOf(name).outlines.map((outline) =>
+    outline.map(([x, y]) => ({ x: x * hw, y: y * hh })),
+  )
 }
 
 export {
@@ -109,6 +127,6 @@ export {
   halfExtentY,
   spriteShape,
   spriteBounds,
-  spriteOutline,
+  spriteOutlines,
 }
 export type { Bounds, SpriteSize }

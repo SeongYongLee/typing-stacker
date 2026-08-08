@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type {
+  MouseEvent as ReactMouseEvent,
   ChangeEvent,
   CompositionEvent,
   KeyboardEvent,
@@ -18,6 +19,12 @@ interface HangulInput {
   readonly onCompositionEnd: (event: CompositionEvent<HTMLInputElement>) => void
   readonly clear: () => void
   readonly focus: () => void
+  /**
+   * 화면 아무 곳이나 눌러도 입력칸으로 포커스를 되돌린다.
+   * 마우스로 잠깐 딴 곳을 눌렀다고 손이 멈추면 안 된다 — 이 게임은 그 사이에도
+   * 단어가 계속 내려온다.
+   */
+  readonly keepFocus: (event: ReactMouseEvent<HTMLElement>) => void
 }
 
 /**
@@ -49,6 +56,28 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
   }, [])
 
   const focus = useCallback(() => {
+    ref.current?.focus()
+  }, [])
+
+  /**
+   * mousedown에서 막아야 한다.
+   *
+   * 누를 때 포커스만 옮겨주면 그 직후 브라우저 기본 동작이 도로 가져간다 —
+   * 실제로 아레나를 클릭하면 activeElement가 body가 됐다. 기본 동작 자체를
+   * 막아야 포커스가 입력칸에 남는다.
+   *
+   * 버튼이나 다른 입력칸을 누른 것이면 손대지 않는다. 그쪽이 눌려야 하고,
+   * 입력칸 안에서는 드래그로 글자를 고를 수 있어야 한다.
+   */
+  const keepFocus = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    const target = event.target
+    if (
+      target instanceof Element &&
+      target.closest('input, textarea, button, a, label, select, [contenteditable]')
+    ) {
+      return
+    }
+    event.preventDefault()
     ref.current?.focus()
   }, [])
 
@@ -122,6 +151,7 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
     onCompositionEnd,
     clear,
     focus,
+    keepFocus,
   }
 }
 

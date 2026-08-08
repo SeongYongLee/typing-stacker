@@ -39,6 +39,7 @@ const fieldStyle: CSSProperties = {
 
 function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   const submit = useCallback((text: string) => engine.submit(text), [engine])
+  const rematch = useCallback(() => engine.requestRematch(), [engine])
   const input = useHangulInput(submit)
   const { focus } = input
 
@@ -53,7 +54,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   }, [state.current, focus])
 
   return (
-    <div style={rootStyle} onPointerDown={focus}>
+    <div style={rootStyle} onMouseDown={input.keepFocus}>
       <Scoreboard state={state} onLeave={onLeave} />
 
       <div style={fieldLayerStyle}>
@@ -65,8 +66,13 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             data-aim={state.aimNormalized.toFixed(3)}
             data-my-turn={state.myTurn ? 'yes' : 'no'}
           >
-            {state.phase === 'over' && <Verdict state={state} onLeave={onLeave} />}
-            {state.connectionLost && state.phase !== 'over' && (
+            {state.phase === 'over' && (
+              <Verdict state={state} onRematch={rematch} onLeave={onLeave} />
+            )}
+            {state.opponentLeft && state.phase !== 'over' && (
+              <Banner text="상대가 로비로 나갔다" danger />
+            )}
+            {state.connectionLost && !state.opponentLeft && state.phase !== 'over' && (
               <Banner text="상대와의 연결이 끊겼다" danger />
             )}
             {state.hurt !== null && state.phase !== 'over' && (
@@ -86,6 +92,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => void }) {
   const livesOf = new Map(state.lives)
   const invulnerableOf = new Map(state.invulnerable)
+  const winsOf = new Map(state.wins)
 
   return (
     <div
@@ -132,6 +139,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               {mine && ' (나)'}
             </span>
             <PlayerLives lives={lives} invulnerable={invulnerableOf.get(player.id) ?? 0} />
+            <Wins count={winsOf.get(player.id) ?? 0} />
           </div>
         )
       })}
@@ -256,6 +264,51 @@ function TurnHint({ state }: { state: MatchViewState }) {
 }
 
 /**
+ * 판을 거듭하며 쌓인 승수.
+ *
+ * 목숨은 판마다 초기화되지만 이것은 남는다 — 한 판을 져도 아직 앞서 있다는 것이
+ * 보여야 다음 판을 이어 갈 이유가 생긴다. 0승일 때는 자리만 잡고 비워둔다.
+ */
+function Wins({ count }: { count: number }) {
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const previous = useRef(count)
+
+  useEffect(() => {
+    const gained = count > previous.current
+    previous.current = count
+    if (gained) {
+      play(
+        ref.current,
+        [
+          { transform: 'scale(1)', opacity: 0.4 },
+          { transform: 'scale(1.5)', opacity: 1, offset: 0.35 },
+          { transform: 'scale(1)', opacity: 1 },
+        ],
+        { duration: 620, easing: 'ease-out' },
+      )
+    }
+  }, [count])
+
+  return (
+    <span
+      ref={ref}
+      data-wins={count}
+      style={{
+        display: 'inline-block',
+        minWidth: 24,
+        textAlign: 'center',
+        fontSize: 13,
+        fontWeight: 700,
+        color: count > 0 ? '#ffcf5c' : '#3a4160',
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      {count > 0 ? `${count}승` : '—'}
+    </span>
+  )
+}
+
+/**
  * 이름표의 하트.
  *
  * 목숨이 줄어드는 순간을 놓치지 않게 그 자리가 크게 튀었다가 식고, 줄이 흔들린다 —
@@ -375,12 +428,25 @@ function SettlingHint() {
   )
 }
 
-function Verdict({ state, onLeave }: { state: MatchViewState; onLeave: () => void }) {
+function Verdict({
+  state,
+  onRematch,
+  onLeave,
+}: {
+  state: MatchViewState
+  onRematch: () => void
+  onLeave: () => void
+}) {
   const won = state.winner === state.selfId
   const draw = state.winner === null
   const text = draw ? '무승부' : won ? '이겼다' : '졌다'
   const winnerName =
     state.players.find((player) => player.id === state.winner)?.nickname ?? null
+  const iWantRematch = state.wantRematch.includes(state.selfId)
+  const winsOf = new Map(state.wins)
+  const tally = state.players
+    .map((player) => `${player.nickname} ${winsOf.get(player.id) ?? 0}`)
+    .join('  :  ')
 
   return (
     <div
@@ -405,20 +471,50 @@ function Verdict({ state, onLeave }: { state: MatchViewState; onLeave: () => voi
         {winnerName !== null && !draw && (
           <span style={{ color: '#b6bdd4', fontSize: 15 }}>{winnerName} 승</span>
         )}
+        <span style={{ color: '#6a7290', fontSize: 14 }}>{tally}</span>
+
+        {/*
+          * 상대가 나갔으면 계속할 상대가 없다. 버튼을 남겨두고 눌리지 않게 하는 대신
+          * 아예 치운다 — 누를 수 없는 버튼은 "왜 안 되지"를 만든다.
+          */}
+        {state.opponentLeft ? (
+          <span data-opponent-left style={{ color: '#ff6b6b', fontSize: 15 }}>
+            상대가 로비로 나갔다
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onRematch}
+            disabled={iWantRematch}
+            data-rematch={iWantRematch ? 'waiting' : 'ready'}
+            style={{
+              padding: '12px 28px',
+              fontSize: 15,
+              fontWeight: 600,
+              borderRadius: 10,
+              border: '1px solid #48507a',
+              background: iWantRematch ? 'transparent' : '#ffcf5c',
+              color: iWantRematch ? '#8b93b0' : '#1a1405',
+            }}
+          >
+            {iWantRematch ? '상대를 기다린다…' : '계속하기'}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onLeave}
           style={{
-            padding: '12px 28px',
-            fontSize: 15,
+            padding: '10px 24px',
+            fontSize: 14,
             fontWeight: 600,
             borderRadius: 10,
-            border: '1px solid #48507a',
-            background: '#ffcf5c',
-            color: '#1a1405',
+            border: '1px solid #2e3448',
+            background: 'transparent',
+            color: '#b6bdd4',
           }}
         >
-          로비로
+          로비로 나가기
         </button>
       </div>
     </div>
@@ -472,8 +568,9 @@ function HurtNotice({
       <div style={{ fontSize: 20, fontWeight: 700, color: mine ? '#ff6b6b' : '#f2f4fb' }}>
         {mine ? '내 물건이 떨어졌다' : `${who}의 물건이 떨어졌다`}
       </div>
+      {/* 무적은 하트 위 베리어가 이미 보여준다 — 글로 한 번 더 말하면 읽을 것만 늘어난다 */}
       <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
-        목숨 −1 · 남은 {hurt.lives}개{hurt.lives > 0 && ' · 잠시 무적'}
+        목숨 −1 · 남은 {hurt.lives}개
       </div>
     </div>
   )

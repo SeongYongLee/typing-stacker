@@ -111,7 +111,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   const collapsing = state.phase === 'collapsing'
 
   return (
-    <div style={rootStyle} onPointerDown={paused ? undefined : focus}>
+    <div style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
       <Hud stats={state.stats} elapsed={state.elapsed} />
 
       <div style={fieldLayerStyle}>

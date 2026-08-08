@@ -76,3 +76,37 @@ describe('resolveItem', () => {
     expect(WORDS.length).toBeGreaterThanOrEqual(12)
   })
 })
+
+/**
+ * 히든이 얼마나 자주 보이는지.
+ *
+ * HIDDEN_CHANCE만 보면 알 수 없다. 실제 빈도는 히든을 가진 단어의 비율이 함께
+ * 정한다. 물건을 20종에서 57종으로 늘렸을 때 단어만 늘고 히든은 그대로여서
+ * 판당 기대 히든이 1.5개에서 0.41개로 떨어졌고, 대부분의 판에서 하나도 안 나왔다.
+ * 그 일이 다시 나면 여기서 잡힌다.
+ */
+describe('히든 체감 빈도', () => {
+  const DROPS_PER_RUN = 20
+
+  function expectedPerRun(): number {
+    const rng = createRng(20260808)
+    let hidden = 0
+    const samples = 20000
+    for (let i = 0; i < samples; i += 1) {
+      if (resolveItem(rng.pick(WORDS).word, rng).hidden) {
+        hidden += 1
+      }
+    }
+    return (hidden / samples) * DROPS_PER_RUN
+  }
+
+  it('한 판에 히든을 한 번은 만난다', () => {
+    // 아래로 떨어지면 히든이 있다는 사실 자체를 모르게 된다
+    expect(expectedPerRun()).toBeGreaterThan(0.7)
+  })
+
+  it('그렇다고 흔하지는 않다', () => {
+    // 판마다 여럿 나오면 "가끔 나오는 다른 형태"라는 의미가 사라진다
+    expect(expectedPerRun()).toBeLessThan(2.5)
+  })
+})

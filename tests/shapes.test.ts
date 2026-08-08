@@ -133,16 +133,21 @@ describe('물건 크기', () => {
     }
   })
 
-  it('조준 범위는 받침대와 같다 — 끝을 노리면 걸치도록', () => {
+  it('조준은 받침대 밖까지 나간다 — 끝을 노리면 값을 치르도록', () => {
     /*
      * 예전에는 가장 큰 물건의 반폭을 빼서 어느 타이밍에 Enter를 쳐도 온전히
      * 얹히게 했다. 그러면 조준이 틀려도 손해가 없어 "정확히" 쪽의 보상이 사라진다.
      */
-    expect(AIM_HALF_RANGE).toBe(ARENA.platformHalfWidth)
+    expect(AIM_HALF_RANGE).toBeGreaterThan(ARENA.platformHalfWidth)
   })
 
-  it('조준 끝에서도 물건의 절반 이상은 받침대에 걸린다 — 즉시 이탈은 아니어야 한다', () => {
-    // 물건 중심이 받침대 끝에 놓이므로 언제나 절반은 얹힌다. 나머지는 물리가 정한다
-    expect(MAX_ITEM_HALF_WIDTH).toBeLessThan(ARENA.platformHalfWidth)
+  it('조준 끝이 점선 틀 안에 머문다 — 화살표가 틀 밖으로 나가면 안 된다', () => {
+    expect(AIM_HALF_RANGE).toBeLessThan(ARENA.halfWidth)
+  })
+
+  it('가장 큰 물건도 조준 끝에서 절반 넘게 받침대에 걸린다', () => {
+    // 큰 물건까지 즉사하면 무너짐이 아니라 조준이 판을 끝내게 된다
+    const overhang = AIM_HALF_RANGE - ARENA.platformHalfWidth
+    expect(overhang).toBeLessThan(MAX_ITEM_HALF_WIDTH)
   })
 })

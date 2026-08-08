@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { play } from '../components/animate.ts'
+import { withObject, withSubject, withTopic } from '../text/particle.ts'
 import { StackArena } from '../components/StackArena.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
 import { LIVES } from '../game/config.ts'
@@ -258,6 +259,7 @@ function InputRow({
       </div>
 
       <ActionHint state={state} />
+      <AimResult state={state} />
       {/*
         * 알릴 것이 없을 때도 이 줄의 자리를 비워둔다. 나타났다 사라지게 하면 입력줄
         * 높이가 바뀌어 아레나가 위아래로 밀린다 — 조준 중에 화면이 움직이면 안 된다.
@@ -307,6 +309,80 @@ function ActionHint({ state }: { state: MatchViewState }) {
   )
 }
 
+/**
+ * 노려보려 한 결과.
+ *
+ * 남이 이미 노리는 단어는 뺏지 못한다. 그때 아무 반응이 없으면 "쳤는데 왜 아무 일도
+ * 없지"가 남는다 — 정확히 친 손을 헛치게 만드는 것이라 반드시 말해줘야 한다.
+ *
+ * 성공은 옅게, 실패는 눈에 띄게 한다. 성공은 칩에 색이 붙는 것으로 이미 보이지만
+ * 실패는 화면에 아무 흔적이 남지 않기 때문이다.
+ */
+function AimResult({ state }: { state: MatchViewState }) {
+  const result = state.aimResult
+  const seq = result?.seq ?? 0
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const [shown, setShown] = useState<{ text: string; failed: boolean } | null>(null)
+  const timer = useRef(0)
+
+  useEffect(() => {
+    if (result === null) {
+      return
+    }
+    const failed = result.takenBy !== null
+    const taker =
+      state.players.find((player) => player.id === result.takenBy)?.nickname ?? '다른 사람'
+    setShown({
+      text: failed
+        ? `${withTopic(result.word)} ${withSubject(taker)} 먼저 노렸다`
+        : `${withObject(result.word)} 노렸다`,
+      failed,
+    })
+    play(
+      ref.current,
+      failed
+        ? [
+            // 실패는 좌우로 흔든다 — 커지는 것은 성공으로 읽힌다
+            { transform: 'translateX(0)', opacity: 1 },
+            { transform: 'translateX(-5px)', offset: 0.2 },
+            { transform: 'translateX(4px)', offset: 0.45 },
+            { transform: 'translateX(0)', offset: 0.7 },
+            { transform: 'translateX(0)', opacity: 0 },
+          ]
+        : [
+            { transform: 'scale(0.94)', opacity: 0 },
+            { transform: 'scale(1.06)', opacity: 1, offset: 0.25 },
+            { transform: 'scale(1)', opacity: 1, offset: 0.5 },
+            { transform: 'scale(1)', opacity: 0 },
+          ],
+      { duration: AIM_RESULT_MS, easing: 'ease-out' },
+    )
+    clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setShown(null), AIM_RESULT_MS)
+    // seq가 바뀔 때만 새 결과다 — 같은 시도를 매 프레임 다시 띄우지 않는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  return (
+    <span
+      ref={ref}
+      data-aim-result={shown === null ? undefined : shown.failed ? 'failed' : 'ok'}
+      style={{
+        fontSize: 13,
+        fontWeight: shown?.failed === true ? 700 : 400,
+        color: shown === null ? 'transparent' : shown.failed ? '#ff9f6b' : '#8b93b0',
+        visibility: shown === null ? 'hidden' : 'visible',
+      }}
+    >
+      {shown?.text ?? ' '}
+    </span>
+  )
+}
+
+const AIM_RESULT_MS = 2200
+
 /** 다음에 떨굴 수 있을 때까지 남은 시간. 숫자보다 줄어드는 막대가 눈에 빨리 들어온다 */
 function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: string }) {
   return (
@@ -342,7 +418,13 @@ function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: stri
  * **누가 누구를 노렸는지 이름을 다 댄다.** 여덟이 붙으면 "상대"로는 누가 누구에게
  * 당했는지 알 수 없고, 하트를 훑어 역산해야 한다.
  */
-const AIM_NOTICE_MS = 3600
+/**
+ * 가운데 알림이 남아 있는 시간.
+ *
+ * 반 칸은 하트만 봐서는 알아채기 어렵다. 무슨 일이 있었는지 읽고, 누구인지 확인하고,
+ * 남은 하트까지 세는 데 걸리는 시간을 담아야 한다.
+ */
+const CENTER_NOTICE_MS = 5000
 
 function AimNotice({ state }: { state: MatchViewState }) {
   const aim = state.lastAim
@@ -352,6 +434,7 @@ function AimNotice({ state }: { state: MatchViewState }) {
     who: string
     victim: string
     word: string
+    lives: number
     tone: 'mine' | 'hit' | 'other'
   } | null>(null)
   const timer = useRef(0)
@@ -366,6 +449,7 @@ function AimNotice({ state }: { state: MatchViewState }) {
       who: nameOf(aim.by),
       victim: nameOf(aim.victim),
       word: aim.word,
+      lives: new Map(state.lives).get(aim.victim) ?? 0,
       tone: aim.by === state.selfId ? 'mine' : aim.victim === state.selfId ? 'hit' : 'other',
     })
     /*
@@ -382,10 +466,10 @@ function AimNotice({ state }: { state: MatchViewState }) {
         { opacity: 0, transform: 'scale(1)' },
       ],
       // 반 칸은 하트만 봐서는 알아채기 어렵다. 읽고 이해할 시간까지 두고 남긴다
-      { duration: AIM_NOTICE_MS, easing: 'ease-out' },
+      { duration: CENTER_NOTICE_MS, easing: 'ease-out' },
     )
     clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setShown(null), AIM_NOTICE_MS)
+    timer.current = window.setTimeout(() => setShown(null), CENTER_NOTICE_MS)
     // seq가 바뀔 때만 새 알림이다 — 같은 노림을 매 프레임 다시 띄우지 않는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq])
@@ -413,19 +497,16 @@ function AimNotice({ state }: { state: MatchViewState }) {
       }}
     >
       {/*
-        * 보는 사람에 따라 주어를 바꾼다. "A의 노림이 B에게 성공"처럼 3인칭으로 쓰면
-        * 내가 노린 쪽인지 당한 쪽인지 한 박자 늦게 읽힌다 — 판이 벌어지는 중에
-        * 그 한 박자가 아깝다.
+        * **누구든 닉네임으로 부른다.** "내 노림"처럼 대명사를 쓰면 옆에서 보는 사람과
+        * 당사자가 서로 다른 문장을 읽게 되어, 나중에 판을 되짚을 때 말이 안 맞는다.
+        * 누가 노린 쪽이고 누가 당한 쪽인지는 색이 말한다.
         */}
       <div style={{ fontSize: 20, fontWeight: 700, color }}>
-        {shown.tone === 'mine'
-          ? `${shown.victim}가 내 노림에 걸렸다`
-          : shown.tone === 'hit'
-            ? `${shown.who}의 노림에 걸렸다`
-            : `${shown.victim}가 ${shown.who}의 노림에 걸렸다`}
+        {withSubject(shown.victim)} {shown.who}의 노림에 걸렸다
       </div>
+      {/* 서브텍스트는 가운데 알림끼리 같은 것을 말한다 — 깎인 사람의 남은 하트 */}
       <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
-        {shown.word} · 하트 반 칸
+        {shown.word} · {shown.victim} 남은 하트 {shown.lives}
       </div>
     </div>
   )
@@ -704,12 +785,13 @@ function HurtNotice({
         pointerEvents: 'none',
       }}
     >
+      {/* 노림 알림과 같은 규칙 — 누구든 닉네임으로 부르고, 내 일인지는 색이 말한다 */}
       <div style={{ fontSize: 20, fontWeight: 700, color: mine ? '#ff6b6b' : '#f2f4fb' }}>
-        {mine ? '내 물건이 떨어졌다' : `${who}의 물건이 떨어졌다`}
+        {who}의 물건이 떨어졌다
       </div>
       {/* 무적은 하트 위 베리어가 이미 보여준다 — 글로 한 번 더 말하면 읽을 것만 늘어난다 */}
       <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
-        목숨 −1 · 남은 {hurt.lives}개
+        {who} 남은 하트 {hurt.lives}
       </div>
     </div>
   )

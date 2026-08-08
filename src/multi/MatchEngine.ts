@@ -93,6 +93,15 @@ interface MatchViewState {
    */
   readonly aimed: readonly { readonly word: string; readonly by: PlayerId }[]
   /** 방금 되찾은 하트. 같은 seq면 이미 보여준 것이다 */
+  /**
+   * 방금 노려보려 한 결과. 성공했는지, 누가 먼저 차지했는지.
+   * 되든 안 되든 알려야 한다 — 아무 반응이 없으면 왜 안 됐는지 알 수 없다.
+   */
+  readonly aimResult: {
+    readonly word: string
+    readonly takenBy: PlayerId | null
+    readonly seq: number
+  } | null
   /** 방금 먹힌 노림. 같은 seq면 이미 보여준 것이다 */
   readonly lastAim: {
     readonly by: PlayerId
@@ -218,6 +227,12 @@ class MatchEngine {
    */
   private readonly aimOf = new Map<PlayerId, string>()
   /** 방금 되찾은 하트. 화면이 한 번 띄우고 지운다 */
+  /**
+   * 방금 노려보려 한 결과. 화면이 한 번 띄우고 지운다.
+   * `takenBy`가 있으면 그 사람이 먼저 노리고 있어 실패한 것이다.
+   */
+  private aimResult: { word: string; takenBy: PlayerId | null; seq: number } | null = null
+  private aimResultSeq = 0
   /** 방금 먹힌 노림. 화면이 한 번 띄우고 지운다 */
   private lastAim: { by: PlayerId; victim: PlayerId; word: string; seq: number } | null = null
   private aimSeq = 0
@@ -360,8 +375,8 @@ class MatchEngine {
       this.requestDrop(word)
       return
     }
-    // 떨굴 수 없는 동안의 타자는 덫이 된다
-    this.sendHarass(word)
+    // 떨굴 수 없는 동안의 타자는 노림이 된다
+    this.sendAim(word)
   }
 
   handleTransportEvent(event: TransportEvent): void {
@@ -509,13 +524,24 @@ class MatchEngine {
   }
 
   /**
-   * 이 단어에 덫을 건다.
+   * 이 단어를 노린다.
+   *
+   * **되든 안 되든 화면에 알린다.** 남이 이미 노리는 단어는 뺏지 못하는데, 그때
+   * 아무 반응이 없으면 "쳤는데 왜 아무 일도 없지"가 남는다 — 손을 멈추게 하는 것과
+   * 같은 대가다.
    *
    * 방향에 따라 메시지가 다르다 — 참가자는 방장을 거쳐야 하지만(`harass`),
    * 방장은 자기가 보낸 참가자용 메시지를 스스로 처리하지 않으므로 같은 방식으로
    * 보내면 아무 데도 닿지 않는다. 방장은 결과(`harassed`)를 바로 알린다.
    */
-  private sendHarass(word: string): void {
+  private sendAim(word: string): void {
+    const takenBy = this.aimedWord.get(word)
+    if (takenBy !== undefined && takenBy !== this.transport.selfId) {
+      this.aimResult = { word, takenBy, seq: (this.aimResultSeq += 1) }
+      this.emit()
+      return
+    }
+    this.aimResult = { word, takenBy: null, seq: (this.aimResultSeq += 1) }
     if (this.transport.isHost) {
       this.transport.broadcast({ t: 'harassed', by: this.transport.selfId, word })
       this.applyAim(this.transport.selfId, word)
@@ -995,6 +1021,7 @@ class MatchEngine {
       words: this.spawner.words,
       aimNormalized: this.aimer.normalized,
       aimed: this.aimedView,
+      aimResult: this.aimResult,
       lastAim: this.lastAim,
       feedback: this.feedback,
       winner: snapshot.winner,

@@ -10,10 +10,10 @@
  */
 
 /** 번짐이 잘리지 않게 둘 여백 (원본 픽셀 기준) */
-const PAD = 16
-const BLUR = 9
+const PAD = 22
+const BLUR = 12
 /** 겹칠수록 진해진다. 미리 만들어 두므로 몇 번을 겹쳐도 프레임 비용은 같다 */
-const PASSES = 4
+const PASSES = 6
 
 const cache = new Map<string, HTMLCanvasElement | null>()
 

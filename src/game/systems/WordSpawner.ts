@@ -8,6 +8,14 @@ const SIDES: readonly Side[] = ['left', 'right']
 class WordSpawner {
   private readonly rng: Rng
   private readonly entries: readonly WordEntry[]
+  /**
+   * 지금 실제로 뽑는 밭. 보통은 `entries` 전체지만 판 앞머리에는 좁혀둔다.
+   *
+   * 스포너를 새로 만들어 갈아치우는 방법을 쓰지 않은 이유는, 그러면 **내려오던 단어가
+   * 사라지기** 때문이다. 밭이 넓어지는 것은 다음에 뽑을 때부터 달라지는 일이지
+   * 화면을 갈아엎는 일이 아니다.
+   */
+  private pool: readonly WordEntry[]
   private list: FallingWord[] = []
   private timer = 0
   private nextId = 1
@@ -29,6 +37,7 @@ class WordSpawner {
   constructor(rng: Rng, entries: readonly WordEntry[]) {
     this.rng = rng
     this.entries = entries
+    this.pool = entries
     // 시작하자마자 첫 단어가 나오도록 타이머를 채워둔다
     this.timer = Number.POSITIVE_INFINITY
   }
@@ -48,6 +57,26 @@ class WordSpawner {
   /** 이제부터 밖에서 준 밭만 따른다 */
   follow(): void {
     this.following = true
+  }
+
+  /**
+   * 뽑을 단어를 이것들로 좁힌다. 판 앞머리에 첫 합성을 앞당기는 데 쓴다.
+   *
+   * 빈 목록이 오면 좁히지 않는다 — 밭이 비면 단어가 하나도 안 나와 판이 멈춘다.
+   * 이유와 측정값은 `systems/Opening.ts`에 있다.
+   */
+  restrict(pool: readonly WordEntry[]): void {
+    this.pool = pool.length > 0 ? pool : this.entries
+  }
+
+  /** 밭을 전체로 되돌린다. 이미 내려오는 단어는 그대로 둔다 */
+  release(): void {
+    this.pool = this.entries
+  }
+
+  /** 지금 밭이 좁혀져 있는가. 화면이 알려줄 일이 생기면 이것을 본다 */
+  get restricted(): boolean {
+    return this.pool !== this.entries
   }
 
   /**
@@ -133,7 +162,7 @@ class WordSpawner {
 
     // 같은 단어가 화면에 둘 있으면 어느 것을 맞춘 것인지 모호해진다
     const taken = new Set(active.map((word) => word.word))
-    const candidates = this.entries.filter((entry) => !taken.has(entry.word))
+    const candidates = this.pool.filter((entry) => !taken.has(entry.word))
     if (candidates.length === 0) {
       return
     }

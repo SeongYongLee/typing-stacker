@@ -16,6 +16,7 @@ import { difficultyAt, difficultyProgress, forPlayers } from '../game/systems/Di
 import { resolveItem } from '../game/systems/ItemResolver.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
+import { LandingGlow } from '../game/systems/LandingGlow.ts'
 import { WordSpawner } from '../game/systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../game/types/events.ts'
 import type { FallingWord, OwnerId } from '../game/types/game.ts'
@@ -208,6 +209,8 @@ class MatchEngine {
   private itemRng: Rng
   private spawner: WordSpawner
   private aimer = new Aimer(AIM_HALF_RANGE)
+  /** 빛나는 물건이 얹힐 때 번지는 색. 싱글과 같은 것을 쓴다 */
+  private readonly landing = new LandingGlow()
   private elapsed = 0
 
   /** 사람별로 다음에 떨굴 수 있을 때까지 남은 시간(초) */
@@ -894,6 +897,8 @@ class MatchEngine {
 
   private readonly update = (dt: number): void => {
     this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
+    // 판이 끝난 뒤에도 색은 계속 사라져야 한다 — 그리기가 매 프레임 이어지므로
+    this.landing.advance(dt)
     if (this.match.over || this.connectionLost) {
       return
     }
@@ -928,6 +933,7 @@ class MatchEngine {
     this.spawner.update(dt, difficulty)
 
     const { impacts, escaped, quake } = this.physics.step(dt)
+    this.landing.note(impacts)
     for (const hit of impacts) {
       this.fire({
         kind: 'impact',
@@ -1027,10 +1033,13 @@ class MatchEngine {
       aimX: this.aimer.worldX,
       showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
       hiddenReveal: null,
+      landing: this.landing.view,
       quake: 0,
       quakePhase: 0,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
+      // 꼬리 부스러기가 이 값의 차이로 시간을 흘린다
+      time: this.elapsed,
       ownerColors: this.ownerColors,
     })
   }

@@ -1,4 +1,7 @@
-import { shakeScale } from './displayPrefs.ts'
+import { glowScale, shakeScale, trailScale } from './displayPrefs.ts'
+import { glowAlpha, glowColor, glowStyle } from './glow.ts'
+import { trailPaint } from './trailPaint.ts'
+import { TrailField } from '../systems/TrailField.ts'
 import { sprite } from './spriteCache.ts'
 import { padRatio, rim } from './rimCache.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
@@ -14,7 +17,53 @@ import type {
 interface HiddenReveal {
   readonly label: string
   readonly sprite: string
+  /**
+   * 무엇으로 만들었는지. 합성으로 얻었을 때만 채워진다.
+   *
+   * 비어 있으면 운으로 만난 히든이라 모이는 장면 없이 결과물만 나타난다 —
+   * 없던 것을 지어내면 "재료가 있었나" 하고 다음 판에 헛것을 찾게 된다.
+   */
+  readonly from: readonly string[]
   /** 0 → 1 */
+  readonly progress: number
+}
+
+/**
+ * 재료가 모이는 데 쓰는 몫(0~1).
+ *
+ * 합성 연출은 3초이므로 앞 1.1초가 모이는 시간이다. 처음 1.8초에 3할(0.54초)로
+ * 뒀더니 재료가 무엇이었는지 알아보기 전에 겹쳐버렸다 — 눈이 화면 가운데로
+ * 옮겨오는 데만도 시간이 걸린다. 반대로 더 끌면 결과물을 읽을 시간이 모자란다.
+ */
+const MERGE_GATHER = 0.36
+
+/**
+ * 재료가 출발하는 방향.
+ *
+ * 지금 레시피는 27개 전부 재료가 둘이라 앞의 둘만 쓰인다. 나머지는 셋 이상짜리가
+ * 생겼을 때를 위한 자리다 — 방향이 모자라면 재료 둘이 같은 곳에서 출발해 하나로 보인다.
+ */
+const GATHER_FROM: readonly (readonly [number, number])[] = [
+  [-1, 0.12],
+  [1, 0.12],
+  [0, -1],
+  [-0.8, -0.7],
+  [0.8, -0.7],
+]
+
+/**
+ * 방금 얹힌 물건이 화면에 남기는 색.
+ *
+ * `hiddenReveal`과 같은 모양이다 — 엔진은 **무슨 색이 얼마나 남았는지**만 넘기고
+ * 그것을 어떻게 그릴지는 렌더러가 정한다. 색이 물건의 것(`words.ts`의 `color`)이라
+ * 엔진을 지나오는 것이고, 밝기를 맞추고 알파를 매기는 일은 `glow.ts`가 한다.
+ */
+interface LandingGlow {
+  /** 물건 고유색 (`#rrggbb`) */
+  readonly color: string
+  /** 부딪힌 세기 0~1 */
+  readonly strength: number
+  /** 0(닿은 순간) → 1(다 사라짐) */
   readonly progress: number
 }
 
@@ -23,6 +72,8 @@ interface ArenaRenderState {
   readonly aimX: number
   readonly showAim: boolean
   readonly hiddenReveal: HiddenReveal | null
+  /** 방금 얹힌 물건의 색. 없으면 null */
+  readonly landing: LandingGlow | null
   /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
   readonly quake: number
   /** 흔들림 위상 — 프레임마다 흐르는 시간 */
@@ -40,6 +91,14 @@ interface ArenaRenderState {
   readonly cameraY: number
   /** 쌓인 것들의 꼭대기. 조준선이 여기까지 내려와 어디에 떨어질지 가리킨다 */
   readonly stackTop: number
+  /**
+   * 판이 시작된 뒤 흐른 시간(초). 줄어들지 않는 값이어야 한다.
+   *
+   * 꼬리 부스러기가 이것의 **차이**로 시간을 흘린다. 렌더러는 `update`와 따로 도는
+   * 콜백이라 dt를 받지 않는데, 브라우저 시계를 여기서 읽으면 판의 시간과 어긋난다 —
+   * 일시정지 중에도 부스러기가 계속 흐르게 된다.
+   */
+  readonly time: number
 }
 
 const COLORS = {
@@ -86,6 +145,9 @@ class ArenaRenderer {
   private scale = 1
   private cssWidth = 0
   private cssHeight = 0
+  /** 흘린 부스러기들. 렌더러가 소유한다 — 판의 결과에 닿지 않는 연출이다 */
+  private readonly trails = new TrailField()
+  private trailTime = 0
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d')
@@ -116,6 +178,17 @@ class ArenaRenderer {
     this.cameraY = state.cameraY
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
 
+    /*
+     * 얹힌 색은 **흔들림 밖에서** 화면 전체에 깐다.
+     *
+     * 흔들림 안에 두면 색판이 함께 밀려 가장자리에 칠하지 않은 띠가 생긴다.
+     * 그리는 순서도 여기가 맞다 — 틀·받침대·물건보다 뒤에 있어야 색이 그것들을
+     * 덮지 않는다. 캔버스가 레인 뒤까지 화면을 덮고 있어 이 한 번의 칠이 곧 배경이다.
+     */
+    if (state.landing !== null) {
+      this.drawLandingGlow(state.landing)
+    }
+
     ctx.save()
     /*
      * 흔들림은 설정을 곱해 쓴다. 0이면 아예 흔들리지 않는다 —
@@ -138,6 +211,11 @@ class ArenaRenderer {
     if (state.showAim) {
       this.drawAim(state.aimX, state.stackTop)
     }
+    /*
+     * 부스러기는 물건보다 **뒤에** 그린다. 위에 그리면 흘린 것이 흘린 물건을 가려
+     * 무엇이 떨어지는지가 오히려 안 보인다 — 꼬리를 붙인 이유와 반대가 된다.
+     */
+    this.drawTrails(state)
     for (const body of state.bodies) {
       this.drawBody(body, state.ownerColors)
     }
@@ -157,6 +235,77 @@ class ArenaRenderer {
       KILL_LINE_MARGIN * this.scale -
       (worldY - ARENA.killY - this.cameraY) * this.scale
     )
+  }
+
+  /**
+   * 방금 얹힌 물건의 색을 화면에 번지게 한다.
+   *
+   * `lighter`(가산 합성)를 쓴다. 보통 합성으로 덮으면 짙은 색이 배경을 **어둡게** 만들어
+   * "무엇이 얹혔다"가 아니라 "화면이 꺼졌다"로 보인다. 빛을 더하는 쪽이면 어떤 색이든
+   * 밝아지는 방향으로만 움직이므로, 배경이 어두운 이 화면에서 늘 같은 뜻으로 읽힌다.
+   *
+   * 알파에 사용자 설정을 곱한다. 0이면 아예 그리지 않는다 — 색이 번지는 화면이
+   * 눈에 피로한 사람에게는 그것만으로 이 게임이 오래 못 하는 게임이 된다.
+   */
+  private drawLandingGlow(landing: LandingGlow): void {
+    const alpha = glowAlpha(landing.progress, landing.strength) * glowScale()
+    if (alpha <= 0) {
+      return
+    }
+    const { ctx } = this
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = glowStyle(glowColor(landing.color), alpha)
+    ctx.fillRect(0, 0, this.cssWidth, this.cssHeight)
+    ctx.restore()
+  }
+
+  /**
+   * 흘린 부스러기를 그린다.
+   *
+   * 갈래마다 다르게 칠한다 — 반짝임은 빛을 더해(`lighter`) 뜨는 것처럼, 나머지는
+   * 그대로 덮어 물감처럼. 흩날리는 잎을 가산 합성으로 그리면 색이 다 하얗게 뜬다.
+   *
+   * 시간은 `state.time`의 차이로 낸다. 처음 한 프레임과 판이 새로 시작된 프레임은
+   * 차이가 뒤로 가거나 크게 뛰므로 흘리지 않고 기준만 맞춘다.
+   */
+  private drawTrails(state: ArenaRenderState): void {
+    const scale = trailScale()
+    if (scale <= 0) {
+      this.trails.reset()
+      this.trailTime = state.time
+      return
+    }
+    const dt = state.time - this.trailTime
+    this.trailTime = state.time
+    if (dt < 0) {
+      // 판이 새로 시작됐다
+      this.trails.reset()
+      return
+    }
+    this.trails.update(state.bodies, dt)
+
+    const { ctx } = this
+    ctx.save()
+    for (const particle of this.trails.particles) {
+      const paint = trailPaint(particle, scale)
+      if (paint.alpha <= 0) {
+        continue
+      }
+      ctx.globalCompositeOperation = paint.additive ? 'lighter' : 'source-over'
+      ctx.fillStyle = paint.style
+      const radius = Math.max(0.6, particle.size * this.scale)
+      ctx.beginPath()
+      ctx.arc(
+        this.toScreenX(particle.x),
+        this.toScreenY(particle.y),
+        radius,
+        0,
+        Math.PI * 2,
+      )
+      ctx.fill()
+    }
+    ctx.restore()
   }
 
   private drawFrame(): void {
@@ -270,7 +419,17 @@ class ArenaRenderer {
     ctx.restore()
   }
 
-  /** 히든이 나왔을 때 아레나 배경에 이름과 링을 깔아준다 */
+  /**
+   * 히든이 나왔을 때 아레나 배경에 이름과 링을 깔아준다.
+   *
+   * 합성이면 그 앞에 **재료가 모이는 장면**이 붙는다. 결과물만 띄우면 방금 무엇이
+   * 사라졌는지 알 수 없어서, 붙여보고 싶은 짝을 다음 판에 기억하지 못한다 —
+   * 합성은 레시피를 외워가는 재미인데 그 배울 기회가 딱 이 순간뿐이다.
+   *
+   * 물건이 실제로 합쳐지는 곳은 쌓인 탑 위 그 자리이고, 여기는 **그것을 알리는
+   * 자막**이다. 자막에서 다시 합치는 것이 두 번 보여주는 셈처럼 보이지만,
+   * 탑 위에서 벌어지는 일은 한 프레임 만에 끝나고 그때 눈은 다음 단어를 쫓고 있다.
+   */
   private drawHiddenReveal(reveal: HiddenReveal): void {
     const { ctx } = this
     const t = Math.min(Math.max(reveal.progress, 0), 1)
@@ -291,11 +450,40 @@ class ArenaRenderer {
     const cy = this.toScreenY(ARENA.height * 0.74 + this.cameraY)
     const unit = this.scale
 
+    /*
+     * 합성이면 앞 3할 동안 재료가 모인다. 그동안 결과물은 아직 없다 —
+     * 겹쳐 그리면 결과가 재료보다 먼저 보여서 "합쳐졌다"가 아니라 "셋이 겹쳤다"가 된다.
+     */
+    const merging = reveal.from.length > 0
+    const gather = merging ? Math.min(t / MERGE_GATHER, 1) : 1
+
     ctx.save()
     ctx.globalAlpha = alpha
 
+    if (merging && gather < 1) {
+      this.drawGathering(reveal.from, cx, cy, unit, gather, alpha)
+      ctx.restore()
+      return
+    }
+
+    // 모임이 끝난 **그 순간**에 한 번 번쩍인다. 재료가 결과로 바뀌는 자리를 못 박는다
+    const flash = merging ? Math.max(0, 1 - (t - MERGE_GATHER) / 0.1) : 0
+    if (flash > 0) {
+      // 결과물을 덮어버리지 않을 만큼만. 가리면 번쩍임이 아니라 빈칸으로 보인다
+      ctx.globalAlpha = alpha * flash * 0.55
+      ctx.fillStyle = COLORS.hidden
+      ctx.beginPath()
+      ctx.arc(cx, cy, unit * (0.5 + (1 - flash) * 1.1), 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    /*
+     * 링은 결과물이 나온 시점을 0으로 잡는다. 합성일 때 연출 시작을 0으로 두면
+     * 재료가 모이는 동안 링이 이미 다 퍼져서, 정작 결과가 나올 때는 아무 일도 없다.
+     */
+    const ringBase = merging ? Math.max(0, (t - MERGE_GATHER) / (1 - MERGE_GATHER)) : t
     for (let i = 0; i < 2; i += 1) {
-      const ringT = Math.min(t * 1.6 - i * 0.18, 1)
+      const ringT = Math.min(ringBase * 1.6 - i * 0.18, 1)
       if (ringT <= 0) continue
       ctx.beginPath()
       ctx.arc(cx, cy, unit * (0.3 + ringT * 1.7), 0, Math.PI * 2)
@@ -305,8 +493,10 @@ class ArenaRenderer {
       ctx.stroke()
     }
 
-    ctx.globalAlpha = alpha * 0.2
-    const ghost = unit * (1.3 + t * 0.5)
+    // 결과물은 튀어나오듯 커진다. 모이던 것이 하나로 뭉쳐 부풀어 오르는 것으로 읽힌다
+    const pop = merging ? Math.min(ringBase / 0.16, 1) : 1
+    ctx.globalAlpha = alpha * 0.2 * (0.4 + pop * 0.6)
+    const ghost = unit * (1.3 + t * 0.5) * (0.55 + pop * 0.45)
     const img = sprite(reveal.sprite)
     if (img !== null) {
       const ratio = img.naturalWidth / img.naturalHeight
@@ -343,9 +533,53 @@ class ArenaRenderer {
     ctx.fillText(reveal.label, cx, labelY)
     ctx.font = `${tagSize}px ${UI_FONT}`
     ctx.globalAlpha = alpha * 0.75
-    ctx.fillText('HIDDEN', cx, tagY)
+    // 어느 길로 얻었는지가 이 한 단어로 갈린다 — 운으로 만난 것과 손으로 만든 것
+    ctx.fillText(reveal.from.length > 0 ? '합성' : 'HIDDEN', cx, tagY)
 
     ctx.restore()
+  }
+
+  /**
+   * 재료가 가운데로 미끄러져 들어온다.
+   *
+   * 출발 자리는 `GATHER_FROM`의 방향뿐이고 거리는 화면 크기(`unit`)를 따른다 —
+   * 실제로 어디서 합쳐졌는지와는 상관없다. 이것은 월드에 놓인 물건이 아니라
+   * "이것과 이것이었다"를 알리는 자막이다.
+   */
+  private drawGathering(
+    from: readonly string[],
+    cx: number,
+    cy: number,
+    unit: number,
+    gather: number,
+    alpha: number,
+  ): void {
+    const { ctx } = this
+    // 끝에서 살짝 붙는 느낌이 나도록 뒤로 갈수록 빨라진다
+    const eased = gather * gather * (3 - 2 * gather)
+    const spread = unit * 1.5 * (1 - eased)
+    // 겹치기 직전에 작아진다 — 같은 크기로 겹치면 뒤엣것이 앞엣것에 가려 사라진 것처럼 보인다
+    const size = unit * (1.0 - eased * 0.25)
+
+    for (let i = 0; i < from.length; i += 1) {
+      const dir = GATHER_FROM[i % GATHER_FROM.length]!
+      const img = sprite(from[i]!)
+      if (img === null) {
+        continue
+      }
+      const ratio = img.naturalWidth / img.naturalHeight
+      const w = ratio >= 1 ? size : size * ratio
+      const h = ratio >= 1 ? size / ratio : size
+      // 처음부터 알아볼 수 있어야 한다 — 무엇이 재료였는지가 이 연출의 전부다
+      ctx.globalAlpha = alpha * (0.5 + eased * 0.4)
+      ctx.drawImage(
+        img,
+        cx + dir[0] * spread - w / 2,
+        cy + dir[1] * spread - h / 2,
+        w,
+        h,
+      )
+    }
   }
 
   private drawBody(

@@ -78,6 +78,23 @@ const scrollStyle: CSSProperties = {
  */
 const ICON_SIZE = 72
 
+/**
+ * 못 찾은 칸은 **실루엣**으로 둔다.
+ *
+ * 물음표였을 때 칸들이 서로 완전히 같아서, 못 찾은 것이 몇 개인지는 알아도
+ * **무엇을 못 찾았는지**는 알 수 없었다. 도감을 여는 이유가 "뭐가 남았지"인데
+ * 그 물음에 물음표로 답한 셈이다.
+ *
+ * 실루엣은 모양만 흘린다. 자전거나 번개처럼 윤곽이 뚜렷한 것은 바로 알아보고,
+ * 둥근 것들은 여전히 짐작으로 남는다 — 그 어긋남이 오히려 "저건 뭐지"를 만든다.
+ * 이름과 레시피는 그대로 가린다.
+ *
+ * 그림을 어둡게 칠하는 것이 아니라 **알파를 틀로 삼아** 한 색으로 채운다
+ * (`mask-image`). `filter: brightness(0)`으로도 검게는 되지만 색을 고를 수 없어서
+ * 배경에 묻히거나 반대로 튄다. 히든과 기본형의 색을 가르려면 색을 쥐고 있어야 한다.
+ */
+const SILHOUETTE = { plain: '#2f3550', hidden: '#4d3f18' } as const
+
 const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
@@ -163,17 +180,24 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
                 />
               ) : (
                 <span
+                  role="img"
+                  aria-label="아직 만나지 못한 물건"
+                  data-silhouette
                   style={{
+                    display: 'block',
                     width: ICON_SIZE,
                     height: ICON_SIZE,
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontSize: 30,
-                    color: '#3a4160',
+                    background: item.hidden ? SILHOUETTE.hidden : SILHOUETTE.plain,
+                    WebkitMaskImage: `url(${item.sprite})`,
+                    maskImage: `url(${item.sprite})`,
+                    WebkitMaskSize: 'contain',
+                    maskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    maskPosition: 'center',
                   }}
-                >
-                  ?
-                </span>
+                />
               )}
               <span
                 style={{

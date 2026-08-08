@@ -1,15 +1,17 @@
 import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
+  HIDDEN_CHANCE,
   IMPACT_FULL_SCALE,
   INVULNERABLE_SEC,
   LIVES,
+  OPENING_HIDDEN_CHANCE,
   SOLO_OWNER,
   QUAKE_DURATION,
   QUAKE_IMPACT_SCALE,
   QUAKE_MAX_AMPLITUDE,
 } from '../config.ts'
-import { WORDS } from '../data/words.ts'
+import { VARIANT_BY_ID, WORDS } from '../data/words.ts'
 import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
@@ -17,6 +19,7 @@ import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
 import { RECIPES } from '../data/recipes.ts'
 import { resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
+import { openingEntries } from '../systems/Opening.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
@@ -25,13 +28,29 @@ import { judgeInput } from '../systems/TypingJudge.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats } from '../types/game.ts'
+import { LandingGlow } from '../systems/LandingGlow.ts'
 import { GameLoop } from './GameLoop.ts'
+
+/** 표에서 못 찾은 재료를 걸러낸다 — 레시피는 id 문자열이라 오타가 조용히 지나갈 수 있다 */
+function isVariant(item: ItemVariant | undefined): item is ItemVariant {
+  return item !== undefined
+}
 
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
 const COLLAPSE_VIEW_SEC = 1.3
 
 /** 히든 등장 연출 길이 */
 const HIDDEN_REVEAL_SEC = 1.8
+
+/**
+ * 합성 연출 길이.
+ *
+ * 운으로 만난 히든보다 길다. 저쪽은 결과물 하나만 읽으면 되지만 이쪽은 **재료 둘과
+ * 결과물 셋**을 읽어야 하고, 그중 재료는 모이는 동안에만 보인다. 같은 1.8초에 밀어
+ * 넣으면 재료를 알아보기 전에 겹쳐버려서, 정작 이 연출을 붙인 이유(무엇으로
+ * 만들었는지 알리는 것)가 사라진다.
+ */
+const MERGE_REVEAL_SEC = 3
 
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
@@ -93,7 +112,23 @@ class GameEngine {
 
   private sinceLastDrop = Number.POSITIVE_INFINITY
   private collapseTimer = 0
-  private hiddenReveal: { variant: ItemVariant; elapsed: number } | null = null
+  /**
+   * 지금 알리는 중인 물건.
+   *
+   * `from`이 있으면 **합성으로 얻은 것**이라 재료가 모이는 장면부터 보여준다.
+   * 운으로 나온 히든은 재료가 없으므로 비어 있다 — 어느 길로 얻었는지가 이 하나로 갈린다.
+   */
+  private hiddenReveal:
+    | {
+        variant: ItemVariant
+        from: readonly ItemVariant[]
+        elapsed: number
+        /** 이 연출이 도는 시간(초). 합성과 운이 다르다 */
+        duration: number
+      }
+    | null = null
+  /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
+  private readonly landing = new LandingGlow()
   private quakeLeft = 0
   private quakeStrength = 0
   private quakePhase = 0
@@ -173,6 +208,12 @@ class GameEngine {
     this.runSeq += 1
     this.rng = createRng(this.seed)
     this.spawner = new WordSpawner(this.rng, WORDS)
+    /*
+     * 판 앞머리에는 쉽게 합쳐지는 몇 단어만 내보낸다. 좁히기 전에는 25번을 떨궈도
+     * 40판 중 7판만 첫 합성에 닿았다 — 만들어놓고 거의 아무도 못 보는 기능이었다.
+     * 첫 합성이 일어나면 `tryMerge`가 푼다. 측정값은 systems/Opening.ts에.
+     */
+    this.spawner.restrict(openingEntries(this.rng, WORDS))
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
@@ -225,11 +266,24 @@ class GameEngine {
     this.score.onWordMatched(result.word.word)
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
-    const variant = resolveItem(result.word.word, this.rng)
+    /*
+     * 앞머리에는 히든을 눌러둔다. 그 구간의 밭은 히든 보유 단어만으로 이루어져 있어서
+     * 같은 확률이라도 밀도가 일곱 배로 뛴다 — 재본 값은 config의 OPENING_HIDDEN_CHANCE에.
+     */
+    const variant = resolveItem(
+      result.word.word,
+      this.rng,
+      this.spawner.restricted ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE,
+    )
     this.queueDrop(variant, this.aimer.worldX)
     this.discover(variant)
     if (variant.hidden) {
-      this.hiddenReveal = { variant, elapsed: 0 }
+      this.hiddenReveal = {
+        variant,
+        from: [],
+        elapsed: 0,
+        duration: HIDDEN_REVEAL_SEC,
+      }
       this.fire({ kind: 'reveal' })
     }
 
@@ -276,16 +330,25 @@ class GameEngine {
   }
 
   /**
-   * 부딪힘을 사건으로 흘린다.
+   * 부딪힘을 소리와 화면으로 나눠 보낸다.
    *
    * 세기를 0~1로 눌러 보내는 이유는 받는 쪽이 물리 단위를 몰라도 되게 하려는 것이다.
    * 지진은 이미 화면을 흔들고 있으므로 소리에도 따로 알려서, 쿵 소리와 흔들림이
    * 같은 순간에 오게 한다.
+   *
+   * **색 번짐은 사건 통로를 타지 않는다.** 소리는 엔진이 모르는 바깥일이라 사건으로
+   * 넘기지만, 화면은 엔진이 프레임마다 스냅샷으로 밀어주는 것이다 — 히든 연출과
+   * 같은 자리다. 그래서 소리 수신자가 붙지 않은 판(테스트·headless)에서도 색은 남는다.
    */
-  private fireImpacts(
-    impacts: readonly { readonly variant: ItemVariant; readonly impact: number }[],
+  private handleImpacts(
+    impacts: readonly {
+      readonly variant: ItemVariant
+      readonly impact: number
+      readonly first: boolean
+    }[],
     quake: number,
   ): void {
+    this.landing.note(impacts)
     if (this.events === null) {
       return
     }
@@ -357,6 +420,8 @@ class GameEngine {
 
   private readonly update = (dt: number): void => {
     this.advanceQuake(dt)
+    // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
+    this.landing.advance(dt)
 
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
@@ -364,7 +429,7 @@ class GameEngine {
       const result = this.physics.step(dt)
       this.applyQuake(result.quake)
       // 쏟아지는 동안에도 부딪히는 소리는 나야 한다. 무너짐은 이 게임의 결말이다
-      this.fireImpacts(result.impacts, result.quake)
+      this.handleImpacts(result.impacts, result.quake)
       if (this.collapseTimer >= COLLAPSE_VIEW_SEC) {
         this.phase = 'over'
         this.loop.stop()
@@ -388,7 +453,7 @@ class GameEngine {
 
     if (this.hiddenReveal !== null) {
       this.hiddenReveal.elapsed += dt
-      if (this.hiddenReveal.elapsed >= HIDDEN_REVEAL_SEC) {
+      if (this.hiddenReveal.elapsed >= this.hiddenReveal.duration) {
         this.hiddenReveal = null
       }
     }
@@ -415,7 +480,7 @@ class GameEngine {
 
     const { settled, impacts, escaped, quake } = this.physics.step(dt)
     this.applyQuake(quake)
-    this.fireImpacts(impacts, quake)
+    this.handleImpacts(impacts, quake)
     for (const event of settled) {
       this.score.onSettled(event.variant, event.topY)
     }
@@ -470,11 +535,26 @@ class GameEngine {
     if (created === null) {
       return
     }
-    // 합성으로 얻은 것도 히든이다 — 운으로 만난 것과 같은 자리에서 알린다
-    this.hiddenReveal = { variant: match.recipe.result, elapsed: 0 }
+    /*
+     * 합성으로 얻은 것도 히든이다 — 운으로 만난 것과 같은 자리에서 알린다.
+     * 다만 **무엇으로 만들었는지**를 함께 넘긴다. 결과물만 띄우면 방금 무엇이
+     * 사라졌는지 알 수 없어서, 붙여보고 싶은 짝을 다음 판에 기억하지 못한다.
+     */
+    this.hiddenReveal = {
+      variant: match.recipe.result,
+      from: match.recipe.inputs.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
+      elapsed: 0,
+      duration: MERGE_REVEAL_SEC,
+    }
     this.fire({ kind: 'merge' })
     this.score.onCrafted(match.recipe.result)
     this.discover(match.recipe.result)
+    /*
+     * 앞머리 밭을 여기서 푼다. 목적이 "합성이라는 것이 있다"를 알리는 것이었으므로
+     * 알린 이 순간이 끝나는 지점이다 — 시간이나 드롭 수로 끊으면 느린 사람은 배우기
+     * 전에 풀리고 빠른 사람은 이미 아는 것을 계속 보게 된다. 이유는 systems/Opening.ts에.
+     */
+    this.spawner.release()
   }
 
   /**
@@ -500,12 +580,20 @@ class GameEngine {
           : {
               label: reveal.variant.label,
               sprite: reveal.variant.sprite,
-              progress: reveal.elapsed / HIDDEN_REVEAL_SEC,
+              from: reveal.from.map((item) => item.sprite),
+              progress: reveal.elapsed / reveal.duration,
             },
+      landing: this.landing.view,
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
+      /*
+       * 꼬리 부스러기가 이 값의 차이로 시간을 흘린다. `elapsed`가 아니라 `quakePhase`를
+       * 쓰는 이유는 이쪽이 **판이 멈춰도 계속 흐르기** 때문이다 — 무너지는 장면에서
+       * 부스러기가 얼어붙으면 안 된다.
+       */
+      time: this.quakePhase,
       // 싱글은 주인이 하나뿐이라 구분해 그릴 것이 없다
       ownerColors: null,
     })

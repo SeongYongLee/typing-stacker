@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react'
-import type { BgmTrackName } from './audio/tracks.ts'
-import type { GamePhase } from './game/types/game.ts'
+import { useCallback, useEffect, useState } from 'react'
+import { SOLO_READY_MS, SOLO_START_MS } from './game/config.ts'
+import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { useAudioBoot, useMusic } from './hooks/useAudio.ts'
+import { musicFor, type Route } from './screenMusic.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
 import { useMatchSession } from './hooks/useMatchSession.ts'
 import { CollectionScreen } from './screens/CollectionScreen.tsx'
@@ -14,9 +15,6 @@ import { MatchScreen } from './screens/MatchScreen.tsx'
 import { ResultScreen } from './screens/ResultScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 
-/** 지금 어느 화면에 있는지. 싱글과 대전은 서로 다른 엔진을 쓴다 */
-type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'options' | 'name' | 'loopback'
-
 /**
  * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
  * WebRTC 없이 대전을 확인할 수 있는 유일한 길이라, 대전을 만질 때는 여기서 먼저 본다.
@@ -28,40 +26,10 @@ function initialRoute(): Route {
   return 'title'
 }
 
-/**
- * 지금 흐를 곡.
- *
- * 판이 도는 동안에만 게임 곡이고, 멈춘 곳(일시정지 · 결과)은 조용하다 —
- * 화면이 멈췄는데 음악만 계속 돌면 판이 아직 도는 것처럼 들린다.
- *
- * 옵션이 타이틀 곡을 쓰는 이유는, 소리 설정을 만지는 자리에서 음악이 끊기면
- * 방금 바꾼 것 때문인지 원래 그런 것인지 알 수 없기 때문이다.
- */
-function musicFor(
-  route: Route,
-  soloPhase: GamePhase | null,
-  matchPhase: 'playing' | 'over' | null,
-): BgmTrackName | null {
-  switch (route) {
-    case 'loopback':
-      return null
-    case 'collection':
-      return 'collection'
-    case 'options':
-    case 'name':
-      return 'title'
-    case 'title':
-      return 'title'
-    case 'lobby':
-      // 판이 시작되기 전(방 만들기·준비)에는 대기방 곡이 흐른다
-      return matchPhase === null ? 'lobby' : matchPhase === 'playing' ? 'game' : null
-    case 'solo':
-      return soloPhase === 'playing' ? 'game' : null
-  }
-}
-
 function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
+  /** 혼자 하기가 열리기 전의 박자. null이면 판이 이미 돌고 있거나 다른 화면이다 */
+  const [soloStep, setSoloStep] = useState<SoloStep | null>(null)
   const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
 
@@ -76,18 +44,47 @@ function App() {
    */
   useMusic(musicFor(route, state?.phase ?? null, match.state?.phase ?? null))
 
+  /*
+   * 혼자 하기는 READY → START 두 박자를 거쳐 연다. 이유는 `SOLO_READY_MS`에.
+   *
+   * 바로 시작하면 첫 단어가 이미 내려오고 있다 — 누른 손은 아직 마우스나 Enter에
+   * 있고 자판으로 옮길 틈이 없다. 다시 하기도 마찬가지라 같은 길로 보낸다.
+   *
+   * 그동안 판을 만들지 않는다. `startRun()`을 먼저 부르고 화면만 덮으면 그 사이에
+   * 단어가 내려오고 시간이 흐른다 — 기다려주는 것이 아니라 눈만 가리는 것이 된다.
+   */
   const startSolo = useCallback(() => {
     if (engine === null) {
       return
     }
-    // 판마다 단어 순서가 달라지도록 시드를 새로 뽑는다
-    engine.reseed(Date.now() >>> 0)
-    engine.startRun()
     setRoute('solo')
+    setSoloStep('ready')
   }, [engine])
+
+  useEffect(() => {
+    if (soloStep === null || engine === null) {
+      return
+    }
+    const timer = setTimeout(
+      () => {
+        if (soloStep === 'ready') {
+          setSoloStep('start')
+          return
+        }
+        // 판마다 단어 순서가 달라지도록 시드를 새로 뽑는다
+        engine.reseed(Date.now() >>> 0)
+        engine.startRun()
+        setSoloStep(null)
+      },
+      soloStep === 'ready' ? SOLO_READY_MS : SOLO_START_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [soloStep, engine])
 
   const backToTitle = useCallback(() => {
     match.leave()
+    // 이걸 끄지 않으면 타이틀로 나온 뒤에 판이 저 혼자 열린다
+    setSoloStep(null)
     setRoute('title')
   }, [match])
 
@@ -96,14 +93,11 @@ function App() {
   }
 
   if (route === 'name') {
-    // 옵션에서 들어왔으니 옵션으로 돌아간다 — 들어온 문으로 나가야 길을 잃지 않는다
-    return <NameScreen onBack={() => setRoute('options')} />
+    return <NameScreen onBack={() => setRoute('title')} />
   }
 
   if (route === 'options') {
-    return (
-      <OptionsScreen onBack={() => setRoute('title')} onName={() => setRoute('name')} />
-    )
+    return <OptionsScreen onBack={() => setRoute('title')} />
   }
 
   if (route === 'collection') {
@@ -136,6 +130,7 @@ function App() {
     return (
       <TitleScreen
         onStart={startSolo}
+        onName={() => setRoute('name')}
         onMultiplayer={() => setRoute('lobby')}
         onCollection={() => setRoute('collection')}
         onOptions={() => setRoute('options')}
@@ -143,6 +138,15 @@ function App() {
         progress={assetProgress}
       />
     )
+  }
+
+  /*
+   * 그동안에는 판을 덮지 않고 **대신** 보여준다.
+   * 아래에 GameScreen을 그대로 두면 다시 하기에서 지난 판의 탑과 결과 화면이
+   * 낱말 뒤로 비친다 — 새로 시작하는 자리인데 지난 판이 남아 있는 셈이다.
+   */
+  if (soloStep !== null) {
+    return <SoloStart step={soloStep} />
   }
 
   return (

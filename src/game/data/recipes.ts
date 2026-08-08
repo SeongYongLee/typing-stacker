@@ -99,5 +99,22 @@ const CRAFTABLE_IDS: readonly string[] = [...new Set(RECIPES.map((r) => r.result
 /** 재료로 쓰이는 물건인지. 화면이 "이건 합칠 수 있다"고 귀띔하는 데 쓴다 */
 const INGREDIENT_IDS: ReadonlySet<string> = new Set(RECIPES.flatMap((r) => r.inputs))
 
-export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS }
+/**
+ * **같은 물건 둘**로 이루어진 레시피의 재료들.
+ *
+ * 이것들만 따로 뽑아두는 이유는 **가장 쉽게 합쳐지는 짝**이기 때문이다. 재료가 같으니
+ * 한 단어를 두 번 치면 갖춰지고, 도형까지 같아서 위에 얹으면 대체로 닿는다 —
+ * 서로 다른 물건을 합치는 쪽은 크기와 모양이 달라 열에 일곱이 미끄러진다.
+ *
+ * 판이 시작될 때 이 중 몇 개만 내보내 첫 합성을 앞당기는 데 쓴다(`systems/Opening.ts`).
+ */
+const PAIR_INGREDIENT_IDS: readonly string[] = [
+  ...new Set(
+    RECIPES.filter(
+      (item) => item.inputs.length === 2 && item.inputs[0] === item.inputs[1],
+    ).map((item) => item.inputs[0] ?? ''),
+  ),
+].filter((id) => id !== '')
+
+export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS, PAIR_INGREDIENT_IDS }
 export type { Recipe }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ARENA, WORD } from '../src/game/config.ts'
+import { ARENA, DIFFICULTY_FULL_HEIGHT, WORD } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { CAMERA_START_TOP, targetCameraY } from '../src/game/systems/Camera.ts'
 import {
@@ -20,20 +20,34 @@ describe('difficultyProgress — 높이가 기준이다', () => {
     expect(difficultyProgress(ARENA.platformTop)).toBe(0)
   })
 
-  it('카메라가 움직이기 시작하는 높이에서 1이 된다', () => {
-    expect(difficultyProgress(CAMERA_START_TOP)).toBe(1)
-    // 그 지점이 실제로 카메라가 움직이기 시작하는 곳인지도 함께 지킨다
-    expect(targetCameraY(CAMERA_START_TOP)).toBe(0)
-    expect(targetCameraY(CAMERA_START_TOP + 0.1)).toBeGreaterThan(0)
+  it('정해둔 높이만큼 쌓으면 1이 된다', () => {
+    expect(difficultyProgress(ARENA.platformTop + DIFFICULTY_FULL_HEIGHT)).toBe(1)
   })
 
   it('그 위로는 더 오르지 않는다', () => {
-    expect(difficultyProgress(CAMERA_START_TOP + 10)).toBe(1)
+    expect(difficultyProgress(ARENA.platformTop + DIFFICULTY_FULL_HEIGHT + 10)).toBe(1)
   })
 
   it('중간 높이는 중간 값이다', () => {
-    const half = (ARENA.platformTop + CAMERA_START_TOP) / 2
-    expect(difficultyProgress(half)).toBeCloseTo(0.5)
+    expect(difficultyProgress(ARENA.platformTop + DIFFICULTY_FULL_HEIGHT / 2)).toBeCloseTo(
+      0.5,
+    )
+  })
+
+  /*
+   * 카메라가 움직이기 시작하는 높이를 **넘어서** 최대치에 닿아야 한다.
+   *
+   * 한때 둘이 같은 값이었다. "판이 본격적으로 시작됐다는 것을 눈으로 아는 순간"과
+   * 밀도가 다 오르는 순간을 맞추려던 것이었는데, 재보니 그 지점이 판의 절반이라
+   * 나머지 절반을 내내 최대 밀도로 보내고 있었다.
+   *
+   * 이제는 카메라가 먼저 움직이고 밀도가 뒤따라 오른다. 그 순서가 뒤집히면
+   * 완화한 것이 도로 없던 일이 된다.
+   */
+  it('카메라가 움직이기 시작한 뒤에도 밀도는 더 오른다', () => {
+    expect(targetCameraY(CAMERA_START_TOP)).toBe(0)
+    expect(targetCameraY(CAMERA_START_TOP + 0.1)).toBeGreaterThan(0)
+    expect(difficultyProgress(CAMERA_START_TOP)).toBeLessThan(1)
   })
 
   it('받침대보다 낮아도 음수가 되지 않는다', () => {

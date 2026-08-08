@@ -43,7 +43,7 @@ describe('화면 설정 저장', () => {
 
   it('저장한 값을 그대로 읽는다', () => {
     withStorage(null, () => {
-      saveDisplaySettings({ shake: 0 })
+      saveDisplaySettings({ shake: 0, glow: 0, trail: 0 })
       expect(loadDisplaySettings().shake).toBe(0)
     })
   })
@@ -78,7 +78,7 @@ describe('화면 설정 저장', () => {
     }
     try {
       expect(loadDisplaySettings()).toEqual(DEFAULT_SETTINGS)
-      expect(() => saveDisplaySettings({ shake: 0 })).not.toThrow()
+      expect(() => saveDisplaySettings({ shake: 0, glow: 0, trail: 0 })).not.toThrow()
     } finally {
       globals['localStorage'] = previous
     }

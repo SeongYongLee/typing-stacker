@@ -127,7 +127,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
 
   return (
     <div style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
-      <Hud stats={state.stats} elapsed={state.elapsed} />
+      <Hud stats={state.stats} />
 
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />

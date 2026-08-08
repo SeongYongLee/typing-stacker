@@ -17,12 +17,13 @@ import { loadProfile, renameProfile } from '../storage/profile.ts'
  * 아니고, 마음에 드는 것이 나올 때까지 '다시 뽑기'를 누르다가 한쪽만 손보는 쓰임을
  * 생각한 것이다.
  *
- * 고른 즉시 저장한다. 확인 버튼을 따로 두면 "바꿨는데 저장이 됐나"가 남는데,
- * 되돌릴 것이 이름 하나뿐이라 그 물음이 값보다 비싸다.
+ * **고르는 동안에는 저장하지 않는다.** 넘겨보다가 마음이 바뀌는 것이 이 화면의 정상
+ * 쓰임인데, 넘길 때마다 저장하면 되돌릴 길이 없다. 그래서 나가는 문을 둘로 나눴다 —
+ * '사용하기'로 나가면 지금 것이 남고, '돌아가기'로 나가면 쓰던 이름 그대로다.
  */
 interface NameScreenProps {
   onBack: () => void
-  /** 이름이 바뀔 때마다. 부르는 쪽이 화면에 이름을 띄우고 있으면 여기서 받는다 */
+  /** 새 이름을 쓰기로 했을 때만. 부르는 쪽이 화면에 이름을 띄우고 있으면 여기서 받는다 */
   onChange?: (name: string) => void
 }
 
@@ -54,9 +55,8 @@ function partsOf(name: string, nounList: readonly string[]): [number, number] {
 
 function NameScreen({ onBack, onChange }: NameScreenProps) {
   const nounList = useMemo(() => nouns(), [])
-  const [[adjective, noun], setParts] = useState(() =>
-    partsOf(loadProfile().name, nounList),
-  )
+  const [before] = useState(() => loadProfile().name)
+  const [[adjective, noun], setParts] = useState(() => partsOf(before, nounList))
 
   // 부르는 쪽이 인라인 함수를 넘기므로 의존성에 넣으면 매 렌더마다 새로 묶인다
   const onChangeRef = useRef(onChange)
@@ -67,48 +67,38 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
     noun: nounList[noun] ?? '',
   })
 
-  /*
-   * 고른 값이 곧 저장된 값이다.
-   *
-   * 이름이 바뀌는 자리를 여기 하나로 모은다. 이펙트로 "이름이 바뀌면 저장한다"고
-   * 쓰면 화면을 처음 열기만 해도 한 번 저장되고, 그 한 번이 저장소에 남은 값을
-   * 지금 재료로 다시 쓴 것인지 사람이 고른 것인지 구분되지 않는다.
-   */
-  const commit = useCallback(
-    (next: [number, number]) => {
-      setParts(next)
-      const picked = joinName({
-        adjective: ADJECTIVES[next[0]] ?? '',
-        noun: nounList[next[1]] ?? '',
-      })
-      renameProfile(picked)
-      onChangeRef.current?.(picked)
-    },
-    [nounList],
-  )
+  /** 지금 고른 것을 쓴다. 저장은 여기 한 곳에서만 일어난다 */
+  const use = useCallback(() => {
+    renameProfile(name)
+    onChangeRef.current?.(name)
+    onBack()
+  }, [name, onBack])
 
   /** 값 줄 하나를 한 칸 옮긴다. 끝에서 반대편으로 돌아간다 */
   const step = useCallback(
     (row: number, by: number) => {
-      commit(
+      setParts(([a, n]) =>
         row === 0
-          ? [(adjective + by + ADJECTIVES.length) % ADJECTIVES.length, noun]
-          : [adjective, (noun + by + nounList.length) % nounList.length],
+          ? [(a + by + ADJECTIVES.length) % ADJECTIVES.length, n]
+          : [a, (n + by + nounList.length) % nounList.length],
       )
     },
-    [adjective, noun, nounList, commit],
+    [nounList],
   )
 
   const shuffle = useCallback(() => {
     const made = randomName()
-    commit([ADJECTIVES.indexOf(made.adjective), nounList.indexOf(made.noun)])
-  }, [nounList, commit])
+    setParts([ADJECTIVES.indexOf(made.adjective), nounList.indexOf(made.noun)])
+  }, [nounList])
+
+  const changed = name !== before
 
   const rows = [
     { kind: 'pick' as const, label: '꾸미말', value: ADJECTIVES[adjective] ?? '' },
     { kind: 'pick' as const, label: '물건', value: nounList[noun] ?? '' },
-    { kind: 'act' as const, label: '다시 뽑기', run: shuffle },
-    { kind: 'act' as const, label: '돌아가기 (Esc)', run: onBack },
+    { kind: 'act' as const, label: '다시 뽑기', run: shuffle, primary: false },
+    { kind: 'act' as const, label: '사용하기', run: use, primary: true },
+    { kind: 'act' as const, label: '돌아가기 (Esc)', run: onBack, primary: false },
   ]
 
   const menu = useMenuKeys({
@@ -122,6 +112,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
       }
       step(index, 1)
     },
+    // Escape는 나가는 것이지 정하는 것이 아니다 — 쓰던 이름 그대로 둔다
     onCancel: onBack,
   })
 
@@ -173,6 +164,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
                 selected={menu.index === index}
                 onClick={row.run}
                 onHover={() => menu.select(index)}
+                primary={row.primary}
               >
                 {row.label}
               </MenuButton>
@@ -189,6 +181,10 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
           data-my-name
         >
           {name}
+        </p>
+        {/* 무엇을 잃고 무엇을 얻는지 — 나가는 문이 둘이므로 이 줄이 있어야 고를 수 있다 */}
+        <p style={{ fontSize: 12, color: '#6a7290', margin: '8px 0 0' }}>
+          {changed ? `돌아가면 ${before} 그대로` : '쓰던 이름 그대로'}
         </p>
         <p style={{ marginTop: 16, fontSize: 12, color: '#4a5171' }}>
           ↑↓로 고르고 ←→로 값을 바꾼다

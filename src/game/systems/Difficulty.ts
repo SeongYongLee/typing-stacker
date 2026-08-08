@@ -1,6 +1,5 @@
-import { ARENA, WORD } from '../config.ts'
+import { ARENA, DIFFICULTY_FULL_HEIGHT, WORD } from '../config.ts'
 import type { DifficultyLevel } from '../types/game.ts'
-import { CAMERA_START_TOP } from './Camera.ts'
 
 /**
  * 난이도는 **시간이 아니라 탑 높이**를 따라간다.
@@ -14,11 +13,12 @@ import { CAMERA_START_TOP } from './Camera.ts'
  * 살펴볼 틈 없이 손부터 급해진다. 그래서 **쌓은 만큼** 몰아치게 한다.
  * 잘 쌓는 사람에게 더 많은 단어가 오고, 아직 못 쌓은 사람은 여유를 갖는다.
  *
- * 기준점은 **카메라가 움직이기 시작하는 높이**다. 판이 본격적으로 시작됐다는 것을
- * 플레이어가 눈으로 아는 유일한 순간이라, 밀도가 오르는 시점과 맞아떨어진다.
+ * 어디서 최대치에 닿는지는 `DIFFICULTY_FULL_HEIGHT`가 정한다. 한때 카메라가 움직이기
+ * 시작하는 높이를 그대로 썼는데, 재보니 그 지점이 **판의 절반**이라 나머지 절반을 내내
+ * 최대 밀도로 보내고 있었다 — 실측과 근거는 그 상수에.
  *
- * 동시 낙하 상한은 단어 풀(13개)과 레인 칸 수(4x2)에 묶인다. 활성 단어의 중복을
- * 막으므로 상한이 풀 크기에 가까우면 화면이 거의 전체 어휘로 채워져 스폰이 막힌다.
+ * 동시 낙하 상한은 단어 풀과 레인 칸 수(5x2)에 묶인다. 활성 단어의 중복을 막으므로
+ * 상한이 풀 크기에 가까우면 화면이 거의 전체 어휘로 채워져 스폰이 막힌다.
  */
 
 /**
@@ -49,7 +49,7 @@ const OPENING: DifficultyLevel = {
 }
 
 /**
- * 카메라가 움직이기 시작할 무렵 닿는 밀도.
+ * 다 쌓아 올렸을 때의 밀도. 실측으로 판의 3분의 2쯤 지나 닿는다.
  *
  * 동시에 뜨는 수를 5에서 4로 줄였다. 다섯이 한꺼번에 떠 있으면 어느 것을 칠지
  * 고르는 데만 시간이 가고, 고르는 사이에 아래쪽이 지나간다. 넷이면 눈이 한 번에 담긴다.
@@ -63,14 +63,14 @@ const FULL: DifficultyLevel = {
 
 /**
  * 탑 높이를 0~1 진행도로 옮긴다.
- * 받침대 윗면에서 시작해 카메라가 움직이기 시작하는 높이에서 1이 된다.
+ * 받침대 윗면에서 시작해 `DIFFICULTY_FULL_HEIGHT`만큼 쌓으면 1이 된다.
  */
 function difficultyProgress(stackTop: number): number {
-  const span = CAMERA_START_TOP - ARENA.platformTop
-  if (span <= 0) {
+  if (DIFFICULTY_FULL_HEIGHT <= 0) {
     return 1
   }
-  return Math.min(1, Math.max(0, (stackTop - ARENA.platformTop) / span))
+  const climbed = stackTop - ARENA.platformTop
+  return Math.min(1, Math.max(0, climbed / DIFFICULTY_FULL_HEIGHT))
 }
 
 /**

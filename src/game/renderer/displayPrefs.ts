@@ -45,9 +45,21 @@ function shakeScale(): number {
   return displaySettings().shake
 }
 
+/** 얹힐 때 번지는 색의 세기 배수. 렌더러가 알파에 곱한다 */
+function glowScale(): number {
+  return displaySettings().glow
+}
+
+/** 흘리는 부스러기의 진하기 배수. 0이면 아예 만들지 않는다 */
+function trailScale(): number {
+  return displaySettings().trail
+}
+
 export {
   displaySettings,
   updateDisplaySettings,
   subscribeDisplaySettings,
   shakeScale,
+  glowScale,
+  trailScale,
 }

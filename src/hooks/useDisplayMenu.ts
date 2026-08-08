@@ -17,7 +17,13 @@ interface DisplayMenuItem {
   readonly run: () => void
 }
 
-const SHAKE_LEVELS: readonly { readonly name: string; readonly value: number }[] = [
+interface Level {
+  readonly name: string
+  readonly value: number
+}
+
+/** 두 설정이 같은 단계를 쓴다 — 고르는 감각이 항목마다 다르면 메뉴가 어수선해진다 */
+const LEVELS: readonly Level[] = [
   { name: '끔', value: 0 },
   { name: '약하게', value: 0.5 },
   { name: '보통', value: 1 },
@@ -26,7 +32,7 @@ const SHAKE_LEVELS: readonly { readonly name: string; readonly value: number }[]
 function levelIndex(value: number): number {
   let best = 0
   let closest = Number.POSITIVE_INFINITY
-  SHAKE_LEVELS.forEach((level, index) => {
+  LEVELS.forEach((level, index) => {
     const distance = Math.abs(level.value - value)
     if (distance < closest) {
       closest = distance
@@ -36,6 +42,19 @@ function levelIndex(value: number): number {
   return best
 }
 
+/** 누를 때마다 다음 단계로 돌아가는 항목 하나 */
+function cycleItem(
+  label: string,
+  value: number,
+  apply: (next: number) => void,
+): DisplayMenuItem {
+  const index = levelIndex(value)
+  return {
+    label: `${label} · ${LEVELS[index]?.name ?? '보통'}`,
+    run: () => apply(LEVELS[(index + 1) % LEVELS.length]?.value ?? 1),
+  }
+}
+
 function useDisplayMenu(): readonly DisplayMenuItem[] {
   const subscribe = useCallback(
     (onChange: () => void) => subscribeDisplaySettings(onChange),
@@ -43,18 +62,16 @@ function useDisplayMenu(): readonly DisplayMenuItem[] {
   )
   const settings = useSyncExternalStore(subscribe, displaySettings)
 
-  return useMemo(() => {
-    const index = levelIndex(settings.shake)
-    return [
-      {
-        label: `화면 흔들림 · ${SHAKE_LEVELS[index]?.name ?? '보통'}`,
-        run: () => {
-          const next = SHAKE_LEVELS[(index + 1) % SHAKE_LEVELS.length]
-          updateDisplaySettings({ shake: next?.value ?? 1 })
-        },
-      },
-    ]
-  }, [settings])
+  return useMemo(
+    () => [
+      cycleItem('화면 흔들림', settings.shake, (shake) =>
+        updateDisplaySettings({ shake }),
+      ),
+      cycleItem('색번짐', settings.glow, (glow) => updateDisplaySettings({ glow })),
+      cycleItem('꼬리', settings.trail, (trail) => updateDisplaySettings({ trail })),
+    ],
+    [settings],
+  )
 }
 
 export { useDisplayMenu }

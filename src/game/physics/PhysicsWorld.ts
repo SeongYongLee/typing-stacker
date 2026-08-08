@@ -124,6 +124,14 @@ interface ImpactEvent {
   readonly variant: ItemVariant
   /** 부딪히기 직전 속도 x 질량 */
   readonly impact: number
+  /**
+   * 이 물건이 **떨어져서 처음** 닿은 것인가. 자리를 잃고 다시 부딪힌 것이면 거짓이다.
+   *
+   * 소리는 둘을 가리지 않는다 — 무너지는 동안에도 부딪힘은 들려야 한다. 가리는 것은
+   * 화면 연출이다. 탑이 무너지면 한 프레임에 부딪힘이 열 개도 들어오는데, 그때마다
+   * 화면이 물들면 여러 색이 겹쳐 무엇이 얹혔는지가 오히려 안 보인다.
+   */
+  readonly first: boolean
 }
 
 interface StepResult {
@@ -637,6 +645,8 @@ class PhysicsWorld {
         impacts.push({
           variant: entry.variant,
           impact: entry.previousSpeed * entry.body.mass(),
+          // dislodged는 한 번 켜지면 꺼지지 않는다 — 무너진 물건은 다시 처음이 되지 않는다
+          first: !entry.dislodged,
         })
       }
 

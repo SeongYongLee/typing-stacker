@@ -6,8 +6,12 @@ import type { Rng } from './Rng.ts'
 /**
  * 단어를 실제로 떨어질 물건으로 바꾼다.
  * 플레이어는 Enter를 누른 뒤에야 결과를 보므로, 이 롤은 판정 직후 한 번만 호출된다.
+ *
+ * `chance`를 밖에서 줄 수 있는 이유는 **구간마다 밀도가 달라야** 하기 때문이다.
+ * 판 앞머리는 히든 보유 단어만 내보내므로 같은 확률이라도 밀도가 일곱 배로 뛴다 —
+ * 그 자리에서는 낮은 값을 넘긴다(`OPENING_HIDDEN_CHANCE`).
  */
-function resolveItem(word: string, rng: Rng): ItemVariant {
+function resolveItem(word: string, rng: Rng, chance: number = HIDDEN_CHANCE): ItemVariant {
   const entry = WORD_BY_TEXT.get(word)
   if (entry === undefined) {
     throw new Error(`단어 테이블에 없는 단어: ${word}`)
@@ -19,7 +23,7 @@ function resolveItem(word: string, rng: Rng): ItemVariant {
   }
 
   const hidden = entry.variants.filter((item) => item.hidden)
-  if (hidden.length === 0 || rng.next() >= HIDDEN_CHANCE) {
+  if (hidden.length === 0 || rng.next() >= chance) {
     return base
   }
   return rng.pick(hidden)

@@ -4,6 +4,7 @@ import { RELAY_URL } from './relayUrl.ts'
 import { createRoomCode } from './protocol.ts'
 import { sanitizeNickname } from './protocol.ts'
 import type { PlayerId, PlayerInfo } from './protocol.ts'
+import { COUNTDOWN_SEC } from '../game/config.ts'
 import { failure } from './Transport.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 
@@ -19,14 +20,6 @@ const HANDSHAKE_TIMEOUT_MS = 10000
  */
 const READY_TIMEOUT_MS = 30000
 
-/**
- * 모두 준비한 뒤 판이 열리기까지의 셈.
- *
- * 준비를 누르는 순간 바로 시작하면 첫 단어가 이미 내려오고 있다 — 누른 사람은
- * 마우스에 손이 가 있고 키보드로 옮길 틈이 없다. 특히 마지막에 누른 사람이 아니면
- * 언제 시작되는지 모른 채 당한다.
- */
-const COUNTDOWN_SEC = 3
 
 
 /**

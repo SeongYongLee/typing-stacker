@@ -20,6 +20,8 @@ const TIMEOUT_MS = 6000
 interface RunRecord {
   readonly id: string
   readonly name: string
+  /** 순위표에 함께 뜨는 물건 id. 안 골랐거나 옛 기록이면 빈 문자열 */
+  readonly icon?: string
   readonly score: number
   readonly stackCount: number
   readonly maxHeight: number
@@ -61,6 +63,7 @@ async function submitRun(stats: RunStats): Promise<RankView | null> {
   return post('/rank/run', {
     id: profile.id,
     name: profile.name,
+    icon: profile.icon,
     score: Math.round(stats.score),
     stackCount: stats.stackCount,
     maxHeight: stats.maxHeight,

@@ -19,7 +19,12 @@
  * 합치지 않은 것은 **다른 갈래가 넷 더 있기** 때문이다 — 색번짐은 빛나는 것만의 일이고
  * 꼬리는 그보다 넓다.
  */
-type Trail = 'sparkle' | 'droplet' | 'petal' | 'fluff' | 'crumb'
+/**
+ * `splash`만 성격이 다르다. 나머지 다섯은 **움직이는 동안** 흘리는 것이고 이것은
+ * **부딪히는 순간** 한 번 터진다. 그래서 아래 표에 배정된 물건이 없다 — 액체가 담긴
+ * 것(`droplet`)이 닿을 때 `TrailField`가 만들어낸다.
+ */
+type Trail = 'sparkle' | 'droplet' | 'petal' | 'fluff' | 'crumb' | 'splash'
 
 const TRAILS: Readonly<Record<string, Trail>> = {
   /* 빛나는 것 — 반짝임을 흘린다. glowItems.ts와 같은 열 종 */

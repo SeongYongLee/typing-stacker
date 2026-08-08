@@ -97,6 +97,7 @@ const BASE_STATE = {
   cameraY: 0,
   stackTop: 0.8,
   time: 0,
+  impacts: [],
 } as const
 
 let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer

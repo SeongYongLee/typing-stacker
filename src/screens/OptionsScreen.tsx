@@ -45,7 +45,7 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
           옵션
         </h1>
         <p style={{ fontSize: 12, color: '#6a7290', margin: '10px 0 24px' }}>
-          Enter로 값을 바꾼다
+          Enter로 값을 바꿉니다
         </p>
 
         <div style={{ display: 'grid', gap: 10 }} data-options>

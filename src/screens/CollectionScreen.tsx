@@ -233,7 +233,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
         <MenuButton selected onClick={onBack} style={{ width: 'auto' }}>
           돌아가기 (Esc)
         </MenuButton>
-        <span style={{ fontSize: 12, color: '#4a5171' }}>↑↓로 넘긴다</span>
+        <span style={{ fontSize: 12, color: '#4a5171' }}>↑↓로 넘깁니다</span>
       </div>
     </div>
   )

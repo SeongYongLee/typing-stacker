@@ -38,11 +38,25 @@ type QueueStatus =
   | { readonly kind: 'matched'; readonly code: string; readonly players: number }
   /** 서버에 닿지 못했다. 줄에서 빠진 것은 아니므로 다음 회차에 다시 묻는다 */
   | { readonly kind: 'unreachable' }
+  /**
+   * 닿기는 했는데 서버가 이 기능을 모른다.
+   *
+   * **'닿지 못했다'와 갈라야 한다.** 둘은 사람이 할 수 있는 일이 정반대다 — 서버가
+   * 죽은 것이면 기다리는 수밖에 없지만, 이쪽은 화면만 새로 나가고 서버가 옛 판인
+   * 것이라 배포하면 곧바로 풀린다. 실제로 자동매칭을 처음 켠 날 서버를 배포하지
+   * 않아 404가 났는데, 화면에는 "서버에 닿지 못했습니다"만 떠서 원인을 알 수 없었다.
+   *
+   * 다시 물어봐도 소용없으므로 되풀이를 멈춘다. 배포는 저절로 되지 않는다.
+   */
+  | { readonly kind: 'unsupported' }
 
 /** 줄에 서고, 그 자리에서 짝이 맺어졌는지 본다 */
 async function enterQueue(): Promise<QueueStatus> {
   const profile = loadProfile()
   const body = await post('/rank/queue', { device: profile.id, name: profile.name })
+  if (body === UNSUPPORTED) {
+    return { kind: 'unsupported' }
+  }
   if (body === null) {
     return { kind: 'unreachable' }
   }
@@ -109,11 +123,14 @@ function numberOf(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+/** 서버가 이 경로를 모른다는 표시. null(닿지 못함)과 갈라야 해서 따로 둔다 */
+const UNSUPPORTED = Symbol('unsupported')
+
 async function post(
   path: string,
   body: unknown,
   keepalive = false,
-): Promise<Record<string, unknown> | null> {
+): Promise<Record<string, unknown> | null | typeof UNSUPPORTED> {
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS)
   try {
@@ -124,6 +141,13 @@ async function post(
       keepalive,
       signal: abort.signal,
     })
+    /*
+     * 404는 "서버가 살아 있는데 이 기능이 없다"는 뜻이다. 화면이 죽은 서버와 같은
+     * 말을 하면 배포를 잊은 것을 알아챌 길이 없다.
+     */
+    if (response.status === 404) {
+      return UNSUPPORTED
+    }
     if (!response.ok) {
       return null
     }

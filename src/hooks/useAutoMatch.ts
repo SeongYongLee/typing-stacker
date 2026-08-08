@@ -85,6 +85,14 @@ function useAutoMatch(onMatched: (code: string) => void): AutoMatchView {
         }
         return
       }
+      /*
+       * 서버가 이 기능을 모르면 다시 물어봐야 소용없다 — 배포는 저절로 되지 않는다.
+       * 줄에 선 것도 아니므로 상태만 남기고 멈춘다.
+       */
+      if (next.kind === 'unsupported') {
+        activeRef.current = false
+        return
+      }
       timer = setTimeout(() => void ask(), POLL_MS)
     }
 

@@ -80,6 +80,14 @@ const LIMITS = {
 interface RunRow {
   id: string
   name: string
+  /**
+   * 순위표에 함께 뜨는 물건 id. 안 골랐으면 빈 문자열.
+   *
+   * **물건 표를 여기서 보지 않는다.** 서버가 아는 물건 목록을 들고 있으면 아트가 늘 때마다
+   * 워커를 함께 배포해야 하고, 안 하면 새 물건을 고른 사람만 아이콘이 사라진다.
+   * 모양만 보고 통과시키고, 그릴 수 있는지는 화면이 판단한다.
+   */
+  icon: string
   score: number
   stackCount: number
   maxHeight: number
@@ -168,10 +176,22 @@ export class Board {
 
   constructor(state: DurableObjectState) {
     this.sql = state.storage.sql
+    /*
+     * 이미 만들어진 표에는 `CREATE TABLE IF NOT EXISTS`가 손대지 않는다.
+     * 아이콘은 나중에 붙은 칸이라, 돌고 있는 방에는 이렇게 따로 넣어줘야 한다.
+     * 두 번째부터는 "이미 있다"로 실패하므로 그냥 넘긴다 — 표를 먼저 뒤져보는 것보다
+     * 이쪽이 짧고, 실패해도 잃는 것이 없다.
+     */
+    try {
+      this.sql.exec("ALTER TABLE runs ADD COLUMN icon TEXT NOT NULL DEFAULT ''")
+    } catch {
+      /* 이미 있는 칸이다 */
+    }
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS runs (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT '',
         score INTEGER NOT NULL,
         stackCount INTEGER NOT NULL,
         maxHeight REAL NOT NULL,
@@ -305,18 +325,22 @@ export class Board {
 
     if (best === undefined || run.score > best.score) {
       this.sql.exec(
-        `INSERT INTO runs (id, name, score, stackCount, maxHeight, maxCombo, kpm, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO runs (id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
-           name = excluded.name, score = excluded.score, stackCount = excluded.stackCount,
+           name = excluded.name, icon = excluded.icon, score = excluded.score,
+           stackCount = excluded.stackCount,
            maxHeight = excluded.maxHeight, maxCombo = excluded.maxCombo,
            kpm = excluded.kpm, at = excluded.at`,
-        run.id, run.name, run.score, run.stackCount,
+        run.id, run.name, run.icon, run.score, run.stackCount,
         run.maxHeight, run.maxCombo, run.kpm, Date.now(),
       )
-    } else if (best.name !== run.name) {
-      // 기록은 그대로 두고 이름만 따라간다 — 이름을 바꿨는데 순위표만 옛 이름이면 헷갈린다
-      this.sql.exec('UPDATE runs SET name = ? WHERE id = ?', run.name, run.id)
+    } else if (best.name !== run.name || best.icon !== run.icon) {
+      // 기록은 그대로 두고 이름과 아이콘만 따라간다 — 바꿨는데 순위표만 옛것이면 헷갈린다
+      this.sql.exec(
+        'UPDATE runs SET name = ?, icon = ? WHERE id = ?',
+        run.name, run.icon, run.id,
+      )
     }
 
     return { best: this.bestOf(run.id), rank: this.rankOf(run.id), top: this.top() }
@@ -600,12 +624,18 @@ export class Board {
   }
 }
 
+/** 물건 id로 쓸 수 있는 모양인가. 표에 있는지는 그리는 쪽이 본다 */
+function iconId(raw: unknown): string {
+  return typeof raw === 'string' && /^[a-z0-9-]{1,40}$/.test(raw) ? raw : ''
+}
+
 function parseRun(raw: unknown): RunRow | null {
   if (typeof raw !== 'object' || raw === null) return null
   const value = raw as Record<string, unknown>
 
   const id = text(value['id'], MAX_ID)
   const name = text(value['name'], MAX_NAME)
+  const icon = iconId(value['icon'])
   const score = int(value['score'])
   const stackCount = int(value['stackCount'])
   const maxCombo = int(value['maxCombo'])
@@ -631,7 +661,7 @@ function parseRun(raw: unknown): RunRow | null {
   if (score > stackCount * LIMITS.scorePerItem) return null
   if (duration < stackCount * LIMITS.secondsPerItem) return null
 
-  return { id, name, score, stackCount, maxHeight, maxCombo, kpm, at: 0 }
+  return { id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at: 0 }
 }
 
 /**

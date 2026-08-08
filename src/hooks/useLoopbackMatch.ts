@@ -56,6 +56,7 @@ function useLoopbackMatch(): UseLoopbackMatch {
     const hostSession = MatchSession.attach(hostLink, (on) => hostLink.listen(on), {
       nickname: '방장',
       deviceId: 'dev-host',
+      icon: '',
       // 규칙을 눌러보는 화면이라 셈은 건너뛴다
       countdownSec: 0,
       ...side('host', setHost),
@@ -63,6 +64,7 @@ function useLoopbackMatch(): UseLoopbackMatch {
     const guestSession = MatchSession.attach(guestLink, (on) => guestLink.listen(on), {
       nickname: '참가자',
       deviceId: 'dev-guest',
+      icon: '',
       countdownSec: 0,
       ...side('guest', setGuest),
     })

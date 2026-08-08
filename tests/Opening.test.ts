@@ -58,6 +58,31 @@ describe('판 앞머리 밭', () => {
     }
   })
 
+  /**
+   * 끈적한 물건은 닿은 것을 그 자리에 묶는다. 앞머리는 쌓기가 어떤 것인지 배우는
+   * 구간이고 밭이 좁아 같은 물건이 되풀이되므로, 하나만 섞여도 판 전체가 굳어
+   * "이 게임은 잘 안 무너진다"는 잘못된 감각을 먼저 배운다.
+   *
+   * **히든까지 본다.** 같은 것 둘의 결과물이 곧 그 단어의 히든이라, 히든만 끈적해도
+   * 첫 합성의 보상이 붙어버리는 물건이 된다 — 소시지(→ 문어소시지)가 그렇다.
+   */
+  it('끈적한 물건은 기본형도 히든도 섞이지 않는다', () => {
+    for (let seed = 1; seed < 80; seed += 1) {
+      for (const entry of openingEntries(createRng(seed), WORDS)) {
+        for (const variant of entry.variants) {
+          expect(variant.sticky, `시드 ${seed} · ${entry.word} · ${variant.label}`).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('끈적한 것을 빼도 밭을 채울 만큼 남는다', () => {
+    const all = openingEntries(createRng(1), WORDS, 99)
+    expect(all.length).toBeGreaterThan(OPENING_WORD_COUNT)
+    expect(all.map((entry) => entry.word)).not.toContain('달팽이')
+    expect(all.map((entry) => entry.word)).not.toContain('소시지')
+  })
+
   /** 같은 시드면 같은 판이어야 한다. 앞머리 밭도 그 약속 안에 있다 */
   it('같은 시드는 같은 밭을 준다', () => {
     const first = openingEntries(createRng(7), WORDS).map((entry) => entry.word)

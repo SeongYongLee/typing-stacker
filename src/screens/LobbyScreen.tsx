@@ -2,13 +2,21 @@ import { useState } from 'react'
 import { Countdown } from '../components/Countdown.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { MenuLayout } from '../components/MenuLayout.tsx'
+import { Avatar } from '../components/Avatar.tsx'
+import { IconPicker } from '../components/IconPicker.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'
-import { Blurb, Danger, Key, SidePanel } from '../components/SidePanel.tsx'
+import { Blurb, Key, SidePanel } from '../components/SidePanel.tsx'
 import { VersusTier } from '../components/RankBoxes.tsx'
 import { useAutoMatch } from '../hooks/useAutoMatch.ts'
 import { useLeaderboard } from '../hooks/useLeaderboard.ts'
 import { useQueueSize } from '../hooks/useQueueSize.ts'
-import { isUsableName, loadManualName, saveManualName } from '../storage/manualName.ts'
+import {
+  isUsableName,
+  loadManualIcon,
+  loadManualName,
+  saveManualIcon,
+  saveManualName,
+} from '../storage/manualName.ts'
 import { NameScreen } from './NameScreen.tsx'
 import { loadProfile } from '../storage/profile.ts'
 import { useStartAlert } from '../hooks/useStartAlert.ts'
@@ -49,7 +57,6 @@ const fieldStyle: CSSProperties = {
   border: '1px solid #2e3448',
   borderRadius: 10,
   padding: '12px 14px',
-  outline: 'none',
   textAlign: 'center',
 }
 
@@ -102,11 +109,7 @@ const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
       받은 코드를 <Key>위 칸</Key>에 넣습니다.
     </>,
   ],
-  back: [
-    <>
-      시작 화면으로 나갑니다. <Danger>열어둔 방은 닫힙니다.</Danger>
-    </>,
-  ],
+  back: ['시작 화면으로 나갑니다.'],
 }
 
 const ghostButtonStyle: CSSProperties = {
@@ -147,7 +150,7 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
    * 자기 것으로 보인다.
    */
   const auto = useAutoMatch((matchedCode) => {
-    onOpen({ mode: { kind: 'auto', code: matchedCode }, nickname })
+    onOpen({ mode: { kind: 'auto', code: matchedCode }, nickname, icon: loadProfile().icon })
   })
 
   /*
@@ -274,11 +277,12 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
   return (
     <MenuLayout
       title="함께 하기"
-      hint="↑↓로 고르고 Enter로 들어간다"
+      hint="↑↓로 고르고 Enter로 들어갑니다"
       menu={
         <>
           <NameGreeting
             name={nickname}
+            icon={loadProfile().icon}
             selected={menu.index === 0}
             onSelect={() => menu.select(0)}
             onActivate={() => setNaming(true)}
@@ -305,7 +309,7 @@ function LobbyScreen({ phase, onOpen, onReady, onBack }: LobbyScreenProps) {
           {queueSize !== null && (
             <span style={queueNoteStyle} data-queue-size={queueSize}>
               {queueSize === 0
-                ? '지금 대기 중인 사람이 없습니다 — 눌러두면 누군가 올 때 붙습니다'
+                ? '지금 대기 중인 사람이 없습니다'
                 : `지금 ${queueSize}명 대기 중`}
             </span>
           )}
@@ -395,14 +399,12 @@ function ReadyRoom({
                   border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
                 }}
               >
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 999,
-                    background: ownerColorAt(index),
-                  }}
-                />
+                {/*
+                   색 점 자리에 아이콘을 둔다. 테두리가 그 사람의 색이므로 점이 하던
+                   일(누가 누구인지)은 그대로이고, 아이콘을 안 고른 사람은 빈 동그라미가
+                   같은 자리를 지킨다 — 줄이 어긋나지 않는다.
+                 */}
+                <Avatar icon={player.icon} size={26} ring={ownerColorAt(index)} />
                 <span
                   style={{
                     flex: 1,
@@ -425,7 +427,7 @@ function ReadyRoom({
 
         {/* 규칙 설명은 바로 앞 화면에서 이미 읽었다. 여기서 볼 것은 상대와 준비 상태뿐이다 */}
         <MenuButton selected={!iAmReady} onClick={onReady} disabled={iAmReady} primary>
-          {iAmReady ? `상대를 기다린다… (${waitingFor}명)` : '준비 (Enter)'}
+          {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
         </MenuButton>
 
         <MenuButton selected={false} onClick={onBack}>
@@ -561,6 +563,11 @@ function ManualMatch({
   onBack: () => void
 }) {
   const [name, setName] = useState(() => loadManualName())
+  /*
+   * 아이콘도 이 방만의 것이다 — 이름을 갈라둔 것과 같은 이유다.
+   * 고를 수 있는 것은 여기서도 도감에서 모은 것뿐이라 `IconPicker`가 그것만 돌린다.
+   */
+  const [icon, setIcon] = useState(() => loadManualIcon())
   const [code, setCode] = useState('')
 
   const trimmedCode = code.trim().toLowerCase()
@@ -573,7 +580,8 @@ function ManualMatch({
     }
     // 다음에 또 적지 않게 남긴다. 방에 들어가는 것이 확정된 순간에만 저장한다
     saveManualName(name)
-    onOpen({ mode, nickname: name })
+    saveManualIcon(icon)
+    onOpen({ mode, nickname: name, icon })
   }
   const host = () => enter({ kind: 'host' })
   const join = () => {
@@ -582,7 +590,13 @@ function ManualMatch({
     }
   }
 
+  /*
+   * 아이콘 줄도 고를 수 있는 것에 넣는다. 화면에 놓인 차례 그대로다 —
+   * ↑↓로 훑는 순서가 눈으로 훑는 순서와 어긋나면 무엇이 골라졌는지 매번 다시 찾는다.
+   * 이 줄은 눌러서 들어가는 것이 아니라 ←→로 값을 넘기는 것이라 run이 비어 있다.
+   */
   const items = [
+    { blurb: 'name', run: () => {}, disabled: false },
     { blurb: 'host', run: host, disabled: !named },
     { blurb: 'join', run: join, disabled: !codeReady },
     { blurb: 'back', run: onBack, disabled: false },
@@ -590,6 +604,8 @@ function ManualMatch({
   const menu = useMenuKeys({
     count: items.length,
     useTab: false,
+    // 손은 방을 만드는 자리에서 시작한다. 아이콘은 위에 있되 하러 온 일은 대전이다
+    initialIndex: 1,
     onActivate: (index) => {
       const item = items[index]
       if (item !== undefined && !item.disabled) {
@@ -617,6 +633,14 @@ function ManualMatch({
           aria-label="이름"
           autoFocus
         />
+
+        <span style={pathLabelStyle}>아이콘</span>
+        <IconPicker
+          icon={icon}
+          onChange={setIcon}
+          selected={menu.index === 0}
+          onHover={() => menu.select(0)}
+        />
         {/*
           왜 잠겼는지를 말해준다. 버튼만 회색이면 무엇을 해야 열리는지 알 수 없고,
           이 화면에서 할 일이 이름을 적는 것 하나뿐이라 더 그렇다.
@@ -626,15 +650,15 @@ function ManualMatch({
         */}
         {!named && (
           <span style={{ ...pathLabelStyle, color: '#ffcf5c' }} data-name-hint>
-            이름을 적으면 코드 생성 또는 참가가 가능합니다
+            이름을 적으면 방을 만들거나 참가할 수 있습니다
           </span>
         )}
 
         <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 생성</span>
         <MenuButton
-          selected={menu.index === 0}
+          selected={menu.index === 1}
           onClick={host}
-          onHover={() => menu.select(0)}
+          onHover={() => menu.select(1)}
           disabled={!named}
           primary
         >
@@ -660,18 +684,18 @@ function ManualMatch({
           }}
         />
         <MenuButton
-          selected={menu.index === 1}
+          selected={menu.index === 2}
           onClick={join}
-          onHover={() => menu.select(1)}
+          onHover={() => menu.select(2)}
           disabled={!codeReady}
         >
           방 참가하기
         </MenuButton>
 
         <MenuButton
-          selected={menu.index === 2}
+          selected={menu.index === 3}
           onClick={onBack}
-          onHover={() => menu.select(2)}
+          onHover={() => menu.select(3)}
           style={{ marginTop: 6 }}
         >
           돌아가기 (Esc)
@@ -700,15 +724,27 @@ function Searching({
 
   const waiting = status?.kind === 'waiting' ? status : null
   const unreachable = status?.kind === 'unreachable'
+  /*
+   * 서버가 살아 있는데 이 기능만 없는 경우. "닿지 못했다"와 갈라야 한다 —
+   * 사람이 할 수 있는 일이 정반대다(기다리기 vs 배포하기).
+   */
+  const unsupported = status?.kind === 'unsupported'
 
   return (
     <div style={rootStyle}>
       <div style={panelStyle} data-searching={waiting?.waitedSec ?? 0}>
         <h2 style={{ font: '700 26px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          상대를 찾는 중…
+          {unsupported ? '자동 매칭을 쓸 수 없습니다' : '상대를 찾는 중…'}
         </h2>
 
-        {unreachable ? (
+        {unsupported ? (
+          <p
+            style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}
+            data-queue-unsupported
+          >
+            서버가 아직 자동 매칭을 모릅니다. 수동 매칭으로 방을 만들어 주세요.
+          </p>
+        ) : unreachable ? (
           <p style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}>
             서버에 닿지 못했습니다. 잠시 뒤 다시 시도합니다.
           </p>
@@ -722,7 +758,7 @@ function Searching({
               }}
             >
               <Figure label="대기 인원" value={`${waiting?.waiting ?? 1}명`} />
-              <Figure label="경과 시간" value={`${waiting?.waitedSec ?? 0}초`} />
+              <Figure label="기다린 시간" value={`${waiting?.waitedSec ?? 0}초`} />
             </div>
             <p style={{ color: '#b6bdd4', margin: 0, fontSize: 14, lineHeight: 1.7 }}>
               {bandText(waiting?.band ?? 0)}

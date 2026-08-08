@@ -7,6 +7,13 @@ import { loadProfile } from '../storage/profile.ts'
 interface JoinRequest {
   readonly mode: OpenMode
   readonly nickname: string
+  /**
+   * 상대에게 보일 아이콘(물건 id).
+   *
+   * 이름과 함께 부르는 쪽이 정한다 — 자동 매칭은 기기 프로필을 쓰고 수동 매칭은
+   * 그 방에서만 쓰는 따로 둔 프로필을 쓰기 때문이다.
+   */
+  readonly icon: string
 }
 
 interface UseMatchSession {
@@ -42,6 +49,7 @@ function useMatchSession(): UseMatchSession {
       setState(null)
       sessionRef.current = MatchSession.open(request.mode, {
         nickname: request.nickname,
+        icon: request.icon,
         deviceId: loadProfile().id,
         onPhase: (next) => {
           setPhase(next)

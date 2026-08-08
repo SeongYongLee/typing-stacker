@@ -20,32 +20,32 @@ type PanelKind = 'name' | 'solo' | 'versus' | 'collection' | 'options'
  * 하나만 길면 그 항목이 어려운 것처럼 읽힌다.
  */
 const BLURBS: Record<PanelKind, readonly ReactNode[]> = {
-  name: ['순위표와 대전 상대에게 보이는 이름을 변경한다.'],
+  name: ['순위표와 대전 상대에게 보이는 이름과 아이콘을 바꿉니다.'],
   solo: [
-    '좌우에서 내려오는 한글 단어를 타이핑한다.',
+    '좌우에서 내려오는 한글 단어를 타이핑합니다.',
     <>
-      <Key>Enter를 누른 순간</Key>의 화살표 위치로 물건이 떨어진다.
+      <Key>Enter를 누른 순간</Key>의 화살표 위치로 물건이 떨어집니다.
     </>,
     <>
-      물건이 쏠려서 받침대를 벗어나면 <Danger>목숨이 하나</Danger> 줄어든다.
+      물건이 쏠려서 받침대를 벗어나면 <Danger>목숨이 하나</Danger> 줄어듭니다.
     </>,
     <>
-      목숨은 <Danger>{LIVES}개(♥♥♥)</Danger>. 다 잃으면 게임이 끝난다.
+      목숨은 <Danger>{LIVES}개(♥♥♥)</Danger>. 다 잃으면 게임이 끝납니다.
     </>,
   ],
   versus: [
-    <>받침대 하나를 최대 {MAX_PLAYERS}명이 함께 쓴다. 목숨은 각자 {LIVES}개다.</>,
+    <>받침대 하나를 최대 {MAX_PLAYERS}명이 함께 씁니다. 목숨은 각자 {LIVES}개입니다.</>,
     <>
-      내가 쌓은 물건이 받침대를 벗어나면 <Danger>내 목숨</Danger>이 하나 깎인다.
+      내가 쌓은 물건이 받침대를 벗어나면 <Danger>내 목숨</Danger>이 하나 깎입니다.
     </>,
     <>
-      떨군 직후에는 잠깐 떨굴 수 없다. 그동안 친 단어는 <Key>방해</Key>가 되어, 남이 그
-      단어를 떨구면 그 사람 하트가 <Danger>반 칸</Danger> 깎인다.
+      떨군 직후에는 잠깐 떨굴 수 없습니다. 그동안 친 단어는 <Key>방해</Key>가 되어, 남이
+      그 단어를 떨구면 그 사람 하트가 <Danger>반 칸</Danger> 깎입니다.
     </>,
   ],
   // 도감·옵션·이름은 규칙이 아니라 자리다. 무엇이 있는 곳인지만 알면 들어가서 보면 된다
-  collection: ['그동안 만난 물건이 모이는 곳이다.'],
-  options: ['소리와 화면 흔들림을 조절한다.'],
+  collection: ['그동안 만난 물건이 모이는 곳입니다.'],
+  options: ['소리와 화면 흔들림을 조절합니다.'],
 }
 
 function TitleSidePanel({ kind, board }: TitleSidePanelProps) {

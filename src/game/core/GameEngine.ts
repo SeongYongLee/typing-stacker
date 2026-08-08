@@ -12,7 +12,7 @@ import {
   QUAKE_MAX_AMPLITUDE,
 } from '../config.ts'
 import { VARIANT_BY_ID, WORDS } from '../data/words.ts'
-import { PhysicsWorld } from '../physics/PhysicsWorld.ts'
+import { PhysicsWorld, type ImpactEvent } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
 import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
@@ -29,6 +29,7 @@ import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
+import type { TrailHit } from '../systems/TrailField.ts'
 import { GameLoop } from './GameLoop.ts'
 
 /** 표에서 못 찾은 재료를 걸러낸다 — 레시피는 id 문자열이라 오타가 조용히 지나갈 수 있다 */
@@ -129,6 +130,13 @@ class GameEngine {
     | null = null
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
+  /**
+   * 이번 프레임에 부딪힌 자리들. 렌더러가 그 자리에서 물이 퍼지게 하는 데 쓴다.
+   *
+   * 배열을 새로 만들지 않고 **비워 쓴다.** 매 프레임 도는 자리라 새로 만들면
+   * 그것만으로 쓰레기가 쌓인다 — 대부분의 프레임에는 부딪힘이 없어 빈 채로 넘어간다.
+   */
+  private readonly frameImpacts: TrailHit[] = []
   private quakeLeft = 0
   private quakeStrength = 0
   private quakePhase = 0
@@ -341,14 +349,19 @@ class GameEngine {
    * 같은 자리다. 그래서 소리 수신자가 붙지 않은 판(테스트·headless)에서도 색은 남는다.
    */
   private handleImpacts(
-    impacts: readonly {
-      readonly variant: ItemVariant
-      readonly impact: number
-      readonly first: boolean
-    }[],
+    impacts: readonly ImpactEvent[],
     quake: number,
   ): void {
     this.landing.note(impacts)
+    for (const hit of impacts) {
+      this.frameImpacts.push({
+        id: hit.variant.id,
+        color: hit.variant.color,
+        x: hit.x,
+        y: hit.y,
+        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
+      })
+    }
     if (this.events === null) {
       return
     }
@@ -422,6 +435,8 @@ class GameEngine {
     this.advanceQuake(dt)
     // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
     this.landing.advance(dt)
+    // 지난 프레임의 부딪힘은 이미 그려졌다. 비우지 않으면 물이 계속 퍼진다
+    this.frameImpacts.length = 0
 
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
@@ -594,6 +609,7 @@ class GameEngine {
        * 부스러기가 얼어붙으면 안 된다.
        */
       time: this.quakePhase,
+      impacts: this.frameImpacts,
       // 싱글은 주인이 하나뿐이라 구분해 그릴 것이 없다
       ownerColors: null,
     })

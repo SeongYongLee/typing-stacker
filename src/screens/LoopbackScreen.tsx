@@ -48,7 +48,7 @@ function LoopbackScreen({ onBack }: LoopbackScreenProps) {
   return (
     <div style={rootStyle}>
       <div style={bannerStyle}>
-        <span>루프백 (개발용). 네트워크를 쓰지 않는다. 칠 쪽을 클릭한 뒤 입력한다</span>
+        <span>루프백 (개발용). 네트워크를 쓰지 않습니다. 칠 쪽을 클릭한 뒤 입력합니다</span>
         <button
           type="button"
           onClick={onBack}

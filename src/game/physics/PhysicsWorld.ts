@@ -132,6 +132,9 @@ interface ImpactEvent {
    * 화면이 물들면 여러 색이 겹쳐 무엇이 얹혔는지가 오히려 안 보인다.
    */
   readonly first: boolean
+  /** 부딪힌 자리(월드 좌표). 그 자리에서 물이 퍼지는 것 같은 연출에 쓴다 */
+  readonly x: number
+  readonly y: number
 }
 
 interface StepResult {
@@ -647,6 +650,8 @@ class PhysicsWorld {
           impact: entry.previousSpeed * entry.body.mass(),
           // dislodged는 한 번 켜지면 꺼지지 않는다 — 무너진 물건은 다시 처음이 되지 않는다
           first: !entry.dislodged,
+          x,
+          y,
         })
       }
 

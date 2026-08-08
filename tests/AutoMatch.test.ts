@@ -40,6 +40,7 @@ function pairedSeats(): Seat[] {
     seat.session = MatchSession.attach(link, (on) => link.listen(on), {
       nickname: `사람${index}`,
       deviceId: `dev-${index}`,
+      icon: '',
       countdownSec: 0,
       onPhase: (next) => {
         seat.phase = next

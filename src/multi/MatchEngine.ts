@@ -17,6 +17,7 @@ import { resolveItem } from '../game/systems/ItemResolver.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
 import { LandingGlow } from '../game/systems/LandingGlow.ts'
+import type { TrailHit } from '../game/systems/TrailField.ts'
 import { WordSpawner } from '../game/systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../game/types/events.ts'
 import type { FallingWord, OwnerId } from '../game/types/game.ts'
@@ -211,6 +212,8 @@ class MatchEngine {
   private aimer = new Aimer(AIM_HALF_RANGE)
   /** 빛나는 물건이 얹힐 때 번지는 색. 싱글과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
+  /** 이번 프레임에 부딪힌 자리들. 배열을 새로 만들지 않고 비워 쓴다 */
+  private readonly frameImpacts: TrailHit[] = []
   private elapsed = 0
 
   /** 사람별로 다음에 떨굴 수 있을 때까지 남은 시간(초) */
@@ -899,6 +902,8 @@ class MatchEngine {
     this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
     // 판이 끝난 뒤에도 색은 계속 사라져야 한다 — 그리기가 매 프레임 이어지므로
     this.landing.advance(dt)
+    // 지난 프레임의 부딪힘은 이미 그려졌다
+    this.frameImpacts.length = 0
     if (this.match.over || this.connectionLost) {
       return
     }
@@ -935,6 +940,13 @@ class MatchEngine {
     const { impacts, escaped, quake } = this.physics.step(dt)
     this.landing.note(impacts)
     for (const hit of impacts) {
+      this.frameImpacts.push({
+        id: hit.variant.id,
+        color: hit.variant.color,
+        x: hit.x,
+        y: hit.y,
+        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
+      })
       this.fire({
         kind: 'impact',
         strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
@@ -1040,6 +1052,7 @@ class MatchEngine {
       stackTop: this.physics.stackTop(),
       // 꼬리 부스러기가 이 값의 차이로 시간을 흘린다
       time: this.elapsed,
+      impacts: this.frameImpacts,
       ownerColors: this.ownerColors,
     })
   }

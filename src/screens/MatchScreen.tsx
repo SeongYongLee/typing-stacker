@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { Avatar } from '../components/Avatar.tsx'
 import { play } from '../components/animate.ts'
 import { withObject, withSubject, withTopic } from '../text/particle.ts'
 import { StackArena } from '../components/StackArena.tsx'
@@ -89,10 +90,10 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
               <Verdict state={state} onRematch={rematch} onLeave={onLeave} />
             )}
             {state.opponentLeft && state.phase !== 'over' && (
-              <Banner text="상대가 로비로 나갔다" danger />
+              <Banner text="상대가 로비로 나갔습니다" danger />
             )}
             {state.connectionLost && !state.opponentLeft && state.phase !== 'over' && (
-              <Banner text="상대와의 연결이 끊겼다" danger />
+              <Banner text="상대와의 연결이 끊겼습니다" danger />
             )}
             {state.hurt !== null && state.phase !== 'over' && (
               <HurtNotice state={state} hurt={state.hurt} />
@@ -157,14 +158,8 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               background: active ? 'rgba(255, 207, 92, 0.1)' : 'transparent',
             }}
           >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: ownerColorAt(index),
-              }}
-            />
+            {/* 판이 도는 중에는 이름을 읽을 틈이 없다. 아이콘이 더 빨리 읽힌다 */}
+            <Avatar icon={player.icon} size={crowded ? 18 : 24} ring={ownerColorAt(index)} />
             <span
               style={{
                 fontSize: crowded ? 13 : 15,
@@ -277,7 +272,7 @@ function InputRow({
  */
 function ActionHint({ state }: { state: MatchViewState }) {
   if (state.phase === 'over') {
-    return <span style={{ fontSize: 14, color: '#6a7290' }}>판이 끝났다</span>
+    return <span style={{ fontSize: 14, color: '#6a7290' }}>판이 끝났습니다</span>
   }
   const ready = state.canDrop
   const soon = state.myTurn && !ready
@@ -286,10 +281,10 @@ function ActionHint({ state }: { state: MatchViewState }) {
    * 누구 차례인지는 상단 이름표가 이미 밝히고 있어, 여기서 또 하면 같은 것을 두 번 읽는다.
    */
   const label = ready
-    ? '단어를 치면 그 물건이 화살표 자리에 떨어진다'
+    ? '단어를 치면 그 물건이 화살표 자리에 떨어집니다'
     : soon
-      ? '곧 칠 수 있다'
-      : '단어를 치면 그 단어를 노린다'
+      ? '곧 칠 수 있습니다'
+      : '단어를 치면 그 단어를 노립니다'
   const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#ff9f6b'
   return (
     <span
@@ -658,7 +653,7 @@ function Verdict({
 }) {
   const won = state.winner === state.selfId
   const draw = state.winner === null
-  const text = draw ? '무승부' : won ? '이겼다' : '졌다'
+  const text = draw ? '무승부' : won ? '이겼습니다' : '졌습니다'
   const winnerName =
     state.players.find((player) => player.id === state.winner)?.nickname ?? null
   const iWantRematch = state.wantRematch.includes(state.selfId)
@@ -687,7 +682,7 @@ function Verdict({
           {text}
         </span>
         {winnerName !== null && !draw && (
-          <span style={{ color: '#b6bdd4', fontSize: 15 }}>{withSubject(winnerName)} 이겼다</span>
+          <span style={{ color: '#b6bdd4', fontSize: 15 }}>{withSubject(winnerName)} 이겼습니다</span>
         )}
         {/*
           * 순위. **"이겼다/졌다"만으로는 여덟이 붙는 판에서 아무것도 알 수 없다** —
@@ -760,7 +755,7 @@ function Verdict({
           */}
         {state.opponentLeft ? (
           <span data-opponent-left style={{ color: '#ff6b6b', fontSize: 15 }}>
-            상대가 로비로 나갔다
+            상대가 로비로 나갔습니다
           </span>
         ) : (
           <button
@@ -778,7 +773,7 @@ function Verdict({
               color: iWantRematch ? '#8b93b0' : '#1a1405',
             }}
           >
-            {iWantRematch ? '상대를 기다린다…' : '계속하기'}
+            {iWantRematch ? '상대를 기다립니다…' : '계속하기'}
           </button>
         )}
 
@@ -848,7 +843,7 @@ function HurtNotice({
     >
       {/* 노림 알림과 같은 규칙 — 누구든 닉네임으로 부르고, 내 일인지는 색이 말한다 */}
       <div style={{ fontSize: 20, fontWeight: 700, color: mine ? '#ff6b6b' : '#f2f4fb' }}>
-        {who}의 물건이 떨어졌다
+        {who}의 물건이 떨어졌습니다
       </div>
       {/* 무적은 하트 위 베리어가 이미 보여준다 — 글로 한 번 더 말하면 읽을 것만 늘어난다 */}
       <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
@@ -873,10 +868,10 @@ function TierPanel({ state }: { state: MatchViewState }) {
   const progress = tierProgress(ranking.rating)
 
   if (ranking.status === 'offline') {
-    return <span style={{ fontSize: 13, color: '#4a5171' }}>티어를 받지 못했다</span>
+    return <span style={{ fontSize: 13, color: '#4a5171' }}>티어를 받지 못했습니다</span>
   }
   if (ranking.status === 'pending') {
-    return <span style={{ fontSize: 13, color: '#6a7290' }}>상대의 보고를 기다린다…</span>
+    return <span style={{ fontSize: 13, color: '#6a7290' }}>상대의 보고를 기다립니다…</span>
   }
   if (ranking.status === 'disputed') {
     return (

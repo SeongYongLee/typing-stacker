@@ -3,8 +3,12 @@ import type { CSSProperties } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { ADJECTIVES, joinName, nouns, randomName } from '../game/data/nicknames.ts'
+import { hashOf } from '../game/data/materials.ts'
+import { VARIANT_BY_ID } from '../game/data/words.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
-import { loadProfile, renameProfile } from '../storage/profile.ts'
+import { Avatar } from '../components/Avatar.tsx'
+import { loadCollection } from '../storage/collection.ts'
+import { loadProfile, renameProfile, setProfileIcon } from '../storage/profile.ts'
 
 /**
  * 이름을 고르는 화면.
@@ -41,6 +45,24 @@ const rowLabelStyle: CSSProperties = {
   textAlign: 'left',
 }
 
+/**
+ * 고를 수 있는 아이콘 — 도감에서 모은 것.
+ *
+ * 도감과 같은 차례(id 해시)로 늘어놓는다. 무작위처럼 보이면서 언제 열어도 같은 자리라,
+ * 어제 본 물건을 다시 찾을 수 있다.
+ */
+function collected(): string[] {
+  return loadCollection().sort((a, b) => hashOf(a) - hashOf(b))
+}
+
+function labelOfIcon(icon: string, count: number): string {
+  if (icon === '') {
+    // 아직 아무것도 못 만난 사람에게는 고를 것이 없다는 사실 자체를 알려야 한다
+    return count > 1 ? '없음' : '아직 모은 물건이 없다'
+  }
+  return VARIANT_BY_ID.get(icon)?.label ?? icon
+}
+
 /** 저장된 이름이 어느 재료로 만들어졌는지 되찾는다. 화면을 다시 열면 이어서 고른다 */
 function partsOf(name: string, nounList: readonly string[]): [number, number] {
   const gap = name.indexOf(' ')
@@ -55,8 +77,18 @@ function partsOf(name: string, nounList: readonly string[]): [number, number] {
 
 function NameScreen({ onBack, onChange }: NameScreenProps) {
   const nounList = useMemo(() => nouns(), [])
-  const [before] = useState(() => loadProfile().name)
-  const [[adjective, noun], setParts] = useState(() => partsOf(before, nounList))
+  const [before] = useState(() => loadProfile())
+  const [[adjective, noun], setParts] = useState(() => partsOf(before.name, nounList))
+
+  /*
+   * 아이콘은 **모은 것 중에서만** 고른다. 도감과 같은 차례로 늘어놓아 열 때마다 자리가
+   * 같게 두고, 맨 앞에 '없음'을 둔다 — 골랐다가 그만두는 길이 있어야 한다.
+   */
+  const icons = useMemo(() => ['', ...collected()], [])
+  const [icon, setIcon] = useState(() => {
+    const at = icons.indexOf(before.icon)
+    return at < 0 ? 0 : at
+  })
 
   // 부르는 쪽이 인라인 함수를 넘기므로 의존성에 넣으면 매 렌더마다 새로 묶인다
   const onChangeRef = useRef(onChange)
@@ -66,24 +98,30 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
     adjective: ADJECTIVES[adjective] ?? '',
     noun: nounList[noun] ?? '',
   })
+  const pickedIcon = icons[icon] ?? ''
 
   /** 지금 고른 것을 쓴다. 저장은 여기 한 곳에서만 일어난다 */
   const use = useCallback(() => {
     renameProfile(name)
+    setProfileIcon(pickedIcon)
     onChangeRef.current?.(name)
     onBack()
-  }, [name, onBack])
+  }, [name, pickedIcon, onBack])
 
   /** 값 줄 하나를 한 칸 옮긴다. 끝에서 반대편으로 돌아간다 */
   const step = useCallback(
     (row: number, by: number) => {
+      if (row === 2) {
+        setIcon((at) => (at + by + icons.length) % icons.length)
+        return
+      }
       setParts(([a, n]) =>
         row === 0
           ? [(a + by + ADJECTIVES.length) % ADJECTIVES.length, n]
           : [a, (n + by + nounList.length) % nounList.length],
       )
     },
-    [nounList],
+    [nounList, icons],
   )
 
   const shuffle = useCallback(() => {
@@ -91,11 +129,17 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
     setParts([ADJECTIVES.indexOf(made.adjective), nounList.indexOf(made.noun)])
   }, [nounList])
 
-  const changed = name !== before
+  const changed = name !== before.name || pickedIcon !== before.icon
 
   const rows = [
     { kind: 'pick' as const, label: '꾸미말', value: ADJECTIVES[adjective] ?? '' },
     { kind: 'pick' as const, label: '물건', value: nounList[noun] ?? '' },
+    {
+      kind: 'pick' as const,
+      label: '아이콘',
+      value: labelOfIcon(pickedIcon, icons.length),
+      icon: pickedIcon,
+    },
     { kind: 'act' as const, label: '다시 뽑기', run: shuffle, primary: false },
     { kind: 'act' as const, label: '사용하기', run: use, primary: true },
     { kind: 'act' as const, label: '돌아가기 (Esc)', run: onBack, primary: false },
@@ -123,7 +167,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const by = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-      if (by === 0 || menu.index > 1) {
+      if (by === 0 || menu.index > 2) {
         return
       }
       event.preventDefault()
@@ -138,10 +182,10 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
     <div style={rootStyle}>
       <div style={{ textAlign: 'center', minWidth: 320 }}>
         <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          내 이름
+          내 프로필
         </h1>
         <p style={{ fontSize: 12, color: '#6a7290', margin: '10px 0 22px' }}>
-          순위표와 대전 상대에게 이렇게 보인다
+          순위표와 대전 상대에게 이렇게 보입니다
         </p>
 
         <div style={{ display: 'grid', gap: 10 }} data-name-picker>
@@ -157,6 +201,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
                   step(index, by)
                   menu.select(index)
                 }}
+                icon={row.icon}
               />
             ) : (
               <MenuButton
@@ -172,22 +217,27 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
           )}
         </div>
 
-        <p
+        <div
           style={{
-            font: '700 22px/1.3 var(--sans)',
-            color: '#ffcf5c',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
             margin: '22px 0 0',
           }}
-          data-my-name
         >
-          {name}
-        </p>
+          {/* 테두리는 다른 자리와 같은 색이다. 여기만 강조하면 아이콘이 골라진 줄로 읽힌다 */}
+          <Avatar icon={pickedIcon} size={34} />
+          <p style={{ font: '700 22px/1.3 var(--sans)', color: '#ffcf5c', margin: 0 }} data-my-name>
+            {name}
+          </p>
+        </div>
         {/* 무엇을 잃고 무엇을 얻는지 — 나가는 문이 둘이므로 이 줄이 있어야 고를 수 있다 */}
         <p style={{ fontSize: 12, color: '#6a7290', margin: '8px 0 0' }}>
-          {changed ? `돌아가면 ${before} 그대로` : '쓰던 이름 그대로'}
+          {changed ? `돌아가면 ${before.name} 그대로` : '쓰던 이름 그대로'}
         </p>
         <p style={{ marginTop: 16, fontSize: 12, color: '#4a5171' }}>
-          ↑↓로 고르고 ←→로 값을 바꾼다
+          ↑↓로 고르고 ←→로 값을 바꿉니다
         </p>
       </div>
     </div>
@@ -200,6 +250,8 @@ interface PickRowProps {
   selected: boolean
   onHover: () => void
   onStep: (by: number) => void
+  /** 값이 물건이면 그림도 함께 보여준다 — 이름만으로는 무엇인지 떠오르지 않는다 */
+  icon?: string
 }
 
 /**
@@ -208,7 +260,7 @@ interface PickRowProps {
  * 화살표를 양옆에 그려두는 이유는 이 줄이 누르는 것이 아니라 **넘기는 것**임을
  * 알려야 하기 때문이다. 버튼과 같은 모양이면 Enter만 눌러보고 좌우가 있는 줄 모른다.
  */
-function PickRow({ label, value, selected, onHover, onStep }: PickRowProps) {
+function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps) {
   const arrowStyle: CSSProperties = {
     width: 34,
     padding: '6px 0',
@@ -237,10 +289,13 @@ function PickRow({ label, value, selected, onHover, onStep }: PickRowProps) {
       <button type="button" style={arrowStyle} onClick={() => onStep(-1)} aria-label={`${label} 이전`}>
         ◀
       </button>
-      <div>
-        <div style={rowLabelStyle}>{label}</div>
-        <div style={{ fontSize: 17, fontWeight: 600, color: selected ? '#ffcf5c' : '#b6bdd4' }}>
-          {value}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+        {icon !== undefined && <Avatar icon={icon} size={30} />}
+        <div>
+          <div style={rowLabelStyle}>{label}</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: selected ? '#ffcf5c' : '#b6bdd4' }}>
+            {value}
+          </div>
         </div>
       </div>
       <button type="button" style={arrowStyle} onClick={() => onStep(1)} aria-label={`${label} 다음`}>

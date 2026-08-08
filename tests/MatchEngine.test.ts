@@ -20,8 +20,8 @@ import { FrameClock } from './helpers/frameClock.ts'
  */
 
 const PLAYERS: PlayerInfo[] = [
-  { id: 'host-peer', nickname: '자두', device: 'dev-host' },
-  { id: 'guest-peer', nickname: '세이지', device: 'dev-guest' },
+  { id: 'host-peer', nickname: '자두', device: 'dev-host' , icon: ''},
+  { id: 'guest-peer', nickname: '세이지', device: 'dev-guest' , icon: ''},
 ]
 
 /** 떨굴 때 방장이 난수를 한 번 더 뽑는 단어들 — 난수열이 갈리는지 보려면 이 중에서 골라야 한다 */

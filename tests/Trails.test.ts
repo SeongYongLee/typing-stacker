@@ -9,6 +9,9 @@ import {
   MAX_PARTICLES,
   MIN_SPEED,
   SPECS,
+  SPLASH_COUNT,
+  SPLASH_FAN,
+  SPLASH_MIN_STRENGTH,
   TrailField,
   type TrailBody,
 } from '../src/game/systems/TrailField.ts'
@@ -32,9 +35,20 @@ function fall(field: TrailField, id: string, frames: number, speed = 4, settled 
 }
 
 describe('꼬리 갈래 표', () => {
-  it('모든 갈래에 물건이 배정돼 있다', () => {
+  /**
+   * `splash`만 빼고 모든 갈래에 물건이 있어야 한다. 배정된 물건이 없는 갈래는
+   * 표만 있고 화면에는 영영 안 나온다.
+   *
+   * `splash`는 예외다 — **움직이는 동안** 흘리는 것이 아니라 **부딪히는 순간** 터지는
+   * 것이라 물건에 배정되지 않는다. 액체가 담긴 것(`droplet`)이 닿을 때 만들어진다.
+   */
+  it('splash 말고는 모든 갈래에 물건이 배정돼 있다', () => {
     const used = new Set(Object.values(TRAILS))
     for (const kind of Object.keys(SPECS) as Trail[]) {
+      if (kind === 'splash') {
+        expect(used.has(kind), 'splash는 물건에 배정되지 않는다').toBe(false)
+        continue
+      }
       expect(used.has(kind), kind).toBe(true)
     }
   })
@@ -210,6 +224,8 @@ describe('부스러기를 어떻게 칠하는가', () => {
     kind: 'sparkle' as Trail,
     color: '#f2d43c',
     phase: 0,
+    angle: 0,
+    spin: 1,
   }
 
   it('반짝임만 빛을 더한다', () => {
@@ -264,8 +280,9 @@ describe('부스러기를 어떻게 칠하는가', () => {
 describe('부스러기가 화면에 그려진다', () => {
   const CSS = { width: 1280, height: 800 }
 
-  function makeCanvas(): { canvas: HTMLCanvasElement; arcs: number[] } {
-    const arcs: number[] = []
+  function makeCanvas(): { canvas: HTMLCanvasElement; ops: string[]; fills: number } {
+    const ops: string[] = []
+    const counted = { fills: 0 }
     const ctx = {
       fillStyle: '',
       strokeStyle: '',
@@ -286,11 +303,16 @@ describe('부스러기가 화면에 그려진다', () => {
       scale: () => {},
       beginPath: () => {},
       closePath: () => {},
-      moveTo: () => {},
-      lineTo: () => {},
-      arc: (_x: number, _y: number, r: number) => arcs.push(r),
+      moveTo: () => ops.push('moveTo'),
+      lineTo: () => ops.push('lineTo'),
+      arc: () => ops.push('arc'),
+      ellipse: () => ops.push('ellipse'),
+      quadraticCurveTo: () => ops.push('quadraticCurveTo'),
       stroke: () => {},
-      fill: () => {},
+      fill: () => {
+        counted.fills += 1
+        ops.push('fill')
+      },
       fillRect: () => {},
       setLineDash: () => {},
       strokeRect: () => {},
@@ -305,7 +327,13 @@ describe('부스러기가 화면에 그려진다', () => {
       getContext: () => ctx,
       getBoundingClientRect: () => CSS,
     }
-    return { canvas: canvas as unknown as HTMLCanvasElement, arcs }
+    return {
+      canvas: canvas as unknown as HTMLCanvasElement,
+      ops,
+      get fills() {
+        return counted.fills
+      },
+    }
   }
 
   const BASE = {
@@ -318,6 +346,7 @@ describe('부스러기가 화면에 그려진다', () => {
     ownerColors: null,
     cameraY: 0,
     stackTop: 0.8,
+    impacts: [],
   } as const
 
   let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
@@ -346,8 +375,9 @@ describe('부스러기가 화면에 그려진다', () => {
   })
 
   /** 물건을 아래로 옮기며 프레임을 돌린다. 그린 원의 반지름들을 돌려준다 */
-  function run(id: string, frames = 30): number[] {
-    const { canvas, arcs } = makeCanvas()
+  function run(id: string, frames = 30): { ops: string[]; fills: number } {
+    const shell = makeCanvas()
+    const { canvas } = shell
     const renderer = new ArenaRenderer(canvas)
     const variant = ALL_VARIANTS.find((item) => item.id === id)
     if (variant === undefined) throw new Error(id)
@@ -372,26 +402,219 @@ describe('부스러기가 화면에 그려진다', () => {
       y -= 4 / 60
       time += 1 / 60
     }
-    return arcs
+    return { ops: shell.ops, fills: shell.fills }
   }
 
-  it('꼬리를 가진 물건이 떨어지면 원이 그려진다', () => {
-    expect(run('bolt').length).toBeGreaterThan(0)
-  })
+  /*
+   * `fill()`은 받침대와 물건도 쓰고, 물건은 **볼록 조각마다** 한 번씩 부른다. 그래서
+   * 서로 다른 물건끼리는 값을 견줄 수 없다(번개 377 대 냉장고 390 — 조각 수 차이다).
+   * **같은 물건을 켜고 끄고** 비교해야 부스러기 몫만 남는다.
+   */
+  function fillsWith(id: string, trail: number): number {
+    updateDisplaySettings({ trail })
+    return run(id).fills
+  }
 
-  it('꼬리가 없는 물건은 아무것도 안 그린다', () => {
-    expect(run('refrigerator')).toHaveLength(0)
+  it('꼬리를 가진 물건이 떨어지면 더 그린다', () => {
+    expect(fillsWith('bolt', 1)).toBeGreaterThan(fillsWith('bolt', 0))
   })
 
   /** 움직이는 점이 늘어나는 게 거슬리는 사람에게는 이것만으로 오래 못 하는 게임이 된다 */
   it('설정에서 끄면 아예 그리지 않는다', () => {
-    updateDisplaySettings({ trail: 0 })
-    expect(run('bolt')).toHaveLength(0)
+    expect(fillsWith('refrigerator', 1)).toBe(fillsWith('refrigerator', 0))
   })
 
-  /** 너무 작으면 안 보이고, 화면 배율이 바뀌어도 최소 크기는 지켜야 한다 */
-  it('보일 만한 크기로 그린다', () => {
-    const radii = run('bolt')
-    expect(Math.min(...radii)).toBeGreaterThanOrEqual(0.6)
+  it('꼬리가 없는 물건은 설정을 켜도 달라지지 않는다', () => {
+    expect(fillsWith('refrigerator', 1)).toBe(fillsWith('refrigerator', 0.5))
+  })
+
+  /**
+   * 다섯 갈래를 전부 원으로 그렸을 때는 뿜는 양·수명·무게가 달라도 눈에는
+   * **"색만 다른 동그라미"**로 보였다. 갈래를 나눈 값이 모양에서 가장 크게 드러난다.
+   */
+  it('별은 각진 모양으로 그린다 — 원이 아니다', () => {
+    const { ops } = run('bolt')
+    expect(ops).toContain('lineTo')
+    expect(ops).not.toContain('arc')
+  })
+
+  it('잎은 뾰족한 곡선으로 그린다', () => {
+    const { ops } = run('leaf')
+    expect(ops).toContain('quadraticCurveTo')
+    expect(ops).not.toContain('arc')
+  })
+
+  it('방울과 솜은 눌린 타원으로 그린다', () => {
+    expect(run('beer').ops).toContain('ellipse')
+    expect(run('quill-feather').ops).toContain('ellipse')
+  })
+
+  it('부스러기는 각진 조각으로 그린다', () => {
+    const { ops } = run('broom')
+    expect(ops).toContain('lineTo')
+    expect(ops).not.toContain('ellipse')
+  })
+
+  /** 갈래마다 모양이 갈려야 "잎이 흩날린다"가 읽힌다 */
+  it('갈래마다 쓰는 경로가 다르다', () => {
+    const pathOf = (id: string): string =>
+      [...new Set(run(id).ops.filter((op) => op !== 'fill' && op !== 'moveTo'))].sort().join('+')
+    const shapes = new Set([
+      pathOf('bolt'),
+      pathOf('leaf'),
+      pathOf('beer'),
+      pathOf('broom'),
+    ])
+    expect(shapes.size).toBeGreaterThanOrEqual(3)
+  })
+})
+
+/**
+ * 부딪히는 순간 물이 퍼진다.
+ *
+ * 흘리는 부스러기와 성격이 다르다 — 저쪽은 **움직이는 동안** 계속 나오고 이쪽은
+ * **한 순간**에 터진다. 그래서 부딪힘 판정을 렌더러가 스스로 하지 않고 물리가 이미
+ * 갖고 있는 것(`IMPACT_MIN_SPEED`)을 넘겨받는다. 두 벌을 두면 조율한 문턱이 어긋난다.
+ */
+describe('닿으면 물이 퍼진다', () => {
+  function hit(id: string, strength = 1) {
+    const variant = ALL_VARIANTS.find((item) => item.id === id)
+    if (variant === undefined) throw new Error(id)
+    return { id, color: variant.color, x: 0, y: 1, strength }
+  }
+
+  it('액체가 담긴 것이 닿으면 터진다', () => {
+    const field = new TrailField()
+    field.update([], 1 / 60, [hit('beer')])
+    expect(field.particles.length).toBeGreaterThan(0)
+    expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
+  })
+
+  /** 모든 물건이 튀면 그것은 물이 아니라 그냥 착지 연출이다 */
+  it('액체가 아닌 것은 안 터진다', () => {
+    const field = new TrailField()
+    field.update([], 1 / 60, [hit('bolt'), hit('leaf'), hit('refrigerator')])
+    expect(field.particles).toHaveLength(0)
+  })
+
+  /** 살짝 얹히는 것까지 튀면 받침대가 늘 젖어 있다 */
+  it('약하게 닿으면 안 터진다', () => {
+    const field = new TrailField()
+    field.update([], 1 / 60, [hit('beer', SPLASH_MIN_STRENGTH * 0.5)])
+    expect(field.particles).toHaveLength(0)
+  })
+
+  it('세게 닿을수록 많이 터진다', () => {
+    const weak = new TrailField()
+    weak.update([], 1 / 60, [hit('beer', 0.3)])
+    const strong = new TrailField()
+    strong.update([], 1 / 60, [hit('beer', 1)])
+    expect(strong.particles.length).toBeGreaterThan(weak.particles.length)
+    expect(strong.particles.length).toBeLessThanOrEqual(SPLASH_COUNT)
+  })
+
+  /**
+   * 바닥에 닿아 튄 물이 바닥을 뚫고 내려가면 안 된다.
+   *
+   * **태어나는 순간**을 본다(dt 0). 한 프레임이라도 흐르면 중력이 붙어 아래로
+   * 내려가기 시작하는데, 그건 튄 물이 다시 떨어지는 것이라 맞는 동작이다.
+   */
+  it('태어날 때 아래로는 튀지 않는다', () => {
+    const field = new TrailField()
+    field.update([], 0, [hit('beer')])
+    for (const particle of field.particles) {
+      expect(particle.vy).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('옆으로 퍼진다 — 한 점에서 위로만 솟지 않는다', () => {
+    const field = new TrailField()
+    field.update([], 0, [hit('beer')])
+    const left = field.particles.filter((p) => p.vx < 0).length
+    const right = field.particles.filter((p) => p.vx > 0).length
+    expect(left).toBeGreaterThan(0)
+    expect(right).toBeGreaterThan(0)
+  })
+
+  /** 담긴 것의 색이어야 한다 — 맥주는 노랗고 딸기우유는 분홍이다 */
+  it('담긴 것의 색으로 퍼진다', () => {
+    const beer = ALL_VARIANTS.find((item) => item.id === 'beer')
+    const field = new TrailField()
+    field.update([], 1 / 60, [hit('beer')])
+    expect(field.particles[0]?.color).toBe(beer?.color)
+  })
+
+  /**
+   * 시간이 안 흐른 프레임이 실제로 있다(판이 멈춰 있거나 화면이 처음 그려질 때).
+   * 부딪힘은 사건이라 그런 프레임에서 흘려보내면 통째로 사라진다.
+   */
+  it('시간이 안 흘러도 터진다', () => {
+    const field = new TrailField()
+    field.update([], 0, [hit('beer')])
+    expect(field.particles.length).toBeGreaterThan(0)
+  })
+
+  it('시간이 지나면 사라진다', () => {
+    const field = new TrailField()
+    field.update([], 1 / 60, [hit('beer')])
+    for (let i = 0; i < 120; i += 1) {
+      field.update([], 1 / 60)
+    }
+    expect(field.particles).toHaveLength(0)
+  })
+})
+
+/**
+ * 부채꼴로 솟는다.
+ *
+ * 처음에는 반원에 고르게 뿌리고 세로 성분을 절반으로 눌렀는데, 그러면 옆으로 흐르기만
+ * 해서 "튀었다"가 아니라 "번졌다"로 보였다. 물이 튀는 것은 **중력 반대 방향**으로
+ * 솟구쳤다가 되떨어지는 것이다.
+ */
+describe('물은 부채꼴로 솟는다', () => {
+  function splash(): TrailField {
+    const variant = ALL_VARIANTS.find((item) => item.id === 'beer')
+    if (variant === undefined) throw new Error('beer')
+    const field = new TrailField()
+    field.update([], 0, [{ id: 'beer', color: variant.color, x: 0, y: 1, strength: 1 }])
+    return field
+  }
+
+  it('전부 위로 솟는다', () => {
+    for (const particle of splash().particles) {
+      expect(particle.vy).toBeGreaterThan(0)
+    }
+  })
+
+  /** 가운데가 가장 높이 솟아야 부채꼴로 보인다. 전부 같으면 폭발처럼 보인다 */
+  it('가운데가 가장자리보다 높이 솟는다', () => {
+    const particles = [...splash().particles]
+    const middle = particles.filter((p) => Math.abs(p.vx) < 0.5)
+    const edge = particles.filter((p) => Math.abs(p.vx) > 1.2)
+    expect(middle.length).toBeGreaterThan(0)
+    expect(edge.length).toBeGreaterThan(0)
+    const mean = (list: typeof particles): number =>
+      list.reduce((sum, p) => sum + p.vy, 0) / list.length
+    expect(mean(middle)).toBeGreaterThan(mean(edge))
+  })
+
+  /** 좁으면 분수처럼 한 줄기로 솟고, 180도에 가까우면 바닥을 기는 물이 된다 */
+  it('부채가 좌우로 벌어져 있다', () => {
+    expect(SPLASH_FAN).toBeGreaterThan(1.2)
+    expect(SPLASH_FAN).toBeLessThan(Math.PI)
+    const particles = splash().particles
+    expect(particles.some((p) => p.vx < -0.5)).toBe(true)
+    expect(particles.some((p) => p.vx > 0.5)).toBe(true)
+  })
+
+  /** 솟았으면 되떨어져야 한다 — 중력이 맡는다 */
+  it('솟았다가 되떨어진다', () => {
+    const field = splash()
+    const top = Math.max(...field.particles.map((p) => p.vy))
+    for (let i = 0; i < 20; i += 1) {
+      field.update([], 1 / 60)
+    }
+    const later = Math.max(...field.particles.map((p) => p.vy))
+    expect(later).toBeLessThan(top)
   })
 })

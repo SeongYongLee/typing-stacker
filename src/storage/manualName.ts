@@ -51,3 +51,38 @@ function clean(raw: string): string {
 }
 
 export { loadManualName, saveManualName, isUsableName, STORAGE_KEY }
+
+/**
+ * 수동 매칭에서 쓰는 아이콘.
+ *
+ * 기기 프로필과 갈라두는 이유는 이름을 갈라둔 것과 같다 — 이 자리는 아는 사람끼리
+ * 모이는 곳이라, 순위표에 쓰는 얼굴과 다른 것을 걸고 싶을 수 있다.
+ *
+ * 고를 수 있는 것은 여기서도 **도감에서 모은 것**뿐이다. 아이콘은 이름과 달리
+ * 실제로 만나본 물건이라는 뜻을 지니고 있어서, 방에 따라 그 뜻이 달라지면 안 된다.
+ */
+const ICON_KEY = 'typing-stacker/manual-icon/v1'
+
+function loadManualIcon(): string {
+  try {
+    const raw = localStorage.getItem(ICON_KEY)
+    return raw === null ? '' : cleanIcon(raw)
+  } catch {
+    return ''
+  }
+}
+
+function saveManualIcon(icon: string): void {
+  try {
+    localStorage.setItem(ICON_KEY, cleanIcon(icon))
+  } catch {
+    /* 저장만 안 될 뿐이다 */
+  }
+}
+
+/** 물건 id로 쓸 수 있는 모양인가. 표에 있는지는 그리는 쪽이 본다 */
+function cleanIcon(icon: string): string {
+  return /^[a-z0-9-]{1,40}$/.test(icon) ? icon : ''
+}
+
+export { loadManualIcon, saveManualIcon }

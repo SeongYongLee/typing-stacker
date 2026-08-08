@@ -72,14 +72,14 @@ interface TransportFailure {
 }
 
 const FAILURE_TEXT: Record<TransportFailureKind, string> = {
-  roomNotFound: '그 코드로 기다리는 방이 없다. 코드를 다시 확인해보자.',
-  roomFull: '방이 이미 꽉 찼다.',
-  brokerUnreachable: '중계 서버에 닿지 못했다. 네트워크를 확인하거나 잠시 뒤 다시 시도해보자.',
-  peerLost: '상대와의 연결이 끊겼다.',
+  roomNotFound: '그 코드로 기다리는 방이 없습니다. 코드를 다시 확인해 주세요.',
+  roomFull: '방이 이미 꽉 찼습니다.',
+  brokerUnreachable: '중계 서버에 닿지 못했습니다. 네트워크를 확인하거나 잠시 뒤 다시 시도해 주세요.',
+  peerLost: '상대와의 연결이 끊겼습니다.',
   handshakeStalled:
-    '상대와 붙었는데 시작 신호가 오지 않았다. 양쪽 다 나갔다가 방을 새로 만들어보자.',
-  readyTimeout: '상대가 준비하지 않았다. 다시 상대를 찾아보자.',
-  unknown: '연결에 실패했다.',
+    '상대와 붙었는데 시작 신호가 오지 않았습니다. 양쪽 다 나갔다가 방을 새로 만들어 주세요.',
+  readyTimeout: '상대가 준비하지 않았습니다. 다시 상대를 찾아보세요.',
+  unknown: '연결에 실패했습니다.',
 }
 
 function failure(kind: TransportFailureKind, retryable = true): TransportFailure {

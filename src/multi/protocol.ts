@@ -43,6 +43,14 @@ interface PlayerInfo {
   readonly id: PlayerId
   readonly nickname: string
   /**
+   * 이 사람의 아이콘으로 쓸 물건 id. 안 골랐으면 빈 문자열.
+   *
+   * **물건 표를 보고 거르지 않는다.** 상대가 우리보다 새 물건을 알고 있을 수 있어서,
+   * 여기서 모르는 id를 버리면 다음 아트 묶음이 올 때까지 그 사람만 아이콘이 없다.
+   * 그리는 쪽이 못 찾으면 빈 자리로 두므로(`Avatar`) 여기서는 모양만 본다.
+   */
+  readonly icon: string
+  /**
    * 기기 id. 레이팅이 판을 넘어 쌓이려면 이 값이 필요하다 —
    * `id`는 이 판에서만 쓰는 전송로 식별자라 다음 판이면 달라진다.
    *
@@ -54,7 +62,12 @@ interface PlayerInfo {
 
 /** 참가자 → 방장 */
 type ToHost =
-  | { readonly t: 'hello'; readonly nickname: string; readonly device: string }
+  | {
+      readonly t: 'hello'
+      readonly nickname: string
+      readonly device: string
+      readonly icon: string
+    }
   /** 준비를 눌렀다. 모두가 누르면 방장이 판을 연다 */
   | { readonly t: 'ready' }
   /** 판이 끝난 뒤 계속하기를 눌렀다 */
@@ -180,6 +193,7 @@ function parseMessage(raw: unknown): Message | null {
         t: 'hello',
         nickname: sanitizeNickname(raw['nickname']),
         device: deviceId(raw['device']),
+        icon: iconId(raw['icon']),
       }
     case 'drop':
       if (!isShortString(raw['word'], 20) || !isFiniteNumber(raw['aimX'])) return null
@@ -318,6 +332,7 @@ function parsePlayers(raw: readonly unknown[]): PlayerInfo[] {
       id: entry['id'],
       nickname: sanitizeNickname(entry['nickname']),
       device: deviceId(entry['device']),
+      icon: iconId(entry['icon']),
     })
     if (players.length >= MAX_PLAYERS) break
   }
@@ -380,6 +395,11 @@ function clamp(value: number, min: number, max: number): number {
 /** 기기 id. 없거나 이상하면 빈 문자열로 둔다 — 그 판은 레이팅에 반영되지 않는다 */
 function deviceId(raw: unknown): string {
   return typeof raw === 'string' && raw.length > 0 && raw.length <= 64 ? raw : ''
+}
+
+/** 물건 id로 쓸 수 있는 모양인가. 표에 있는지는 그리는 쪽이 본다 */
+function iconId(raw: unknown): string {
+  return typeof raw === 'string' && /^[a-z0-9-]{1,40}$/.test(raw) ? raw : ''
 }
 
 /** 방 코드. Rng를 주입받아 테스트에서 재현할 수 있게 한다 */

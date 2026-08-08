@@ -11,7 +11,7 @@ import type { PlayerInfo } from '../src/multi/protocol.ts'
  */
 
 function people(...ids: string[]): PlayerInfo[] {
-  return ids.map((id) => ({ id, nickname: id, device: `dev-${id}` }))
+  return ids.map((id) => ({ id, nickname: id, device: `dev-${id}`, icon: '' }))
 }
 
 describe('차례', () => {

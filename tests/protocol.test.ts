@@ -51,6 +51,8 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
       t: 'hello',
       nickname: '이름없음',
       device: 'dev-1',
+      // 아이콘을 안 보낸 옛 클라이언트도 붙을 수 있어야 한다 — 없으면 없는 채로 둔다
+      icon: '',
     })
   })
 
@@ -63,6 +65,7 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
       t: 'hello',
       nickname: '자두',
       device: '',
+      icon: '',
     })
   })
 

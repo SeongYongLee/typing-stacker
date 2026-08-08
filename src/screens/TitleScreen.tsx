@@ -28,7 +28,7 @@ function TitleScreen({ onStart, onName, onMultiplayer, onCollection, onOptions, 
     disabled: boolean
     panel: 'name' | 'solo' | 'versus' | 'collection' | 'options'
   }[] = [
-    { label: '이름 바꾸기', run: onName, primary: false, disabled: false, panel: 'name' },
+    { label: '프로필 바꾸기', run: onName, primary: false, disabled: false, panel: 'name' },
     {
       label: ready ? '혼자 하기' : `준비 중… ${Math.round(progress * 100)}%`,
       run: onStart,
@@ -43,7 +43,7 @@ function TitleScreen({ onStart, onName, onMultiplayer, onCollection, onOptions, 
     { label: '옵션', run: onOptions, primary: false, disabled: false, panel: 'options' },
   ]
 
-  const greeting = loadProfile().name
+  const me = loadProfile()
 
   const menu = useMenuKeys({
     count: items.length,
@@ -62,11 +62,12 @@ function TitleScreen({ onStart, onName, onMultiplayer, onCollection, onOptions, 
     <MenuLayout
       title="타자 스태커"
       titleSize={46}
-      hint="↑↓ 또는 Tab으로 고르고 Enter로 들어간다"
+      hint="↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다"
       menu={
         <>
           <NameGreeting
-            name={greeting}
+            name={me.name}
+              icon={me.icon}
             selected={menu.index === 0}
             onSelect={() => menu.select(0)}
             onActivate={onName}

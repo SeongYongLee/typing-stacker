@@ -29,6 +29,8 @@ const PEAK: Readonly<Record<Trail, number>> = {
   petal: 0.82,
   fluff: 0.5,
   crumb: 0.62,
+  /* 퍼지는 물은 짧게 살아서 눈에 남는 시간이 적다. 그만큼 진해야 보인다 */
+  splash: 0.85,
 }
 
 /** 반짝임만 빛을 더한다. 흩날리는 잎을 가산으로 그리면 색이 다 하얗게 뜬다 */
@@ -38,6 +40,7 @@ const ADDITIVE: Readonly<Record<Trail, boolean>> = {
   petal: false,
   fluff: false,
   crumb: false,
+  splash: false,
 }
 
 /**
@@ -53,6 +56,8 @@ const NORMALIZED: Readonly<Record<Trail, boolean>> = {
   petal: false,
   fluff: false,
   crumb: false,
+  /* 물은 담긴 것의 색이어야 한다 — 맥주는 노랗고 딸기우유는 분홍이다 */
+  splash: false,
 }
 
 function parseHex(hex: string): { r: number; g: number; b: number } {

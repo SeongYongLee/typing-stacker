@@ -3,7 +3,7 @@ import { MatchState } from '../src/multi/MatchState.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 
 function players(...ids: string[]): PlayerInfo[] {
-  return ids.map((id) => ({ id, nickname: id, device: `dev-${id}` }))
+  return ids.map((id) => ({ id, nickname: id, device: `dev-${id}`, icon: '' }))
 }
 
 describe('MatchState — 2명', () => {

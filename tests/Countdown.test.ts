@@ -25,6 +25,7 @@ function seatsOf(count: number, countdownSec: number): Seat[] {
     const session = MatchSession.attach(link, (on) => link.listen(on), {
       nickname: `사람${index}`,
       deviceId: `dev-${index}`,
+      icon: '',
       countdownSec,
       onPhase: (next) => {
         phase = next

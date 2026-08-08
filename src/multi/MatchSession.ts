@@ -98,6 +98,8 @@ interface SessionOptions {
   readonly countdownSec?: number
   /** 이 기기의 id. 레이팅을 판 너머로 묶는 유일한 열쇠다 */
   readonly deviceId: string
+  /** 상대 화면에 뜰 아이콘(물건 id). 안 골랐으면 빈 문자열 */
+  readonly icon: string
   readonly onPhase: (phase: SessionPhase) => void
 }
 
@@ -106,6 +108,7 @@ class MatchSession {
   private engine: MatchEngine | null = null
   private readonly nickname: string
   private readonly deviceId: string
+  private readonly icon: string
   private readonly countdownSec: number
   private countdownTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onPhase: (phase: SessionPhase) => void
@@ -132,6 +135,7 @@ class MatchSession {
   private constructor(options: SessionOptions) {
     this.nickname = sanitizeNickname(options.nickname)
     this.deviceId = options.deviceId
+    this.icon = options.icon
     this.countdownSec = options.countdownSec ?? COUNTDOWN_SEC
     this.onPhase = options.onPhase
   }
@@ -164,7 +168,12 @@ class MatchSession {
     } else {
       session.onPhase({ kind: 'handshaking' })
       session.armHandshakeTimeout()
-      transport.broadcast({ t: 'hello', nickname: session.nickname, device: session.deviceId })
+      transport.broadcast({
+        t: 'hello',
+        nickname: session.nickname,
+        device: session.deviceId,
+        icon: session.icon,
+      })
     }
     return session
   }
@@ -195,7 +204,12 @@ class MatchSession {
         // 참가자는 붙자마자 자기를 알린다. 방장이 명단을 만들 수 있어야 한다
         this.onPhase({ kind: 'handshaking' })
         this.armHandshakeTimeout()
-        transport.broadcast({ t: 'hello', nickname: this.nickname, device: this.deviceId })
+        transport.broadcast({
+          t: 'hello',
+          nickname: this.nickname,
+          device: this.deviceId,
+          icon: this.icon,
+        })
       }
     } catch (error) {
       if (!this.disposed) {
@@ -264,6 +278,7 @@ class MatchSession {
         id: event.from,
         nickname: event.message.nickname,
         device: event.message.device,
+        icon: event.message.icon,
       })
       this.rebuildRoster()
       this.clearHandshakeTimeout()
@@ -322,7 +337,7 @@ class MatchSession {
       return
     }
     this.roster = [
-      { id: transport.selfId, nickname: this.nickname, device: this.deviceId },
+      { id: transport.selfId, nickname: this.nickname, device: this.deviceId, icon: this.icon },
       ...this.joined.values(),
     ]
   }

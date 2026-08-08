@@ -1,7 +1,8 @@
 import { glowScale, shakeScale, trailScale } from './displayPrefs.ts'
 import { glowAlpha, glowColor, glowStyle } from './glow.ts'
 import { trailPaint } from './trailPaint.ts'
-import { TrailField } from '../systems/TrailField.ts'
+import { traceTrail } from './trailShape.ts'
+import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import { sprite } from './spriteCache.ts'
 import { padRatio, rim } from './rimCache.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
@@ -99,6 +100,14 @@ interface ArenaRenderState {
    * 일시정지 중에도 부스러기가 계속 흐르게 된다.
    */
   readonly time: number
+  /**
+   * 이번 프레임에 부딪힌 자리들. 액체가 담긴 물건이면 그 자리에서 물이 퍼진다.
+   *
+   * 부딪힘을 렌더러가 스스로 알아내지 않는 이유는, 물리가 이미 그 판정을 갖고 있고
+   * (`IMPACT_MIN_SPEED`) 두 벌을 두면 **조율한 문턱이 서로 어긋나기** 때문이다.
+   * 소리도 같은 판정을 쓴다.
+   */
+  readonly impacts: readonly TrailHit[]
 }
 
 const COLORS = {
@@ -283,7 +292,7 @@ class ArenaRenderer {
       this.trails.reset()
       return
     }
-    this.trails.update(state.bodies, dt)
+    this.trails.update(state.bodies, dt, state.impacts)
 
     const { ctx } = this
     ctx.save()
@@ -294,15 +303,21 @@ class ArenaRenderer {
       }
       ctx.globalCompositeOperation = paint.additive ? 'lighter' : 'source-over'
       ctx.fillStyle = paint.style
-      const radius = Math.max(0.6, particle.size * this.scale)
-      ctx.beginPath()
-      ctx.arc(
-        this.toScreenX(particle.x),
-        this.toScreenY(particle.y),
-        radius,
-        0,
-        Math.PI * 2,
-      )
+      traceTrail(ctx, particle.kind, {
+        x: this.toScreenX(particle.x),
+        y: this.toScreenY(particle.y),
+        radius: Math.max(0.9, particle.size * this.scale),
+        /*
+         * 방울만 속도에서 기울기를 낸다 — 늘어난 방향이 나아가는 방향과 같아야
+         * "튀었다"로 읽힌다. 나머지는 스스로 뒹군다.
+         *
+         * 캔버스는 y가 아래로 +이므로 세로 속도의 부호를 뒤집는다.
+         */
+        angle:
+          particle.spin === 0
+            ? Math.atan2(-particle.vy, particle.vx)
+            : particle.angle,
+      })
       ctx.fill()
     }
     ctx.restore()
@@ -495,7 +510,20 @@ class ArenaRenderer {
 
     // 결과물은 튀어나오듯 커진다. 모이던 것이 하나로 뭉쳐 부풀어 오르는 것으로 읽힌다
     const pop = merging ? Math.min(ringBase / 0.16, 1) : 1
-    ctx.globalAlpha = alpha * 0.2 * (0.4 + pop * 0.6)
+
+    /*
+     * **나온 직후가 가장 또렷하다.**
+     *
+     * 예전에는 처음부터 끝까지 0.2로 깔아 배경 무늬처럼 두었다. 그러면 무엇을
+     * 얻었는지 그림으로는 알아볼 수 없어 이름을 읽어야만 했는데, 합성은 판당
+     * 0.27회뿐인 순간이라 그 한 번은 눈에 들어와야 한다.
+     *
+     * 그렇다고 끝까지 또렷하면 커지는 그림이 아레나를 덮는다. 그래서 **커질수록
+     * 흐려지게** 한다 — 터져 나왔다가 흩어지는 것으로 읽힌다. 링이 퍼지는 것과
+     * 같은 시계(`ringBase`)를 쓰므로 합성이든 운이든 결과가 나온 순간이 0이다.
+     */
+    const settle = Math.min(Math.max((ringBase - 0.2) / 0.4, 0), 1)
+    ctx.globalAlpha = alpha * pop * (0.75 - settle * 0.5)
     const ghost = unit * (1.3 + t * 0.5) * (0.55 + pop * 0.45)
     const img = sprite(reveal.sprite)
     if (img !== null) {

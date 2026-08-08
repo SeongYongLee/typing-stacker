@@ -140,8 +140,8 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
         </div>
 
         <p style={{ margin: 0, fontSize: 12, color: '#4a5171', lineHeight: 1.7 }}>
-          연결은 두 사람이 직접 맺는다(P2P). 그래서 <strong style={{ color: '#6a7290' }}>서로에게 IP가
-          보인다</strong> — 아는 사람과만 코드를 나누자.
+          연결은 중계 서버를 거친다. 서로에게 IP가 보이지 않고, 오가는 것은{' '}
+          <strong style={{ color: '#6a7290' }}>닉네임과 게임 조작</strong>뿐이다.
         </p>
 
         <button type="button" style={ghostButtonStyle} onClick={onBack}>

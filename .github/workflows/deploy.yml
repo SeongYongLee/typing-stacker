@@ -34,11 +34,8 @@ jobs:
       # 깨진 빌드를 배포하지 않는다
       - run: pnpm typecheck
       - run: pnpm test
-      # 중계 서버 주소. 저장소 변수(RELAY_URL)가 비어 있으면 P2P로 떨어진다 —
-      # 서버를 띄우지 않아도 배포는 되고, 대신 NAT을 통과하는 사람들만 붙는다
+      # 중계 주소는 코드(src/multi/MatchSession.ts)에 있다 — 여기서 넣어줄 것이 없다
       - run: pnpm build
-        env:
-          VITE_RELAY_URL: ${{ vars.RELAY_URL }}
 
       # Pages 사이트 자체는 미리 켜져 있어야 한다(Settings → Pages → Source: GitHub Actions).
       # Actions 토큰으로는 사이트를 만들 수 없어서 enablement 옵션은 여기서 쓸 수 없다.

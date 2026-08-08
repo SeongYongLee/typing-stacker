@@ -166,6 +166,8 @@ SPRITE_ROOT=~/Downloads node scripts/prepare-sprites.cjs
 
 중계는 그 조건을 통째로 없앤다. 양쪽 모두 **바깥으로 나가는 WebSocket 하나**만 열면 되고
 그건 어떤 망에서도 열린다. 턴제 게임이라 한 번 더 거치는 지연은 문제되지 않는다.
+그래서 **P2P 경로는 남겨두지 않고 지웠다** — 어차피 붙지 않는 길을 대비책으로 두면
+실패했을 때 "중계가 죽은 것"과 "P2P로 떨어진 것"을 구분하느라 시간만 쓴다.
 
 ```bash
 pnpm relay:dev                                    # 로컬 중계 (localhost:8787, wrangler를 그때 받아온다)
@@ -181,7 +183,8 @@ pnpm relay:deploy                                 # Cloudflare에 올린다 (wra
 
 방 하나가 Durable Object 하나다(`worker/src/index.ts`). 같은 코드는 언제나 같은
 인스턴스로 가므로 방을 찾는 절차가 필요 없고, 전송로는 `Transport` 인터페이스 뒤에 있어
-게임 코드는 P2P인지 중계인지 모른다.
+게임 코드는 무엇으로 붙었는지 모른다 — 그래서 시험용 루프백으로 갈아끼워 서버 없이도
+판 전체를 자동 검증한다.
 
 ## 배포
 

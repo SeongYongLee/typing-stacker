@@ -3,8 +3,8 @@ import type { Message, PlayerId } from './protocol.ts'
 /**
  * 대전 연결을 어떻게 맺는지를 숨기는 층.
  *
- * 지금은 PeerJS(WebRTC)를 쓰지만 공용 브로커에 SLA가 없다. 나중에 브로커를 직접
- * 띄우거나 다른 방식으로 갈아탈 때 게임 코드가 흔들리지 않게 인터페이스로 막아둔다.
+ * 지금은 중계 서버(WebSocket)를 쓴다. 이 층이 있어서 시험용 루프백으로 갈아끼울 수 있고,
+ * 그 덕에 서버 없이도 핸드셰이크부터 판 전체를 자동 검증한다.
  *
  * 토폴로지는 스타다 — 방장이 허브가 되어 모든 참가자와 개별 연결을 맺는다.
  * 그래서 방장을 거치면 메시지 순서가 하나로 정해지고, 인원이 늘어도 구조가 같다.
@@ -41,20 +41,10 @@ interface TransportHandlers {
 type TransportFailureKind =
   /** 그 방 코드로 기다리는 사람이 없다 */
   | 'roomNotFound'
-  /**
-   * 방은 찾았는데 P2P 경로가 열리지 않았다.
-   * 한쪽 망이 P2P를 막고 있을 때 이렇게 된다 — "방이 없다"와 전혀 다른 상황이라
-   * 안내도 달라야 한다. 코드를 잘못 쳤는지 망이 막았는지 구분되지 않으면 손쓸 수가 없다.
-   */
-  | 'pathBlocked'
   /** 방이 정원을 채웠다 */
   | 'roomFull'
-  /** 방 코드가 이미 누군가 쓰고 있다 (방장 쪽) */
-  | 'codeTaken'
-  /** 브로커에 닿지 못했다 */
+  /** 중계 서버에 닿지 못했다 */
   | 'brokerUnreachable'
-  /** 브라우저가 WebRTC를 지원하지 않는다 */
-  | 'unsupported'
   /** 상대와의 연결이 끊겼다 */
   | 'peerLost'
   /**
@@ -75,13 +65,8 @@ interface TransportFailure {
 
 const FAILURE_TEXT: Record<TransportFailureKind, string> = {
   roomNotFound: '그 코드로 기다리는 방이 없다. 코드를 다시 확인해보자.',
-  pathBlocked:
-    '방은 찾았는데 연결 경로가 열리지 않았다. 한쪽 망이 P2P를 막고 있을 수 있다 — 다른 네트워크(휴대폰 핫스팟 등)에서 다시 시도해보자.',
   roomFull: '방이 이미 꽉 찼다.',
-  codeTaken: '방 코드가 겹쳤다. 다시 만들면 된다.',
-  brokerUnreachable:
-    '연결 중개 서버에 닿지 못했다. 네트워크를 확인하거나 잠시 뒤 다시 시도해보자.',
-  unsupported: '이 브라우저는 WebRTC를 지원하지 않는다. 최신 크롬이나 사파리에서 열어보자.',
+  brokerUnreachable: '중계 서버에 닿지 못했다. 네트워크를 확인하거나 잠시 뒤 다시 시도해보자.',
   peerLost: '상대와의 연결이 끊겼다.',
   handshakeStalled:
     '상대와 붙었는데 시작 신호가 오지 않았다. 양쪽 다 나갔다가 방을 새로 만들어보자.',

@@ -1,5 +1,4 @@
 import { MatchEngine } from './MatchEngine.ts'
-import { PeerTransport } from './PeerTransport.ts'
 import { RelayTransport } from './RelayTransport.ts'
 import { createRoomCode } from './protocol.ts'
 import { sanitizeNickname } from './protocol.ts'
@@ -13,9 +12,10 @@ const HANDSHAKE_TIMEOUT_MS = 10000
 /**
  * 중계 서버 주소.
  *
- * P2P는 NAT을 통과해야만 동작하는데 그 조건이 망마다 달라서, 같은 Wi-Fi의 두 기기도
- * LTE와 Wi-Fi도 붙지 못했다(멀티캐스트 차단·헤어핀 NAT·이동통신 CGNAT). 중계는 그
- * 조건을 없앤다 — 바깥으로 나가는 WebSocket 하나면 되고 그건 어디서나 열린다.
+ * 직접 붙이는 길(WebRTC)은 NAT을 통과해야만 동작하는데 그 조건이 망마다 달라서, 같은
+ * Wi-Fi의 두 기기도 LTE와 Wi-Fi도 붙지 못했다(멀티캐스트 차단·헤어핀 NAT·이동통신
+ * CGNAT). 중계는 그 조건을 없앤다 — 바깥으로 나가는 WebSocket 하나면 되고 그건
+ * 어디서나 열린다. 그래서 그 길은 남겨두지 않고 지웠다.
  *
  * **주소를 여기 적어두는 이유**는 이것이 비밀이 아니기 때문이다. 어차피 클라이언트
  * 번들에 그대로 실려 나가므로 숨겨봐야 얻는 게 없고, 대신 빌드 설정에 숨겨두면
@@ -82,7 +82,7 @@ class MatchSession {
    * 이미 붙어 있는 전송로로 시작한다. 개발용 루프백 화면의 입구다.
    *
    * 연결 절차만 건너뛰고 **핸드셰이크부터는 실제와 같은 경로**를 탄다 —
-   * hello/start 교환, 시드 합의, 엔진 생성이 그대로 일어나므로 WebRTC가 없어도
+   * hello/start 교환, 시드 합의, 엔진 생성이 그대로 일어나므로 서버가 없어도
    * 그 뒤의 모든 규칙을 확인할 수 있다.
    */
   static attach(
@@ -239,20 +239,11 @@ class MatchSession {
   }
 }
 
-/**
- * 중계 주소가 있으면 중계로, 없으면 P2P로 붙는다.
- * 방 코드를 만드는 쪽이 갈리는데, P2P는 코드가 곧 peer id라 전송로가 정하고
- * 중계는 우리가 정해 서버에 알려준다.
- */
+/** 방 코드는 우리가 만들어 서버에 알려준다 — 서버는 그 이름의 방을 열어줄 뿐이다 */
 function openTransport(
   mode: { kind: 'host' } | { kind: 'join'; code: string },
   handlers: { onEvent: (event: TransportEvent) => void },
 ): Promise<Transport> {
-  if (RELAY_URL === '') {
-    return mode.kind === 'host'
-      ? PeerTransport.host(handlers)
-      : PeerTransport.join(mode.code, handlers)
-  }
   return mode.kind === 'host'
     ? RelayTransport.host(RELAY_URL, createRoomCode(Math.random), handlers)
     : RelayTransport.join(RELAY_URL, mode.code, handlers)

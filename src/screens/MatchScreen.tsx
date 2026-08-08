@@ -1,5 +1,6 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { play } from '../components/animate.ts'
 import { StackArena } from '../components/StackArena.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
 import { LIVES } from '../game/config.ts'
@@ -90,7 +91,9 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
     >
       {state.players.map((player, index) => {
         const mine = player.id === state.selfId
-        const active = state.current === player.id
+        // 자리를 잡는 동안에는 아무도 표시하지 않는다 — 아무의 차례도 아닌 것이 규칙이고,
+        // 여기만 이름표를 밝혀두면 아래 안내문("자리를 잡는 중")과 어긋나 보인다
+        const active = state.current === player.id && !state.settling
         const lives = livesOf.get(player.id) ?? 0
         return (
           <div
@@ -218,6 +221,13 @@ function TurnHint({ state }: { state: MatchViewState }) {
   if (state.phase === 'over') {
     return <span style={{ fontSize: 14, color: '#6a7290' }}>판이 끝났다</span>
   }
+  /*
+   * 자리를 잡는 구간은 아무의 차례도 아니다. "상대 차례"로 뭉뚱그리면 양쪽 화면에
+   * 똑같은 문장이 떠서 판이 멈춘 것처럼 보인다 — 셋을 갈라야 지금 무엇을 기다리는지 읽힌다.
+   */
+  if (state.settling) {
+    return <SettlingHint />
+  }
   const label = state.myTurn
     ? '내 차례 — 단어를 치면 그 물건이 화살표 자리에 떨어진다'
     : '상대 차례 — 단어를 치면 상대에게 지목한다'
@@ -227,6 +237,57 @@ function TurnHint({ state }: { state: MatchViewState }) {
       style={{ fontSize: 14, color: state.myTurn ? '#6bffb0' : '#6a7290' }}
     >
       {label}
+    </span>
+  )
+}
+
+/**
+ * 물건이 멈추기를 기다리는 동안.
+ *
+ * 점 셋이 차례로 밝아진다 — 얼마나 걸릴지는 물리가 정해서 예고할 수 없지만,
+ * 무언가 진행 중이라는 것은 보여야 한다. 정지된 문장만 두면 멈춘 것과 구분되지 않는다.
+ */
+function SettlingHint() {
+  const ref = useRef<HTMLSpanElement | null>(null)
+
+  useEffect(() => {
+    const dots = ref.current?.querySelectorAll('i') ?? []
+    const running = [...dots].map((dot, index) =>
+      play(
+        dot as HTMLElement,
+        [{ opacity: 0.25 }, { opacity: 1 }, { opacity: 0.25 }],
+        {
+          duration: 1000,
+          delay: index * 180,
+          iterations: Number.POSITIVE_INFINITY,
+          easing: 'ease-in-out',
+        },
+      ),
+    )
+    return () => running.forEach((animation) => animation?.cancel())
+  }, [])
+
+  return (
+    <span
+      ref={ref}
+      data-turn-hint="settling"
+      style={{ fontSize: 14, color: '#c8a95e', display: 'inline-flex', gap: 6 }}
+    >
+      <span aria-hidden style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
+        {[0, 1, 2].map((dot) => (
+          <i
+            key={dot}
+            style={{
+              width: 4,
+              height: 4,
+              borderRadius: 999,
+              background: 'currentColor',
+              opacity: 0.25,
+            }}
+          />
+        ))}
+      </span>
+      자리를 잡는 중 — 물건이 멈추면 다음 차례로 넘어간다
     </span>
   )
 }

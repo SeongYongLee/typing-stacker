@@ -39,6 +39,13 @@ interface MatchViewState {
   readonly lives: readonly (readonly [PlayerId, number])[]
   readonly current: PlayerId | null
   readonly myTurn: boolean
+  /**
+   * 떨어진 물건이 멈추기를 기다리는 중.
+   *
+   * 이 값이 없으면 이 구간이 양쪽 화면에 똑같이 "상대 차례"로 보인다 — 아무의 차례도
+   * 아닌 것이 규칙인데 그렇게 말해주지 않아 판이 멈춘 것처럼 읽힌다.
+   */
+  readonly settling: boolean
   readonly words: readonly FallingWord[]
   readonly aimNormalized: number
   /** 상대가 지목한 단어. 강제력은 없고 표시만 한다 */
@@ -502,6 +509,7 @@ class MatchEngine {
       lives: snapshot.lives,
       current: snapshot.current,
       myTurn: this.isMyTurn() && !this.resolving,
+      settling: this.resolving && !snapshot.over && !this.connectionLost,
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,
       aimNormalized: this.aimer.normalized,

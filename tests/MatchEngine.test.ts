@@ -170,6 +170,28 @@ describe('MatchEngine — 턴제 대전', () => {
     expect(guestItem?.owner).toBe('host-peer')
   })
 
+  /*
+   * 이 구간은 아무의 차례도 아니다. settling을 따로 두지 않으면 양쪽 화면에 똑같이
+   * "상대 차례"가 떠서 판이 멈춘 것처럼 보인다.
+   */
+  it('물건이 자리를 잡는 동안은 양쪽 다 자기 차례가 아니고, 그 사실이 드러난다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    dropSomething(pair)
+    await pair.clock.advance(0.4)
+
+    expect(pair.hostState().settling).toBe(true)
+    expect(pair.guestState().settling).toBe(true)
+    expect(pair.hostState().myTurn).toBe(false)
+    expect(pair.guestState().myTurn).toBe(false)
+
+    // 멈추면 풀린다
+    await pair.clock.advance(6)
+    expect(pair.hostState().settling).toBe(false)
+    expect(pair.guestState().settling).toBe(false)
+    expect(pair.guestState().myTurn).toBe(true)
+  })
+
   it('떨군 물건이 자리를 잡으면 턴이 넘어간다', async () => {
     pair = await makePair()
     await pair.clock.advance(1)

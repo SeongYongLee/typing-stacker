@@ -9,8 +9,13 @@
  * 순서가 하나로 정해진다. 2명이든 N명이든 같은 구조다.
  */
 
+import type { FallingWord } from '../game/types/game.ts'
+
 /** 한 방에 들어올 수 있는 인원. 늘리기만 하면 N명이 된다 */
 const MAX_PLAYERS = 2
+
+/** 한 번에 받아들일 단어 수. 화면에 뜨는 것보다 넉넉하되 무한히 받지는 않는다 */
+const MAX_WORDS = 24
 
 /** 방 코드 길이. 짧으면 무작위 대입으로 남의 방에 들어올 수 있다 */
 const ROOM_CODE_LENGTH = 8
@@ -51,6 +56,14 @@ type ToGuest =
       readonly itemId: number
     }
   | { readonly t: 'suggested'; readonly by: PlayerId; readonly word: string }
+  /**
+   * 지금 내려오는 단어 밭. 방장이 소유한다.
+   *
+   * 같은 시드로 양쪽이 각자 굴리는 방법은 쓸 수 없었다 — 난이도가 쌓은 높이를 따라가는데
+   * 그 높이는 양쪽에서 미세하게 어긋나고, 그러면 단어가 나오는 순간이 갈린다.
+   * 밭이 바뀔 때만 보내므로 흐르는 양은 몇 초에 한 번이다.
+   */
+  | { readonly t: 'words'; readonly words: readonly FallingWord[] }
   | { readonly t: 'turn'; readonly current: PlayerId }
   | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[] }
   /** 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다 */
@@ -136,6 +149,16 @@ function parseMessage(raw: unknown): Message | null {
     case 'suggested':
       if (!isShortString(raw['by'], 64) || !isShortString(raw['word'], 20)) return null
       return { t: 'suggested', by: raw['by'], word: raw['word'] }
+    case 'words': {
+      if (!Array.isArray(raw['words'])) return null
+      const words: FallingWord[] = []
+      for (const entry of raw['words']) {
+        const word = parseFallingWord(entry)
+        if (word !== null) words.push(word)
+        if (words.length >= MAX_WORDS) break
+      }
+      return { t: 'words', words }
+    }
     case 'turn':
       if (!isShortString(raw['current'], 64)) return null
       return { t: 'turn', current: raw['current'] }
@@ -199,6 +222,37 @@ function parseBodyFrame(raw: unknown): BodyFrame | null {
     y: raw['y'],
     rotation: raw['rotation'],
   }
+}
+
+/** 자리·진행도는 화면을 그리는 값이라 범위를 벗어나면 레이아웃이 깨진다. 여기서 가둔다 */
+function parseFallingWord(raw: unknown): FallingWord | null {
+  if (!isRecord(raw)) return null
+  const side = raw['side']
+  const state = raw['state']
+  if (
+    !isFiniteNumber(raw['id']) ||
+    !isShortString(raw['word'], 20) ||
+    (side !== 'left' && side !== 'right') ||
+    !isFiniteNumber(raw['slot']) ||
+    !isFiniteNumber(raw['y']) ||
+    !isFiniteNumber(raw['fade']) ||
+    (state !== 'active' && state !== 'missed')
+  ) {
+    return null
+  }
+  return {
+    id: Math.floor(raw['id']),
+    word: raw['word'],
+    side,
+    slot: clamp(Math.floor(raw['slot']), 0, MAX_WORDS),
+    y: clamp(raw['y'], 0, 1),
+    state,
+    fade: clamp(raw['fade'], 0, 1),
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }
 
 /** 방 코드. Rng를 주입받아 테스트에서 재현할 수 있게 한다 */

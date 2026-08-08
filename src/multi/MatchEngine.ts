@@ -71,7 +71,15 @@ class MatchEngine {
   private readonly ownerColors: Map<OwnerId, string>
   private readonly onFailure: ((failure: TransportFailure) => void) | null
 
+  /**
+   * 단어 밭을 굴리는 난수와 물건을 뽑는 난수를 나눠 둔다.
+   *
+   * 하나로 쓰면 방장만 물건을 뽑으므로(참가자는 방장이 정한 id를 받는다) 첫 드롭에서
+   * 두 난수열이 갈린다. 지금은 단어 밭도 방장이 소유해 이 갈림이 겉으로 드러나지
+   * 않지만, 하나를 나눠 쓰는 구조 자체를 남겨두면 같은 함정에 다시 빠진다.
+   */
   private rng: Rng
+  private itemRng: Rng
   private spawner: WordSpawner
   private aimer = new Aimer(AIM_HALF_RANGE)
   private elapsed = 0
@@ -87,6 +95,8 @@ class MatchEngine {
   private connectionLost = false
   /** 방장이 물건마다 매기는 번호. 양쪽이 같은 물건으로 취급하는 기준이다 */
   private nextItemId = 1
+  /** 방장이 마지막으로 보낸 단어 밭의 판번호 */
+  private sentWordVersion = -1
   /** 지금 화면이 올려다보는 높이. 탑을 따라 올라간다 */
   private cameraY = 0
   /** 이번 판에 닿았던 가장 높은 난이도 진행도(0~1) */
@@ -102,7 +112,11 @@ class MatchEngine {
     this.match = new MatchState(options.players, LIVES)
     this.ownerColors = buildOwnerColors(options.players)
     this.rng = createRng(options.seed)
+    this.itemRng = createRng((options.seed ^ 0x9e3779b9) >>> 0)
     this.spawner = new WordSpawner(this.rng, WORDS)
+    if (!this.transport.isHost) {
+      this.spawner.follow()
+    }
     this.loop.setCallbacks(this.update, this.render)
   }
 
@@ -250,7 +264,7 @@ class MatchEngine {
       return
     }
     const aimX = Math.min(Math.max(rawAimX, -AIM_HALF_RANGE), AIM_HALF_RANGE)
-    const variant = resolveItem(word, this.rng)
+    const variant = resolveItem(word, this.itemRng)
     const itemId = this.nextItemId
     this.nextItemId += 1
 
@@ -332,6 +346,12 @@ class MatchEngine {
           this.showSuggestion(message.by, message.word)
         }
         break
+      case 'words':
+        if (!this.transport.isHost) {
+          this.spawner.apply(message.words)
+          this.emit()
+        }
+        break
       case 'turn':
         // 순서는 방장이 정한 것을 그대로 따른다. 스스로 굴리면 탈락이 끼었을 때
         // 양쪽이 서로 자기 차례라고 믿게 된다
@@ -400,16 +420,29 @@ class MatchEngine {
     )
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
-    // 단어 밭은 양쪽이 같은 시드로 굴린다. 프레임 간격이 달라 위치는 조금씩 어긋나지만
-    // 나오는 단어와 순서는 같다 — 대전에 필요한 것은 "같은 선택지"뿐이다
+    /*
+     * 단어 밭은 방장이 소유한다. 참가자의 스포너는 따라가기만 하고 스스로 내지 않는다 —
+     * 난이도가 쌓은 높이를 따라가는데 그 높이가 양쪽에서 미세하게 어긋나서,
+     * 시드를 맞춰도 나오는 순간이 결국 갈린다.
+     */
     this.spawner.update(dt, difficulty)
 
     const { escaped } = this.physics.step(dt)
 
     if (this.transport.isHost) {
+      this.broadcastWordsIfChanged()
       this.hostJudge(dt, escaped)
     }
     this.emit()
+  }
+
+  /** 밭이 바뀐 프레임에만 보낸다. 매 프레임 흘리면 무료 전송로의 한도를 태운다 */
+  private broadcastWordsIfChanged(): void {
+    if (this.spawner.version === this.sentWordVersion) {
+      return
+    }
+    this.sentWordVersion = this.spawner.version
+    this.transport.broadcast({ t: 'words', words: this.spawner.words })
   }
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */

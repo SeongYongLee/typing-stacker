@@ -12,6 +12,19 @@ class WordSpawner {
   private timer = 0
   private nextId = 1
   private missed = 0
+  /**
+   * 스스로 단어를 내지 않고 밖에서 준 밭을 따르는 모드.
+   *
+   * 대전 참가자가 이 모드로 돈다. 같은 시드로 양쪽이 각자 굴리는 방법은 쓸 수 없었다 —
+   * 난이도가 쌓은 높이를 따라가는데 그 높이가 양쪽에서 미세하게 어긋나고,
+   * 한 번 어긋나면 단어가 나오는 순간이 영영 갈린다.
+   */
+  private following = false
+  /**
+   * 밭이 바뀔 때마다 오른다.
+   * 대전에서 방장이 "보낼 것이 생겼는지"를 매 프레임 문자열로 비교하지 않고 알아채는 통로다.
+   */
+  private revision = 0
 
   constructor(rng: Rng, entries: readonly WordEntry[]) {
     this.rng = rng
@@ -28,25 +41,67 @@ class WordSpawner {
     return this.missed
   }
 
+  get version(): number {
+    return this.revision
+  }
+
+  /** 이제부터 밖에서 준 밭만 따른다 */
+  follow(): void {
+    this.following = true
+  }
+
+  /**
+   * 밖에서 온 밭으로 갈아끼운다.
+   *
+   * 이미 있던 단어의 y는 그대로 둔다 — 올 때마다 남의 값으로 스냅하면 글자가 떨며 내려간다.
+   * 무엇이 있고 언제 사라지는지만 밖에서 받고, 내려가는 움직임은 여기서 굴린다.
+   */
+  apply(frames: readonly FallingWord[]): void {
+    const previous = new Map(this.list.map((word) => [word.id, word]))
+    this.list = frames.map((frame) => {
+      const existing = previous.get(frame.id)
+      if (existing === undefined || existing.state !== frame.state) {
+        return { ...frame }
+      }
+      return { ...frame, y: existing.y, fade: existing.fade }
+    })
+    this.revision += 1
+  }
+
   /** 이번 프레임에 바닥선에 닿은 단어들을 돌려준다 — 호출부가 그 대가를 매긴다 */
   update(dt: number, difficulty: DifficultyLevel): readonly FallingWord[] {
     const fallSpeed = 1 / difficulty.fallDuration
     const justMissed: FallingWord[] = []
 
     for (const word of this.list) {
-      if (word.state === 'active') {
-        word.y += fallSpeed * dt
-        if (word.y >= 1) {
-          word.y = 1
-          word.state = 'missed'
-          this.missed += 1
-          justMissed.push(word)
-        }
-      } else {
+      if (word.state !== 'active') {
         word.fade -= dt / FADE_SECONDS
+        continue
       }
+      word.y += fallSpeed * dt
+      if (word.y < 1) {
+        continue
+      }
+      word.y = 1
+      // 따라가는 쪽은 놓쳤는지를 스스로 정하지 않는다 — 바닥에 붙어 통보를 기다린다
+      if (this.following) {
+        continue
+      }
+      word.state = 'missed'
+      this.missed += 1
+      this.revision += 1
+      justMissed.push(word)
     }
+
+    const before = this.list.length
     this.list = this.list.filter((word) => word.fade > 0)
+    if (this.list.length !== before) {
+      this.revision += 1
+    }
+
+    if (this.following) {
+      return justMissed
+    }
 
     this.timer += dt
     if (this.timer >= difficulty.spawnInterval) {
@@ -60,12 +115,14 @@ class WordSpawner {
   /** 타이핑으로 맞춘 단어를 즉시 제거한다 (fade 없이) */
   remove(id: number): void {
     this.list = this.list.filter((word) => word.id !== id)
+    this.revision += 1
   }
 
   reset(): void {
     this.list = []
     this.timer = Number.POSITIVE_INFINITY
     this.missed = 0
+    this.revision += 1
   }
 
   private spawn(difficulty: DifficultyLevel): void {
@@ -87,6 +144,7 @@ class WordSpawner {
       return
     }
 
+    this.revision += 1
     this.list.push({
       id: this.nextId++,
       word: this.rng.pick(candidates).word,

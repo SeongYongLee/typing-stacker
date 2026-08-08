@@ -53,7 +53,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>
-          <TypingLane words={state.words} side="left" />
+          <TypingLane words={state.words} side="left" suggested={state.suggestion?.word ?? null} />
           <div
             style={{ position: 'relative', minHeight: 0 }}
             data-aim={state.aimNormalized.toFixed(3)}
@@ -64,7 +64,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
               <Banner text="상대와의 연결이 끊겼다" danger />
             )}
           </div>
-          <TypingLane words={state.words} side="right" />
+          <TypingLane words={state.words} side="right" suggested={state.suggestion?.word ?? null} />
         </div>
       </div>
 

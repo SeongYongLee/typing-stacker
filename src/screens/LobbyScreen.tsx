@@ -99,14 +99,32 @@ function LobbyScreen({ phase, onOpen, onBack }: LobbyScreenProps) {
           상대 차례에 단어를 치면 그 단어를 지목할 수 있다.
         </p>
 
-        <input
-          style={fieldStyle}
-          value={nickname}
-          onChange={(event) => setNickname(event.currentTarget.value)}
-          placeholder="이름 (없으면 자동)"
-          maxLength={NICKNAME_MAX}
-          aria-label="이름"
-        />
+        {/* 내 이름 — 비워두면 둘 다 '이름없음'이 되어 누가 누구인지 알 수 없다 */}
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label
+            htmlFor="nickname"
+            style={{ fontSize: 12, color: '#8b93b0', letterSpacing: '0.06em' }}
+          >
+            내 이름
+          </label>
+          <input
+            id="nickname"
+            style={{
+              ...fieldStyle,
+              borderColor: nickname.trim().length === 0 ? '#5a4a2a' : '#3a4160',
+            }}
+            value={nickname}
+            onChange={(event) => setNickname(event.currentTarget.value)}
+            placeholder="상대에게 이렇게 보인다"
+            maxLength={NICKNAME_MAX}
+            autoFocus
+          />
+          {nickname.trim().length === 0 && (
+            <span style={{ fontSize: 12, color: '#8a7a4a' }}>
+              비워두면 <strong>이름없음</strong>으로 들어간다 — 둘 다 같은 이름이 된다.
+            </span>
+          )}
+        </div>
 
         <button
           type="button"

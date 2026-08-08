@@ -8,6 +8,13 @@ import type {
   ShapePart,
 } from '../types/game.ts'
 
+/**
+ * 주인 색 테두리. 누구 것인지만 알면 되므로 은은해야 한다 —
+ * 진하면 그림보다 테두리가 먼저 보여서 물건을 알아보기 어려워진다.
+ */
+const RIM_BLUR = 7
+const RIM_ALPHA = 0.85
+
 interface HiddenReveal {
   readonly label: string
   readonly sprite: string
@@ -305,12 +312,13 @@ class ArenaRenderer {
     // 월드는 y가 위로 +, 캔버스는 아래로 + 이므로 회전 방향을 뒤집는다
     ctx.rotate(-body.rotation)
 
-    const drawn = this.drawSprite(body.variant.sprite, body.variant.artBounds)
+    const ownerColor = ownerColors?.get(body.owner) ?? null
+    const drawn = this.drawSprite(body.variant.sprite, body.variant.artBounds, ownerColor)
 
     // 그림이 아직 로드되지 않았으면 충돌 도형만이라도 보여준다
     if (!drawn) {
       ctx.fillStyle = body.variant.color
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)'
+      ctx.strokeStyle = ownerColor ?? 'rgba(0, 0, 0, 0.4)'
       ctx.lineWidth = 1.5
       ctx.globalAlpha = 0.55
       for (const part of this.partsOf(shape)) {
@@ -319,31 +327,37 @@ class ArenaRenderer {
         ctx.stroke()
       }
     }
-
-    // 주인 표시는 그림 위에 얹는다 — 아래에 깔면 스프라이트가 덮어버린다
-    const ownerColor = ownerColors?.get(body.owner)
-    if (ownerColor !== undefined) {
-      ctx.globalAlpha = body.settled ? 0.9 : 1
-      ctx.strokeStyle = ownerColor
-      ctx.lineWidth = 2.5
-      ctx.lineJoin = 'round'
-      for (const part of this.partsOf(shape)) {
-        this.tracePart(part)
-        ctx.stroke()
-      }
-    }
     ctx.restore()
   }
 
-  /** 그림을 물건의 원래 크기에 맞춰 그린다 — 보이는 것과 부딪히는 것이 같아야 한다 */
-  private drawSprite(src: string, bounds: Bounds): boolean {
+  /**
+   * 그림을 물건의 원래 크기에 맞춰 그린다 — 보이는 것과 부딪히는 것이 같아야 한다.
+   *
+   * 주인 색은 **그림 실루엣을 따라** 두른다. 충돌 도형에 선을 그으면 다각형 윤곽이
+   * 그림 위에 겹쳐 보여서 물건 모양이 어긋나 보였다. 그림자는 알파를 따라 번지므로
+   * 실루엣이 그대로 나오고, 그 위에 그림을 다시 덮어 테두리만 남긴다.
+   */
+  private drawSprite(src: string, bounds: Bounds, rim: string | null): boolean {
     const img = this.image(src)
     if (img === null) {
       return false
     }
+    const { ctx } = this
     const width = bounds.hw * 2 * this.scale
     const height = bounds.hh * 2 * this.scale
-    this.ctx.drawImage(img, -width / 2, -height / 2, width, height)
+    const left = -width / 2
+    const top = -height / 2
+
+    if (rim !== null) {
+      ctx.save()
+      ctx.shadowColor = rim
+      ctx.shadowBlur = RIM_BLUR
+      ctx.globalAlpha = RIM_ALPHA
+      ctx.drawImage(img, left, top, width, height)
+      ctx.restore()
+    }
+
+    ctx.drawImage(img, left, top, width, height)
     return true
   }
 

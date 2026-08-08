@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { WORDS } from '../src/game/data/words.ts'
 import { MatchEngine, type MatchViewState } from '../src/multi/MatchEngine.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
@@ -16,6 +17,13 @@ const PLAYERS: PlayerInfo[] = [
   { id: 'host-peer', nickname: '자두' },
   { id: 'guest-peer', nickname: '세이지' },
 ]
+
+/** 떨굴 때 방장이 난수를 한 번 더 뽑는 단어들 — 난수열이 갈리는지 보려면 이 중에서 골라야 한다 */
+const HIDDEN_WORDS = new Set(
+  WORDS.filter((entry) => entry.variants.some((variant) => variant.hidden)).map(
+    (entry) => entry.word,
+  ),
+)
 
 interface Pair {
   host: MatchEngine
@@ -102,7 +110,7 @@ describe('MatchEngine — 턴제 대전', () => {
     expect(pair.guestState().myTurn).toBe(false)
   })
 
-  it('같은 시드면 양쪽에 같은 단어가 나온다', async () => {
+  it('양쪽에 같은 단어가 나온다', async () => {
     pair = await makePair(777)
     await pair.clock.advance(2)
 
@@ -110,6 +118,39 @@ describe('MatchEngine — 턴제 대전', () => {
     const guestWords = pair.guestState().words.map((word) => word.word)
     expect(hostWords.length).toBeGreaterThan(0)
     expect(guestWords).toEqual(hostWords)
+  })
+
+  /*
+   * 한때 여기가 깨져 있었다. 단어 스포너와 물건 뽑기가 난수 하나를 같이 썼는데
+   * 물건은 방장만 뽑으므로, 그 순간 두 난수열이 갈려 그때부터 서로 다른 단어가 내려왔다.
+   *
+   * **히든 변형이 있는 단어여야 재현된다.** 그런 단어가 아니면 방장도 난수를 더 뽑지
+   * 않아 두 열이 그대로 맞는다 — 아무 단어나 떨구는 테스트로는 이 회귀를 놓친다.
+   */
+  it('히든이 걸린 단어를 떨궈도 양쪽 단어 밭이 갈리지 않는다', async () => {
+    pair = await makePair(2024)
+
+    let dropped: string | null = null
+    for (let tick = 0; tick < 60 && dropped === null; tick += 1) {
+      await pair.clock.advance(0.5)
+      const hostTurn = pair.hostState().myTurn
+      const view = hostTurn ? pair.hostState() : pair.guestState()
+      const target = view.words.find(
+        (word) => word.state === 'active' && HIDDEN_WORDS.has(word.word),
+      )
+      if (target === undefined) {
+        continue
+      }
+      ;(hostTurn ? pair.host : pair.guest).submit(target.word)
+      dropped = target.word
+    }
+    expect(dropped).not.toBeNull()
+
+    // 갈렸다면 이 뒤에 나오는 단어부터 서로 달라진다
+    await pair.clock.advance(8)
+    const identify = (state: MatchViewState) =>
+      state.words.map((word) => `${word.id}:${word.word}:${word.state}`)
+    expect(identify(pair.guestState())).toEqual(identify(pair.hostState()))
   })
 
   it('방장이 떨구면 참가자 쪽에도 같은 물건이 생긴다', async () => {

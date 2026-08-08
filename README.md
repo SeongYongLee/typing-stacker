@@ -168,7 +168,7 @@ SPRITE_ROOT=~/Downloads node scripts/prepare-sprites.cjs
 그건 어떤 망에서도 열린다. 턴제 게임이라 한 번 더 거치는 지연은 문제되지 않는다.
 
 ```bash
-pnpm relay:dev                                    # 로컬 중계 (localhost:8787)
+pnpm relay:dev                                    # 로컬 중계 (localhost:8787, wrangler를 그때 받아온다)
 VITE_RELAY_URL=ws://localhost:8787 pnpm dev       # 앱이 그 중계를 쓰게 한다
 
 pnpm relay:deploy                                 # Cloudflare에 올린다 (wrangler login 필요)

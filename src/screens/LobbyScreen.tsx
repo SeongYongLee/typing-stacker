@@ -303,7 +303,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
           />
 
           {/*
-            자동 매칭이 맨 위다. 아는 사람이 없어도 되는 유일한 길이라 대부분은
+            랭크 게임이 맨 위다. 아는 사람이 없어도 되는 유일한 길이라 대부분은
             이것을 누르게 된다 — 코드를 만드는 쪽이 먼저 보이면 상대를 구해와야
             하는 게임으로 읽힌다.
           */}
@@ -313,7 +313,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
             onHover={() => menu.select(1)}
             primary
           >
-            자동 매칭
+            랭크 게임
           </MenuButton>
           {/*
             지금 몇 명이 기다리는지. 버튼 아래에 작게 둔다 — 누를지 말지를 정하는 데
@@ -350,7 +350,11 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
       panel={
         <SidePanel
           kind={blurbKey}
-          record={<VersusTier board={board} />}
+          /*
+           * 수동 매칭 칸에서는 순위표를 감춘다. 그 길로 간 판은 티어에 오르지 않으므로
+           * 옆에 순위를 세워두면 이 판이 순위에 걸린다는 뜻으로 읽힌다.
+           */
+          record={blurbKey === 'manual' ? null : <VersusTier board={board} />}
           blurb={<Blurb kind={blurbKey} lines={LOBBY_BLURBS[blurbKey] ?? []} />}
         />
       }
@@ -896,7 +900,7 @@ function Searching({
     <div style={rootStyle}>
       <div style={panelStyle} data-searching={waiting?.waitedSec ?? 0}>
         <h2 style={{ font: '700 26px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          {unsupported ? '자동 매칭을 쓸 수 없습니다' : '상대를 찾는 중…'}
+          {unsupported ? '랭크 게임을 쓸 수 없습니다' : '상대를 찾는 중…'}
         </h2>
 
         {unsupported ? (
@@ -904,7 +908,7 @@ function Searching({
             style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}
             data-queue-unsupported
           >
-            서버가 아직 자동 매칭을 모릅니다. 수동 매칭으로 방을 만들어 주세요.
+            서버가 아직 랭크 게임을 모릅니다. 수동 매칭으로 방을 만들어 주세요.
           </p>
         ) : unreachable ? (
           <p style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}>

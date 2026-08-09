@@ -117,18 +117,48 @@ describe('판 도중에 누가 사라지면', () => {
   })
 
   /*
-   * 물리와 판정을 방장이 쥐고 있고 참가자끼리는 서로 닿지도 못한다.
-   * 방장이 사라지면 이어갈 방법이 없다.
+   * 예전에는 방장이 사라지면 판이 끝났다. 이제 다음 사람이 이어받는다 —
+   * 방장 한 사람의 사정으로 나머지 일곱의 판이 죽는 것이 가장 아픈 자리였다.
    */
-  it('방장이 사라지면 판이 끝난다', async () => {
+  it('방장이 사라져도 다음 사람이 이어받는다', async () => {
     const seats = await seatsOf(3)
     await clock.advance(1)
+    expect(seats[1]!.engine.isHost).toBe(false)
+
     seats[0]!.link.close()
     await settle()
     await settle()
     await clock.advance(0.3)
 
-    expect(seats[1]!.state().connectionLost).toBe(true)
+    // 살아 있는 사람 중 명단에서 가장 앞선 사람이 이어받는다
+    expect(seats[1]!.engine.isHost).toBe(true)
+    expect(seats[2]!.engine.isHost).toBe(false)
+    for (const seat of [seats[1]!, seats[2]!]) {
+      expect(seat.state().phase).toBe('playing')
+      expect(seat.state().connectionLost).toBe(false)
+    }
+  })
+
+  /*
+   * 이어받은 사람이 실제로 심판 노릇을 해야 한다. 밭을 내지 않으면 단어가 더는
+   * 내려오지 않아 판이 조용히 멎는다 — 화면은 멀쩡해 보이는 채로.
+   */
+  it('이어받은 사람이 단어 밭을 낸다', async () => {
+    const seats = await seatsOf(3)
+    await clock.advance(2)
+    seats[0]!.link.close()
+    await settle()
+    await settle()
+
+    const before = seats[1]!.state().words.length
+    await clock.advance(8)
+    const after = seats[1]!.state().words.length
+    expect(after).toBeGreaterThan(0)
+    // 남은 둘이 같은 밭을 본다
+    expect(seats[2]!.state().words.map((w) => w.word)).toEqual(
+      seats[1]!.state().words.map((w) => w.word),
+    )
+    expect(before + after).toBeGreaterThan(0)
   })
 
   it('둘만 남았다가 하나가 더 나가면 판이 끝난다', async () => {

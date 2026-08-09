@@ -219,6 +219,14 @@ class MatchEngine {
   private readonly transport: Transport
   private readonly match: MatchState
   private readonly ownerColors: Map<OwnerId, string>
+  /**
+   * 지금 방장. 처음에는 명단 맨 앞이고, 그 사람이 사라지면 다음 생존자가 이어받는다.
+   *
+   * **모두가 같은 규칙으로 고르므로 알릴 필요가 없다** — 누가 사라졌는지는 이미
+   * 모두가 알고 명단 순서도 같다. 정해서 보내면 그 메시지가 늦거나 유실될 때
+   * 방장이 둘이 되거나 아무도 아니게 된다.
+   */
+  private host: PlayerId
   private readonly onFailure: ((failure: TransportFailure) => void) | null
   private readonly onRestart: ((seed: number) => void) | null
   private readonly wins: Map<PlayerId, number>
@@ -351,10 +359,11 @@ class MatchEngine {
     this.match = new MatchState(options.players, LIVES)
     this.standingsView = this.match.standings()
     this.ownerColors = buildOwnerColors(options.players)
+    this.host = options.players[0]?.id ?? options.transport.selfId
     this.rng = createRng(options.seed)
     this.itemRng = createRng((options.seed ^ 0x9e3779b9) >>> 0)
     this.spawner = new WordSpawner(this.rng, WORDS)
-    if (!this.transport.isHost) {
+    if (!this.isHost) {
       this.spawner.follow()
     }
     this.loop.setCallbacks(this.update, this.render)
@@ -365,8 +374,14 @@ class MatchEngine {
     return new MatchEngine(physics, options)
   }
 
+  /**
+   * 지금 내가 방장인가.
+   *
+   * **전송로가 아니라 엔진이 기억한다.** 전송로의 `isHost`는 붙는 순간 정해져 바뀌지
+   * 않는데, 방장이 사라지면 다음 사람이 이어받아야 한다.
+   */
   get isHost(): boolean {
-    return this.transport.isHost
+    return this.host === this.transport.selfId
   }
 
   start(): void {
@@ -469,13 +484,18 @@ class MatchEngine {
       this.emit()
       return
     }
-    if (this.hostId !== null && who === this.hostId) {
-      this.connectionLost = true
-      this.loop.stop()
-      this.emit()
-      return
+    /*
+     * **방장이 사라지면 다음 사람이 이어받는다.** 이어받은 사람은 그 자리에서
+     * 심판이 된다 — 참가자도 목숨·차례를 따라 갱신해 왔고 물리도 각자 돌리고 있어서
+     * 새로 받아올 상태가 없다.
+     */
+    if (who === this.host) {
+      this.host = this.nextHost(who)
+      if (this.isHost) {
+        this.spawner.lead()
+      }
     }
-    if (!this.transport.isHost) {
+    if (!this.isHost) {
       // 방장이 정리해 알려줄 것이다
       return
     }
@@ -496,7 +516,7 @@ class MatchEngine {
     this.match.ensureTurnAlive()
     // 사라진 사람 차례에서 시계가 이어지면 안 된다
     this.turnElapsed = 0
-    if (this.transport.isHost) {
+    if (this.isHost) {
       this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
       if (this.match.over) {
         this.loop.stop()
@@ -507,9 +527,17 @@ class MatchEngine {
     this.emit()
   }
 
-  /** 명단 맨 앞이 방장이다. 세션이 그 순서로 만들어 양쪽에 나눠준다 */
-  private get hostId(): PlayerId | null {
-    return this.match.players[0]?.id ?? null
+  /**
+   * 사라진 방장을 대신할 사람. **살아 있는 사람 중 명단에서 가장 앞선 사람**이다.
+   *
+   * 규칙이 단순해야 모두가 같은 답에 이른다. 살아 있는지까지 보는 것은, 이미 탈락한
+   * 사람이 심판이 되면 그 사람이 나가는 순간 또 넘겨야 하기 때문이다.
+   */
+  private nextHost(gone: PlayerId): PlayerId {
+    const next = this.match.players.find(
+      (player) => player.id !== gone && this.match.isAlive(player.id),
+    )
+    return next?.id ?? this.transport.selfId
   }
 
   /**
@@ -608,7 +636,7 @@ class MatchEngine {
     if (!this.match.over || this.opponentLeft) {
       return
     }
-    if (this.transport.isHost) {
+    if (this.isHost) {
       this.wantRematch.add(this.transport.selfId)
       this.publishRematch()
       return
@@ -669,7 +697,7 @@ class MatchEngine {
     if (!this.chatEnabled) {
       return
     }
-    if (this.transport.isHost) {
+    if (this.isHost) {
       this.applyChat(this.transport.selfId, text)
       return
     }
@@ -678,7 +706,7 @@ class MatchEngine {
 
   /** 방장이 걸러 모두에게 돌린다. 버려진 말은 퍼지지 않는다 */
   private applyChat(from: PlayerId, text: string): void {
-    if (!this.chatEnabled || !this.transport.isHost) {
+    if (!this.chatEnabled || !this.isHost) {
       return
     }
     const line = this.chat.add(from, this.nameOf(from), text, this.chatClock())
@@ -732,7 +760,7 @@ class MatchEngine {
 
   /** 내가 떨구려 한다. 방장이면 바로 판정하고, 게스트면 방장에게 청한다 */
   private requestDrop(word: string): void {
-    if (this.transport.isHost) {
+    if (this.isHost) {
       this.resolveDrop(this.transport.selfId, word, this.aimer.worldX)
       return
     }
@@ -826,12 +854,12 @@ class MatchEngine {
     switch (message.t) {
       case 'drop':
         // 게스트가 보낸 청. 방장만 처리하고, 검증은 resolveDrop이 한다
-        if (this.transport.isHost) {
+        if (this.isHost) {
           this.resolveDrop(from, message.word, message.aimX)
         }
         break
       case 'dropped':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.applyDrop(
             message.by,
             message.word,
@@ -846,45 +874,45 @@ class MatchEngine {
         this.applyChat(from, message.text)
         break
       case 'chatted':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.chat.add(message.from, this.nameOf(message.from), message.text, this.chatClock())
           this.fire({ kind: 'chat', mine: message.from === this.transport.selfId })
           this.emit()
         }
         break
       case 'words':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.spawner.apply(message.words)
           this.emit()
         }
         break
       case 'lives':
         // 목숨은 방장이 정한 값을 그대로 따른다
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.applyLives(message.lives)
         }
         break
       case 'sync':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.physics.applyFrames(message.bodies, (id) => VARIANT_BY_ID.get(id), message.welds)
           this.emit()
         }
         break
       case 'over':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.loop.stop()
           this.recordWin(message.winner)
           this.emit()
         }
         break
       case 'rematch':
-        if (this.transport.isHost) {
+        if (this.isHost) {
           this.wantRematch.add(from)
           this.publishRematch()
         }
         break
       case 'rematchList':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.wantRematch.clear()
           for (const id of message.ready) {
             this.wantRematch.add(id)
@@ -894,7 +922,7 @@ class MatchEngine {
         }
         break
       case 'restart':
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.onRestart?.(message.seed)
         }
         break
@@ -913,7 +941,7 @@ class MatchEngine {
         break
       case 'left':
         // 판정은 방장이 한다. 참가자는 결과만 따른다
-        if (!this.transport.isHost) {
+        if (!this.isHost) {
           this.applyLeft(message.who)
         }
         break
@@ -1021,7 +1049,7 @@ class MatchEngine {
      */
     if (this.dropCooldown <= 0 && this.match.currentPlayer !== null) {
       this.turnElapsed += dt
-      if (this.transport.isHost && this.turnElapsed >= TURN_LIMIT_SEC) {
+      if (this.isHost && this.turnElapsed >= TURN_LIMIT_SEC) {
         this.dropForIdlePlayer()
       }
     }
@@ -1071,7 +1099,7 @@ class MatchEngine {
       this.fire({ kind: 'quake', strength: Math.min(quake / QUAKE_IMPACT_SCALE, 1) })
     }
 
-    if (this.transport.isHost) {
+    if (this.isHost) {
       this.broadcastWordsIfChanged()
       this.hostJudge(dt, escaped)
     }

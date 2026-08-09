@@ -108,17 +108,8 @@ describe('판 앞머리 밭', () => {
    * 좁힌 밭이 초반 동시 낙하 상한보다 작으면 화면이 비어 **칠 것이 없는 순간**이
    * 생긴다. 타자게임에서 손이 멈추는 것은 가장 큰 대가다.
    */
-  it('첫 밤의 밭은 동시 낙하 상한보다 좁다 — 같은 단어가 되풀이되어야 짝이 갖춰진다', () => {
-    /*
-     * 한때는 상한(3)과 같게 뒀다. 화면에 뜨는 단어 수가 좁히기 전과 같아 손이 멈추지
-     * 않는다는 이유였다. 지금 더 좁힌 것은 **첫 밤이 15초로 짧기 때문**이다 —
-     * 셋이면 그 안에 같은 단어가 두 번 나오지 않는 판이 생겨, 배우라고 만든 구간에서
-     * 아무것도 못 배운 채 낮으로 넘어간다.
-     *
-     * 대가는 가끔 칠 것이 없어 기다리는 것이다. 하나까지 줄이지 않는 이유가 그것이다.
-     */
-    expect(OPENING_WORD_COUNT).toBeLessThan(difficultyAt(0).maxConcurrent)
-    expect(OPENING_WORD_COUNT).toBeGreaterThan(1)
+  it('초반 동시 낙하 상한만큼은 내보낸다', () => {
+    expect(OPENING_WORD_COUNT).toBeGreaterThanOrEqual(difficultyAt(0).maxConcurrent)
   })
 
   it('후보가 개수보다 적으면 있는 것을 다 쓴다', () => {

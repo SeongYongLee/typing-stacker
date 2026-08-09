@@ -30,12 +30,19 @@ class Hub {
       .map((node) => node.selfId)
   }
 
-  /** 방장이 보내면 모두에게, 참가자가 보내면 방장에게만 */
+  /**
+   * 보낸 사람만 빼고 모두에게. 받는 사람을 찍었으면 그 사람에게만.
+   *
+   * **실제 중계와 같아야 한다.** 예전에는 "참가자가 보낸 것은 방장에게만" 가도록
+   * 좁혀뒀는데, 그건 프로토콜의 약속이지 전송로의 제약이 아니다(중계는 host를 모른다).
+   * 그렇게 두면 **방장이 바뀌는 경우를 시험할 수 없다** — 이어받은 사람이 보낸 것이
+   * 사라진 옛 방장에게만 가서, 실제로는 잘 도는 것이 시험에서만 깨진다.
+   */
   send(from: HubTransport, message: Message, to: PlayerId | null): void {
     const targets = this.nodes.filter((node) => {
       if (node === from || node.closed) return false
       if (to !== null) return node.selfId === to
-      return from.isHost || node.isHost
+      return true
     })
     for (const target of targets) {
       const copy: unknown = JSON.parse(JSON.stringify(message))
@@ -85,11 +92,22 @@ class HubTransport implements Transport {
     return this.closed ? [] : this.hub.peersOf(this)
   }
 
+  /*
+   * **닫힌 뒤에는 보내지 않는다.** 실제 WebSocket은 닫히면 나가지 않는데 여기서는
+   * 계속 나갔다 — 사라진 방장이 계속 단어 밭을 뿌려서, 이어받은 사람과 방장이
+   * 둘이 되는 상태가 시험 안에서만 만들어졌다.
+   */
   sendTo(peer: PlayerId, message: Message): void {
+    if (this.closed) {
+      return
+    }
     this.hub.send(this, message, peer)
   }
 
   broadcast(message: Message): void {
+    if (this.closed) {
+      return
+    }
     this.hub.send(this, message, null)
   }
 

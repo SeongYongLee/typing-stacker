@@ -2,7 +2,6 @@ import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
   HIDDEN_CHANCE,
-  IMPACT_FULL_SCALE,
   INVULNERABLE_SEC,
   LEDGE,
   LIVES,
@@ -31,6 +30,7 @@ import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
+import { impactEventOf, quakeEventOf, trailHitOf } from '../systems/ImpactFeel.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats, WordEntry } from '../types/game.ts'
@@ -415,29 +415,17 @@ class GameEngine {
   ): void {
     this.landing.note(impacts)
     for (const hit of impacts) {
-      this.frameImpacts.push({
-        id: hit.variant.id,
-        color: hit.variant.color,
-        x: hit.x,
-        y: hit.y,
-        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
-      })
+      this.frameImpacts.push(trailHitOf(hit))
     }
     if (this.events === null) {
       return
     }
     for (const hit of impacts) {
-      this.fire({
-        kind: 'impact',
-        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
-        size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
-        material: hit.variant.material,
-        tone: hit.variant.tone,
-        grain: hit.variant.grain,
-      })
+      this.fire(impactEventOf(hit))
     }
-    if (quake > 0) {
-      this.fire({ kind: 'quake', strength: Math.min(quake / QUAKE_IMPACT_SCALE, 1) })
+    const shake = quakeEventOf(quake)
+    if (shake !== null) {
+      this.fire(shake)
     }
   }
 

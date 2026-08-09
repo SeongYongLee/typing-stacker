@@ -1,10 +1,8 @@
 import {
   AIM_HALF_RANGE,
   ARENA,
-  IMPACT_FULL_SCALE,
   INVULNERABLE_SEC,
   LIVES,
-  QUAKE_IMPACT_SCALE,
 } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
@@ -18,6 +16,7 @@ import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
 import { LandingGlow } from '../game/systems/LandingGlow.ts'
 import type { TrailHit } from '../game/systems/TrailField.ts'
+import { impactEventOf, quakeEventOf, trailHitOf } from '../game/systems/ImpactFeel.ts'
 import { WordSpawner } from '../game/systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../game/types/events.ts'
 import type { FallingWord, OwnerId } from '../game/types/game.ts'
@@ -1169,24 +1168,12 @@ class MatchEngine {
     const { impacts, escaped, quake } = this.physics.step(dt)
     this.landing.note(impacts)
     for (const hit of impacts) {
-      this.frameImpacts.push({
-        id: hit.variant.id,
-        color: hit.variant.color,
-        x: hit.x,
-        y: hit.y,
-        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
-      })
-      this.fire({
-        kind: 'impact',
-        strength: Math.min(hit.impact / IMPACT_FULL_SCALE, 1),
-        size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
-        material: hit.variant.material,
-        tone: hit.variant.tone,
-        grain: hit.variant.grain,
-      })
+      this.frameImpacts.push(trailHitOf(hit))
+      this.fire(impactEventOf(hit))
     }
-    if (quake > 0) {
-      this.fire({ kind: 'quake', strength: Math.min(quake / QUAKE_IMPACT_SCALE, 1) })
+    const shake = quakeEventOf(quake)
+    if (shake !== null) {
+      this.fire(shake)
     }
 
     if (this.isHost) {

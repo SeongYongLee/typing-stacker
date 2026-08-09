@@ -11,6 +11,8 @@ import { VersusTier } from '../components/RankBoxes.tsx'
 import { useAutoMatch } from '../hooks/useAutoMatch.ts'
 import { useLeaderboard } from '../hooks/useLeaderboard.ts'
 import { useQueueSize } from '../hooks/useQueueSize.ts'
+import { useRosterTiers } from '../hooks/useRosterTiers.ts'
+import { tierOf } from '../rank/tiers.ts'
 import {
   isUsableName,
   loadManualIcon,
@@ -94,6 +96,7 @@ const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
     <>
       <Key>비슷한 티어</Key>의 상대와 붙습니다.
     </>,
+    '이긴 만큼 티어 점수가 오릅니다.',
   ],
   manual: [
     <>
@@ -101,6 +104,13 @@ const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
     </>,
     <>
       최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.
+    </>,
+    /*
+     * 상대를 고를 수 있는 자리라 사다리에 올리지 않는다. 그 사실을 여기서 말해두지
+     * 않으면 판이 끝나고서야 알게 되고, 그때는 이미 한 판을 들인 뒤다.
+     */
+    <>
+      <Key>티어 점수는 바뀌지 않습니다.</Key>
     </>,
   ],
   host: [
@@ -293,7 +303,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
           />
 
           {/*
-            자동 매칭이 맨 위다. 아는 사람이 없어도 되는 유일한 길이라 대부분은
+            랭크 게임이 맨 위다. 아는 사람이 없어도 되는 유일한 길이라 대부분은
             이것을 누르게 된다 — 코드를 만드는 쪽이 먼저 보이면 상대를 구해와야
             하는 게임으로 읽힌다.
           */}
@@ -303,7 +313,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
             onHover={() => menu.select(1)}
             primary
           >
-            자동 매칭
+            랭크 게임
           </MenuButton>
           {/*
             지금 몇 명이 기다리는지. 버튼 아래에 작게 둔다 — 누를지 말지를 정하는 데
@@ -340,7 +350,14 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
       panel={
         <SidePanel
           kind={blurbKey}
-          record={<VersusTier board={board} />}
+          /*
+           * 순위표는 **랭크 게임 칸에만** 세운다. 시작 화면이 쓰는 규칙과 같다 —
+           * 옆에 놓인 것은 지금 고른 항목에 딸린 것이어야 한다.
+           *
+           * 수동 매칭에 세우면 그 판이 순위에 걸린다는 뜻으로 읽히고(그 길은 티어에
+           * 오르지 않는다), 돌아가기나 프로필에 세우면 그 항목과 아무 상관이 없다.
+           */
+          record={blurbKey === 'auto' ? <VersusTier board={board} /> : null}
           blurb={<Blurb kind={blurbKey} lines={LOBBY_BLURBS[blurbKey] ?? []} />}
         />
       }
@@ -367,6 +384,11 @@ function ReadyRoom({
 }) {
   const ready = new Set(phase.ready)
   const iAmReady = ready.has(phase.selfId)
+  /*
+   * 누구와 붙는지 **시작 전에** 알아야 한다. 판이 끝나고서야 상대가 어느 티어였는지
+   * 아는 것은 늦다 — 그때는 이길지 질지가 이미 정해진 뒤다.
+   */
+  const ratings = useRosterTiers(phase.players)
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
 
   useMenuKeys({
@@ -423,6 +445,7 @@ function ReadyRoom({
                   {player.nickname}
                   {mine && ' (나)'}
                 </span>
+                <TierBadge rating={ratings.get(player.device)} />
                 <span style={{ fontSize: 14, color: isReady ? '#6bffb0' : '#6a7290' }}>
                   {isReady ? '준비됨' : '기다리는 중…'}
                 </span>
@@ -731,6 +754,36 @@ function ManualMatch({
 }
 
 /**
+ * 그 사람의 티어.
+ *
+ * **아직 못 받았으면 아무것도 두지 않는다.** "브론즈"를 미리 깔아두면 서버에 닿기
+ * 전까지 모두가 브론즈로 보이고, 그 짧은 순간이 곧 잘못된 정보다. 자리만 비워두면
+ * 값이 들어올 때 조용히 채워진다.
+ */
+function TierBadge({ rating }: { rating: number | undefined }) {
+  if (rating === undefined) {
+    return null
+  }
+  const tier = tierOf(rating)
+  return (
+    <span
+      data-tier-badge={tier.name}
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: tier.color,
+        border: `1px solid ${tier.color}`,
+        borderRadius: 999,
+        padding: '2px 8px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {tier.name} {Math.round(rating)}
+    </span>
+  )
+}
+
+/**
  * 준비 화면에서 주고받는 말.
  *
  * 판이 도는 동안에는 이름표 위 말풍선으로 뜨지만 여기서는 **목록으로 쌓는다** —
@@ -850,7 +903,7 @@ function Searching({
     <div style={rootStyle}>
       <div style={panelStyle} data-searching={waiting?.waitedSec ?? 0}>
         <h2 style={{ font: '700 26px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          {unsupported ? '자동 매칭을 쓸 수 없습니다' : '상대를 찾는 중…'}
+          {unsupported ? '랭크 게임을 쓸 수 없습니다' : '상대를 찾는 중…'}
         </h2>
 
         {unsupported ? (
@@ -858,7 +911,7 @@ function Searching({
             style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}
             data-queue-unsupported
           >
-            서버가 아직 자동 매칭을 모릅니다. 수동 매칭으로 방을 만들어 주세요.
+            서버가 아직 랭크 게임을 모릅니다. 수동 매칭으로 방을 만들어 주세요.
           </p>
         ) : unreachable ? (
           <p style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}>

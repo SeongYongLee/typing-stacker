@@ -62,7 +62,6 @@ const laneStyle: CSSProperties = {
 
 const chipBase: CSSProperties = {
   position: 'absolute',
-  transform: 'translate(-50%, -50%)',
   padding: '6px 12px',
   borderRadius: 8,
   fontSize: 21,
@@ -139,6 +138,22 @@ function Chip({
         ...chipBase,
         top: `${word.y * 100}%`,
         left: `${((word.slot + 0.5) / WORD.slotsPerSide) * 100}%`,
+        /*
+         * 세로는 **쪽지를 레인 안에 가둔다** — y=0이면 윗변이 레인 맨 위에, y=1이면
+         * 아랫변이 바닥선에 닿는다.
+         *
+         * 한때 `translateY(-50%)` 고정이라 y=0에서 쪽지의 *중심*이 레인 맨 위에 왔고,
+         * 위쪽 절반(22px)이 레인 밖으로 나가 상단 띠에 잘렸다. 판을 열자마자 보는
+         * 첫 쪽지가 늘 그 상태였다.
+         *
+         * transform의 %는 **제 크기 기준**이라 쪽지 높이를 몰라도 된다. 글자 수마다
+         * 크기가 다르고 화면 크기도 따라 변하는데, 그 값을 재서 넣으면 잴 때마다
+         * 어긋난다.
+         *
+         * 놓침 판정은 그대로 y>=1이다(`WordSpawner`). 바뀐 것은 그 순간에 **쪽지의
+         * 아랫변**이 바닥선에 있다는 것뿐이라, 오히려 눈에 보이는 것과 규칙이 맞는다.
+         */
+        transform: `translate(-50%, ${-word.y * 100}%)`,
         opacity: missed ? word.fade * 0.6 : 1,
         color: missed ? INK_MISSED : INK,
         background: missed ? PAPER_MISSED : PAPER,

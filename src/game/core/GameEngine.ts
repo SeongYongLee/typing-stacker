@@ -585,6 +585,17 @@ class GameEngine {
   }
 
   /**
+   * 지금 서 있는 통나무들. 확인용이다.
+   *
+   * 통나무는 화면에만 나타나고 `GameState`에는 실리지 않아서(연출이라 규칙에 닿지
+   * 않는다) 밖에서 볼 길이 없었다. 그래서 "합성했는데 안 생긴다"를 눈이 아니면
+   * 확인할 수 없었다. 대전의 `debugBodies`와 같은 자리다.
+   */
+  debugLedges(): readonly { x: number; y: number; halfWidth: number }[] {
+    return this.physics.ledges()
+  }
+
+  /**
    * 물건을 만났다. 도감은 히든만이 아니라 전부를 센다 —
    * 기본 물건이 먼저 채워져야 도감이 비어 보이지 않고, 그 사이에 남은 빈 칸이
    * 무엇을 더 찾아야 하는지 알려준다.

@@ -126,24 +126,42 @@ function placeLedge(
   const tops = items.map((item) => item.y + item.hh)
   const average =
     tops.length === 0 ? ARENA.platformTop : tops.reduce((sum, y) => sum + y, 0) / tops.length
-  const y = Math.min(Math.max(average, floor), ceiling)
+  const base = Math.min(Math.max(average, floor), ceiling)
+
+  /*
+   * 높이를 하나만 보면 판 중반부터 자리를 못 찾는다.
+   *
+   * 실측으로 합성 35회 중 29회만 통나무가 섰고, 못 선 여섯은 전부 **두 번째 이후
+   * 합성**이었다. 탑이 자라면 평균 높이가 곧 탑의 허리인데, 그 높이에서는 통나무를
+   * 밖에 세워도 안쪽 끝이 탑에 닿는다 — 통나무가 최대 1.9m라 ±2.1에 세워도 안쪽이
+   * 1.15까지 들어온다.
+   *
+   * 그래서 몇 뼘 위아래도 함께 본다. 겹침 규칙을 느슨하게 푸는 것이 아니라 **빈 층을
+   * 찾는 것**이다 — 규칙을 풀면 통나무가 탑에 박히고, 그건 보상이 아니라 사고다.
+   */
+  const step = 0.5
+  const heights = [base, base + step, base - step, ceiling, floor]
+    .map((h) => Math.min(Math.max(h, floor), ceiling))
+    .filter((h, index, list) => list.indexOf(h) === index)
 
   // 길이는 판마다 다르다. 같은 것만 서면 "같은 것이 세 번"이지 새 자리로 안 읽힌다
   const halfWidth =
     LEDGE.minHalfWidth + (LEDGE.maxHalfWidth - LEDGE.minHalfWidth) * rng.next()
 
   const taken = [...items, ...ledges]
-  const { outer, inner, step } = candidates()
+  const { outer, inner, step: slotStep } = candidates()
   // 받침대 밖을 먼저, 거기가 다 차 있으면 안쪽을
   const order = [...shuffled(outer, rng), ...shuffled(inner, rng)]
 
-  for (const slot of order) {
-    // 칸에 딱 맞춰 서면 자리가 늘 같아 보인다. 칸 안에서 조금 흔든다
-    const jittered = slot + (rng.next() - 0.5) * step * 0.7
-    const x = Math.max(-REACH, Math.min(REACH, jittered))
-    const spot: Occupied = { x, y, hw: halfWidth, hh: LEDGE.halfHeight }
-    if (!taken.some((other) => overlaps(spot, other))) {
-      return { x, y, halfWidth }
+  for (const y of heights) {
+    for (const slot of order) {
+      // 칸에 딱 맞춰 서면 자리가 늘 같아 보인다. 칸 안에서 조금 흔든다
+      const jittered = slot + (rng.next() - 0.5) * slotStep * 0.7
+      const x = Math.max(-REACH, Math.min(REACH, jittered))
+      const spot: Occupied = { x, y, hw: halfWidth, hh: LEDGE.halfHeight }
+      if (!taken.some((other) => overlaps(spot, other))) {
+        return { x, y, halfWidth }
+      }
     }
   }
   return null

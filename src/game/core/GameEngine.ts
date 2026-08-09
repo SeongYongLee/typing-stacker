@@ -56,6 +56,23 @@ const HIDDEN_REVEAL_SEC = 1.8
  */
 const MERGE_REVEAL_SEC = 3
 
+/** 미러볼이 클럽 조명을 비추는 시간 */
+const MIRROR_BALL_LIGHTS_SEC = 2.8
+
+const MIRROR_BALL_FIXTURE_DROPS = [
+  { id: 'hand-mirror', x: -0.45 },
+  { id: 'desk-globe', x: -0.45 },
+  { id: 'hand-mirror', x: 0.45 },
+  { id: 'desk-globe', x: 0.45 },
+  { id: 'hand-mirror', x: 0 },
+  { id: 'desk-globe', x: 0 },
+] as const
+
+interface GameEngineOptions {
+  /** 개발 중 미러볼 등장 연출을 바로 확인할 수 있게 하는 재료 낙하 묶음 */
+  readonly mirrorBallFixture?: boolean
+}
+
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
   readonly seq: number
@@ -99,6 +116,7 @@ interface PendingDrop {
 
 class GameEngine {
   private readonly physics: PhysicsWorld
+  private readonly mirrorBallFixture: boolean
   private readonly loop = new GameLoop()
   private readonly score = new ScoreManager()
   private readonly collection: Collection
@@ -133,6 +151,7 @@ class GameEngine {
     | null = null
   /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
   private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
+  private mirrorBallLights: { elapsed: number } | null = null
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
   /**
@@ -163,8 +182,14 @@ class GameEngine {
    */
   private events: GameEventSink | null = null
 
-  private constructor(physics: PhysicsWorld, seed: number, known: readonly string[]) {
+  private constructor(
+    physics: PhysicsWorld,
+    seed: number,
+    known: readonly string[],
+    options: GameEngineOptions,
+  ) {
     this.physics = physics
+    this.mirrorBallFixture = options.mirrorBallFixture ?? false
     this.seed = seed
     this.collection = new Collection(known)
     this.rng = createRng(seed)
@@ -172,9 +197,13 @@ class GameEngine {
     this.loop.setCallbacks(this.update, this.render)
   }
 
-  static async create(seed: number, known: readonly string[] = []): Promise<GameEngine> {
+  static async create(
+    seed: number,
+    known: readonly string[] = [],
+    options: GameEngineOptions = {},
+  ): Promise<GameEngine> {
     const physics = await PhysicsWorld.create()
-    return new GameEngine(physics, seed, known)
+    return new GameEngine(physics, seed, known, options)
   }
 
   /** 도감이 늘어날 때마다 부른다. 저장은 바깥(브라우저를 아는 쪽)이 한다 */
@@ -216,6 +245,7 @@ class GameEngine {
     this.invulnerableLeft = 0
     this.hiddenReveal = null
     this.formingLedge = null
+    this.mirrorBallLights = null
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
@@ -234,6 +264,9 @@ class GameEngine {
     this.cameraY = 0
     this.difficultyPeak = 0
     this.physics.reset()
+    if (this.mirrorBallFixture) {
+      this.seedMirrorBallFixture()
+    }
     this.loop.start()
     this.fire({ kind: 'runStart' })
     this.emit()
@@ -302,6 +335,7 @@ class GameEngine {
        * 운으로 만난 히든에는 통나무를 주지 않는다. 여기 있었다가 뺐다 —
        * 이유는 `growLedge`에.
        */
+      this.startMirrorBallLights(variant)
       this.fire({ kind: 'reveal' })
     }
 
@@ -483,6 +517,12 @@ class GameEngine {
       }
     }
     this.advanceLedge(dt)
+    if (this.mirrorBallLights !== null) {
+      this.mirrorBallLights.elapsed += dt
+      if (this.mirrorBallLights.elapsed >= MIRROR_BALL_LIGHTS_SEC) {
+        this.mirrorBallLights = null
+      }
+    }
 
     /*
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
@@ -578,6 +618,7 @@ class GameEngine {
       elapsed: 0,
       duration: MERGE_REVEAL_SEC,
     }
+    this.startMirrorBallLights(match.recipe.result)
     this.fire({ kind: 'merge' })
     this.score.onCrafted(result)
     this.discover(result)
@@ -606,6 +647,22 @@ class GameEngine {
    * 기본 물건이 먼저 채워져야 도감이 비어 보이지 않고, 그 사이에 남은 빈 칸이
    * 무엇을 더 찾아야 하는지 알려준다.
    */
+  private seedMirrorBallFixture(): void {
+    for (const drop of MIRROR_BALL_FIXTURE_DROPS) {
+      const variant = VARIANT_BY_ID.get(drop.id)
+      if (variant === undefined) {
+        throw new Error(`미러볼 테스트 재료를 찾을 수 없다: ${drop.id}`)
+      }
+      this.queueDrop(variant, drop.x)
+    }
+  }
+
+  private startMirrorBallLights(variant: ItemVariant): void {
+    if (variant.id === 'mirror-ball') {
+      this.mirrorBallLights = { elapsed: 0 }
+    }
+  }
+
   private discover(variant: ItemVariant): void {
     if (this.collection.add(variant.id)) {
       this.onDiscover?.(this.collection.ids)
@@ -693,6 +750,10 @@ class GameEngine {
               from: reveal.from.map((item) => item.sprite),
               progress: reveal.elapsed / reveal.duration,
             },
+      mirrorBallLights:
+        this.mirrorBallLights === null
+          ? null
+          : { progress: this.mirrorBallLights.elapsed / MIRROR_BALL_LIGHTS_SEC },
       landing: this.landing.view,
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,

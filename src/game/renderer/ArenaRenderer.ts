@@ -1,5 +1,6 @@
 import { glowScale, shakeScale, trailScale } from './displayPrefs.ts'
 import { glowAlpha, glowColor, glowStyle } from './glow.ts'
+import { drawMirrorBallLights } from './mirrorBallLights.ts'
 import { trailPaint } from './trailPaint.ts'
 import { traceTrail } from './trailShape.ts'
 import { grownBy } from './trailPaint.ts'
@@ -79,6 +80,8 @@ interface ArenaRenderState {
   readonly aimX: number
   readonly showAim: boolean
   readonly hiddenReveal: HiddenReveal | null
+  /** 미러볼 등장 때만 켜지는 클럽 조명. 0 → 1 */
+  readonly mirrorBallLights?: { readonly progress: number } | null
   /** 방금 얹힌 물건의 색. 없으면 null */
   readonly landing: LandingGlow | null
   /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
@@ -243,6 +246,9 @@ class ArenaRenderer {
       ctx.translate(Math.sin(t * 47) * amp, Math.cos(t * 31) * amp * 0.7)
     }
 
+    if (state.mirrorBallLights != null) {
+      this.drawMirrorBallLights(state.mirrorBallLights.progress)
+    }
     this.drawFrame()
     // 히든 연출은 배경에 깔린다 — 쌓인 물건을 가리지 않아야 한다
     if (state.hiddenReveal !== null) {
@@ -403,6 +409,15 @@ class ArenaRenderer {
     ctx.lineTo(right, bottom - 1)
     ctx.stroke()
     ctx.restore()
+  }
+
+  private drawMirrorBallLights(progress: number): void {
+    drawMirrorBallLights(this.ctx, {
+      left: this.toScreenX(-ARENA.halfWidth),
+      top: this.toScreenY(ARENA.height + this.cameraY),
+      right: this.toScreenX(ARENA.halfWidth),
+      bottom: this.toScreenY(ARENA.killY),
+    }, progress)
   }
 
   private drawPlatform(): void {

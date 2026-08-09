@@ -820,6 +820,17 @@ function TierPanel({ state }: { state: MatchViewState }) {
   const tier = tierOf(ranking.rating)
   const progress = tierProgress(ranking.rating)
 
+  /*
+   * 사다리에 올리지 않는 판. **"못 올렸다"가 아니라 "안 올린다"**로 말해야 한다 —
+   * 고장으로 읽히면 다시 해보게 되고, 그래도 같은 화면이 나온다.
+   */
+  if (ranking.status === 'casual') {
+    return (
+      <span style={{ fontSize: 13, color: '#6a7290' }} data-tier-casual>
+        수동 매칭이라 티어 점수는 그대로입니다
+      </span>
+    )
+  }
   if (ranking.status === 'offline') {
     return <span style={{ fontSize: 13, color: '#4a5171' }}>티어를 받지 못했습니다</span>
   }
@@ -829,7 +840,7 @@ function TierPanel({ state }: { state: MatchViewState }) {
   if (ranking.status === 'disputed') {
     return (
       <span style={{ fontSize: 13, color: '#ff6b6b' }}>
-        양쪽 기록이 어긋나 이 판은 티어에 반영되지 않았다
+        양쪽 기록이 어긋나 이 판은 티어에 반영되지 않았습니다
       </span>
     )
   }

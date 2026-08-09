@@ -108,6 +108,8 @@ interface MatchViewState {
   readonly chat: readonly ChatLine[]
   /** 지금 입력창의 Enter가 무엇을 하는가. 같은 칸이 때에 따라 다른 일을 한다 */
   readonly inputMode: 'drop' | 'chat' | 'idle'
+  /** 이 판이 티어에 반영되는가. 자동 매칭만 그렇다 */
+  readonly ranked: boolean
   /**
    * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
    * 같은 붕괴로 함께 탈락하면 공동 등수다.
@@ -167,6 +169,17 @@ interface MatchEngineOptions {
    */
   readonly chatEnabled: boolean
   /**
+   * 이 판이 티어에 반영되는가. **자동 매칭만 그렇다.**
+   *
+   * 코드로 모인 방은 누구와 붙을지 고를 수 있다 — 늘 이기는 상대만 불러 판을
+   * 거듭하면 사다리가 실력이 아니라 상대를 고르는 능력을 재게 된다. 아는 사람끼리
+   * 편하게 하는 자리를 남겨두려면 그 자리에는 점수가 걸리지 않아야 한다.
+   *
+   * `chatEnabled`의 반대이지만 따로 둔다 — 둘은 뜻이 다르고, 하나에서 파생시키면
+   * 채팅 규칙을 바꿀 때 랭킹이 조용히 따라 바뀐다.
+   */
+  readonly ranked: boolean
+  /**
    * 지금 시각(ms). 같은 말이 연달아 오는 것을 막는 데만 쓴다.
    *
    * **세션과 엔진이 같은 시계를 봐야 한다.** 기록을 나눠 쓰는데 시계가 다르면,
@@ -187,6 +200,7 @@ class MatchEngine {
   private readonly wins: Map<PlayerId, number>
   private readonly chat: ChatLog
   private readonly chatEnabled: boolean
+  private readonly ranked: boolean
   private readonly chatClock: () => number
   private readonly wantRematch = new Set<PlayerId>()
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
@@ -297,6 +311,7 @@ class MatchEngine {
     this.wins = options.wins
     this.chat = options.chat
     this.chatEnabled = options.chatEnabled
+    this.ranked = options.ranked
     this.chatClock = options.chatClock
     this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES)
@@ -1011,6 +1026,7 @@ class MatchEngine {
       aimNormalized: this.aimer.normalized,
       chat: this.chat.view,
       inputMode: this.inputMode(),
+      ranked: this.ranked,
       standings: this.standingsView,
       feedback: this.feedback,
       winner: snapshot.winner,

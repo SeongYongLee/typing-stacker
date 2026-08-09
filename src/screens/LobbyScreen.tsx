@@ -94,6 +94,7 @@ const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
     <>
       <Key>비슷한 티어</Key>의 상대와 붙습니다.
     </>,
+    '이긴 만큼 티어 점수가 오릅니다.',
   ],
   manual: [
     <>
@@ -101,6 +102,13 @@ const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
     </>,
     <>
       최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.
+    </>,
+    /*
+     * 상대를 고를 수 있는 자리라 사다리에 올리지 않는다. 그 사실을 여기서 말해두지
+     * 않으면 판이 끝나고서야 알게 되고, 그때는 이미 한 판을 들인 뒤다.
+     */
+    <>
+      <Key>티어 점수는 바뀌지 않습니다.</Key>
     </>,
   ],
   host: [

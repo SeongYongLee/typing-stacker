@@ -30,8 +30,11 @@ interface TrailBody {
   readonly variant: {
     readonly id: string
     readonly color: string
-    /** 그린 크기의 반높이. 김이 물건 **위에서** 피어오르게 하는 데 쓴다 */
-    readonly artBounds: { readonly hh: number }
+    /**
+     * 그린 크기의 절반. 김이 물건 **위에서** 피어오르게 하고, 부딪힘이 누구를
+     * 때렸는지 찾는 데 쓴다.
+     */
+    readonly artBounds: { readonly hw: number; readonly hh: number }
   }
 }
 
@@ -206,6 +209,34 @@ const SPLASH_FLOOR = 0.55
  */
 const SPLASH_FAN = 2.3
 
+/**
+ * 마른 것이 부딪혔을 때 터지는 개수. 물보다 적다.
+ *
+ * 물은 사방으로 흩어지는 것이 그 물질의 성질이지만 잎·털·조각은 몇 장이 떨어져
+ * 나오는 것이다. 같은 수로 터뜨리면 나뭇잎에서 잎이 열여섯 장 튀어나온다.
+ */
+const DRY_BURST_COUNT = 9
+
+/** 마른 것이 튀는 속도 배수. 물처럼 솟구치지 않고 툭 떨어져 나온다 */
+const DRY_SPEED = 0.6
+
+/**
+ * 맞은 쪽이 떨어진 쪽의 몇 배로 반응하는가.
+ *
+ * 사건의 주인공은 떨어진 쪽이다. 같은 세기로 터지면 둘 중 무엇이 떨어진 것인지
+ * 알 수 없게 되고, 그러면 "무엇이 왔는가"라는 이 연출의 목적이 흐려진다.
+ */
+const STRUCK_SCALE = 0.65
+
+/**
+ * 이만큼(월드 단위) 안에 붙어 있으면 맞은 것으로 본다.
+ *
+ * 물리가 부딪힘을 잡는 시점은 **속도가 꺾인 프레임**이라 두 물건이 아직 완전히
+ * 붙어 있지 않다. 0으로 두면 거의 아무도 못 찾고, 너무 크면 한 칸 아래 것까지
+ * 반응해 탑이 통째로 흔들린 것처럼 보인다.
+ */
+const CONTACT_SLACK = 0.14
+
 /** 이 속도(m/s)보다 느리면 아무것도 흘리지 않는다 — 얹혀 있는 물건이 계속 반짝이면 안 된다 */
 const MIN_SPEED = 0.6
 /** 속도가 이만큼이면 뿜는 양이 최대다 */
@@ -279,7 +310,7 @@ class TrailField {
      * 그 프레임의 부딪힘이 통째로 사라진다 — 시간이 안 흐른 프레임이 실제로 있다
      * (판이 멈춰 있거나 화면이 처음 그려질 때).
      */
-    this.burst(hits)
+    this.burst(hits, bodies)
     const step = Math.min(Math.max(dt, 0), MAX_STEP)
     if (step <= 0) {
       return
@@ -290,57 +321,148 @@ class TrailField {
   }
 
   /**
-   * 부딪힌 자리에서 물이 퍼진다.
+   * 부딪히면 **닿은 둘이 각각 반응한다.**
    *
-   * 액체가 담긴 물건(`droplet`)만이다. 유리잔이 닿는데 아무 일도 없으면 그 물건이
-   * 무엇을 담고 있는지가 화면에서 사라지고, 반대로 모든 물건이 튀면 그것은 물이 아니라
-   * 그냥 착지 연출이 된다.
+   * 떨어진 물건만 반응하면 받침대에 쌓인 것들은 아무 일 없는 배경이 된다. 위에서
+   * 무언가 떨어져 나뭇잎을 쳤으면 잎이 흩날려야 하고, 물잔을 쳤으면 물이 튀어야
+   * 한다 — 그래야 쌓아둔 것이 살아 있는 것으로 보이고, **무엇 위에 얹었는지**가
+   * 부딪히는 순간 한 번 더 읽힌다.
    *
-   * **중력 반대 방향으로 부채꼴을 그린다.** 솟구쳤다가 되떨어지는 것이 물이 튀는
-   * 모습이고, 되떨어지는 쪽은 중력이 맡으므로 여기서는 솟는 것만 정한다.
+   * 맞은 쪽은 떨어진 쪽보다 약하다(`STRUCK_SCALE`). 사건의 주인공은 떨어진 쪽이고,
+   * 같은 세기로 터지면 둘 중 무엇이 떨어진 것인지 알 수 없게 된다.
    */
-  private burst(hits: readonly TrailHit[]): void {
+  private burst(hits: readonly TrailHit[], bodies: readonly TrailBody[]): void {
     for (const hit of hits) {
-      if (trailOf(hit.id) !== 'droplet' || hit.strength < SPLASH_MIN_STRENGTH) {
+      if (hit.strength < SPLASH_MIN_STRENGTH) {
         continue
       }
-      const spec = SPECS.splash
-      // 물건 색이 곧 담긴 것의 색은 아니다 — 생선은 살구빛인데 튀는 것은 물이다
-      const color = splashColorOf(hit.id, hit.color)
-      const reachScale = SPLASH_FLOOR + (1 - SPLASH_FLOOR) * hit.strength
-      const count = Math.max(6, Math.round(SPLASH_COUNT * reachScale))
-      for (let i = 0; i < count; i += 1) {
-        if (this.live.length >= MAX_PARTICLES) {
-          return
-        }
-        /*
-         * 위(π/2)를 가운데로 두고 좌우로 펼친다. 각도가 이 부채 안에 있으므로
-         * 세로 성분은 언제나 위쪽이다 — 바닥에 닿아 튄 물이 바닥을 뚫고 내려가지 않는다.
-         * 되떨어지는 것은 중력이 맡는다.
-         */
-        const fan = count === 1 ? 0.5 : i / (count - 1)
-        const angle = Math.PI / 2 + (fan - 0.5) * SPLASH_FAN + (this.random() - 0.5) * 0.25
-        /*
-         * 부채 가운데가 가장 높이 솟는다. 전부 같은 속도면 반원으로 퍼져 물이 아니라
-         * 폭발처럼 보인다 — 가운데가 높고 가장자리가 낮아야 튄 물로 읽힌다.
-         */
-        const reach = 0.55 + Math.sin(angle) * 0.45
-        const speed = SPLASH_SPEED * reach * (0.75 + this.random() * 0.5) * reachScale
-        this.live.push({
-          x: hit.x + (this.random() - 0.5) * 0.12,
-          y: hit.y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          life: spec.life * (0.6 + this.random() * 0.4),
-          born: spec.life,
-          size: spec.size * (0.6 + this.random() * 0.8),
-          kind: 'splash',
-          color,
-          phase: 0,
-          angle: 0,
-          spin: 0,
-        })
+      const faller = this.bodyAt(hit, bodies)
+      this.react(trailOf(hit.id), hit.id, hit.color, hit.x, hit.y, hit.strength)
+
+      const struck = this.struckBy(hit, faller, bodies)
+      if (struck === null) {
+        continue
       }
+      this.react(
+        trailOf(struck.variant.id),
+        struck.variant.id,
+        struck.variant.color,
+        (hit.x + struck.x) / 2,
+        struck.y + struck.variant.artBounds.hh,
+        hit.strength * STRUCK_SCALE,
+      )
+    }
+  }
+
+  /** 부딪힘을 낸 물건. 자리가 정확히 같은 것을 찾는다 — 물리가 방금 그 자리를 넘겼다 */
+  private bodyAt(hit: TrailHit, bodies: readonly TrailBody[]): TrailBody | null {
+    for (const body of bodies) {
+      if (body.variant.id === hit.id && Math.abs(body.x - hit.x) < 1e-6 && Math.abs(body.y - hit.y) < 1e-6) {
+        return body
+      }
+    }
+    return null
+  }
+
+  /**
+   * 무엇을 때렸는가.
+   *
+   * 물리는 **한 물건의 속도가 꺾인 것**으로 부딪힘을 잡으므로 상대를 모른다. 접촉 쌍을
+   * 다시 물어보면 WASM 경계를 또 넘어야 하는데, 자리는 이미 매 프레임 오므로 여기서
+   * 찾는 편이 싸다 — 속도를 스냅샷 차분으로 내는 것과 같은 판단이다.
+   *
+   * 바로 **아래에서 가로로 겹치는 것** 중 가장 가까운 하나다. 옆으로 스친 것까지
+   * 세면 탑 전체가 한 번에 반응해 무엇을 쳤는지가 오히려 안 보인다.
+   */
+  private struckBy(
+    hit: TrailHit,
+    faller: TrailBody | null,
+    bodies: readonly TrailBody[],
+  ): TrailBody | null {
+    const halfWidth = faller?.variant.artBounds.hw ?? 0
+    const bottom = hit.y - (faller?.variant.artBounds.hh ?? 0)
+    let best: TrailBody | null = null
+    let bestGap = Number.POSITIVE_INFINITY
+    for (const body of bodies) {
+      if (body === faller || trailOf(body.variant.id) === null) {
+        continue
+      }
+      const gap = Math.abs(bottom - (body.y + body.variant.artBounds.hh))
+      if (gap > CONTACT_SLACK || gap >= bestGap) {
+        continue
+      }
+      const overlap =
+        Math.min(hit.x + halfWidth, body.x + body.variant.artBounds.hw) -
+        Math.max(hit.x - halfWidth, body.x - body.variant.artBounds.hw)
+      if (overlap <= 0) {
+        continue
+      }
+      bestGap = gap
+      best = body
+    }
+    return best
+  }
+
+  /**
+   * 한 자리에서 위쪽 부채꼴로 한 번 터뜨린다.
+   *
+   * **액체만 물 모양(`splash`)으로 바뀐다.** 나머지는 제 갈래 그대로 터지므로 잎은
+   * 잎으로 흩날리고 털은 털로 날린다 — 흘리는 것과 터지는 것이 같은 모양이어야
+   * 그것이 같은 물건에서 나온 것으로 읽힌다.
+   *
+   * **중력 반대 방향이다.** 솟구쳤다가 되떨어지는 것이 부딪힌 자리에서 튀는 모습이고,
+   * 되떨어지는 쪽은 중력이 맡으므로 여기서는 솟는 것만 정한다.
+   */
+  private react(
+    kind: Trail | null,
+    id: string,
+    bodyColor: string,
+    x: number,
+    y: number,
+    strength: number,
+  ): void {
+    if (kind === null || strength < SPLASH_MIN_STRENGTH) {
+      return
+    }
+    const liquid = kind === 'droplet'
+    const shape = liquid ? 'splash' : kind
+    const spec = SPECS[shape]
+    // 물건 색이 곧 담긴 것의 색은 아니다 — 생선은 살구빛인데 튀는 것은 물이다
+    const color = liquid ? splashColorOf(id, bodyColor) : bodyColor
+    const reachScale = SPLASH_FLOOR + (1 - SPLASH_FLOOR) * strength
+    const base = liquid ? SPLASH_COUNT : DRY_BURST_COUNT
+    const count = Math.max(liquid ? 6 : 4, Math.round(base * reachScale))
+    for (let i = 0; i < count; i += 1) {
+      if (this.live.length >= MAX_PARTICLES) {
+        return
+      }
+      /*
+       * 위(π/2)를 가운데로 두고 좌우로 펼친다. 각도가 이 부채 안에 있으므로
+       * 세로 성분은 언제나 위쪽이다 — 바닥에 닿아 튄 것이 바닥을 뚫고 내려가지 않는다.
+       */
+      const fan = count === 1 ? 0.5 : i / (count - 1)
+      const angle = Math.PI / 2 + (fan - 0.5) * SPLASH_FAN + (this.random() - 0.5) * 0.25
+      /*
+       * 부채 가운데가 가장 높이 솟는다. 전부 같은 속도면 반원으로 퍼져 물이 아니라
+       * 폭발처럼 보인다 — 가운데가 높고 가장자리가 낮아야 튄 것으로 읽힌다.
+       */
+      const reach = 0.55 + Math.sin(angle) * 0.45
+      const speed =
+        SPLASH_SPEED * reach * (0.75 + this.random() * 0.5) * reachScale * (liquid ? 1 : DRY_SPEED)
+      this.live.push({
+        x: x + (this.random() - 0.5) * 0.12,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: spec.life * (0.6 + this.random() * 0.4),
+        born: spec.life,
+        size: spec.size * (0.6 + this.random() * 0.8),
+        kind: shape,
+        color,
+        phase: this.random() * Math.PI * 2,
+        angle: this.random() * Math.PI * 2,
+        spin: (this.random() - 0.5) * 2 * spec.spin,
+      })
     }
   }
 

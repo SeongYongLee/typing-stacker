@@ -573,7 +573,7 @@ describe('부스러기가 화면에 그려진다', () => {
  * **한 순간**에 터진다. 그래서 부딪힘 판정을 렌더러가 스스로 하지 않고 물리가 이미
  * 갖고 있는 것(`IMPACT_MIN_SPEED`)을 넘겨받는다. 두 벌을 두면 조율한 문턱이 어긋난다.
  */
-describe('닿으면 물이 퍼진다', () => {
+describe('닿으면 터진다', () => {
   function hit(id: string, strength = 1) {
     const variant = ALL_VARIANTS.find((item) => item.id === id)
     if (variant === undefined) throw new Error(id)
@@ -587,11 +587,36 @@ describe('닿으면 물이 퍼진다', () => {
     expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
   })
 
-  /** 모든 물건이 튀면 그것은 물이 아니라 그냥 착지 연출이다 */
-  it('액체가 아닌 것은 안 터진다', () => {
+  /**
+   * 마른 것은 **제 갈래 그대로** 터진다. 흘리는 것과 터지는 것이 같은 모양이어야
+   * 같은 물건에서 나온 것으로 읽힌다 — 잎이 흘릴 때는 잎인데 부딪히면 물방울이면
+   * 그것은 다른 물건이 된 것이다.
+   */
+  it('마른 것은 제 갈래로 터진다', () => {
+    const leaf = new TrailField()
+    leaf.update([], 1 / 60, [hit('leaf')])
+    expect(leaf.particles.length).toBeGreaterThan(0)
+    expect(leaf.particles.every((p) => p.kind === 'petal')).toBe(true)
+
+    const bolt = new TrailField()
+    bolt.update([], 1 / 60, [hit('bolt')])
+    expect(bolt.particles.every((p) => p.kind === 'sparkle')).toBe(true)
+  })
+
+  /** 다 터지면 그것은 물건의 성질이 아니라 그냥 착지 연출이 된다 */
+  it('갈래가 없는 물건은 안 터진다', () => {
     const field = new TrailField()
-    field.update([], 1 / 60, [hit('bolt'), hit('leaf'), hit('refrigerator')])
+    field.update([], 1 / 60, [hit('refrigerator'), hit('washing-machine')])
     expect(field.particles).toHaveLength(0)
+  })
+
+  /** 물이 사방으로 흩어지는 것은 그 물질의 성질이다. 잎은 몇 장 떨어져 나올 뿐이다 */
+  it('마른 것은 물보다 적게 터진다', () => {
+    const water = new TrailField()
+    water.update([], 1 / 60, [hit('beer')])
+    const dry = new TrailField()
+    dry.update([], 1 / 60, [hit('leaf')])
+    expect(dry.particles.length).toBeLessThan(water.particles.length)
   })
 
   /** 살짝 얹히는 것까지 튀면 받침대가 늘 젖어 있다 */
@@ -658,6 +683,70 @@ describe('닿으면 물이 퍼진다', () => {
       field.update([], 1 / 60)
     }
     expect(field.particles).toHaveLength(0)
+  })
+})
+
+/**
+ * 떨어진 것만 반응하면 받침대에 쌓인 것들은 아무 일 없는 배경이 된다.
+ * 위에서 무언가 떨어져 나뭇잎을 쳤으면 잎이 흩날려야 한다.
+ */
+describe('맞은 쪽도 반응한다', () => {
+  /** 아래에 놓인 물건과, 그 위에 막 닿은 물건 */
+  function stack(underId: string, fallerId: string) {
+    const under = ALL_VARIANTS.find((item) => item.id === underId)!
+    const faller = ALL_VARIANTS.find((item) => item.id === fallerId)!
+    const underY = 0
+    // 떨어진 물건의 밑면이 아래 물건의 윗면에 막 닿은 자리
+    const fallerY = underY + under.artBounds.hh + faller.artBounds.hh
+    return {
+      bodies: [
+        { handle: 1, x: 0, y: underY, settled: true, variant: under },
+        { handle: 2, x: 0, y: fallerY, settled: false, variant: faller },
+      ],
+      hit: { id: fallerId, color: faller.color, x: 0, y: fallerY, strength: 1 },
+    }
+  }
+
+  it('위에서 친 물건과 맞은 물건이 각각 터진다', () => {
+    const field = new TrailField()
+    const { bodies, hit } = stack('leaf', 'tumbler')
+    field.update(bodies, 0, [hit])
+    // 텀블러는 갈래가 물방울이라 splash로, 나뭇잎은 제 모양으로
+    const kinds = new Set(field.particles.map((p) => p.kind))
+    expect(kinds.has('petal'), '맞은 나뭇잎이 잎을 흘려야 한다').toBe(true)
+    expect(kinds.has('splash'), '떨어진 텀블러가 물을 튀겨야 한다').toBe(true)
+  })
+
+  /** 사건의 주인공은 떨어진 쪽이다. 같은 세기면 무엇이 떨어졌는지 알 수 없다 */
+  it('맞은 쪽이 더 약하게 터진다', () => {
+    const field = new TrailField()
+    const { bodies, hit } = stack('leaf', 'leaf')
+    field.update(bodies, 0, [hit])
+    // 둘 다 잎이라 모양으로는 못 가른다 — 터진 높이로 나눈다
+    const border = (bodies[0]!.y + bodies[0]!.variant.artBounds.hh + hit.y) / 2
+    const above = field.particles.filter((p) => p.y > border).length
+    const below = field.particles.filter((p) => p.y <= border).length
+    expect(above, '떨어진 쪽').toBeGreaterThan(0)
+    expect(below, '맞은 쪽').toBeGreaterThan(0)
+    expect(below).toBeLessThan(above)
+  })
+
+  /** 옆으로 스친 것까지 세면 탑 전체가 한 번에 반응해 무엇을 쳤는지가 안 보인다 */
+  it('가로로 안 겹치면 반응하지 않는다', () => {
+    const field = new TrailField()
+    const { bodies, hit } = stack('leaf', 'tumbler')
+    const away = bodies.map((b, i) => (i === 0 ? { ...b, x: 3 } : b))
+    field.update(away, 0, [hit])
+    expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
+  })
+
+  /** 한 칸 아래 것까지 반응하면 탑이 통째로 흔들린 것처럼 보인다 */
+  it('멀리 떨어진 것은 반응하지 않는다', () => {
+    const field = new TrailField()
+    const { bodies, hit } = stack('leaf', 'tumbler')
+    const far = bodies.map((b, i) => (i === 0 ? { ...b, y: -1.5 } : b))
+    field.update(far, 0, [hit])
+    expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
   })
 })
 

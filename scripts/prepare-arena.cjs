@@ -40,12 +40,29 @@ const OUT_FORMAT = { mime: 'image/webp', quality: 0.9, ext: '.webp' }
  * (dpr 2)에서 흐려지지 않는 최소치이고, 그 위로 올려봐야 용량만 는다.
  *
  * `trim`이 참이면 투명 여백을 재서 잘라낸다. 배경은 불투명이라 잴 것이 없다.
+ *
+ * ## `group` — 겹쳐 그릴 것들
+ *
+ * 상자의 앞/뒤, 시계의 판/바늘처럼 **겹쳐야 하나로 보이는** 그림들이다. 원본에서
+ * 같은 캔버스에 그려져 있으므로 같은 사각형에 그리면 저절로 맞는데, **각자 잘라내면
+ * 그 맞음이 깨진다** — 앞쪽은 위가 비어 있고 뒤쪽은 아래가 비어 있어서 잘린 양이
+ * 서로 다르다.
+ *
+ * 그래서 같은 묶음은 **합친 경계**로 함께 자르고 같은 배율로 줄인다. 여백은 묶음
+ * 바깥쪽만 사라지고 서로의 자리는 그대로 남는다.
  */
 const SOURCES = [
   { name: 'background-day', file: 'background-day.png', maxWidth: 1600, trim: false },
   { name: 'background-night', file: 'background-night.png', maxWidth: 1600, trim: false },
-  { name: 'platform-day', file: 'open-storage-box-day.png', maxWidth: 1200, trim: true },
-  { name: 'platform-night', file: 'open-storage-box-night.png', maxWidth: 1200, trim: true },
+  /*
+   * 받침대는 **앞뒤로 갈라 그린다.** 뒤 → 물건 → 앞 순서로 그리면 물건이 상자
+   * 안에 담긴다. 예전에는 통짜 그림 한 장을 눈대중 비율(`PLATFORM_SURFACE`)로
+   * 올려 담긴 척했는데, 앞벽이 없으니 물건 아랫동이 상자 앞으로 삐져나왔다.
+   */
+  { name: 'platform-back-day', file: 'open-storage-box-day-back.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-front-day', file: 'open-storage-box-day-front.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-back-night', file: 'open-storage-box-night-back.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-front-night', file: 'open-storage-box-night-front.png', maxWidth: 1200, trim: true, group: 'box' },
   { name: 'ledge-day', file: 'dust-platform-day.png', maxWidth: 700, trim: true },
   { name: 'ledge-night', file: 'dust-platform-night.png', maxWidth: 700, trim: true },
   // 입력창이 앉는 메모장. 단어를 여기에 적는다
@@ -54,52 +71,90 @@ const SOURCES = [
   // 치는 동안 글자 끝에 선다
   { name: 'pencil-day', file: 'pencil-day.png', maxWidth: 260, trim: true },
   { name: 'pencil-night', file: 'pencil-night.png', maxWidth: 260, trim: true },
+  /*
+   * 시계. 판 위에서 바늘이 돈다 — 바늘의 축이 판의 중심에 맞아야 하므로 한 묶음이다.
+   * 아이콘(해/달)은 따로 그려도 되지만 같은 묶음에 두면 자리까지 그림이 정해준다.
+   */
+  { name: 'timer-dial-day', file: 'timer-dial-day.png', maxWidth: 320, trim: true, group: 'timer' },
+  { name: 'timer-hand-day', file: 'timer-hand-day.png', maxWidth: 320, trim: true, group: 'timer' },
+  { name: 'timer-dial-night', file: 'timer-dial-night.png', maxWidth: 320, trim: true, group: 'timer' },
+  { name: 'timer-hand-night', file: 'timer-hand-night.png', maxWidth: 320, trim: true, group: 'timer' },
+  { name: 'timer-icon-day', file: 'timer-icon-day.png', maxWidth: 160, trim: true },
+  { name: 'timer-icon-night', file: 'timer-icon-night.png', maxWidth: 160, trim: true },
+  // 타이틀 화면
+  { name: 'title-day', file: 'suspicious-lost-and-found-title-day-final.png', maxWidth: 1600, trim: true },
+  { name: 'title-night', file: 'suspicious-lost-and-found-title-night-final.png', maxWidth: 1600, trim: true },
 ]
 
 /** 이 값 이하의 알파는 없는 것으로 본다. 붓끝의 옅은 자락까지 세면 여백이 안 잘린다 */
 const ALPHA_FLOOR = 8
 
+/** 불투명한 부분의 경계. 전부 투명하면 null */
+async function bounds(page, entry) {
+  if (!entry.trim) {
+    return null
+  }
+  const buffer = fs.readFileSync(path.join(SRC_DIR, entry.file))
+  const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`
+  return page.evaluate(
+    async ({ dataUrl, alphaFloor }) => {
+      const image = new Image()
+      image.src = dataUrl
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      ctx.drawImage(image, 0, 0)
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      let minX = canvas.width
+      let minY = canvas.height
+      let maxX = -1
+      let maxY = -1
+      for (let y = 0; y < canvas.height; y += 1) {
+        for (let x = 0; x < canvas.width; x += 1) {
+          if (data[(y * canvas.width + x) * 4 + 3] > alphaFloor) {
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+          }
+        }
+      }
+      if (maxX < 0) throw new Error('전부 투명하다')
+      return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+    },
+    { dataUrl, alphaFloor: ALPHA_FLOOR },
+  )
+}
+
+/** 두 경계를 다 감싸는 경계 */
+function union(a, b) {
+  if (a === null) return b
+  if (b === null) return a
+  const x = Math.min(a.x, b.x)
+  const y = Math.min(a.y, b.y)
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  }
+}
+
 async function render(page, entry) {
   const buffer = fs.readFileSync(path.join(SRC_DIR, entry.file))
   const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`
   return page.evaluate(
-    async ({ dataUrl, entry, mime, quality, alphaFloor }) => {
+    async ({ dataUrl, entry, crop, mime, quality }) => {
       const image = new Image()
       image.src = dataUrl
       await image.decode()
 
-      let sx = 0
-      let sy = 0
-      let sw = image.naturalWidth
-      let sh = image.naturalHeight
-
-      if (entry.trim) {
-        const probe = document.createElement('canvas')
-        probe.width = sw
-        probe.height = sh
-        const pctx = probe.getContext('2d', { willReadFrequently: true })
-        pctx.drawImage(image, 0, 0)
-        const { data } = pctx.getImageData(0, 0, sw, sh)
-        let minX = sw
-        let minY = sh
-        let maxX = -1
-        let maxY = -1
-        for (let y = 0; y < sh; y += 1) {
-          for (let x = 0; x < sw; x += 1) {
-            if (data[(y * sw + x) * 4 + 3] > alphaFloor) {
-              if (x < minX) minX = x
-              if (x > maxX) maxX = x
-              if (y < minY) minY = y
-              if (y > maxY) maxY = y
-            }
-          }
-        }
-        if (maxX < 0) throw new Error('전부 투명하다')
-        sx = minX
-        sy = minY
-        sw = maxX - minX + 1
-        sh = maxY - minY + 1
-      }
+      const sx = crop === null ? 0 : crop.x
+      const sy = crop === null ? 0 : crop.y
+      const sw = crop === null ? image.naturalWidth : crop.width
+      const sh = crop === null ? image.naturalHeight : crop.height
 
       const scale = Math.min(1, entry.maxWidth / sw)
       const outW = Math.max(1, Math.round(sw * scale))
@@ -119,7 +174,7 @@ async function render(page, entry) {
         sourceHeight: image.naturalHeight,
       }
     },
-    { dataUrl, entry, mime: OUT_FORMAT.mime, quality: OUT_FORMAT.quality, alphaFloor: ALPHA_FLOOR },
+    { dataUrl, entry, crop: entry.crop ?? null, mime: OUT_FORMAT.mime, quality: OUT_FORMAT.quality },
   )
 }
 
@@ -135,6 +190,23 @@ async function main() {
   const page = await browser.newPage()
   const summary = []
   try {
+    /*
+     * 자를 자리를 먼저 다 재고, 묶음은 합쳐서 하나로 만든다. 그래야 겹쳐 그릴
+     * 그림들이 같은 만큼 잘리고 같은 배율로 줄어든다.
+     */
+    const groups = new Map()
+    for (const entry of SOURCES) {
+      entry.crop = await bounds(page, entry)
+      if (entry.group !== undefined) {
+        groups.set(entry.group, union(groups.get(entry.group) ?? null, entry.crop))
+      }
+    }
+    for (const entry of SOURCES) {
+      if (entry.group !== undefined) {
+        entry.crop = groups.get(entry.group)
+      }
+    }
+
     for (const entry of SOURCES) {
       const result = await render(page, entry)
       const base64 = result.dataUrl.slice(`data:${OUT_FORMAT.mime};base64,`.length)

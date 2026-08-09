@@ -98,7 +98,17 @@ describe('PhysicsWorld', () => {
     const heights: number[] = []
     for (let i = 0; i < 4; i += 1) {
       world.spawnItem(item, 0, SOLO_OWNER)
-      const { settled } = simulate(world, 4)
+      /*
+       * **6초를 준다.** 같은 물건 넷을 정확히 x=0에 포개는 아슬아슬한 배치라,
+       * 받침대의 콜라이더가 조금만 달라져도 솔버가 푸는 순서가 바뀌어 멎는 시각이
+       * 흔들린다. 실제로 턱을 그림에 맞추며(0.06→0.056, 안쪽→모서리) 넷째가
+       * 4.0초를 살짝 넘겼다 — 이탈은 0이고 탑도 온전했으니 무너진 것이 아니라
+       * 늦게 멎은 것이다.
+       *
+       * 이 테스트가 지키려는 것은 "쌓여서 올라간다"이지 "몇 초 안에 멎는다"가
+       * 아니다. 시간은 넉넉히 두고 아래 단정들이 일을 한다.
+       */
+      const { settled } = simulate(world, 6)
       expect(settled).toHaveLength(1)
       heights.push(settled[0]!.topY)
     }

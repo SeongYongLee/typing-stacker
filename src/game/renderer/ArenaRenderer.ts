@@ -77,16 +77,11 @@ interface LandingGlow {
 }
 
 /** 빠진 것을 채운 뒤의 모양. 그리는 코드는 이것만 본다 */
-type FilledRenderState = ArenaRenderState &
-  Required<
-    Pick<
-      ArenaRenderState,
-      'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'
-    >
-  > & {
-    readonly hiddenReveal: HiddenReveal | null
-    readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
-  }
+type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
+  'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'>> & {
+  readonly hiddenReveal: HiddenReveal | null
+  readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
+}
 
 /** 없는 것에 기본값을 준다. **한 곳에서만 정한다** — 그리는 자리마다 물으면 곧 갈린다 */
 function withDefaults(state: ArenaRenderState): FilledRenderState {
@@ -110,13 +105,14 @@ const NO_PAIR_MARKS: ReadonlyMap<string, number> = new Map()
 /**
  * 그릴 것 한 장.
  *
- * **혼자 하기에만 있는 것은 선택 항목이다**(`?`). 예전에는 대전 엔진이 `nightfall: 0`,
- * `ledges: []` 같은 빈 값을 억지로 채워 넣어야 했는데, 그러면 혼자 하기에 연출을 하나
- * 더할 때마다 **대전 엔진도 함께 고쳐야 컴파일된다** — 실제로 하루에 네 번
- * (`ledges`·`nightfall`·`pairMarks`·`pairPulse`) 그 줄 때문에 남의 작업이 커밋에
- * 딸려오거나 main이 깨질 뻔했다.
+ * **혼자 하기에만 있는 것은 선택 항목이다**(`?`). 대전 엔진이 `nightfall: 0`,
+ * `ledges: []` 같은 빈 값을 억지로 채워 넣어야 했는데, 그러면 혼자 하기에 연출을
+ * 하나 더할 때마다 **대전 엔진도 함께 고쳐야 컴파일된다** — 실제로 하루에 네 번
+ * (`ledges`·`nightfall`·`pairMarks`·`pairPulse`) 그 줄 때문에 남의 작업이 딸려오거나
+ * main이 깨질 뻔했다.
  *
- * 기본값은 `withDefaults`가 한 곳에서 채운다.
+ * 기본값은 `withDefaults`가 한 곳에서 채운다. 그리는 쪽이 "없으면 어떻게"를 알고
+ * 있으면, 넘기는 쪽은 자기가 아는 것만 넘기면 된다.
  */
 interface ArenaRenderState {
   readonly bodies: readonly BodySnapshot[]
@@ -343,8 +339,7 @@ class ArenaRenderer {
     if (state.hiddenReveal !== null) {
       this.drawHiddenReveal(state.hiddenReveal)
     }
-    this.drawPlatform()
-    this.drawLedges(state.ledges)
+    this.drawPlatformBack()
     if (state.formingLedge !== null) {
       this.drawFormingLedge(state.formingLedge)
     }
@@ -364,6 +359,15 @@ class ArenaRenderer {
         state.pairPulse,
       )
     }
+    /*
+     * 앞벽은 **물건 뒤에** 온다. 이 한 줄이 "상자 위에 쌓였다"를 "상자에 담겼다"로
+     * 바꾼다 — 물건의 아랫동이 앞벽에 가려 상자 속으로 들어간 것으로 읽힌다.
+     *
+     * 통나무는 그보다 더 앞이다. 상자 밖 공중에 서는 것이라 앞벽에 가리면 없는
+     * 것처럼 보인다.
+     */
+    this.drawPlatformFront()
+    this.drawLedges(state.ledges)
     ctx.restore()
   }
 
@@ -519,42 +523,61 @@ class ArenaRenderer {
   }
 
   /**
-   * 받침대 — 열린 적재 상자.
+   * 받침대를 놓을 화면 사각형. 앞뒤 두 장이 **같은 자리**에 그려져야 한다.
    *
-   * 그림의 앞테두리(`PLATFORM_SURFACE`)를 물리 윗면에 맞춰, 물건이 상자 **안에**
-   * 담기는 것으로 보이게 한다. 물리는 `ARENA`의 상자가 정하므로 그림과 따로 논다 —
-   * 그림이 바뀌어도 쌓이는 방식은 달라지지 않는다.
+   * 파이프라인이 앞뒤를 한 묶음으로 잘라 두 장의 크기가 같으므로, 자리를 한 번만
+   * 재서 둘 다에 쓴다. 따로 재면 잘린 양이 달라 앞벽이 어긋난다.
    */
-  private drawPlatform(): void {
-    const { ctx } = this
-    const top = this.toScreenY(ARENA.platformTop)
-    const height = ARENA.platformHalfHeight * 2 * this.scale
-    const lipWidth = ARENA.bowlLipHalfWidth * 2 * this.scale
-    const lipHeight = ARENA.bowlLipHeight * this.scale
-    const bodyWidth = ARENA.platformHalfWidth * 2 * this.scale
-    const width = bodyWidth / PLATFORM_BODY
-    const left = this.toScreenX(0) - width / 2
+  private platformRect(): { left: number; top: number; width: number; height: number } {
+    const art = GENERATED_ART['platform-back-day']
+    const width = (ARENA.platformHalfWidth * 2 * this.scale) / PLATFORM_BODY
+    const height = width * (art.height / art.width)
+    return {
+      left: this.toScreenX(0) - width / 2,
+      top: this.toScreenY(ARENA.platformTop) - height * PLATFORM_SURFACE,
+      width,
+      height,
+    }
+  }
 
-    const art = GENERATED_ART['platform-day']
-    const drawn = this.drawDayNight('platform-day', 'platform-night', (image) => {
-      const drawHeight = width * (art.height / art.width)
-      ctx.drawImage(image, left, top - drawHeight * PLATFORM_SURFACE, width, drawHeight)
+  /**
+   * 받침대의 **뒤쪽** — 안벽과 뒤 덮개. 물건보다 먼저 그린다.
+   *
+   * 예전에는 통짜 그림 한 장이었다. 물건이 그 위에 그려지므로 상자 앞으로 아랫동이
+   * 삐져나왔고, 담긴 것처럼 보이게 하려고 그림을 눈대중 비율만큼 올려 **담긴 척**만
+   * 했다. 앞뒤가 갈라진 지금은 사이에 물건을 끼워 넣으면 그만이다.
+   */
+  private drawPlatformBack(): void {
+    const { ctx } = this
+    const box = this.platformRect()
+    const drawn = this.drawDayNight('platform-back-day', 'platform-back-night', (image) => {
+      ctx.drawImage(image, box.left, box.top, box.width, box.height)
     })
     if (drawn) {
       return
     }
-
-    // 이미지를 못 받아도 물리 받침대가 보이지 않는 상태로 플레이시키지 않는다.
+    // 이미지를 못 받아도 물리 받침대가 보이지 않는 상태로 플레이시키지 않는다
     ctx.fillStyle = '#4a5171'
-    ctx.fillRect(left, top, width, height)
-    ctx.fillStyle = '#6b74a0'
-    ctx.fillRect(left, top, width, Math.max(2, height * 0.16))
-    for (const side of [-1, 1]) {
-      const x = this.toScreenX(
-        side * (ARENA.platformHalfWidth - ARENA.bowlLipHalfWidth) - ARENA.bowlLipHalfWidth,
-      )
-      ctx.fillRect(x, top - lipHeight, lipWidth, lipHeight)
-    }
+    ctx.fillRect(
+      this.toScreenX(-ARENA.platformHalfWidth),
+      this.toScreenY(ARENA.platformTop),
+      ARENA.platformHalfWidth * 2 * this.scale,
+      ARENA.platformHalfHeight * 2 * this.scale,
+    )
+  }
+
+  /**
+   * 받침대의 **앞벽** — 물건을 다 그린 뒤에 덮는다. 그래야 상자에 담긴다.
+   *
+   * 통나무(먼지 뭉치)는 이 앞에 둔다. 상자 밖 공중에 서는 것이라 앞벽에 가리면
+   * 없는 것처럼 보인다.
+   */
+  private drawPlatformFront(): void {
+    const { ctx } = this
+    const box = this.platformRect()
+    this.drawDayNight('platform-front-day', 'platform-front-night', (image) => {
+      ctx.drawImage(image, box.left, box.top, box.width, box.height)
+    })
   }
 
   /**
@@ -844,9 +867,24 @@ class ArenaRenderer {
      */
     ctx.font = `700 ${labelSize}px ${UI_FONT}`
     const textWidth = Math.max(ctx.measureText(reveal.label).width, tagSize * 5)
-    const plateWidth = textWidth + labelSize * 1.6
-    const plateTop = labelY - labelSize * 0.95
-    const plateHeight = tagY + tagSize - plateTop + labelSize * 0.5
+
+    /*
+     * **한 값이 네 변을 다 정한다.**
+     *
+     * 예전에는 변마다 따로 적혀 있어서 여백이 어긋나 있었다 — 좌우 `0.80`, 위
+     * `0.45`, 아래 `0.74`(labelSize 기준). 위가 유독 좁아 글자가 종이 윗변에
+     * 붙어 보였다. 변마다 다른 식으로 적으면 글자 크기를 만질 때마다 그 비율이
+     * 다시 어긋난다.
+     *
+     * 글자가 차지하는 칸은 `textBaseline = 'middle'` 기준이라 각 줄의 위아래로
+     * 제 글자 크기의 절반씩이다. 그 칸에 사방 같은 여백을 두른다.
+     */
+    const pad = labelSize * 0.62
+    const contentTop = labelY - labelSize / 2
+    const contentBottom = tagY + tagSize / 2
+    const plateWidth = textWidth + pad * 2
+    const plateTop = contentTop - pad
+    const plateHeight = contentBottom + pad - plateTop
     ctx.globalAlpha = alpha * 0.94
     ctx.fillStyle = TAG_PAPER
     ctx.strokeStyle = TAG_EDGE

@@ -3,6 +3,7 @@ import { Blurb, Danger, Key, SidePanel } from '../components/SidePanel.tsx'
 import { SoloRanking, VersusTier } from '../components/RankBoxes.tsx'
 import type { Leaderboard } from '../hooks/useLeaderboard.ts'
 import { LIVES } from '../game/config.ts'
+import { TURN_LIMIT_SEC } from '../multi/MatchEngine.ts'
 import { MAX_PLAYERS } from '../multi/protocol.ts'
 
 /** 시작 화면에서 고른 항목에 딸린 것을 옆에 보여준다 */
@@ -39,8 +40,10 @@ const BLURBS: Record<PanelKind, readonly ReactNode[]> = {
       내가 쌓은 물건이 받침대를 벗어나면 <Danger>내 목숨</Danger>이 하나 깎입니다.
     </>,
     <>
-      떨군 직후에는 잠깐 떨굴 수 없습니다. 그동안 친 단어는 <Key>방해</Key>가 되어, 남이
-      그 단어를 떨구면 그 사람 하트가 <Danger>반 칸</Danger> 깎입니다.
+      <Key>차례</Key>가 돌아갑니다. {TURN_LIMIT_SEC}초 안에 치지 않으면 저절로 떨어집니다.
+    </>,
+    <>
+      차례가 아닐 때 적는 말은 <Key>채팅</Key>이 됩니다.
     </>,
   ],
   // 도감·옵션·이름은 규칙이 아니라 자리다. 무엇이 있는 곳인지만 알면 들어가서 보면 된다

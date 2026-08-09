@@ -136,14 +136,32 @@ export class MatchRoom {
       return new Response(null, { status: 101, webSocket: client })
     }
 
-    const id = crypto.randomUUID()
     const others = sockets.map((socket) => idOf(socket)).filter((peer) => peer !== null)
+
+    /*
+     * **끊겼다 돌아온 사람은 쓰던 이름표를 되찾는다.**
+     *
+     * 붙을 때마다 새 id를 주면 돌아온 사람을 아무도 알아보지 못한다 — 목숨도 차례도
+     * 쌓아둔 물건도 전부 그 id에 매달려 있어서, 새 id로 들어오면 판에서는 남남이다.
+     * 그래서 `?resume=`으로 쓰던 것을 청하면 돌려준다.
+     *
+     * **지금 그 이름표를 쓰는 소켓이 없을 때만** 준다. 살아 있는 사람의 것을 뺏으면
+     * 둘이 한 사람이 되어 판이 뒤엉킨다. 남이 떠난 뒤 그 이름표를 주워 쓰는 것까지는
+     * 막지 못하지만(같은 방에 있던 사람은 서로의 id를 안다), 그러려면 상대가 먼저
+     * 사라져야 하고 얻는 것도 그 사람의 자리뿐이다.
+     */
+    const asked = url.searchParams.get('resume')
+    const taken = asked !== null && others.includes(asked)
+    const id = asked !== null && !taken ? asked : crypto.randomUUID()
+    const returning = id === asked
 
     this.state.acceptWebSocket(server)
     // 잠들었다 깨어나도 누가 누구인지 알아야 한다
     server.serializeAttachment({ id })
 
-    server.send(JSON.stringify({ t: 'welcome', self: id, peers: others, host: others.length === 0 }))
+    server.send(
+      JSON.stringify({ t: 'welcome', self: id, peers: others, host: others.length === 0, returning }),
+    )
     this.broadcast({ t: 'peerJoined', peer: id }, id)
 
     return new Response(null, { status: 101, webSocket: client })

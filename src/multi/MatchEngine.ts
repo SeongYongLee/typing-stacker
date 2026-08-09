@@ -60,6 +60,17 @@ const DROP_INTERVAL_SEC = 0.9
  */
 const TURN_LIMIT_SEC = 20
 
+/**
+ * 끊긴 사람을 이만큼 기다렸다 판에서 뺀다.
+ *
+ * 회선이 흔들린 것과 나간 것은 겉으로 같아 보이는데, 바로 빼면 **잠깐 끊긴 사람이
+ * 돌아왔을 때 이미 죽어 있다.** 전송로가 다시 붙어보는 시간(18초)보다 길어야 한다.
+ *
+ * 기다리는 동안 그 사람 차례는 시한이 대신 넘겨준다 — 자리를 비운 사람 때문에 판이
+ * 멎지 않게 이미 만들어둔 길이라 따로 손댈 것이 없다.
+ */
+const REJOIN_GRACE_SEC = 20
+
 /** 남은 시간이 이 아래로 내려가면 화면이 다급하게 알린다 */
 const TURN_HURRY_SEC = 5
 
@@ -142,6 +153,11 @@ interface MatchViewState {
   readonly feedback: MatchFeedback | null
   readonly winner: PlayerId | null
   readonly connectionLost: boolean
+  /**
+   * 끊겼고 다시 붙는 중이다. **`connectionLost`와 다르다** — 이쪽은 아직 희망이 있고,
+   * 사람이 할 일도 다르다(기다리기 vs 나가기).
+   */
+  readonly reconnecting: boolean
   /** 판을 거듭하며 쌓인 승수. 이름 옆에 붙는다 */
   readonly wins: readonly (readonly [PlayerId, number])[]
   /** 계속하기를 누른 사람들 */
@@ -242,6 +258,13 @@ class MatchEngine {
   private opponentLeft = false
   /** 판 도중에 사라진 사람들. 매 프레임 새로 만들지 않게 바뀔 때만 갈아치운다 */
   private left: readonly PlayerId[] = []
+  /** 지금 다시 붙는 중인가. 판을 접는 것과 갈라 보여줘야 한다 */
+  private reconnecting = false
+  /**
+   * 사라졌지만 아직 기다려주는 사람들 → 언제까지(경과 초).
+   * 방장만 쓴다 — 판에서 빼는 판정은 한 곳에서만 나와야 한다.
+   */
+  private readonly waitingFor = new Map<PlayerId, number>()
   /*
    * 화면에 넘길 사본. emit()은 매 프레임 도는데 이 둘은 판이 끝날 때만 바뀐다 —
    * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다. 바뀐 순간에만 다시 만든다.
@@ -507,8 +530,45 @@ class MatchEngine {
       // 방장이 정리해 알려줄 것이다
       return
     }
-    this.transport.broadcast({ t: 'left', who })
-    this.applyLeft(who)
+    /*
+     * **바로 빼지 않는다.** 회선이 흔들린 것과 나간 것은 겉으로 같은데, 여기서 빼면
+     * 잠깐 끊겼다 돌아온 사람이 이미 죽어 있다. 유예를 두고 그 안에 돌아오면 없던 일이 된다.
+     *
+     * 그동안 그 사람 차례는 시한이 대신 넘겨주므로 판은 멎지 않는다.
+     */
+    this.waitingFor.set(who, this.elapsed + REJOIN_GRACE_SEC)
+    this.emit()
+  }
+
+  /** 유예가 지난 사람을 판에서 뺀다. 방장만 본다 */
+  private sweepGone(): void {
+    if (this.waitingFor.size === 0) {
+      return
+    }
+    for (const [who, until] of [...this.waitingFor]) {
+      if (this.elapsed < until) {
+        continue
+      }
+      this.waitingFor.delete(who)
+      this.transport.broadcast({ t: 'left', who })
+      this.applyLeft(who)
+    }
+  }
+
+  /**
+   * 돌아온 사람에게 지금 상태를 통째로 보낸다. 방장만 한다.
+   *
+   * 순서가 있다 — 밭과 목숨을 먼저 주고 물건을 마지막에 준다. 물건이 먼저 오면
+   * 그 사람 화면에는 아직 옛 목숨이 걸린 채로 새 탑이 서고, 그 사이가 눈에 남는다.
+   */
+  private resendTo(peer: PlayerId): void {
+    this.transport.sendTo(peer, { t: 'words', words: this.spawner.words })
+    this.transport.sendTo(peer, { t: 'lives', lives: this.match.snapshot().lives })
+    this.transport.sendTo(peer, {
+      t: 'sync',
+      bodies: this.physics.frames(),
+      welds: this.physics.weldPairs(),
+    })
   }
 
   /**
@@ -573,6 +633,26 @@ class MatchEngine {
         this.onFailure?.(event.failure)
         break
       case 'peerJoined':
+        // 유예 안에 돌아왔다. 없던 일로 하고 계속한다
+        this.waitingFor.delete(event.peer)
+        /*
+         * 판 도중에 새로 들어오는 길은 없으므로 돌아온 사람이다. **방장이 지금
+         * 상태를 통째로 다시 보낸다** — 없는 동안 오간 것을 그 사람만 못 받았고,
+         * 무엇을 놓쳤는지는 보낸 쪽도 모른다.
+         */
+        if (this.isHost) {
+          this.resendTo(event.peer)
+        }
+        break
+      case 'reconnecting':
+        // 판을 접지 않는다. 화면이 "다시 붙는 중"을 보여주고 기다린다
+        this.reconnecting = true
+        this.emit()
+        break
+      case 'resumed':
+        // 방장이 곧 지금 상태를 보내주므로 여기서는 표시만 되돌린다
+        this.reconnecting = false
+        this.emit()
         break
     }
   }
@@ -1055,6 +1135,10 @@ class MatchEngine {
      * 차례 시계. 쿨타임이 도는 동안에는 아직 아무도 칠 수 없으므로 세지 않는다 —
      * 그러지 않으면 실제로 손이 갈 수 있는 시간이 시한보다 짧아진다.
      */
+    if (this.isHost) {
+      this.sweepGone()
+    }
+
     if (this.dropCooldown <= 0 && this.match.currentPlayer !== null) {
       this.turnElapsed += dt
       if (this.isHost && this.turnElapsed >= TURN_LIMIT_SEC) {
@@ -1247,6 +1331,7 @@ class MatchEngine {
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
+      reconnecting: this.reconnecting,
       matchId: this.matchId,
       wins: this.winsView,
       wantRematch: this.rematchView,

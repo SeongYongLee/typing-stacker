@@ -52,6 +52,17 @@ class Hub {
     }
   }
 
+  /** 돌아왔다고 알린다. 중계가 `peerJoined`를 뿌리는 것과 같다 */
+  rejoin(who: HubTransport): void {
+    for (const node of this.nodes) {
+      if (node !== who && !node.closed) {
+        void Promise.resolve().then(() => {
+          node.deliver({ kind: 'peerJoined', peer: who.selfId })
+        })
+      }
+    }
+  }
+
   leave(who: HubTransport): void {
     for (const node of this.nodes) {
       if (node !== who && !node.closed) {
@@ -117,6 +128,21 @@ class HubTransport implements Transport {
     }
     this.closed = true
     this.hub.leave(this)
+  }
+
+  /**
+   * 쓰던 이름표 그대로 다시 붙는다.
+   *
+   * 실제 전송로는 `?resume=`으로 중계에 옛 id를 청하고, 중계는 그 이름표를 쓰는
+   * 소켓이 없을 때 돌려준다. 여기서는 같은 노드를 되살리는 것으로 그 결과만 흉내낸다 —
+   * 시험이 봐야 하는 것은 **돌아왔을 때 판이 그 사람을 알아보는가**다.
+   */
+  reopen(): void {
+    if (!this.closed) {
+      return
+    }
+    this.closed = false
+    this.hub.rejoin(this)
   }
 }
 

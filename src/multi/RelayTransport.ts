@@ -35,11 +35,76 @@ const CLOSE_FULL = 4409
 /** 서버가 첫 인사를 이 안에 주지 않으면 뭔가 잘못된 것이다 */
 const WELCOME_TIMEOUT_MS = 8000
 
+/**
+ * 끊긴 뒤 다시 붙어보는 시각(ms). 마지막 값이 곧 포기하는 시점이다.
+ *
+ * **방장이 기다려주는 유예(20초)보다 짧아야 한다.** 그보다 늦게 돌아오면 이미
+ * 판에서 빠진 뒤라, 돌아와도 남남인 채로 빈 화면을 보게 된다.
+ *
+ * 앞쪽이 촘촘한 것은 대부분의 끊김이 짧기 때문이다 — 회선이 잠깐 흔들린 것이면
+ * 1초 안에 붙고, 그때 사람은 아무것도 눈치채지 못한다.
+ */
+const RETRY_AT_MS = [400, 1200, 2500, 4500, 7000, 10000, 14000, 18000] as const
+
+/**
+ * 다시 붙을 때 쓰는 소켓 열기.
+ *
+ * 처음 붙는 길(`RelayTransport.open`)과 나눠둔 이유는 **여기서는 만들 것이 없기
+ * 때문이다** — 이미 전송로가 있고 소켓만 갈아끼운다. 그리고 확인할 것이 하나 더
+ * 있다: 쓰던 이름표를 실제로 되찾았는가. 못 되찾았으면 판에서는 남남이라
+ * 돌아온 것이 아니다.
+ */
+function openSocket(url: string, wanted: PlayerId): Promise<WebSocket> {
+  const socket = new WebSocket(url)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup()
+      socket.close()
+      reject(failure('brokerUnreachable'))
+    }, WELCOME_TIMEOUT_MS)
+
+    const cleanup = (): void => {
+      clearTimeout(timer)
+      socket.removeEventListener('message', onMessage)
+      socket.removeEventListener('close', onClose)
+      socket.removeEventListener('error', onError)
+    }
+    const onMessage = (event: MessageEvent): void => {
+      const frame = parseFrame(event.data)
+      if (frame === null || frame.t !== 'welcome') {
+        return
+      }
+      cleanup()
+      if (frame.self !== wanted) {
+        socket.close()
+        reject(failure('peerLost'))
+        return
+      }
+      resolve(socket)
+    }
+    const onClose = (): void => {
+      cleanup()
+      reject(failure('peerLost'))
+    }
+    const onError = (): void => {
+      cleanup()
+      reject(failure('brokerUnreachable'))
+    }
+    socket.addEventListener('message', onMessage)
+    socket.addEventListener('close', onClose)
+    socket.addEventListener('error', onError)
+  })
+}
+
 class RelayTransport implements Transport {
-  private readonly socket: WebSocket
+  private socket: WebSocket
   private readonly onEvent: (event: TransportEvent) => void
   private readonly members = new Set<PlayerId>()
   private closed = false
+  /** 다시 붙는 데 필요한 것들. 처음 붙을 때 받아 들고 있는다 */
+  private readonly baseUrl: string
+  private retry = 0
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
   readonly selfId: PlayerId
   readonly isHost: boolean
   readonly roomCode: string | null
@@ -51,19 +116,80 @@ class RelayTransport implements Transport {
     roomCode: string,
     peers: readonly PlayerId[],
     onEvent: (event: TransportEvent) => void,
+    baseUrl: string,
   ) {
     this.socket = socket
     this.selfId = selfId
     this.isHost = isHost
     this.roomCode = roomCode
     this.onEvent = onEvent
+    this.baseUrl = baseUrl
     for (const peer of peers) {
       this.members.add(peer)
     }
+    this.bind(socket)
+  }
 
+  /**
+   * 소켓 하나에 귀를 붙인다. 다시 붙을 때마다 새 소켓에 다시 붙여야 한다.
+   *
+   * **닫혔다고 곧바로 실패로 알리지 않는다.** 대부분의 끊김은 잠깐이고, 그때 판을
+   * 접으면 회선이 흔들린 것과 판이 끝난 것을 사람이 구분할 수 없다.
+   */
+  private bind(socket: WebSocket): void {
     socket.addEventListener('message', (event) => this.receive(event.data))
-    socket.addEventListener('close', () => this.fail('peerLost'))
-    socket.addEventListener('error', () => this.fail('peerLost'))
+    socket.addEventListener('close', () => this.lost())
+    socket.addEventListener('error', () => this.lost())
+  }
+
+  /** 끊겼다. 정해둔 시각마다 다시 붙어보고, 다 써도 안 되면 그때 실패다 */
+  private lost(): void {
+    if (this.closed || this.retryTimer !== null) {
+      return
+    }
+    const delay = RETRY_AT_MS[this.retry]
+    if (delay === undefined) {
+      this.fail('peerLost')
+      return
+    }
+    this.retry += 1
+    this.onEvent({ kind: 'reconnecting', attempt: this.retry })
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
+      void this.rejoin()
+    }, delay)
+  }
+
+  /**
+   * 쓰던 이름표를 되찾으며 다시 붙는다.
+   *
+   * `create=1`로 붙는 이유는 **모두가 잠깐 끊긴 경우** 때문이다. 방이 비어 있으면
+   * 그냥 붙는 쪽은 "그 코드로 기다리는 방이 없다"를 받는데, 돌아온 사람에게 그것은
+   * 사실이 아니다 — 방이 없는 게 아니라 아직 아무도 안 돌아온 것이다.
+   */
+  private async rejoin(): Promise<void> {
+    if (this.closed) {
+      return
+    }
+    const room = this.roomCode
+    if (room === null) {
+      this.fail('peerLost')
+      return
+    }
+    const url = `${secure(this.baseUrl).replace(/\/$/, '')}/room/${room}?create=1&resume=${encodeURIComponent(this.selfId)}`
+    try {
+      const socket = await openSocket(url, this.selfId)
+      if (this.closed) {
+        socket.close()
+        return
+      }
+      this.socket = socket
+      this.retry = 0
+      this.bind(socket)
+      this.onEvent({ kind: 'resumed' })
+    } catch {
+      this.lost()
+    }
   }
 
   static host(baseUrl: string, code: string, options: RelayOptions): Promise<RelayTransport> {
@@ -88,6 +214,11 @@ class RelayTransport implements Transport {
 
   close(): void {
     this.closed = true
+    // 예약해둔 재시도까지 거둔다 — 안 그러면 나간 뒤에 혼자 다시 붙는다
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
+    }
     this.socket.close()
   }
 
@@ -121,7 +252,15 @@ class RelayTransport implements Transport {
         }
         cleanup()
         resolve(
-          new RelayTransport(socket, frame.self, frame.host, code, frame.peers, options.onEvent),
+          new RelayTransport(
+            socket,
+            frame.self,
+            frame.host,
+            code,
+            frame.peers,
+            options.onEvent,
+            baseUrl,
+          ),
         )
       }
 

@@ -5,6 +5,9 @@ import type { PlayerInfo } from '../src/multi/protocol.ts'
 import { Hub } from './helpers/hub.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
+/** 방장이 기다려주는 유예(`REJOIN_GRACE_SEC`)를 넘기는 시간 */
+const PAST_GRACE = 21
+
 /**
  * 판 도중에 누가 사라졌을 때.
  *
@@ -94,7 +97,8 @@ describe('판 도중에 누가 사라지면', () => {
     seats[2]!.link.close()
     await settle()
     await settle()
-    await clock.advance(0.3)
+    // 바로 빼지 않는다 — 잠깐 끊긴 것일 수 있다. 유예가 지나야 탈락이다
+    await clock.advance(PAST_GRACE)
 
     const host = seats[0]!.state()
     expect(new Map(host.lives).get('p2')).toBe(0)
@@ -110,7 +114,7 @@ describe('판 도중에 누가 사라지면', () => {
     seats[2]!.link.close()
     await settle()
     await settle()
-    await clock.advance(0.3)
+    await clock.advance(PAST_GRACE)
 
     expect(seats[1]!.state().left).toContain('p2')
     expect(new Map(seats[1]!.state().lives).get('p2')).toBe(0)
@@ -167,16 +171,52 @@ describe('판 도중에 누가 사라지면', () => {
     seats[2]!.link.close()
     await settle()
     await settle()
-    await clock.advance(0.3)
+    await clock.advance(PAST_GRACE)
     expect(seats[0]!.state().phase).toBe('playing')
 
     seats[1]!.link.close()
     await settle()
     await settle()
-    await clock.advance(0.3)
+    await clock.advance(PAST_GRACE)
 
     expect(seats[0]!.state().phase).toBe('over')
     expect(seats[0]!.state().winner).toBe('p0')
+  })
+
+  /*
+   * 재접속 복구의 전부다. 유예 안에는 아직 판에 남아 있어야 하고, 돌아오면 없던
+   * 일이 되어야 한다. 바로 빼면 잠깐 끊겼다 돌아온 사람이 **이미 죽어 있다.**
+   */
+  it('유예 안에는 아직 탈락하지 않는다', async () => {
+    const seats = await seatsOf(3)
+    await clock.advance(1)
+    seats[2]!.link.close()
+    await settle()
+    await settle()
+    await clock.advance(10)
+
+    // 아직 목숨이 남아 있고 판에서 빠지지도 않았다
+    expect(new Map(seats[0]!.state().lives).get('p2')).toBeGreaterThan(0)
+    expect(seats[0]!.state().left).not.toContain('p2')
+  })
+
+  it('유예 안에 돌아오면 없던 일이 된다', async () => {
+    const seats = await seatsOf(3)
+    await clock.advance(1)
+    const before = new Map(seats[0]!.state().lives).get('p2')
+
+    seats[2]!.link.close()
+    await settle()
+    await clock.advance(5)
+    // 쓰던 이름표 그대로 다시 붙는다
+    seats[2]!.link.reopen()
+    await settle()
+    await settle()
+    await clock.advance(PAST_GRACE)
+
+    expect(new Map(seats[0]!.state().lives).get('p2')).toBe(before)
+    expect(seats[0]!.state().left).not.toContain('p2')
+    expect(seats[0]!.state().phase).toBe('playing')
   })
 
   /*

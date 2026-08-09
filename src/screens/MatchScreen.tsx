@@ -83,6 +83,13 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             {state.opponentLeft && state.phase !== 'over' && (
               <Banner text="상대가 로비로 나갔습니다" danger />
             )}
+            {/*
+              **끊긴 것과 다시 붙는 중인 것을 갈라 말한다.** 사람이 할 수 있는 일이
+              다르다 — 이쪽은 기다리면 되고, 저쪽은 나가는 것 말고 없다.
+            */}
+            {state.reconnecting && !state.connectionLost && state.phase !== 'over' && (
+              <Banner text="연결이 끊겼습니다 — 다시 붙는 중…" />
+            )}
             {state.connectionLost && !state.opponentLeft && state.phase !== 'over' && (
               <Banner text="상대와의 연결이 끊겼습니다" danger />
             )}

@@ -26,6 +26,15 @@ interface Transport {
 
 type TransportEvent =
   | { readonly kind: 'peerJoined'; readonly peer: PlayerId }
+  /**
+   * 끊겼고 다시 붙는 중이다. **실패가 아니다** — 화면은 판을 접지 말고 기다린다고 말한다.
+   *
+   * 사람이 회선이 흔들린 것과 판이 끝난 것을 구분할 수 있어야 한다. 그 둘에 할 수
+   * 있는 일이 다르다(기다리기 vs 나가기).
+   */
+  | { readonly kind: 'reconnecting'; readonly attempt: number }
+  /** 다시 붙었고 쓰던 이름표를 되찾았다. 받는 쪽은 여기서 상태를 다시 맞춘다 */
+  | { readonly kind: 'resumed' }
   | { readonly kind: 'peerLeft'; readonly peer: PlayerId }
   | { readonly kind: 'message'; readonly from: PlayerId; readonly message: Message }
   | { readonly kind: 'error'; readonly failure: TransportFailure }

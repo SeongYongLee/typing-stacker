@@ -26,6 +26,7 @@ import type { Message, PlayerId, PlayerInfo } from './protocol.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 import type { ChatLine } from './ChatLog.ts'
 import type { ChatLog } from './ChatLog.ts'
+import { Presence } from './Presence.ts'
 
 /**
  * 대전 한 판.
@@ -58,17 +59,6 @@ const DROP_INTERVAL_SEC = 0.9
  * 이 시한에 걸리는 것은 자리를 비운 사람이지 느린 사람이 아니어야 한다.
  */
 const TURN_LIMIT_SEC = 20
-
-/**
- * 끊긴 사람을 이만큼 기다렸다 판에서 뺀다.
- *
- * 회선이 흔들린 것과 나간 것은 겉으로 같아 보이는데, 바로 빼면 **잠깐 끊긴 사람이
- * 돌아왔을 때 이미 죽어 있다.** 전송로가 다시 붙어보는 시간(18초)보다 길어야 한다.
- *
- * 기다리는 동안 그 사람 차례는 시한이 대신 넘겨준다 — 자리를 비운 사람 때문에 판이
- * 멎지 않게 이미 만들어둔 길이라 따로 손댈 것이 없다.
- */
-const REJOIN_GRACE_SEC = 20
 
 /** 남은 시간이 이 아래로 내려가면 화면이 다급하게 알린다 */
 const TURN_HURRY_SEC = 5
@@ -234,14 +224,6 @@ class MatchEngine {
   private readonly transport: Transport
   private readonly match: MatchState
   private readonly ownerColors: Map<OwnerId, string>
-  /**
-   * 지금 방장. 처음에는 명단 맨 앞이고, 그 사람이 사라지면 다음 생존자가 이어받는다.
-   *
-   * **양쪽이 같은 규칙으로 고르므로 알릴 필요가 없다** — 누가 사라졌는지는 이미
-   * 모두가 알고, 명단 순서도 같다. 따로 정해 보내면 그 메시지가 늦거나 유실될 때
-   * 방장이 둘이 되거나 없어진다.
-   */
-  private host: PlayerId
   private readonly onFailure: ((failure: TransportFailure) => void) | null
   private readonly onRestart: ((seed: number) => void) | null
   private readonly wins: Map<PlayerId, number>
@@ -253,15 +235,10 @@ class MatchEngine {
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
   private recorded = false
   private opponentLeft = false
-  /** 판 도중에 사라진 사람들. 매 프레임 새로 만들지 않게 바뀔 때만 갈아치운다 */
-  private left: readonly PlayerId[] = []
   /** 지금 다시 붙는 중인가. 판을 접는 것과 갈라 보여줘야 한다 */
   private reconnecting = false
-  /**
-   * 사라졌지만 아직 기다려주는 사람들 → 언제까지(경과 초).
-   * 방장만 쓴다 — 판에서 빼는 판정은 한 곳에서만 나와야 한다.
-   */
-  private readonly waitingFor = new Map<PlayerId, number>()
+  /** 누구를 언제까지 기다리고 방장이 누구인가. **판정만** 그쪽에 있다 */
+  private readonly presence: Presence
   /*
    * 화면에 넘길 사본. emit()은 매 프레임 도는데 이 둘은 판이 끝날 때만 바뀐다 —
    * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다. 바뀐 순간에만 다시 만든다.
@@ -381,7 +358,7 @@ class MatchEngine {
     this.match = new MatchState(options.players, LIVES)
     this.standingsView = this.match.standings()
     this.ownerColors = buildOwnerColors(options.players)
-    this.host = options.players[0]?.id ?? options.transport.selfId
+    this.presence = new Presence(options.players, options.transport.selfId)
     this.rng = createRng(options.seed)
     this.itemRng = createRng((options.seed ^ 0x9e3779b9) >>> 0)
     this.spawner = new WordSpawner(this.rng, WORDS)
@@ -403,7 +380,7 @@ class MatchEngine {
    * 않는데, 방장이 사라지면 다음 사람이 이어받아야 한다.
    */
   get isHost(): boolean {
-    return this.host === this.transport.selfId
+    return this.presence.host === this.transport.selfId
   }
 
   start(): void {
@@ -516,9 +493,13 @@ class MatchEngine {
      * 이어받은 사람은 그 자리에서 심판이 된다. 참가자도 목숨·차례를 따라 갱신해
      * 왔고 물리도 각자 돌리고 있어서, 새로 받아올 상태가 없다.
      */
-    const wasHost = who === this.host
-    if (wasHost) {
-      this.host = this.nextHost(who)
+    if (who === this.presence.host) {
+      this.presence.handOver(
+        who,
+        this.match.players,
+        (id) => this.match.isAlive(id),
+        this.transport.selfId,
+      )
       if (this.isHost) {
         this.spawner.lead()
       }
@@ -533,20 +514,13 @@ class MatchEngine {
      *
      * 그동안 그 사람 차례는 시한이 대신 넘겨주므로 판은 멎지 않는다.
      */
-    this.waitingFor.set(who, this.elapsed + REJOIN_GRACE_SEC)
+    this.presence.await(who, this.elapsed)
     this.emit()
   }
 
   /** 유예가 지난 사람을 판에서 뺀다. 방장만 본다 */
   private sweepGone(): void {
-    if (this.waitingFor.size === 0) {
-      return
-    }
-    for (const [who, until] of [...this.waitingFor]) {
-      if (this.elapsed < until) {
-        continue
-      }
-      this.waitingFor.delete(who)
+    for (const who of this.presence.expired(this.elapsed)) {
       this.transport.broadcast({ t: 'left', who })
       this.applyLeft(who)
     }
@@ -568,25 +542,12 @@ class MatchEngine {
     })
   }
 
-  /**
-   * 사라진 방장을 대신할 사람. **살아 있는 사람 중 명단에서 가장 앞선 사람**이다.
-   *
-   * 규칙이 단순해야 모두가 같은 답에 이른다. 목숨이 남았는지까지 보는 것은,
-   * 이미 탈락한 사람이 심판이 되면 그 사람이 나가는 순간 또 넘겨야 하기 때문이다.
-   */
-  private nextHost(gone: PlayerId): PlayerId {
-    const next = this.match.players.find(
-      (player) => player.id !== gone && this.match.isAlive(player.id),
-    )
-    return next?.id ?? this.transport.selfId
-  }
-
   /** 사라진 사람을 판에서 뺀다. 양쪽이 똑같이 실행한다 */
   private applyLeft(who: PlayerId): void {
     if (!this.match.isAlive(who)) {
       return
     }
-    this.left = [...this.left, who]
+    this.presence.markGone(who)
     // 그 사람만의 회차다 — 함께 무너진 것이 아니므로 등수를 같이 매기면 안 된다
     this.match.startDeathBatch()
     this.match.setLives(who, 0)
@@ -631,7 +592,7 @@ class MatchEngine {
         break
       case 'peerJoined':
         // 유예 안에 돌아왔다. 없던 일로 하고 계속한다
-        this.waitingFor.delete(event.peer)
+        this.presence.returned(event.peer)
         /*
          * 판 도중에 새로 들어오는 길은 없으므로 돌아온 사람이다. **방장이 지금
          * 상태를 통째로 다시 보낸다** — 없는 동안 오간 것을 그 사람만 못 받았고,
@@ -1310,7 +1271,7 @@ class MatchEngine {
       wins: this.winsView,
       wantRematch: this.rematchView,
       opponentLeft: this.opponentLeft,
-      left: this.left,
+      left: this.presence.gone,
     })
   }
 }

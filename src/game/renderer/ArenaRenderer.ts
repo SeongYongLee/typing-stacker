@@ -76,17 +76,59 @@ interface LandingGlow {
   readonly progress: number
 }
 
+/** 빠진 것을 채운 뒤의 모양. 그리는 코드는 이것만 본다 */
+type FilledRenderState = ArenaRenderState &
+  Required<
+    Pick<
+      ArenaRenderState,
+      'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'
+    >
+  > & {
+    readonly hiddenReveal: HiddenReveal | null
+    readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
+  }
+
+/** 없는 것에 기본값을 준다. **한 곳에서만 정한다** — 그리는 자리마다 물으면 곧 갈린다 */
+function withDefaults(state: ArenaRenderState): FilledRenderState {
+  return {
+    ...state,
+    hiddenReveal: state.hiddenReveal ?? null,
+    quake: state.quake ?? 0,
+    quakePhase: state.quakePhase ?? 0,
+    nightfall: state.nightfall ?? 0,
+    ledges: state.ledges ?? NO_LEDGES,
+    formingLedge: state.formingLedge ?? null,
+    pairMarks: state.pairMarks ?? NO_PAIR_MARKS,
+    pairPulse: state.pairPulse ?? 0,
+  }
+}
+
+/* 매 프레임 새로 만들지 않으려고 들고 있는 빈 값들 */
+const NO_LEDGES: readonly never[] = []
+const NO_PAIR_MARKS: ReadonlyMap<string, number> = new Map()
+
+/**
+ * 그릴 것 한 장.
+ *
+ * **혼자 하기에만 있는 것은 선택 항목이다**(`?`). 예전에는 대전 엔진이 `nightfall: 0`,
+ * `ledges: []` 같은 빈 값을 억지로 채워 넣어야 했는데, 그러면 혼자 하기에 연출을 하나
+ * 더할 때마다 **대전 엔진도 함께 고쳐야 컴파일된다** — 실제로 하루에 네 번
+ * (`ledges`·`nightfall`·`pairMarks`·`pairPulse`) 그 줄 때문에 남의 작업이 커밋에
+ * 딸려오거나 main이 깨질 뻔했다.
+ *
+ * 기본값은 `withDefaults`가 한 곳에서 채운다.
+ */
 interface ArenaRenderState {
   readonly bodies: readonly BodySnapshot[]
   readonly aimX: number
   readonly showAim: boolean
-  readonly hiddenReveal: HiddenReveal | null
+  readonly hiddenReveal?: HiddenReveal | null
   /** 방금 얹힌 물건의 색. 없으면 null */
   readonly landing: LandingGlow | null
   /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
-  readonly quake: number
+  readonly quake?: number
   /** 흔들림 위상 — 프레임마다 흐르는 시간 */
-  readonly quakePhase: number
+  readonly quakePhase?: number
   /**
    * 주인별 표시 색. 멀티에서만 넘긴다.
    * 물건이 벗어나면 **주인**의 목숨이 깎이므로 누구 것인지 보이지 않으면
@@ -99,9 +141,9 @@ interface ArenaRenderState {
    * 짝이 받침대 어디에 있는지 보여주려는 것이다 — 안 보이면 노릴 수가 없고,
    * 그러면 합성은 손으로 만드는 것이 아니라 운으로 얻는 것이 된다. 까닭은 `PairMarks.ts`에.
    */
-  readonly pairMarks: ReadonlyMap<string, number>
+  readonly pairMarks?: ReadonlyMap<string, number>
   /** 짝 표식의 밝기(0~1). 단어 칩과 **같은 값**이어야 둘이 함께 뛴다 */
-  readonly pairPulse: number
+  readonly pairPulse?: number
   /**
    * 화면이 올려다보는 높이. 탑이 자라면 이 값이 커져 시야가 따라 올라간다.
    * 이것이 없으면 탑이 스폰 높이에 닿는 순간 새 물건이 탑 속에 생긴다.
@@ -110,14 +152,14 @@ interface ArenaRenderState {
   /** 쌓인 것들의 꼭대기. 조준선이 여기까지 내려와 어디에 떨어질지 가리킨다 */
   readonly stackTop: number
   /** 밤이 얼마나 왔는가(0 → 낮, 1 → 밤). 받침대와 먼지 뭉치의 조명이 이 값을 따른다 */
-  readonly nightfall: number
+  readonly nightfall?: number
   /**
    * 히든을 만나 공중에 선 작은 통나무들. 없으면 빈 배열이다.
    *
    * 받침대와 **같은 그림을 줄여서** 그린다 — 설명 없이 "여기도 받침대다"가 읽혀야
    * 새 자리인 줄 알고 노린다. 다른 모양으로 그리면 장식으로 보고 지나친다.
    */
-  readonly ledges: readonly {
+  readonly ledges?: readonly {
     readonly x: number
     readonly y: number
     /** 통나무마다 길이가 다르다 — 같은 것만 서면 새 자리로 안 읽힌다 */
@@ -130,7 +172,7 @@ interface ArenaRenderState {
    * 보상인지**가 보여야 히든과 통나무가 한 사건으로 읽힌다. 따로 툭 생기면
    * 그저 발판이 하나 늘어난 것이 된다.
    */
-  readonly formingLedge: {
+  readonly formingLedge?: {
     readonly x: number
     readonly y: number
     readonly halfWidth: number
@@ -266,7 +308,8 @@ class ArenaRenderer {
     this.scale = Math.min(arenaWidth / WORLD_WIDTH, rect.height / WORLD_HEIGHT)
   }
 
-  draw(state: ArenaRenderState): void {
+  draw(given: ArenaRenderState): void {
+    const state = withDefaults(given)
     const { ctx } = this
     this.cameraY = state.cameraY
     this.nightfall = state.nightfall

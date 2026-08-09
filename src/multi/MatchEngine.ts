@@ -95,8 +95,6 @@ function matchIdOf(seed: number, devices: readonly string[]): string {
 }
 
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
-/** 대전은 합성이 없어 표식도 없다. 매 프레임 빈 Map을 새로 만들지 않으려는 것 */
-const NO_PAIR_MARKS: ReadonlyMap<string, number> = new Map()
 
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
 
@@ -1272,32 +1270,21 @@ class MatchEngine {
   }
 
   private readonly render = (): void => {
+    /*
+     * 혼자 하기에만 있는 것(밤·통나무·합성 표식·히든 공개·지진)은 **넘기지 않는다.**
+     * 렌더러가 기본값을 갖고 있어서, 그쪽에 연출이 늘어도 이 자리는 그대로다.
+     */
     this.renderer?.draw({
       bodies: this.physics.snapshots(),
       aimX: this.aimer.worldX,
       showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
-      hiddenReveal: null,
       landing: this.landing.view,
-      quake: 0,
-      quakePhase: 0,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
-      /*
-       * 대전은 낮에 머문다. 밤은 "얼마나 쌓았는가"를 말하는 것인데 받침대를 둘이
-       * 함께 쓰므로 그 값이 누구의 것인지 정해지지 않는다 — 한쪽 기준으로 어둡게
-       * 하면 다른 쪽에게는 근거 없이 어두워지는 화면이 된다.
-       */
-      nightfall: 0,
-      // 통나무는 우선 혼자 하기에만 있다 — 대전은 자리를 방장이 정해 보내야 한다
-      ledges: [],
-      formingLedge: null,
       // 꼬리 부스러기가 이 값의 차이로 시간을 흘린다
       time: this.elapsed,
       impacts: this.frameImpacts,
       ownerColors: this.ownerColors,
-      // 대전에는 합성이 없다 — 알릴 짝도 없다
-      pairMarks: NO_PAIR_MARKS,
-      pairPulse: 0,
     })
   }
 

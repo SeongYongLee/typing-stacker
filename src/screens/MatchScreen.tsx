@@ -917,7 +917,7 @@ function TierPanel({ state }: { state: MatchViewState }) {
   if (ranking.status === 'casual') {
     return (
       <span style={{ fontSize: 13, color: '#6a7290' }} data-tier-casual>
-        수동 매칭이라 티어 점수는 그대로입니다
+        친선전이라 티어 점수는 그대로입니다
       </span>
     )
   }

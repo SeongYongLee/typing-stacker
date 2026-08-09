@@ -133,7 +133,7 @@ const ghostButtonStyle: CSSProperties = {
   color: '#b6bdd4',
 }
 
-/** 자동 매칭 버튼 아래의 대기 인원. 버튼에 딸린 값이라 붙여둔다 */
+/** 랭크 게임 버튼 아래의 대기 인원. 버튼에 딸린 값이라 붙여둔다 */
 const queueNoteStyle: CSSProperties = {
   fontSize: 12,
   color: '#6a7290',
@@ -190,7 +190,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
     count: items.length,
     // 여기 온 사람이 하려는 것은 상대를 만나는 것이다. 이름은 이미 골라둔 값이라 건드릴 일이 드물다
     initialIndex: 1,
-    // 이름 화면이나 수동 매칭이 열려 있는 동안에는 그쪽이 키를 갖는다
+    // 이름 화면이나 친선전이 열려 있는 동안에는 그쪽이 키를 갖는다
     active: !naming && !manual,
     onActivate: (index) => {
       const item = items[index]
@@ -334,7 +334,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
             onHover={() => menu.select(2)}
             style={{ marginTop: 6 }}
           >
-            수동 매칭
+            친선전
           </MenuButton>
 
           <MenuButton
@@ -354,7 +354,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
            * 순위표는 **랭크 게임 칸에만** 세운다. 시작 화면이 쓰는 규칙과 같다 —
            * 옆에 놓인 것은 지금 고른 항목에 딸린 것이어야 한다.
            *
-           * 수동 매칭에 세우면 그 판이 순위에 걸린다는 뜻으로 읽히고(그 길은 티어에
+           * 친선전에 세우면 그 판이 순위에 걸린다는 뜻으로 읽히고(그 길은 티어에
            * 오르지 않는다), 돌아가기나 프로필에 세우면 그 항목과 아무 상관이 없다.
            */
           record={blurbKey === 'auto' ? <VersusTier board={board} /> : null}
@@ -455,7 +455,7 @@ function ReadyRoom({
         </div>
 
         {/*
-          코드로 모인 방에서만 말이 오간다. 자동 매칭은 서로 모르는 사이라 말을 걸
+          코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
           자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
         */}
         {phase.chatEnabled && <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />}
@@ -666,7 +666,7 @@ function ManualMatch({
     <div style={rootStyle}>
       <div style={{ ...panelStyle, gap: 12 }} data-manual-match={named ? 'named' : 'unnamed'}>
         <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          수동 매칭
+          친선전
         </h2>
 
         <span style={pathLabelStyle}>이름</span>
@@ -911,7 +911,7 @@ function Searching({
             style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}
             data-queue-unsupported
           >
-            서버가 아직 랭크 게임을 모릅니다. 수동 매칭으로 방을 만들어 주세요.
+            서버가 아직 랭크 게임을 모릅니다. 친선전으로 방을 만들어 주세요.
           </p>
         ) : unreachable ? (
           <p style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}>

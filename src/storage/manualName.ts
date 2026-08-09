@@ -1,7 +1,7 @@
 import { NICKNAME_MAX, sanitizeNickname } from '../multi/protocol.ts'
 
 /**
- * 수동 매칭에서 쓰는 이름.
+ * 친선전에서 쓰는 이름.
  *
  * **기기 이름과 갈라둔다.** 기기 이름은 순위표에 올라 모두가 보는 값이라 재료로 만들
  * 수 있는 낱말만 받는데(`profile.ts`), 코드를 주고받아 모이는 자리는 아는 사람끼리라
@@ -53,7 +53,7 @@ function clean(raw: string): string {
 export { loadManualName, saveManualName, isUsableName, STORAGE_KEY }
 
 /**
- * 수동 매칭에서 쓰는 아이콘.
+ * 친선전에서 쓰는 아이콘.
  *
  * 기기 프로필과 갈라두는 이유는 이름을 갈라둔 것과 같다 — 이 자리는 아는 사람끼리
  * 모이는 곳이라, 순위표에 쓰는 얼굴과 다른 것을 걸고 싶을 수 있다.

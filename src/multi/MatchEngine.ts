@@ -130,7 +130,7 @@ interface MatchViewState {
   readonly chat: readonly ChatLine[]
   /** 지금 입력창의 Enter가 무엇을 하는가. 같은 칸이 때에 따라 다른 일을 한다 */
   readonly inputMode: 'drop' | 'chat' | 'idle'
-  /** 이 판이 티어에 반영되는가. 자동 매칭만 그렇다 */
+  /** 이 판이 티어에 반영되는가. 랭크 게임만 그렇다 */
   readonly ranked: boolean
   /**
    * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
@@ -187,11 +187,11 @@ interface MatchEngineOptions {
   readonly chat: ChatLog
   /**
    * 말을 걸 수 있는 방인가. 코드로 모인 방만 그렇다 —
-   * 자동 매칭은 서로 모르는 사이라 말을 걸 자리가 아니다.
+   * 랭크 게임은 서로 모르는 사이라 말을 걸 자리가 아니다.
    */
   readonly chatEnabled: boolean
   /**
-   * 이 판이 티어에 반영되는가. **자동 매칭만 그렇다.**
+   * 이 판이 티어에 반영되는가. **랭크 게임만 그렇다.**
    *
    * 코드로 모인 방은 누구와 붙을지 고를 수 있다 — 늘 이기는 상대만 불러 판을
    * 거듭하면 사다리가 실력이 아니라 상대를 고르는 능력을 재게 된다. 아는 사람끼리

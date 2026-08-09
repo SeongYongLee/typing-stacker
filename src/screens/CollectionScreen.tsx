@@ -43,7 +43,12 @@ const ORDERED = [...ALL_VARIANTS].sort((a, b) => hashOf(a.id) - hashOf(b.id))
 
 /** 이 물건을 만들 수 있는 레시피. 없으면 운으로만 만난다 */
 function recipeFor(id: string): readonly string[] | null {
-  return RECIPES.find((item) => item.result.id === id)?.inputs ?? null
+  // 다른 형태로 나온 결과물도 같은 레시피로 만든다 — 도감에서 재료가 비어 보이면 안 된다
+  return (
+    RECIPES.find(
+      (item) => item.result.id === id || item.hiddenResults.some((v) => v.id === id),
+    )?.inputs ?? null
+  )
 }
 
 function labelOf(id: string): string {

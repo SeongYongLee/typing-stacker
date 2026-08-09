@@ -38,6 +38,7 @@ const GLOWING_IDS: ReadonlySet<string> = new Set([
   'mushroom',
   /* 빛을 뿜거나 흩뿌리는 것 — 미러볼은 제 빛이 없지만 빛을 흩는 것이 그 물건의 정체다 */
   'magic-wand',
+  'winged-wand',
   'mirror-ball',
 ])
 

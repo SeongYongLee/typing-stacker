@@ -2648,6 +2648,76 @@ const CRAFTED: readonly ItemVariant[] = [
     angularDamping: 3.6,
     scoreBonus: 500,
   }),
+  /*
+   * 합성 결과물의 **다른 형태**들.
+   *
+   * 단어에 매달린 물건이 기본형과 히든을 갖듯 합성 결과물도 그렇다. 여기 있는
+   * 다섯은 같은 레시피가 낮은 확률로 대신 내놓는 것이라, 재료를 맞췄어도
+   * **무엇이 나올지는 여전히 모른다.**
+   *
+   * 어느 것이 어느 결과물의 다른 형태인지는 `recipes.ts`가 안다 — 이 배열은
+   * 순서를 갖지 않으므로 여기 늘어놓는 것만으로는 짝이 드러나지 않는다.
+   */
+  hiddenVariant({
+    // 접시 모양이라 우주선보다 훨씬 납작하다. 위가 평평해서 받침이 된다
+    id: 'spaceship-saucer',
+    label: '비행접시',
+    sprite: 'spaceship-flying-saucer',
+    size: { width: 0.99 },
+    color: '#b7e4f3',
+    density: 1.1,
+    friction: 0.65,
+    angularDamping: 3.4,
+    scoreBonus: 450,
+  }),
+  hiddenVariant({
+    // 눕혀 쓰는 궤짝이라 세로형 여행가방보다 넓고 낮다
+    id: 'vintage-trunk',
+    label: '빈티지 트렁크',
+    sprite: 'travel-suitcase-vintage-trunk',
+    size: { width: 0.89 },
+    color: '#874416',
+    density: 1.4,
+    friction: 0.9,
+    angularDamping: 4,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 날개가 양옆으로 펼쳐져 있다. 막대보다 넓고 구르지 않는다
+    id: 'winged-wand',
+    label: '날개 마법봉',
+    sprite: 'magic-wand-winged-star',
+    size: { height: 0.64 },
+    color: '#fb4e79',
+    density: 0.6,
+    friction: 0.7,
+    angularDamping: 2.8,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 매달아 쓰는 것이라 밑이 뾰족하다. 세워두면 어느 쪽으로든 기운다
+    id: 'hanging-terrarium',
+    label: '행잉 테라리움',
+    sprite: 'terrarium-hanging-geometric',
+    size: { height: 0.78 },
+    color: '#c5dee7',
+    density: 1.1,
+    friction: 0.65,
+    angularDamping: 2.2,
+    scoreBonus: 700,
+  }),
+  hiddenVariant({
+    // 하트 대신 육각 다이아가 발톱에 물렸다. 위가 뾰족해 받침이 못 된다
+    id: 'diamond-ring',
+    label: '다이아반지',
+    sprite: 'ring-diamond',
+    size: { height: 0.47 },
+    color: '#b2b4ae',
+    density: 1.3,
+    friction: 0.6,
+    angularDamping: 2.4,
+    scoreBonus: 400,
+  }),
 ]
 
 /**

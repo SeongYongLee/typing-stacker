@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { resolveItem } from '../src/game/systems/ItemResolver.ts'
+import { resolveCrafted, resolveItem } from '../src/game/systems/ItemResolver.ts'
+import { RECIPES, type Recipe } from '../src/game/data/recipes.ts'
+import { HIDDEN_CHANCE } from '../src/game/config.ts'
 import { createRng } from '../src/game/systems/Rng.ts'
 import { WORDS } from '../src/game/data/words.ts'
 
@@ -123,5 +125,65 @@ describe('히든 체감 빈도', () => {
   it('그렇다고 흔하지는 않다', () => {
     // 판마다 여럿 나오면 "가끔 나오는 다른 형태"라는 의미가 사라진다
     expect(expectedPerRun()).toBeLessThan(2.5)
+  })
+})
+
+describe('resolveCrafted — 합성해도 무엇이 나올지 모른다', () => {
+  /** 다른 형태를 가진 레시피 하나. 실제 데이터가 바뀌어도 검사가 흔들리지 않게 찾아 쓴다 */
+  function withHidden(): Recipe {
+    const found = RECIPES.find((item) => item.hiddenResults.length > 0)
+    if (found === undefined) {
+      throw new Error('다른 형태를 가진 레시피가 없다')
+    }
+    return found
+  }
+
+  it('다른 형태가 없으면 언제나 기본 결과물이다', () => {
+    const plain = RECIPES.find((item) => item.hiddenResults.length === 0)
+    expect(plain, '다른 형태가 없는 레시피가 있어야 한다').toBeDefined()
+    const rng = createRng(3)
+    for (let i = 0; i < 50; i += 1) {
+      expect(resolveCrafted(plain!, rng)).toBe(plain!.result)
+    }
+  })
+
+  it('확률이 0이면 기본 결과물만 나온다', () => {
+    const item = withHidden()
+    const rng = createRng(5)
+    for (let i = 0; i < 50; i += 1) {
+      expect(resolveCrafted(item, rng, 0)).toBe(item.result)
+    }
+  })
+
+  it('확률이 1이면 다른 형태만 나온다', () => {
+    const item = withHidden()
+    const rng = createRng(5)
+    for (let i = 0; i < 50; i += 1) {
+      expect(item.hiddenResults).toContain(resolveCrafted(item, rng, 1))
+    }
+  })
+
+  /** 같은 시드가 같은 판을 만들어야 한다는 것은 이 게임의 전제다 */
+  it('같은 시드는 같은 결과를 낸다', () => {
+    const item = withHidden()
+    const a = createRng(41)
+    const b = createRng(41)
+    for (let i = 0; i < 30; i += 1) {
+      expect(resolveCrafted(item, a).id).toBe(resolveCrafted(item, b).id)
+    }
+  })
+
+  /** 운으로 만나는 히든과 같은 종류의 사건이므로 확률도 같아야 한다 */
+  it('기본 확률은 히든과 같다', () => {
+    const item = withHidden()
+    let hidden = 0
+    const rng = createRng(9)
+    const runs = 4000
+    for (let i = 0; i < runs; i += 1) {
+      if (item.hiddenResults.includes(resolveCrafted(item, rng))) {
+        hidden += 1
+      }
+    }
+    expect(hidden / runs).toBeCloseTo(HIDDEN_CHANCE, 1)
   })
 })

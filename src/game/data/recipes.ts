@@ -47,10 +47,28 @@ interface Recipe {
   readonly id: string
   /** 재료 변형 id의 다중집합. 순서는 상관없다 */
   readonly inputs: readonly string[]
+  /** 대개 나오는 것 */
   readonly result: ItemVariant
+  /**
+   * 같은 레시피가 낮은 확률로 대신 내놓는 **다른 형태**들. 대개는 비어 있다.
+   *
+   * 단어에 매달린 물건이 기본형과 히든을 갖는 것과 같은 구조다(`WordEntry.variants`).
+   * 합성 결과물은 단어가 없어 그 목록을 가질 수 없었는데, 아트는 처음부터 그것들의
+   * 다른 형태를 그려 보내고 있었다 — 우주선의 비행접시, 여행가방의 빈티지 트렁크,
+   * 마법봉의 날개 마법봉, 테라리움의 행잉형, 하트반지의 다이아반지.
+   *
+   * **재료를 맞췄어도 무엇이 나올지는 여전히 모른다.** 확률은 히든과 같은 값을 쓴다
+   * (`HIDDEN_CHANCE`) — 얻는 경로가 다를 뿐 플레이어에게는 같은 종류의 사건이다.
+   * 뽑는 것은 `resolveCrafted`이고, 판의 난수를 쓰므로 같은 시드면 같은 결과다.
+   */
+  readonly hiddenResults: readonly ItemVariant[]
 }
 
-function recipe(inputs: readonly string[], resultId: string): Recipe {
+function recipe(
+  inputs: readonly string[],
+  resultId: string,
+  hiddenIds: readonly string[] = [],
+): Recipe {
   const result = VARIANT_BY_ID.get(resultId)
   if (result === undefined) {
     throw new Error(`레시피 결과물이 없다: ${resultId}`)
@@ -63,7 +81,14 @@ function recipe(inputs: readonly string[], resultId: string): Recipe {
   if (inputs.length < 2) {
     throw new Error(`재료가 둘은 되어야 한다: ${resultId}`)
   }
-  return { id: `${[...inputs].sort().join('+')}=${resultId}`, inputs, result }
+  const hiddenResults = hiddenIds.map((id) => {
+    const variant = VARIANT_BY_ID.get(id)
+    if (variant === undefined) {
+      throw new Error(`레시피의 다른 결과물이 없다: ${id}`)
+    }
+    return variant
+  })
+  return { id: `${[...inputs].sort().join('+')}=${resultId}`, inputs, result, hiddenResults }
 }
 
 const RECIPES: readonly Recipe[] = [
@@ -88,15 +113,15 @@ const RECIPES: readonly Recipe[] = [
   recipe(['crescent-moon', 'alarm-clock'], 'sunlight'),
   recipe(['rabbit', 'turtle'], 'racing-flag'),
   recipe(['bolt', 'sneakers'], 'gold-medal'),
-  recipe(['heart', 'candle'], 'heart-ring'),
+  recipe(['heart', 'candle'], 'heart-ring', ['diamond-ring']),
   recipe(['milk-carton', 'school-backpack'], 'fart-cloud'),
   recipe(['old-key', 'treasure-map'], 'treasure-chest'),
   recipe(['padlock', 'quill-feather'], 'secret-diary'),
-  recipe(['telescope', 'shooting-star'], 'spaceship'),
+  recipe(['telescope', 'shooting-star'], 'spaceship', ['spaceship-saucer']),
   recipe(['camera', 'footprints'], 'travel-album'),
   recipe(['round-glasses', 'study-book'], 'graduation-cap'),
-  recipe(['broom', 'stardust'], 'magic-wand'),
-  recipe(['compass', 'paper-airplane'], 'travel-suitcase'),
+  recipe(['broom', 'stardust'], 'magic-wand', ['winged-wand']),
+  recipe(['compass', 'paper-airplane'], 'travel-suitcase', ['vintage-trunk']),
 
   /* 말장난 — 거울 달린 지구본이 미러볼이고, 지구를 잇는 거미줄이 공유기다 */
   recipe(['hand-mirror', 'desk-globe'], 'mirror-ball'),
@@ -127,7 +152,11 @@ const RECIPES: readonly Recipe[] = [
   recipe(['pizza-slice', 'french-fries', 'beer', 'iced-drink'], 'pub-platter'),
   recipe(['macaron', 'chocolate-donut', 'ice-cream-cone', 'biscuit'], 'dessert-tower'),
   recipe(['clover', 'sunflower-seed', 'sunflower', 'watering-can'], 'lucky-flowerpot'),
-  recipe(['mushroom', 'snail', 'leaf', 'butterfly', 'crystal', 'ladybug'], 'terrarium'),
+  recipe(
+    ['mushroom', 'snail', 'leaf', 'butterfly', 'crystal', 'ladybug'],
+    'terrarium',
+    ['hanging-terrarium'],
+  ),
   recipe(['snowflake', 'christmas-tree', 'gold-star', 'candle'], 'snow-globe'),
   recipe(['burnt-hole-shirt', 'iron', 'washing-machine', 'clothes-hanger'], 'repair-shop'),
   recipe(['school-backpack', 'sketchbook', 'pencil-set', 'crank-sharpener'], 'art-bag'),
@@ -139,7 +168,9 @@ const RECIPES: readonly Recipe[] = [
 ]
 
 /** 합성으로 만들 수 있는 물건들. 도감이 "아직 못 만든 것"을 세는 데 쓴다 */
-const CRAFTABLE_IDS: readonly string[] = [...new Set(RECIPES.map((r) => r.result.id))]
+const CRAFTABLE_IDS: readonly string[] = [
+  ...new Set(RECIPES.flatMap((r) => [r.result.id, ...r.hiddenResults.map((v) => v.id)])),
+]
 
 /** 재료로 쓰이는 물건인지. 화면이 "이건 합칠 수 있다"고 귀띔하는 데 쓴다 */
 const INGREDIENT_IDS: ReadonlySet<string> = new Set(RECIPES.flatMap((r) => r.inputs))

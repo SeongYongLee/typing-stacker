@@ -20,7 +20,7 @@ import { Aimer } from '../systems/Aimer.ts'
 import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
 import { RECIPES } from '../data/recipes.ts'
 import { placeLedge } from '../systems/Ledge.ts'
-import { resolveItem } from '../systems/ItemResolver.ts'
+import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
 import { openingEntries } from '../systems/Opening.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
@@ -557,7 +557,13 @@ class GameEngine {
     if (match === null) {
       return
     }
-    const created = this.physics.mergeItems(match.itemIds, match.recipe.result, SOLO_OWNER)
+    /*
+     * 재료를 맞췄어도 **무엇이 나올지는 모른다.** 레시피 다섯은 낮은 확률로 다른
+     * 형태를 내놓는다(우주선의 비행접시, 하트반지의 다이아반지 …). 확률은 히든과
+     * 같은 값이고 판의 난수를 쓰므로 같은 시드면 같은 결과다.
+     */
+    const result = resolveCrafted(match.recipe, this.rng)
+    const created = this.physics.mergeItems(match.itemIds, result, SOLO_OWNER)
     if (created === null) {
       return
     }
@@ -567,14 +573,14 @@ class GameEngine {
      * 사라졌는지 알 수 없어서, 붙여보고 싶은 짝을 다음 판에 기억하지 못한다.
      */
     this.hiddenReveal = {
-      variant: match.recipe.result,
+      variant: result,
       from: match.recipe.inputs.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
       elapsed: 0,
       duration: MERGE_REVEAL_SEC,
     }
     this.fire({ kind: 'merge' })
-    this.score.onCrafted(match.recipe.result)
-    this.discover(match.recipe.result)
+    this.score.onCrafted(result)
+    this.discover(result)
     this.growLedge()
     /*
      * 앞머리 밭을 여기서 푼다. 목적이 "합성이라는 것이 있다"를 알리는 것이었으므로

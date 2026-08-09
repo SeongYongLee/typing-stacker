@@ -41,6 +41,7 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'traffic-light': 'sparkle',
   mushroom: 'sparkle',
   'magic-wand': 'sparkle',
+  'winged-wand': 'sparkle',
   'mirror-ball': 'sparkle',
 
   /* 액체가 담긴 것 — 방울이 튄다. 근거가 가장 분명한 갈래다 */

@@ -15,16 +15,19 @@ const PAIR: Recipe = {
   id: 'pair',
   inputs: ['clover', 'clover'],
   result: variant('clover-lucky'),
+  hiddenResults: [],
 }
 const TRIO: Recipe = {
   id: 'trio',
   inputs: ['leaf', 'leaf', 'snail'],
   result: variant('leaf-maple'),
+  hiddenResults: [],
 }
 const CROSS: Recipe = {
   id: 'cross',
   inputs: ['octopus', 'sausage'],
   result: variant('cocktail'),
+  hiddenResults: [],
 }
 
 function graph(
@@ -184,8 +187,35 @@ describe('RECIPES — 실제 데이터', () => {
   it('결과물이 조준 범위를 넘지 않는다 — 합성 때문에 받침대를 넘치면 안 된다', async () => {
     const { MAX_ITEM_HALF_WIDTH } = await import('../src/game/config.ts')
     for (const item of RECIPES) {
-      expect(item.result.artBounds.hw, item.id).toBeLessThanOrEqual(MAX_ITEM_HALF_WIDTH)
+      for (const result of [item.result, ...item.hiddenResults]) {
+        expect(result.artBounds.hw, `${item.id} → ${result.id}`).toBeLessThanOrEqual(
+          MAX_ITEM_HALF_WIDTH,
+        )
+      }
     }
+  })
+
+  /**
+   * 같은 레시피가 낮은 확률로 내놓는 **다른 형태**들.
+   *
+   * 도감이 `CRAFTABLE_IDS`로 "만들 수 있는 것"을 세므로, 여기 빠지면 도감에 칸은
+   * 있는데 채울 길이 없는 물건이 된다.
+   */
+  it('다른 형태도 히든이고 도감이 셀 수 있다', async () => {
+    const { CRAFTABLE_IDS } = await import('../src/game/data/recipes.ts')
+    const craftable = new Set(CRAFTABLE_IDS)
+    let count = 0
+    for (const item of RECIPES) {
+      for (const result of item.hiddenResults) {
+        count += 1
+        expect(result.hidden, result.id).toBe(true)
+        expect(craftable.has(result.id), result.id).toBe(true)
+        expect(result.id, `${item.id}: 기본형과 같은 물건이면 뽑는 뜻이 없다`).not.toBe(
+          item.result.id,
+        )
+      }
+    }
+    expect(count, '다른 형태가 하나도 없으면 이 검사는 아무것도 지키지 않는다').toBeGreaterThan(0)
   })
 })
 

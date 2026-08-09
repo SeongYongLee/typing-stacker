@@ -86,6 +86,7 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   terrarium: 'glass',
   'snow-globe': 'glass',
   'mirror-door': 'glass',
+  'hanging-terrarium': 'glass',
 
   /* 금속 — 배음이 어긋나게 남는다 */
   tumbler: 'metal',
@@ -122,6 +123,7 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'fried-egg': 'metal',
   'explorer-badge': 'metal',
   'sports-trophy': 'metal',
+  'diamond-ring': 'metal',
 
   /* 나무 — 짧고 둔한 "톡" */
   'pine-tree': 'wood',
@@ -140,6 +142,9 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'milk-vintage-cart': 'wood',
   'treasure-chest': 'wood',
   'magic-wand': 'wood',
+  'winged-wand': 'wood',
+  /* 가죽과 나무로 짠 궤짝 — 플라스틱 여행가방과 소리가 갈린다 */
+  'vintage-trunk': 'wood',
   'wooden-door': 'wood',
   /* 상자가 아니라 안에 든 나무 연필들이 달그락거린다 */
   'pencil-set': 'wood',
@@ -224,6 +229,7 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'digital-camera': 'tech',
   spaceship: 'tech',
   'internet-router': 'tech',
+  'spaceship-saucer': 'tech',
   smartphone: 'tech',
   keyboard: 'tech',
   speaker: 'tech',

@@ -10,7 +10,11 @@ src/
                   Aimer        화살표 위치 (삼각파, 등속)
                   ItemResolver 단어 → 물건 + 히든 롤
                   Merger       접촉 그래프에서 레시피 찾기
-                  Opening      판 앞머리에 내보낼 단어 고르기
+                  DayNight     흐른 시간 → 국면(첫 밤·낮·밤)과 어둠 정도
+                  Opening      첫 밤에 내보낼 단어 고르기
+                  NightWords   밤에 내보낼 단어 고르기 (재료만)
+                  Whiteboard   벽에 적히는 회수 목록
+                  PairMarks    지금 서로 합칠 수 있는 것들에 표식 붙이기
                   Ledge        합성 보상으로 설 통나무 자리 고르기
                   Collection   도감 진행
                   ScoreManager 점수/콤보/타수 집계

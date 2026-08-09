@@ -66,6 +66,23 @@ describe('통나무를 놓을 자리', () => {
     }
   })
 
+  /*
+   * 실기에서 잡힌 것이다. 받침대 양쪽에 물건이 하나씩 놓이면 그 높이에서 바깥 칸이
+   * 둘 다 막히는데, 예전에는 그때 **같은 층의 가운데**로 내려앉았다 — 탑 한가운데
+   * 위에 통나무가 서서 새 자리도 아니고 그 아래로 떨구는 길까지 막았다.
+   *
+   * 한 층 위의 바깥이 같은 층의 안쪽보다 언제나 낫다.
+   */
+  it('바깥이 그 층에서 막히면 안쪽이 아니라 한 층 위로 간다', () => {
+    // 화면에서 좌표를 재서 옮긴 배치 — 노트북 왼쪽, 피자 박스 오른쪽
+    const items = [item(-1.39, 1.27, 0.38, 0.38), item(1.26, 1.3, 0.45, 0.35)]
+    for (let seed = 1; seed <= 8; seed += 1) {
+      const spot = placeLedge(items, [], 1.65, createRng(seed))
+      expect(spot, `seed ${seed}`).not.toBeNull()
+      expect(Math.abs(spot!.x), `seed ${seed}`).toBeGreaterThan(ARENA.platformHalfWidth)
+    }
+  })
+
   /** 밖이 다 차 있으면 안쪽에라도 놓는다 — 거르는 것보다 덜 좋은 자리가 낫다 */
   it('밖이 막혀 있으면 안쪽으로 물러난다', () => {
     const y = ARENA.platformTop + LEDGE.minClearance

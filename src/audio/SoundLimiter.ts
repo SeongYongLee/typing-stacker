@@ -29,8 +29,7 @@ const MIN_GAP: Partial<Record<GameEvent['kind'], number>> = {
   quake: 0.12,
   lifeLost: 0.2,
   collapse: 0.5,
-  // 한 사람이 연달아 말하는 것은 기록이 막지만, 여럿이 동시에 말하면 여기서 걸린다
-  chat: 0.15,
+  suggested: 0.15,
 }
 
 const DEFAULT_GAP = 0.06

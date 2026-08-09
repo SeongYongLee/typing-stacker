@@ -66,13 +66,8 @@ type GameEvent =
   | { readonly kind: 'menuSelect' }
   /** 대전: 내 차례가 됐다 */
   | { readonly kind: 'turn' }
-  /**
-   * 누가 한마디 했다. `mine`이면 내가 한 말이다.
-   *
-   * 내 말과 남의 말을 가르는 이유는 **남의 말만 알림이기 때문이다.** 내가 친 것은
-   * 이미 알고 있어서 같은 소리를 내면 타자음 위에 한 번 더 겹칠 뿐이다.
-   */
-  | { readonly kind: 'chat'; readonly mine: boolean }
+  /** 대전: 상대가 단어를 지목했다 */
+  | { readonly kind: 'suggested' }
 
 /** 이벤트를 받아가는 쪽. 엔진은 이 함수의 정체를 모른다 */
 type GameEventSink = (event: GameEvent) => void

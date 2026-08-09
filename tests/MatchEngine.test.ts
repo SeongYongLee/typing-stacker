@@ -58,7 +58,6 @@ async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
     chat: new ChatLog(),
     chatEnabled,
     chatClock,
-    ranked: false,
   })
   const guest = await MatchEngine.create({
     transport: guestLink,
@@ -68,7 +67,6 @@ async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
     chat: new ChatLog(),
     chatEnabled,
     chatClock,
-    ranked: false,
   })
 
   hostLink.listen((event) => host.handleTransportEvent(event))

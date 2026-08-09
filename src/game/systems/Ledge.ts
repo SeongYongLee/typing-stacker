@@ -122,7 +122,17 @@ function placeLedge(
    * 쌓인 것의 꼭대기를 천장으로 두면 그 일이 구조적으로 막힌다. 아직 아무것도 못
    * 쌓았으면 바닥값이 곧 천장이라 늘 같은 낮은 자리에 선다.
    */
-  const ceiling = Math.max(floor, stackTop)
+  /*
+   * 천장은 **쌓은 것보다 한 뼘 위**까지다.
+   *
+   * 딱 `stackTop`으로 끊었더니 탑이 낮을 때 쓸 수 있는 높이가 바닥값 하나뿐이었고,
+   * 그 층은 하필 얹힌 물건들과 같은 높이라 바깥 칸이 양쪽 다 막혔다 — 그래서
+   * 가운데로 물러났다(실기에서 잡혔다). 한 뼘을 열어주면 물건 위로 비켜설 수 있다.
+   *
+   * 그래도 화살표 자리까지 오르지는 못한다. 쌓은 것에 매여 있으므로 빈 받침대에서는
+   * 여전히 바닥값과 같고, 탑이 자라야 함께 오른다.
+   */
+  const ceiling = Math.max(floor, stackTop + LEDGE.minClearance)
   const tops = items.map((item) => item.y + item.hh)
   const average =
     tops.length === 0 ? ARENA.platformTop : tops.reduce((sum, y) => sum + y, 0) / tops.length
@@ -139,10 +149,15 @@ function placeLedge(
    * 그래서 몇 뼘 위아래도 함께 본다. 겹침 규칙을 느슨하게 푸는 것이 아니라 **빈 층을
    * 찾는 것**이다 — 규칙을 풀면 통나무가 탑에 박히고, 그건 보상이 아니라 사고다.
    */
-  const step = 0.5
-  const heights = [base, base + step, base - step, ceiling, floor]
-    .map((h) => Math.min(Math.max(h, floor), ceiling))
-    .filter((h, index, list) => list.indexOf(h) === index)
+  const rise = 0.35
+  const heights: number[] = []
+  for (let h = base; h <= ceiling + 1e-9; h += rise) {
+    heights.push(h)
+  }
+  // 낮은 쪽부터 본다. 손이 닿기 쉬운 자리가 먼저다
+  for (let h = base - rise; h >= floor - 1e-9; h -= rise) {
+    heights.push(h)
+  }
 
   // 길이는 판마다 다르다. 같은 것만 서면 "같은 것이 세 번"이지 새 자리로 안 읽힌다
   const halfWidth =
@@ -150,17 +165,26 @@ function placeLedge(
 
   const taken = [...items, ...ledges]
   const { outer, inner, step: slotStep } = candidates()
-  // 받침대 밖을 먼저, 거기가 다 차 있으면 안쪽을
-  const order = [...shuffled(outer, rng), ...shuffled(inner, rng)]
 
-  for (const y of heights) {
-    for (const slot of order) {
-      // 칸에 딱 맞춰 서면 자리가 늘 같아 보인다. 칸 안에서 조금 흔든다
-      const jittered = slot + (rng.next() - 0.5) * slotStep * 0.7
-      const x = Math.max(-REACH, Math.min(REACH, jittered))
-      const spot: Occupied = { x, y, hw: halfWidth, hh: LEDGE.halfHeight }
-      if (!taken.some((other) => overlaps(spot, other))) {
-        return { x, y, halfWidth }
+  /*
+   * **바깥을 모든 높이에서 다 뒤진 뒤에야 안쪽을 본다.**
+   *
+   * 높이를 바깥보다 먼저 돌렸더니, 한 층에서 바깥이 막히자마자 같은 층의 가운데로
+   * 내려앉았다 — 실기에서 통나무가 탑 한가운데 위에 섰다. 가운데는 새 자리가
+   * 아니라 **이미 쌓을 수 있던 자리를 덮는 것**이고, 게다가 그 아래로 떨구는 길까지
+   * 막는다. 한 층 위의 바깥이 같은 층의 안쪽보다 언제나 낫다.
+   */
+  for (const tier of [outer, inner]) {
+    const order = shuffled(tier, rng)
+    for (const y of heights) {
+      for (const slot of order) {
+        // 칸에 딱 맞춰 서면 자리가 늘 같아 보인다. 칸 안에서 조금 흔든다
+        const jittered = slot + (rng.next() - 0.5) * slotStep * 0.7
+        const x = Math.max(-REACH, Math.min(REACH, jittered))
+        const spot: Occupied = { x, y, hw: halfWidth, hh: LEDGE.halfHeight }
+        if (!taken.some((other) => overlaps(spot, other))) {
+          return { x, y, halfWidth }
+        }
       }
     }
   }

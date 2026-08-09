@@ -34,9 +34,6 @@ const MAX_PLAYERS = 8
 /** 랭킹에 돌려주는 인원 */
 const TOP = 20
 
-/** 티어 순위에 돌려주는 인원. 화면은 다섯 줄만 그리지만 여유를 둔다 */
-const LADDER_TOP = 10
-
 /** 자동매칭으로 맺는 인원 */
 const QUEUE_MATCH_SIZE = 2
 
@@ -288,7 +285,7 @@ export class Board {
 
     try {
       if (request.method === 'GET' && path === '/rank/top') {
-        return json({ top: this.top(), ladder: this.ladder(), tiers: TIERS })
+        return json({ top: this.top(), tiers: TIERS })
       }
       if (request.method === 'GET' && path === '/rank/me') {
         return json(this.me(url.searchParams.get('id') ?? ''))
@@ -623,28 +620,6 @@ export class Board {
   private top(): RunRow[] {
     return this.sql
       .exec<RunRow>('SELECT * FROM runs ORDER BY score DESC, at ASC LIMIT ?', TOP)
-      .toArray()
-  }
-
-  /**
-   * 레이팅 순위. 대전 쪽의 순위표다.
-   *
-   * **한 판도 안 한 사람은 없다** — `ratings`에는 결과를 보고한 사람만 들어온다.
-   * 시작값(1000)뿐인 줄이 순위표를 채우면 아무 의미가 없다.
-   *
-   * 아이콘은 `runs`에서 가져온다. 이 표에는 아이콘 칸이 없는데, 넣으려면 대전 보고에
-   * 아이콘을 실어 보내고 표도 바꿔야 한다 — 같은 기기의 혼자 하기 기록에 이미 그
-   * 사람의 얼굴이 있으므로 그것을 쓴다. 혼자 하기를 안 한 사람은 빈 자리로 남는다.
-   */
-  private ladder(): unknown[] {
-    return this.sql
-      .exec(
-        `SELECT r.id, r.name, r.rating, r.wins, r.losses,
-                COALESCE(u.icon, '') AS icon
-         FROM ratings r LEFT JOIN runs u ON u.id = r.id
-         ORDER BY r.rating DESC, r.at ASC LIMIT ?`,
-        LADDER_TOP,
-      )
       .toArray()
   }
 }

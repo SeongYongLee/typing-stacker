@@ -563,8 +563,6 @@ class MatchSession {
       chat: this.chat,
       chatEnabled: this.chatEnabled,
       chatClock: this.chatClock,
-      // 코드로 모인 방은 상대를 고를 수 있어 사다리에 올리지 않는다
-      ranked: this.autoMatched,
       onFailure: (reason) => this.onPhase({ kind: 'failed', failure: reason }),
       onRestart: (next) => this.restart(next),
     })

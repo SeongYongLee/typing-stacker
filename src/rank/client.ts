@@ -37,12 +37,6 @@ interface RankView {
   /** 내 순위(1부터). 기록이 없으면 null */
   readonly rank: number | null
   readonly top: readonly RunRecord[]
-  /**
-   * 레이팅 순위. 대전 쪽의 순위표다.
-   *
-   * 옛 서버는 이 값을 모른다 — 그때는 빈 배열이라 화면이 조용히 순위표만 감춘다.
-   */
-  readonly ladder: readonly LadderRecord[]
   readonly rating: number
   readonly wins: number
   readonly losses: number
@@ -54,20 +48,10 @@ interface RankView {
   readonly disputed?: boolean
 }
 
-interface LadderRecord {
-  readonly id: string
-  readonly name: string
-  readonly icon?: string
-  readonly rating: number
-  readonly wins: number
-  readonly losses: number
-}
-
 const EMPTY: RankView = {
   best: null,
   rank: null,
   top: [],
-  ladder: [],
   rating: START_RATING,
   wins: 0,
   losses: 0,
@@ -121,32 +105,6 @@ async function fetchMyRating(): Promise<RankView | null> {
   return me === null ? null : { ...EMPTY, ...me }
 }
 
-/**
- * 여럿의 레이팅을 한 번에 본다. 준비 화면에서 **누구와 붙는지** 보여주려는 것이다.
- *
- * **각자 자기 레이팅을 실어 보내게 하지 않는다.** 그렇게 하면 아무 티어나 적어
- * 보낼 수 있고, 다이아라고 적힌 상대와 붙는 것이 실제와 다른 판이 된다.
- * 서버가 기기 id로 자기 표를 찾아 답한 것만 믿는다.
- *
- * 닿지 못한 사람은 목록에서 빠진다 — 화면은 그 사람의 티어를 비워둔다.
- * 한 명 때문에 전부 안 보이는 것보다 낫다.
- */
-async function fetchRatings(
-  deviceIds: readonly string[],
-): Promise<ReadonlyMap<string, number>> {
-  const found = new Map<string, number>()
-  const wanted = [...new Set(deviceIds.filter((id) => id.length > 0))]
-  await Promise.all(
-    wanted.map(async (id) => {
-      const one = await get(`/rank/me?id=${encodeURIComponent(id)}`)
-      if (one !== null && typeof one.rating === 'number') {
-        found.set(id, one.rating)
-      }
-    }),
-  )
-  return found
-}
-
 /** 지금 내 기록과 상위 목록 */
 async function fetchRank(): Promise<RankView | null> {
   const profile = loadProfile()
@@ -191,5 +149,5 @@ async function request(path: string, init: RequestInit): Promise<Partial<RankVie
   }
 }
 
-export { submitRun, reportMatch, fetchRank, fetchMyRating, fetchRatings, EMPTY }
-export type { RankView, RunRecord, LadderRecord }
+export { submitRun, reportMatch, fetchRank, fetchMyRating, EMPTY }
+export type { RankView, RunRecord }

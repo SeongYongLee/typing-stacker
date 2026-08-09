@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
 import { GLOWING_IDS } from '../src/game/data/glowItems.ts'
 import { TRAILS, trailOf, type Trail } from '../src/game/data/trails.ts'
-import { ALL_VARIANTS } from '../src/game/data/words.ts'
+import { ALL_VARIANTS, WORDS } from '../src/game/data/words.ts'
 import { fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
 import {
   FULL_SPEED,
@@ -85,6 +85,34 @@ describe('꼬리 갈래 표', () => {
   it('갈래가 없는 물건은 null이다', () => {
     expect(trailOf('refrigerator')).toBeNull()
     expect(trailOf('bolt')).toBe('sparkle')
+  })
+
+  /**
+   * **기본형이 흘리면 그 단어의 히든도 흘린다.**
+   *
+   * 히든은 같은 물건의 다른 형태다 — 맥주가 잔이든 병이든 담긴 것은 맥주이고,
+   * 털모자가 귀덮개형이 되어도 털은 그대로다. 그런데 이 표는 물건 id로 적으므로
+   * **아트가 들어올 때마다 히든 쪽을 빠뜨리기 쉽다.** 실제로 2026-08-09 재작화에서
+   * 히든 24종을 붙이며 일곱이 빠졌고, 그중 넷은 액체라 물 튀김까지 함께 사라졌다
+   * (`TrailField.burst`가 `droplet`만 보므로 표에 없으면 닿아도 아무 일이 없다).
+   *
+   * 반대 방향(기본형은 없는데 히든만 흘림)은 막지 않는다 — 씨앗은 아무것도 안
+   * 흘리지만 해바라기는 꽃잎을 흘리는 것이 맞다.
+   */
+  it('기본형이 흘리면 히든도 흘린다', () => {
+    const missing: string[] = []
+    for (const entry of WORDS) {
+      const base = entry.variants[0]
+      if (base === undefined || trailOf(base.id) === null) {
+        continue
+      }
+      for (const variant of entry.variants.slice(1)) {
+        if (trailOf(variant.id) === null) {
+          missing.push(`${entry.word}: ${base.label}=${trailOf(base.id)} → ${variant.label}=없음`)
+        }
+      }
+    }
+    expect(missing, `히든이 기본형의 갈래를 못 물려받았다:\n  ${missing.join('\n  ')}`).toEqual([])
   })
 })
 
@@ -352,8 +380,11 @@ describe('부스러기가 화면에 그려진다', () => {
     quake: 0,
     quakePhase: 0,
     ownerColors: null,
+    pairMarks: new Map(),
+    pairPulse: 1,
     cameraY: 0,
     stackTop: 0.8,
+    nightfall: 0,
     ledges: [],
     formingLedge: null,
     impacts: [],

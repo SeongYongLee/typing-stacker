@@ -8,7 +8,7 @@
  *
  * ## 대부분의 물건은 아무것도 흘리지 않는다
  *
- * 107종 중 38종만 여기 있다. 금속·기계·유리·플라스틱은 비워뒀다 — 다 흘리면 화면이
+ * 180종 중 60종만 여기 있다. 금속·기계·유리·플라스틱은 비워뒀다 — 다 흘리면 화면이
  * 늘 부스러기로 차서 아무 뜻이 없어진다. 색번짐을 빛나는 것으로 좁힌 것과 같은
  * 판단이고, 여기서도 기준은 **"그 물건이 움직이면 정말 뭔가 떨어지겠는가"** 하나다.
  *
@@ -47,13 +47,20 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'iced-drink': 'droplet',
   cocktail: 'droplet',
   beer: 'droplet',
+  'beer-bottle': 'droplet',
   americano: 'droplet',
+  'americano-iced': 'droplet',
   'milk-carton': 'droplet',
   'strawberry-milk': 'droplet',
+  'milk-vintage-cart': 'droplet',
   'watering-can': 'droplet',
   'shampoo-bottle': 'droplet',
   'electric-kettle': 'droplet',
+  'electric-kettle-gooseneck': 'droplet',
   tumbler: 'droplet',
+  'kids-bottle': 'droplet',
+  /* 비눗물도 액체다. 뚜껑에 고리 막대가 매달려 나온다 */
+  'bubble-bottle': 'droplet',
   /* 담긴 것이 아니라 **젖은 것**. 생선이 퍼덕이면 물이 튄다 */
   'salmon-fish': 'droplet',
 
@@ -65,6 +72,7 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   sunflower: 'petal',
   'rice-plant': 'petal',
   cactus: 'petal',
+  'cactus-mexican-character': 'petal',
   'pine-tree': 'petal',
   'christmas-tree': 'petal',
 
@@ -72,6 +80,7 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'quill-feather': 'fluff',
   rabbit: 'fluff',
   'wool-hat': 'fluff',
+  'wool-hat-nordic-earflap': 'fluff',
   scarf: 'fluff',
 
   /*
@@ -93,10 +102,16 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   /* 마르고 부스러지는 것 */
   broom: 'crumb',
   footprints: 'crumb',
+  'footprints-dinosaur': 'crumb',
   'fart-cloud': 'crumb',
   'french-fries': 'crumb',
   'fish-bread': 'crumb',
   'chocolate-donut': 'crumb',
+  macaron: 'crumb',
+  'macaron-bear': 'crumb',
+  biscuit: 'crumb',
+  /* 김이 부스러지고 밥알이 떨어진다 */
+  'triangle-gimbap': 'crumb',
 }
 
 /**
@@ -118,6 +133,11 @@ const SPLASH_COLORS: Readonly<Record<string, string>> = {
   'salmon-fish': '#7ec8ef',
   'watering-can': '#7ec8ef',
   'electric-kettle': '#bcd6e6',
+  'electric-kettle-gooseneck': '#bcd6e6',
+  /* 병 유리는 갈색이고 담긴 맥주는 황금빛이다 */
+  'beer-bottle': '#f2c14e',
+  /* 나무 수레 색이지 우유 색이 아니다 */
+  'milk-vintage-cart': '#f3efe4',
 }
 
 /**

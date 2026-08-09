@@ -1980,6 +1980,231 @@ const WORDS: readonly WordEntry[] = [
       }),
     ],
   },
+  {
+    word: '장난감자동차',
+    variants: [
+      variant({
+        // 바퀴 넷이 다 굴러서 눕히면 그대로 달려나간다
+        id: 'toy-car',
+        label: '장난감자동차',
+        sprite: 'toy-car',
+        size: { width: 0.64 },
+        color: '#e71910',
+        density: 0.7,
+        friction: 0.45,
+        angularDamping: 1.4,
+      }),
+      hiddenVariant({
+        // 짐칸이 위로 열려 있어 그 안에 다음 물건이 들어앉는다
+        id: 'dump-truck',
+        label: '덤프트럭',
+        sprite: 'toy-car-dump-truck',
+        size: { width: 0.6 },
+        color: '#f75401',
+        density: 1,
+        friction: 0.7,
+        angularDamping: 2.8,
+      }),
+    ],
+  },
+  {
+    word: '마카롱',
+    variants: [
+      variant({
+        // 위아래가 둥글어 어느 쪽으로 놓아도 조금씩 흔들린다
+        id: 'macaron',
+        label: '마카롱',
+        sprite: 'macaron',
+        size: { width: 0.47 },
+        color: '#fc7a93',
+        density: 0.5,
+        friction: 0.7,
+        angularDamping: 2,
+      }),
+      hiddenVariant({
+        // 귀가 양옆으로 튀어나와 그 위에는 아무것도 얹히지 않는다
+        id: 'macaron-bear',
+        label: '곰돌이 마카롱',
+        sprite: 'macaron-bear-face',
+        size: { height: 0.47 },
+        color: '#f3b76e',
+        density: 0.5,
+        friction: 0.75,
+        angularDamping: 2.2,
+      }),
+    ],
+  },
+  {
+    word: '눈',
+    variants: [
+      variant({
+        // 여섯 갈래가 사방으로 뻗어 있다. 얹히면 그 사이로 다음 물건이 빠진다
+        id: 'snowflake',
+        label: '눈송이',
+        sprite: 'snowflake',
+        size: { height: 0.75 },
+        color: '#d0f3fb',
+        density: 0.3,
+        friction: 0.65,
+        angularDamping: 2.2,
+      }),
+    ],
+  },
+  {
+    word: '스케치북',
+    variants: [
+      variant({
+        // 세로로 세워진 판. 얇아서 옆에서 조금만 밀려도 넘어간다
+        id: 'sketchbook',
+        label: '스케치북',
+        sprite: 'sketchbook',
+        size: { height: 0.64 },
+        color: '#febc10',
+        density: 0.55,
+        friction: 0.8,
+        angularDamping: 3.2,
+      }),
+      hiddenVariant({
+        // 활짝 펴져 가로로 눕는다. 세로판이 넓은 받침으로 바뀐다
+        id: 'sketchbook-open',
+        label: '펼친 스케치북',
+        sprite: 'sketchbook-open-landscape',
+        size: { width: 0.6 },
+        color: '#faf4e4',
+        density: 0.5,
+        friction: 0.85,
+        angularDamping: 3.8,
+      }),
+    ],
+  },
+  {
+    word: '색연필세트',
+    variants: [
+      variant({
+        // 상자가 열려 있어 윗면이 고르지 않다
+        id: 'pencil-set',
+        label: '색연필세트',
+        sprite: 'pencil-set',
+        size: { height: 0.64 },
+        color: '#ed2319',
+        density: 0.7,
+        friction: 0.8,
+        angularDamping: 3.2,
+      }),
+    ],
+  },
+  {
+    word: '비눗방울통',
+    variants: [
+      variant({
+        // 고리 막대가 뚜껑에 매달려 옆으로 튀어나와 있다
+        id: 'bubble-bottle',
+        label: '비눗방울통',
+        sprite: 'bubble-bottle',
+        size: { height: 0.64 },
+        color: '#aadc1a',
+        density: 0.8,
+        friction: 0.65,
+        angularDamping: 2.4,
+      }),
+    ],
+  },
+  {
+    word: '휴대용선풍기',
+    variants: [
+      variant({
+        // 둥근 머리에 가느다란 손잡이. 위가 무거워 잘 넘어진다
+        id: 'hand-fan',
+        label: '휴대용선풍기',
+        sprite: 'hand-fan',
+        size: { height: 0.64 },
+        color: '#6ab1e5',
+        density: 0.6,
+        friction: 0.6,
+        angularDamping: 2,
+      }),
+    ],
+  },
+  {
+    word: '어린이물병',
+    variants: [
+      variant({
+        // 물이 든 원통. 눕히면 굴러가고 무게도 제법 있다
+        id: 'kids-bottle',
+        label: '어린이물병',
+        sprite: 'kids-bottle',
+        size: { height: 0.64 },
+        color: '#92d5f8',
+        density: 1.2,
+        friction: 0.6,
+        angularDamping: 1.4,
+      }),
+    ],
+  },
+  {
+    word: '문',
+    variants: [
+      variant({
+        // 이 게임에서 가장 큰 판. 눕으면 받침대를 거의 가로지른다
+        id: 'wooden-door',
+        label: '나무문',
+        sprite: 'wooden-door',
+        size: { height: 0.99 },
+        color: '#984d1a',
+        density: 1.4,
+        friction: 0.85,
+        angularDamping: 3.6,
+      }),
+    ],
+  },
+  {
+    word: '비스킷',
+    variants: [
+      variant({
+        // 납작하고 작다. 틈에 끼워 넣기 좋다
+        id: 'biscuit',
+        label: '비스킷',
+        sprite: 'biscuit',
+        size: { width: 0.47 },
+        color: '#f0b24c',
+        density: 0.6,
+        friction: 0.8,
+        angularDamping: 3.2,
+      }),
+    ],
+  },
+  {
+    word: '버섯',
+    variants: [
+      variant({
+        // 갓이 둥글게 부풀어 위가 미끄럽다. 스스로 빛을 낸다
+        id: 'mushroom',
+        label: '버섯',
+        sprite: 'mushroom',
+        size: { height: 0.47 },
+        color: '#f7b81a',
+        density: 0.5,
+        friction: 0.7,
+        angularDamping: 2.4,
+      }),
+    ],
+  },
+  {
+    word: '크리스탈',
+    variants: [
+      variant({
+        // 기둥 서넛이 제각각 다른 높이로 솟아 있다. 위가 뾰족해 받침이 못 된다
+        id: 'crystal',
+        label: '크리스탈',
+        sprite: 'crystal',
+        size: { height: 0.64 },
+        color: '#ce8bf0',
+        density: 1.1,
+        friction: 0.7,
+        angularDamping: 3,
+      }),
+    ],
+  },
 ]
 
 /**

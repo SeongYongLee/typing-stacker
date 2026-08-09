@@ -39,6 +39,7 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'desk-lamp': 'sparkle',
   'gooseneck-lamp': 'sparkle',
   'traffic-light': 'sparkle',
+  mushroom: 'sparkle',
   'magic-wand': 'sparkle',
   'mirror-ball': 'sparkle',
 

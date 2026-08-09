@@ -34,6 +34,8 @@ const GLOWING_IDS: ReadonlySet<string> = new Set([
   'desk-lamp',
   'gooseneck-lamp',
   'traffic-light',
+  /* 판타지 버섯이라 갓이 스스로 빛난다 — 크리스탈은 되쏘기만 하므로 넣지 않는다 */
+  'mushroom',
   /* 빛을 뿜거나 흩뿌리는 것 — 미러볼은 제 빛이 없지만 빛을 흩는 것이 그 물건의 정체다 */
   'magic-wand',
   'mirror-ball',

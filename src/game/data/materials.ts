@@ -30,6 +30,8 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'paper-airplane': 'paper',
   'secret-diary': 'paper',
   'travel-album': 'paper',
+  sketchbook: 'paper',
+  'sketchbook-open': 'paper',
   'toilet-paper': 'paper',
   'tissue-box': 'paper',
 
@@ -56,6 +58,9 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'salmon-fish': 'squish',
   'salmon-sushi': 'squish',
   'triangle-gimbap': 'squish',
+  macaron: 'squish',
+  'macaron-bear': 'squish',
+  mushroom: 'squish',
 
   /* 유리와 담긴 음료 — 맑게 울린다 */
   'iced-drink': 'glass',
@@ -72,6 +77,8 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   sunlight: 'glass',
   'mirror-ball': 'glass',
   'glass-shards': 'glass',
+  snowflake: 'glass',
+  crystal: 'glass',
 
   /* 금속 — 배음이 어긋나게 남는다 */
   tumbler: 'metal',
@@ -124,6 +131,11 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'milk-vintage-cart': 'wood',
   'treasure-chest': 'wood',
   'magic-wand': 'wood',
+  'wooden-door': 'wood',
+  /* 상자가 아니라 안에 든 나무 연필들이 달그락거린다 */
+  'pencil-set': 'wood',
+  /* 마른 과자는 부러지는 소리라 물컹한 쪽이 아니다 */
+  biscuit: 'wood',
 
   /* 천과 솜 — 거의 소리가 없다 */
   scarf: 'cloth',
@@ -176,6 +188,11 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'first-aid-kit': 'plastic',
   'laundry-basket': 'plastic',
   'clothes-hanger': 'plastic',
+  'toy-car': 'plastic',
+  'dump-truck': 'plastic',
+  'bubble-bottle': 'plastic',
+  'hand-fan': 'plastic',
+  'kids-bottle': 'plastic',
 
   /* 기계 — 무겁게 내려앉고 끝에 금속이 한 번 */
   laptop: 'tech',

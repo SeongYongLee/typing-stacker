@@ -34,6 +34,21 @@ class SoundBoard {
     this.syncMusic()
   }
 
+  /**
+   * 제스처 없이 열어본다. 화면이 열릴 때 한 번 부른다.
+   *
+   * 이미 논 적이 있는 사이트라면 브라우저가 그냥 열어주므로, 시작 화면의 곡이
+   * 새로고침 직후부터 흐른다. 안 열리면 조용히 넘어가고 첫 제스처가 이어받는다.
+   */
+  tryOpen(): void {
+    this.bus.tryOpen(() => this.syncMusic())
+  }
+
+  /** 지금 소리가 나오는 상태인가. 화면이 "누르면 켜집니다"를 띄울지 정하는 값이다 */
+  get running(): boolean {
+    return this.bus.running
+  }
+
   update(patch: Partial<AudioSettings>): void {
     this.bus.update(patch)
     this.syncMusic()
@@ -62,7 +77,11 @@ class SoundBoard {
     const { bgmVolume } = this.bus.current
     const wanted = bgmVolume > 0 ? this.wantedTrack : null
 
-    if (wanted === null || ctx === null || out === null || noise === null) {
+    /*
+     * **깨어 있을 때만 건다.** `suspended`인 컨텍스트에 예약한 음은 오류도 없이
+     * 사라지므로, 자다 깬 뒤에 곡을 틀면 첫 마디가 통째로 비어버린다.
+     */
+    if (!this.bus.running || wanted === null || ctx === null || out === null || noise === null) {
       this.music.stop()
       return
     }

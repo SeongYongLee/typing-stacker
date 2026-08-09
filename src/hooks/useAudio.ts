@@ -16,6 +16,13 @@ function useAudioBoot(): void {
     const unlock = () => board.unlock()
     const onVisibility = () => board.setSuspended(document.hidden)
 
+    /*
+     * 먼저 제스처 없이 열어본다. 이미 논 적이 있는 사이트면 브라우저가 열어주므로
+     * 시작 화면의 곡이 새로고침 직후부터 흐른다 — 예전에는 첫 누름이 대개 메뉴
+     * 버튼이라 그 순간 화면이 넘어가, 시작 화면 곡을 들을 틈이 없었다.
+     */
+    board.tryOpen()
+
     window.addEventListener('pointerdown', unlock)
     window.addEventListener('keydown', unlock)
     document.addEventListener('visibilitychange', onVisibility)
@@ -28,10 +35,30 @@ function useAudioBoot(): void {
 }
 
 /**
- * 글자가 들어올 때마다 소리를 낸다.
- * `tapSeq`는 입력칸 타격 연출이 이미 쓰던 값이다 — 눈에 보이는 반응과 귀에 들리는
- * 반응이 같은 신호에서 나와야 어긋나지 않는다.
+ * 소리가 아직 첫 누름을 기다리는가.
+ *
+ * 브라우저는 사용자가 무언가를 누르기 전까지 소리를 내주지 않는다. 그 사실을 화면이
+ * 말해주지 않으면 **시작 화면이 그냥 고장난 것처럼 보인다** — 새로고침하고 가만히
+ * 보고 있는 동안이 정확히 그 상태다.
+ *
+ * `tryOpen`이 성공한 브라우저에서는 처음부터 false다. 알릴 것이 없으면 알리지 않는다.
  */
+function useAudioGate(): boolean {
+  const subscribe = useCallback((onChange: () => void) => {
+    // 누른 뒤에 열리므로 한 박자 뒤에 다시 본다
+    const check = () => setTimeout(onChange, 120)
+    window.addEventListener('pointerdown', check)
+    window.addEventListener('keydown', check)
+    const timer = setInterval(onChange, 1000)
+    return () => {
+      window.removeEventListener('pointerdown', check)
+      window.removeEventListener('keydown', check)
+      clearInterval(timer)
+    }
+  }, [])
+  return !useSyncExternalStore(subscribe, () => soundBoard().running)
+}
+
 function useTypingSound(tapSeq: number): void {
   useEffect(() => {
     if (tapSeq === 0) {
@@ -76,4 +103,4 @@ function useAudioSettings(): {
   return { settings, update }
 }
 
-export { useAudioBoot, useTypingSound, useMusic, useAudioSettings }
+export { useAudioBoot, useAudioGate, useTypingSound, useMusic, useAudioSettings }

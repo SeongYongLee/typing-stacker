@@ -4,9 +4,11 @@ import {
   isMadeName,
   joinName,
   nameCount,
+  NOUN_MAX,
   nouns,
   randomName,
 } from '../src/game/data/nicknames.ts'
+import { ALL_VARIANTS } from '../src/game/data/words.ts'
 import { NICKNAME_MAX } from '../src/multi/protocol.ts'
 
 /**
@@ -29,6 +31,18 @@ describe('고를 수 있는 이름', () => {
         const name = joinName({ adjective, noun })
         expect(name.length, name).toBeLessThanOrEqual(NICKNAME_MAX)
       }
+    }
+  })
+
+  it('긴 물건 이름은 재료에서 빠진다', () => {
+    /*
+     * 물건 이름 쪽에는 길이 제한이 없다 — 타자게임이라 긴 이름이 그 자체로 재미다.
+     * 굽히는 쪽은 이름표이므로, 걸러내는 일이 실제로 일어나는지 여기서 지킨다.
+     */
+    const tooLong = ALL_VARIANTS.filter((item) => item.label.length > NOUN_MAX)
+    expect(tooLong.length, '거를 것이 하나도 없으면 이 검사가 아무것도 지키지 않는다').toBeGreaterThan(0)
+    for (const item of tooLong) {
+      expect(nouns(), item.label).not.toContain(item.label)
     }
   })
 

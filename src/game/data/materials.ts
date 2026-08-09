@@ -25,10 +25,13 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'pizza-box': 'paper',
   'rice-plant': 'paper',
   'treasure-map': 'paper',
+  'map-world-map': 'paper',
   'study-book': 'paper',
   'paper-airplane': 'paper',
   'secret-diary': 'paper',
   'travel-album': 'paper',
+  'toilet-paper': 'paper',
+  'tissue-box': 'paper',
 
   /* 살아 있는 것과 물컹한 것 */
   snail: 'squish',
@@ -46,16 +49,21 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'ice-cream-cone': 'squish',
   /* 액체가 든 종이팩. 마른 종이처럼 바스락거리지 않고 둔하게 내려앉는다 */
   'milk-carton': 'squish',
+  /* 통이 없어 밥과 계란만 닿는다 */
+  'lunchbox-bear-omelet-rice': 'squish',
   'strawberry-milk': 'squish',
   egg: 'squish',
   'salmon-fish': 'squish',
   'salmon-sushi': 'squish',
+  'triangle-gimbap': 'squish',
 
   /* 유리와 담긴 음료 — 맑게 울린다 */
   'iced-drink': 'glass',
   cocktail: 'glass',
   beer: 'glass',
+  'beer-bottle': 'glass',
   americano: 'glass',
+  'americano-iced': 'glass',
   'hand-mirror': 'glass',
   window: 'glass',
   'round-glasses': 'glass',
@@ -69,10 +77,12 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   tumbler: 'metal',
   'frying-pan': 'metal',
   'electric-kettle': 'metal',
+  'electric-kettle-gooseneck': 'metal',
   'watering-can': 'metal',
   'alarm-clock': 'metal',
   flashlight: 'metal',
   bicycle: 'metal',
+  'bicycle-folding': 'metal',
   refrigerator: 'metal',
   'washing-machine': 'metal',
   microwave: 'metal',
@@ -82,10 +92,18 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'old-key': 'metal',
   padlock: 'metal',
   telescope: 'metal',
+  'telescope-spyglass': 'metal',
   compass: 'metal',
   'gold-star': 'metal',
   'gold-medal': 'metal',
   'heart-ring': 'metal',
+  'traffic-light': 'metal',
+  'trash-bin': 'metal',
+  'fire-extinguisher': 'metal',
+  wristwatch: 'metal',
+  /* 갓은 천이지만 부딪히는 것은 받침과 기둥이다 */
+  'desk-lamp': 'metal',
+  'gooseneck-lamp': 'metal',
   /* 팬에 담긴 채로 나온다 — 닿는 것은 계란이 아니라 무쇠다 */
   'fried-egg': 'metal',
 
@@ -94,18 +112,23 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'christmas-tree': 'wood',
   'toy-train': 'wood',
   cactus: 'wood',
+  'cactus-mexican-character': 'wood',
   /* 이 게임에서 가장 작은 물건. 작고 마르고 단단하다 */
   'sunflower-seed': 'wood',
   'baseball-bat': 'wood',
   broom: 'wood',
   /* 등딱지가 단단하다 */
   turtle: 'wood',
+  'turtle-sea-turtle': 'wood',
+  /* 우유병을 실은 나무 수레 — 닿는 것은 병이 아니라 수레다 */
+  'milk-vintage-cart': 'wood',
   'treasure-chest': 'wood',
   'magic-wand': 'wood',
 
   /* 천과 솜 — 거의 소리가 없다 */
   scarf: 'cloth',
   'wool-hat': 'cloth',
+  'wool-hat-nordic-earflap': 'cloth',
   'school-backpack': 'cloth',
   sneakers: 'cloth',
   'blue-shirt': 'cloth',
@@ -114,6 +137,7 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'spider-web': 'cloth',
   /* 자국은 실체가 없다. 넷 중 가장 조용한 자리가 맞다 */
   footprints: 'cloth',
+  'footprints-dinosaur': 'cloth',
   'burnt-hole-shirt': 'cloth',
   'racing-flag': 'cloth',
   'graduation-cap': 'cloth',
@@ -127,24 +151,49 @@ const MATERIALS: Readonly<Record<string, Material>> = {
 
   /* 단단한 플라스틱 — 마른 "딱" */
   bento: 'plastic',
+  /*
+   * 같은 단어의 두 형태가 다른 무리에 앉는 경우다. 쌍종 알람시계는 금속이고
+   * 디지털은 플라스틱 껍데기이며, 나무 기차와 달리 고속열차는 플라스틱 차체다.
+   * 기준이 물건의 이름이 아니라 **부딪혔을 때 나는 소리**라 이렇게 갈린다.
+   */
+  'alarm-clock-digital': 'plastic',
+  'toy-train-bullet-train': 'plastic',
   'shampoo-bottle': 'plastic',
   'dinosaur-toy': 'plastic',
+  'dinosaur-toy-triceratops': 'plastic',
   'roller-skates': 'plastic',
   sunglasses: 'plastic',
+  'sunglasses-black-narrow-frame': 'plastic',
   'desk-globe': 'plastic',
   /* 초는 밀랍이라 울리지 않고 둔하게 닿는다 */
   candle: 'plastic',
   'travel-suitcase': 'plastic',
+  'desk-phone': 'plastic',
+  headphones: 'plastic',
+  'tv-remote': 'plastic',
+  'crank-sharpener': 'plastic',
+  'handheld-sharpener': 'plastic',
+  'first-aid-kit': 'plastic',
+  'laundry-basket': 'plastic',
+  'clothes-hanger': 'plastic',
 
   /* 기계 — 무겁게 내려앉고 끝에 금속이 한 번 */
   laptop: 'tech',
   'laptop-closed': 'tech',
   airplane: 'tech',
+  'airplane-biplane': 'tech',
   umbrella: 'tech',
   'umbrella-folded': 'tech',
   camera: 'tech',
+  'digital-camera': 'tech',
   spaceship: 'tech',
   'internet-router': 'tech',
+  smartphone: 'tech',
+  keyboard: 'tech',
+  speaker: 'tech',
+  'stick-vacuum': 'tech',
+  'robot-vacuum': 'tech',
+  smartwatch: 'tech',
 
   /* 번개 — 물건이 아니다 */
   bolt: 'spark',

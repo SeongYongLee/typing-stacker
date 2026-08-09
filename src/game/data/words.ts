@@ -23,6 +23,12 @@ import type { ItemVariant, WordEntry } from '../types/game.ts'
 
 interface VariantInput {
   id: string
+  /**
+   * 물건 이름. **길이 제한이 없다.**
+   *
+   * 이 게임은 타자게임이라 긴 이름이 곧 재미다. 이름표(`nicknames.ts`)가 물건
+   * 이름을 재료로 쓰지만 길이 상한은 그쪽에서 거르므로, 여기서는 짧게 지을 이유가 없다.
+   */
   label: string
   sprite: SpriteName
   size: { width: number } | { height: number }
@@ -299,6 +305,16 @@ const WORDS: readonly WordEntry[] = [
         density: 1.9,
         friction: 0.8,
       }),
+      hiddenVariant({
+        // 통이 없이 밥과 계란만 담겼다. 도시락통의 절반 남짓한 무게라 흔들지 않는다
+        id: 'lunchbox-bear-omelet-rice',
+        label: '곰돌이 오므라이스',
+        sprite: 'lunchbox-bear-omelet-rice',
+        size: { width: 0.7 },
+        color: '#f2b314',
+        density: 1.2,
+        friction: 0.85,
+      }),
     ],
   },
   {
@@ -361,6 +377,17 @@ const WORDS: readonly WordEntry[] = [
         // 가장 큰 물건. 날개가 넓어 잘 받쳐주지만 자리를 많이 먹는다
         density: 1.1,
         friction: 0.7,
+      }),
+      hiddenVariant({
+        // 날개가 두 겹이라 여객기보다 짧고 두껍다. 나무와 천으로 만든 것이라 훨씬 가볍다
+        id: 'airplane-biplane',
+        label: '복엽기',
+        sprite: 'airplane-biplane',
+        size: { width: 1 },
+        color: '#f7eac8',
+        density: 0.9,
+        friction: 0.7,
+        angularDamping: 2.6,
       }),
     ],
   },
@@ -426,6 +453,16 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.5,
         angularDamping: 1.6,
       }),
+      hiddenVariant({
+        // 알이 좁아 더 납작하다. 이 판에서 가장 얇은 물건이다
+        id: 'sunglasses-black-narrow-frame',
+        label: '좁은 선글라스',
+        sprite: 'sunglasses-black-narrow-frame',
+        size: { width: 0.58 },
+        color: '#3d3d3a',
+        density: 0.35,
+        friction: 0.5,
+      }),
     ],
   },
   {
@@ -472,6 +509,16 @@ const WORDS: readonly WordEntry[] = [
         density: 0.7,
         friction: 0.6,
       }),
+      hiddenVariant({
+        // 얼음이 든 키 큰 컵. 뜨거운 잔보다 좁고 높다
+        id: 'americano-iced',
+        label: '아이스 아메리카노',
+        sprite: 'americano-iced',
+        size: { height: 0.62 },
+        color: '#4e2d1b',
+        density: 0.8,
+        friction: 0.65,
+      }),
     ],
   },
   {
@@ -498,6 +545,17 @@ const WORDS: readonly WordEntry[] = [
         density: 0.9,
         friction: 0.75,
         angularDamping: 3.0,
+      }),
+      hiddenVariant({
+        // 우유병을 실은 나무 수레. 팩보다 훨씬 넓고 위가 평평하다
+        id: 'milk-vintage-cart',
+        label: '우유 수레',
+        sprite: 'milk-vintage-cart',
+        size: { height: 0.58 },
+        color: '#ebb255',
+        density: 1,
+        friction: 0.8,
+        angularDamping: 3.4,
       }),
     ],
   },
@@ -529,6 +587,17 @@ const WORDS: readonly WordEntry[] = [
         density: 0.8,
         angularDamping: 0.9,
       }),
+      hiddenVariant({
+        // 쌍종형과 달리 납작하다. 위가 평평해서 그 위로 다시 쌓기 좋다
+        id: 'alarm-clock-digital',
+        label: '디지털 알람시계',
+        sprite: 'alarm-clock-digital',
+        size: { width: 0.6 },
+        color: '#1d314c',
+        density: 0.7,
+        friction: 0.8,
+        angularDamping: 3.4,
+      }),
     ],
   },
   {
@@ -543,6 +612,16 @@ const WORDS: readonly WordEntry[] = [
         color: '#f0b93c',
         density: 1.0,
         friction: 0.6,
+      }),
+      hiddenVariant({
+        // 잔보다 높고 훨씬 좁다. 세워두면 작은 흔들림에도 넘어간다
+        id: 'beer-bottle',
+        label: '병맥주',
+        sprite: 'beer-bottle',
+        size: { height: 0.68 },
+        color: '#702b09',
+        density: 1,
+        friction: 0.55,
       }),
     ],
   },
@@ -621,6 +700,17 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.95,
         angularDamping: 3.5,
       }),
+      hiddenVariant({
+        // 귀덮개가 양옆으로 늘어진다. 어디에 닿아도 미끄러지지 않는다
+        id: 'wool-hat-nordic-earflap',
+        label: '귀덮개 털모자',
+        sprite: 'wool-hat-nordic-earflap',
+        size: { height: 0.66 },
+        color: '#f2e8ce',
+        density: 0.28,
+        friction: 0.95,
+        angularDamping: 3.6,
+      }),
     ],
   },
   {
@@ -652,6 +742,16 @@ const WORDS: readonly WordEntry[] = [
         density: 1.3,
         friction: 0.8,
         angularDamping: 3.2,
+      }),
+      hiddenVariant({
+        // 챙 넓은 모자를 썼다. 위가 기울어 있어 받침으로는 못 쓴다
+        id: 'cactus-mexican-character',
+        label: '멕시칸 선인장',
+        sprite: 'cactus-mexican-character',
+        size: { height: 0.72 },
+        color: '#4f8d0c',
+        density: 1.2,
+        friction: 0.8,
       }),
     ],
   },
@@ -745,6 +845,16 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.7,
         angularDamping: 3.0,
       }),
+      hiddenVariant({
+        // 주둥이가 길게 뻗어 한쪽으로 무게가 쏠린다
+        id: 'electric-kettle-gooseneck',
+        label: '구즈넥 주전자',
+        sprite: 'electric-kettle-gooseneck',
+        size: { height: 0.66 },
+        color: '#1b2d55',
+        density: 1.3,
+        friction: 0.7,
+      }),
     ],
   },
   {
@@ -758,6 +868,16 @@ const WORDS: readonly WordEntry[] = [
         size: { width: 0.78 },
         color: '#5aa85a',
         density: 0.5,
+        friction: 0.8,
+      }),
+      hiddenVariant({
+        // 네 발로 서 있어 두 발 공룡보다 낮고 안정적이다
+        id: 'dinosaur-toy-triceratops',
+        label: '트리케라톱스',
+        sprite: 'dinosaur-toy-triceratops',
+        size: { width: 0.82 },
+        color: '#f39325',
+        density: 0.55,
         friction: 0.8,
       }),
     ],
@@ -817,6 +937,17 @@ const WORDS: readonly WordEntry[] = [
         color: '#e8564e',
         density: 1.0,
         friction: 0.75,
+      }),
+      hiddenVariant({
+        // 길고 납작하다. 이 판에서 가장 넓은 받침이 되어준다
+        id: 'toy-train-bullet-train',
+        label: '고속열차',
+        sprite: 'toy-train-bullet-train',
+        size: { width: 0.86 },
+        color: '#184b98',
+        density: 0.9,
+        friction: 0.7,
+        angularDamping: 3.4,
       }),
     ],
   },
@@ -953,6 +1084,17 @@ const WORDS: readonly WordEntry[] = [
         color: '#4aa3d1',
         density: 0.6,
         friction: 0.7,
+      }),
+      hiddenVariant({
+        // 접혀 있어 폭이 크게 줄었다. 바퀴가 맞물려 구르지도 않는다
+        id: 'bicycle-folding',
+        label: '접이식 자전거',
+        sprite: 'bicycle-folding',
+        size: { width: 0.78 },
+        color: '#75e2ac',
+        density: 0.7,
+        friction: 0.7,
+        angularDamping: 3.2,
       }),
     ],
   },
@@ -1203,6 +1345,17 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.7,
         angularDamping: 2.2,
       }),
+      hiddenVariant({
+        // 등딱지가 넓고 지느러미가 옆으로 뻗어 있다. 뒤집히지 않는다
+        id: 'turtle-sea-turtle',
+        label: '바다거북',
+        sprite: 'turtle-sea-turtle',
+        size: { width: 0.8 },
+        color: '#019377',
+        density: 0.95,
+        friction: 0.6,
+        angularDamping: 3,
+      }),
     ],
   },
   {
@@ -1233,6 +1386,17 @@ const WORDS: readonly WordEntry[] = [
         density: 0.3,
         friction: 0.9,
         angularDamping: 3,
+      }),
+      hiddenVariant({
+        // 보물지도보다 넓게 펼쳐진다. 얇아서 그 위에 얹으면 미끄러진다
+        id: 'map-world-map',
+        label: '세계지도',
+        sprite: 'map-world-map',
+        size: { width: 0.62 },
+        color: '#4db4ea',
+        density: 0.3,
+        friction: 0.9,
+        angularDamping: 3.2,
       }),
     ],
   },
@@ -1282,6 +1446,17 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.8,
         angularDamping: 2.4,
       }),
+      hiddenVariant({
+        // 삼각대가 없는 원통이라 눕고 구른다. 그 위에는 아무것도 못 얹는다
+        id: 'telescope-spyglass',
+        label: '손망원경',
+        sprite: 'telescope-spyglass',
+        size: { width: 0.72 },
+        color: '#182e51',
+        density: 0.85,
+        friction: 0.5,
+        angularDamping: 1.3,
+      }),
     ],
   },
   {
@@ -1314,6 +1489,17 @@ const WORDS: readonly WordEntry[] = [
         friction: 0.8,
         angularDamping: 3.4,
       }),
+      hiddenVariant({
+        // 렌즈가 앞으로 튀어나와 있어 옆으로 누우면 그 위에 아무것도 못 얹는다
+        id: 'digital-camera',
+        label: '디지털카메라',
+        sprite: 'digital-camera',
+        size: { width: 0.6 },
+        color: '#f8abb3',
+        density: 1.1,
+        friction: 0.7,
+        angularDamping: 3.2,
+      }),
     ],
   },
   {
@@ -1333,6 +1519,16 @@ const WORDS: readonly WordEntry[] = [
         density: 0.5,
         friction: 0.9,
         angularDamping: 3,
+      }),
+      hiddenVariant({
+        // 사람 발자국 둘이 있던 자리에 커다란 것 하나가 찍혔다
+        id: 'footprints-dinosaur',
+        label: '공룡 발자국',
+        sprite: 'footprints-dinosaur',
+        size: { height: 0.55 },
+        color: '#784627',
+        density: 0.5,
+        friction: 0.9,
       }),
     ],
   },
@@ -1447,6 +1643,343 @@ const WORDS: readonly WordEntry[] = [
       }),
     ],
   },
+  {
+    word: '전화기',
+    variants: [
+      variant({
+        // 얇고 매끈해서 아주 잘 미끄러진다. 세워두면 곧 눕는다
+        id: 'smartphone',
+        label: '스마트폰',
+        sprite: 'smartphone',
+        size: { height: 0.64 },
+        color: '#86c2e8',
+        density: 1.1,
+        friction: 0.5,
+        angularDamping: 3.6,
+      }),
+      hiddenVariant({
+        // 수화기가 본체 위에 얹혀 있어 윗면이 울퉁불퉁하다
+        id: 'desk-phone',
+        label: '유선전화',
+        sprite: 'desk-phone',
+        size: { width: 0.64 },
+        color: '#f8cf55',
+        density: 1,
+        friction: 0.8,
+        angularDamping: 3.4,
+      }),
+    ],
+  },
+  {
+    word: '신호등',
+    variants: [
+      variant({
+        // 이 판에서 가장 길쭉한 물건. 세워두면 작은 흔들림에도 넘어간다
+        id: 'traffic-light',
+        label: '신호등',
+        sprite: 'vertical-traffic-light',
+        size: { height: 0.92 },
+        color: '#fbcd09',
+        density: 1.3,
+        friction: 0.7,
+        angularDamping: 2,
+      }),
+    ],
+  },
+  {
+    word: '헤드폰',
+    variants: [
+      variant({
+        // 밴드가 둥글어 눕히면 흔들의자처럼 앞뒤로 흔들린다
+        id: 'headphones',
+        label: '헤드폰',
+        sprite: 'wired-headphones',
+        size: { height: 0.66 },
+        color: '#d52427',
+        density: 0.5,
+        friction: 0.8,
+        angularDamping: 1.6,
+      }),
+    ],
+  },
+  {
+    word: '휴지통',
+    variants: [
+      variant({
+        // 속이 비어 있어 크기에 비해 아주 가볍다. 위에 무거운 것을 얹으면 밀린다
+        id: 'trash-bin',
+        label: '철망 휴지통',
+        sprite: 'mesh-trash-bin',
+        size: { height: 0.78 },
+        color: '#4c5056',
+        density: 0.6,
+        friction: 0.75,
+        angularDamping: 3,
+      }),
+    ],
+  },
+  {
+    word: '리모컨',
+    variants: [
+      variant({
+        // 길쭉하고 매끈하다. 비스듬히 얹히면 그대로 미끄러져 내려간다
+        id: 'tv-remote',
+        label: '리모컨',
+        sprite: 'tv-remote',
+        size: { height: 0.64 },
+        color: '#494649',
+        density: 0.7,
+        friction: 0.55,
+        angularDamping: 2,
+      }),
+    ],
+  },
+  {
+    word: '키보드',
+    variants: [
+      variant({
+        // 넓고 납작하고 위가 평평하다. 피자 한 판 다음으로 좋은 받침이다
+        id: 'keyboard',
+        label: '무선 키보드',
+        sprite: 'compact-keyboard',
+        size: { width: 0.7 },
+        color: '#fcc5ca',
+        density: 0.8,
+        friction: 0.8,
+        angularDamping: 4,
+      }),
+    ],
+  },
+  {
+    word: '스피커',
+    variants: [
+      variant({
+        // 크기에 비해 아주 무겁다. 자리를 잡으면 그 아래가 잠긴다
+        id: 'speaker',
+        label: '탁상 스피커',
+        sprite: 'desktop-speaker',
+        size: { height: 0.78 },
+        color: '#346621',
+        density: 1.6,
+        friction: 0.8,
+        angularDamping: 3.6,
+      }),
+    ],
+  },
+  {
+    word: '청소기',
+    variants: [
+      variant({
+        // 손잡이가 길어 위로 솟는다. 무게가 아래쪽 흡입구에 몰려 있다
+        id: 'stick-vacuum',
+        label: '스틱청소기',
+        sprite: 'upright-vacuum',
+        size: { height: 0.92 },
+        color: '#77629b',
+        density: 0.9,
+        friction: 0.6,
+        angularDamping: 2.2,
+      }),
+      hiddenVariant({
+        // 낮고 둥글고 윗면이 평평하다. 길쭉한 기본형과 정반대로 쌓기 좋다
+        id: 'robot-vacuum',
+        label: '로봇청소기',
+        sprite: 'robot-vacuum',
+        size: { width: 0.78 },
+        color: '#f0ede5',
+        density: 1.3,
+        friction: 0.75,
+        angularDamping: 3.8,
+      }),
+    ],
+  },
+  {
+    word: '화장지',
+    variants: [
+      variant({
+        // 원통이라 눕는 순간 굴러간다. 가벼워서 어디까지 갈지 알 수 없다
+        id: 'toilet-paper',
+        label: '두루마리 화장지',
+        sprite: 'toilet-paper-roll',
+        size: { height: 0.47 },
+        color: '#f1ebe9',
+        density: 0.3,
+        friction: 0.7,
+        angularDamping: 1,
+      }),
+      hiddenVariant({
+        // 같은 화장지인데 상자에 들었다. 구르던 것이 네모나게 쌓인다
+        id: 'tissue-box',
+        label: '각티슈',
+        sprite: 'tissue-box',
+        size: { width: 0.6 },
+        color: '#fee372',
+        density: 0.35,
+        friction: 0.85,
+        angularDamping: 3.6,
+      }),
+    ],
+  },
+  {
+    word: '연필깎이',
+    variants: [
+      variant({
+        // 책상에 놓는 것이라 바닥이 넓고 묵직하다
+        id: 'crank-sharpener',
+        label: '탁상 연필깎이',
+        sprite: 'crank-sharpener',
+        size: { width: 0.58 },
+        color: '#6aaac8',
+        density: 1.2,
+        friction: 0.8,
+        angularDamping: 3.2,
+      }),
+      hiddenVariant({
+        // 이 게임에서 씨앗 다음으로 작다. 거의 자리를 먹지 않는다
+        id: 'handheld-sharpener',
+        label: '손 연필깎이',
+        sprite: 'handheld-sharpener',
+        size: { width: 0.42 },
+        color: '#b62828',
+        density: 0.9,
+        friction: 0.7,
+        angularDamping: 2.6,
+      }),
+    ],
+  },
+  {
+    word: '탁상조명',
+    variants: [
+      variant({
+        // 갓이 넓게 퍼져 위가 평평하다. 불빛이 닿는 자리를 물들인다
+        id: 'desk-lamp',
+        label: '탁상조명',
+        sprite: 'shade-desk-lamp',
+        size: { height: 0.78 },
+        color: '#fa90a3',
+        density: 0.9,
+        friction: 0.8,
+        angularDamping: 3,
+      }),
+      hiddenVariant({
+        // 목이 한쪽으로 휘어 무게가 쏠린다. 갓이 없어 위에 얹을 자리도 없다
+        id: 'gooseneck-lamp',
+        label: '구부러진 조명',
+        sprite: 'gooseneck-desk-lamp',
+        size: { height: 0.8 },
+        color: '#a9d232',
+        density: 0.8,
+        friction: 0.7,
+        angularDamping: 2.4,
+      }),
+    ],
+  },
+  {
+    word: '소화기',
+    variants: [
+      variant({
+        // 쇳덩이가 꽉 차 있다. 텀블러 다음으로 무거운 물건이다
+        id: 'fire-extinguisher',
+        label: '소화기',
+        sprite: 'fire-extinguisher',
+        size: { height: 0.78 },
+        color: '#e11b0f',
+        density: 1.7,
+        friction: 0.7,
+        angularDamping: 2.6,
+      }),
+    ],
+  },
+  {
+    word: '구급상자',
+    variants: [
+      variant({
+        // 손잡이가 위로 솟아 있어 그 위로는 잘 얹히지 않는다
+        id: 'first-aid-kit',
+        label: '구급상자',
+        sprite: 'first-aid-kit',
+        size: { width: 0.64 },
+        color: '#ed1511',
+        density: 1.1,
+        friction: 0.85,
+        angularDamping: 3.6,
+      }),
+    ],
+  },
+  {
+    word: '손목시계',
+    variants: [
+      variant({
+        // 손목띠가 아래로 늘어져 바닥에 닿는 면이 좁다
+        id: 'wristwatch',
+        label: '손목시계',
+        sprite: 'wristwatch',
+        size: { height: 0.47 },
+        color: '#326aac',
+        density: 0.5,
+        friction: 0.7,
+      }),
+      hiddenVariant({
+        // 화면이 크고 띠가 두꺼워 기본형보다 넓게 자리를 잡는다
+        id: 'smartwatch',
+        label: '스마트워치',
+        sprite: 'wristwatch-silver-ultra-smartwatch',
+        size: { height: 0.5 },
+        color: '#d8d6cb',
+        density: 0.6,
+        friction: 0.7,
+        angularDamping: 2.6,
+      }),
+    ],
+  },
+  {
+    word: '빨래바구니',
+    variants: [
+      variant({
+        // 넓은데 속이 비어 가볍다. 무거운 것이 얹히면 그대로 밀려난다
+        id: 'laundry-basket',
+        label: '빨래바구니',
+        sprite: 'laundry-basket',
+        size: { width: 0.78 },
+        color: '#92d0b7',
+        density: 0.5,
+        friction: 0.8,
+        angularDamping: 3.4,
+      }),
+    ],
+  },
+  {
+    word: '옷걸이',
+    variants: [
+      variant({
+        // 위가 뾰족한 삼각형이라 그 위에는 아무것도 얹히지 않는다
+        id: 'clothes-hanger',
+        label: '옷걸이',
+        sprite: 'clothes-hanger',
+        size: { width: 0.75 },
+        color: '#e47710',
+        density: 0.35,
+        friction: 0.6,
+        angularDamping: 1.8,
+      }),
+    ],
+  },
+  {
+    word: '삼각김밥',
+    variants: [
+      variant({
+        // 삼각형이라 어느 면으로 눕든 바닥이 넓다. 잘 안 무너진다
+        id: 'triangle-gimbap',
+        label: '삼각김밥',
+        sprite: 'triangle-gimbap',
+        size: { width: 0.47 },
+        color: '#f5f3e6',
+        density: 0.7,
+        friction: 0.85,
+        angularDamping: 3,
+      }),
+    ],
+  },
 ]
 
 /**
@@ -1461,8 +1994,9 @@ const WORDS: readonly WordEntry[] = [
  * `resolveItem`은 `WORDS`만 보므로 여기 있는 물건이 손을 거치지 않고 나올 길이 없고,
  * 도감에서 이 칸들은 "운으로는 못 채우는 칸"이 된다.
  *
- * 크기는 재료 둘이 차지하던 폭보다 좁아야 한다. 합성은 자리를 되찾아주는 보상이고,
- * 합쳐서 넓어지면 위태로울 때 합성을 피하게 된다. `tests/Merger.test.ts`가 지킨다.
+ * 크기는 아트가 정한다. "재료보다 좁아야 한다"는 규칙이 있었지만 버렸다 —
+ * 합성의 보상은 판 안의 자리가 아니라 **도감과 프로필**이기 때문이다. 이유는
+ * `recipes.ts`에. 조준 범위를 넘지 않는 것만 지킨다.
  */
 const CRAFTED: readonly ItemVariant[] = [
   hiddenVariant({

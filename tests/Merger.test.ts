@@ -167,16 +167,19 @@ describe('RECIPES — 실제 데이터', () => {
     expect(new Set(keys).size).toBe(keys.length)
   })
 
-  it('합치면 자리가 넓어진다 — 결과물은 재료들이 차지하던 폭보다 좁다', () => {
-    for (const item of RECIPES) {
-      const inputWidth = item.inputs.reduce((sum, id) => {
-        const found = VARIANT_BY_ID.get(id)
-        return sum + (found?.artBounds.hw ?? 0) * 2
-      }, 0)
-      const resultWidth = item.result.artBounds.hw * 2
-      expect(resultWidth, item.id).toBeLessThan(inputWidth)
-    }
-  })
+  /*
+   * **"결과물은 재료보다 좁다"는 규칙은 없앴다 (2026-08-09).**
+   *
+   * 그 규칙은 "합성이 자리를 틔워주는 것이 보상"이라는 전제 위에 있었는데 **전제가
+   * 틀렸다.** 합성해서 얻는 것은 판 안의 여유가 아니라 판 밖에 남는 것이다 —
+   * 도감이 채워지고, 히든을 봤다는 사실이 남고, 프로필 사진으로 쓸 수 있다.
+   *
+   * 그러니 결과물이 넓어져도 합치고 싶은 마음은 사라지지 않는다. 반대로 규칙 쪽은
+   * 대가를 물렸다 — 재작화에서 여행앨범이 가로형이 되자(비율 0.838 → 1.5547)
+   * **아트가 정한 크기를 줄여야** 규칙을 지킬 수 있었다.
+   *
+   * 아래의 "조준 범위를 넘지 않는다"는 남는다. 그쪽은 취향이 아니라 즉사를 막는 것이다.
+   */
 
   it('결과물이 조준 범위를 넘지 않는다 — 합성 때문에 받침대를 넘치면 안 된다', async () => {
     const { MAX_ITEM_HALF_WIDTH } = await import('../src/game/config.ts')

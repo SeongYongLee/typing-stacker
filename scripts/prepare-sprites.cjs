@@ -49,146 +49,240 @@ const SCRAP_RATIO = 0.06
 
 const SOURCES = [
   {
-    dir: '이미지 1탄-ver2',
+    /*
+     * **물건 그림을 통째로 다시 그린 묶음(2026-08-09).** 앞선 네 묶음(CSV1·2·5)을
+     * 한 손으로 다시 그리고 CSV3 22종을 새로 더했다. 옛 폴더들은 지웠다 —
+     * 같은 물건의 그림이 두 벌 남아 있으면 어느 쪽이 쓰이는지 파일을 열어봐야 안다.
+     *
+     * 이름은 **기존 것을 그대로 이어받는다.** 파일명이 바뀐 물건이 여섯 있는데
+     * (`fried-egg-in-pan`·`fart-smell-cloud`·`round-hand-mirror`·`globe`·
+     * `pine-tree-christmas-shape`·`running-shoe`) 새 파일명을 따라가면 `words.ts`의
+     * 107줄을 함께 고쳐야 하고, 그 과정에서 하나만 놓쳐도 그 물건이 화면에서 사라진다.
+     *
+     * 빠뜨린 것 둘:
+     * - `051_world_globe.png` — 019_globe와 받침 색만 다른 같은 그림이다. 넣으면
+     *   도감에 거의 똑같은 칸이 둘 생긴다
+     * - `024_alarm_clock.png` — 알람시계가 둘 왔다(일반·클래식 쌍종형). 히든으로 온
+     *   디지털 탁상형이 "쌍종형과 구조가 다르다"를 기준으로 그려졌으므로 쌍종형(013)이
+     *   기본이어야 한다
+     * - `010_sneakers.png`·`023_pine_tree.png` — 운동화와 소나무도 둘씩 왔다.
+     *   **합성 세트 쪽(031·010)을 쓴다.** 소나무는 원뿔형이 아니면 별을 얹어도
+     *   크리스마스트리가 되지 않고, 운동화는 레이싱 깃발·금메달과 나란히 서야 한다 —
+     *   레시피가 그림으로 읽히려면 형태가 그쪽에 맞아 있어야 한다
+     */
+    dir: '전체-재작화',
     items: [
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_44 (1).png', 'airplane'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_44 (2).png', 'lunchbox'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_45 (3).png', 'lightning'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_45 (4).png', 'four-leaf-clover'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_46 (5).png', 'three-leaf-clover'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_46 (6).png', 'snail-tucked-in'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_46 (7).png', 'snail-out'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_47 (8).png', 'open-umbrella'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_47 (9).png', 'folded-umbrella'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_07_47 (10).png', 'open-laptop'],
-    ],
-  },
-  {
-    dir: '이미지 2탄',
-    items: [
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_09 (1).png', 'closed-laptop'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_10 (2).png', 'leaf'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_10 (3).png', 'maple-leaf'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_11 (4).png', 'sausage'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_12 (5).png', 'octopus-sausage'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_12 (6).png', 'highball-cocktail'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_12 (7).png', 'martini-cocktail'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_13 (8).png', 'pizza-box'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_14 (9).png', 'pizza-slice'],
-      ['ChatGPT Image 2026년 8월 4일 오후 11_25_14 (10).png', 'tumbler'],
-    ],
-  },
- {
-    // CSV1의 나머지 — 001~020은 위의 1탄/2탄과 같은 물건이라 다시 받지 않았다.
-    // 삼각김밥(022)은 그림이 오지 않아 빠졌다.
-    dir: '이미지-csv1-끝',
-    items: [
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (1).png', 'french-fries'],
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (3).png', 'tiger-swallowtail'],
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (5).png', 'christmas-tree'],
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (6).png', 'sunglasses'],
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (7).png', 'cricket'],
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (8).png', 'beer'],
-      ['ChatGPT Image 2026년 8월 7일 오후 11_06_08 (9).png', 'americano'],
-    ],
-  },
-  {
-    dir: 'nhn-game-csv2-icons-transparent-verified',
-    items: [
-      ['001_bicycle.png', 'bicycle'],
-      ['002_refrigerator.png', 'refrigerator'],
-      ['003_washing_machine.png', 'washing-machine'],
-      ['004_microwave.png', 'microwave'],
-      ['005_electric_kettle.png', 'electric-kettle'],
-      ['007_rubber_gloves.png', 'rubber-gloves'],
-      ['008_shampoo_bottle.png', 'shampoo-bottle'],
-      ['009_school_backpack.png', 'school-backpack'],
-      ['011_wool_hat.png', 'wool-hat'],
-      ['012_scarf.png', 'scarf'],
-      ['013_flashlight.png', 'flashlight'],
-      ['014_binoculars.png', 'binoculars'],
-      ['015_watering_can.png', 'watering-can'],
-      ['016_toy_train.png', 'toy-train'],
-      ['017_dinosaur_toy.png', 'dinosaur-toy'],
-      ['018_soccer_ball.png', 'soccer-ball'],
-      ['019_badminton_racket.png', 'badminton-racket'],
-      ['020_roller_skates.png', 'roller-skates'],
-      ['021_sunflower.png', 'sunflower'],
-      ['022_cactus.png', 'cactus'],
-      ['024_ladybug.png', 'ladybug'],
-      ['025_squirrel.png', 'squirrel'],
-      ['026_ice_cream_cone.png', 'ice-cream-cone'],
-      ['027_fish_bread.png', 'fish-bread'],
-      ['028_chocolate_donut.png', 'chocolate-donut'],
-      ['029_strawberry_milk.png', 'strawberry-milk'],
+      ['001_airplane.png', 'airplane'],  // 비행기 일반
+      ['002_lunchbox.png', 'lunchbox'],  // 도시락 일반
+      ['003_lightning.png', 'lightning'],  // 번개 일반
+      ['004_four_leaf_clover.png', 'four-leaf-clover'],  // 클로버 네잎
+      ['005_three_leaf_clover.png', 'three-leaf-clover'],  // 클로버 세잎
+      ['006_snail_tucked_in.png', 'snail-tucked-in'],  // 달팽이 웅크린 형태
+      ['007_snail_out.png', 'snail-out'],  // 달팽이 나와 있는 형태
+      ['008_open_umbrella.png', 'open-umbrella'],  // 우산 펼쳐진 우산
+      ['009_folded_umbrella.png', 'folded-umbrella'],  // 우산 접힌 우산
+      ['010_open_laptop.png', 'open-laptop'],  // 노트북 열림
+      ['011_closed_laptop.png', 'closed-laptop'],  // 노트북 닫힘
+      ['012_leaf.png', 'leaf'],  // 나뭇잎 일반 나뭇잎
+      ['013_maple_leaf.png', 'maple-leaf'],  // 나뭇잎 단풍잎
+      ['014_sausage.png', 'sausage'],  // 소세지 일반
+      ['015_octopus_sausage.png', 'octopus-sausage'],  // 소세지 문어 모양
+      ['016_highball_cocktail.png', 'highball-cocktail'],  // 칵테일 일반 컵 형태
+      ['017_martini_cocktail.png', 'martini-cocktail'],  // 칵테일 삼각형 잔
+      ['018_pizza_box.png', 'pizza-box'],  // 피자 피자 박스 형태
+      ['019_pizza_slice.png', 'pizza-slice'],  // 피자 삼각형 모양
+      ['020_tumbler.png', 'tumbler'],  // 텀블러 일반
+      ['021_french_fries.png', 'french-fries'],  // 감자튀김 일반
+      ['022_triangle_gimbap.png', 'triangle-gimbap'],  // 삼각김밥 일반
+      ['023_tiger_swallowtail.png', 'tiger-swallowtail'],  // 호랑나비 일반
+      ['025_christmas_tree.png', 'christmas-tree'],  // 크리스마스 트리 일반
+      ['026_sunglasses.png', 'sunglasses'],  // 선글라스 일반
+      ['027_cricket.png', 'cricket'],  // 귀뚜라미 일반
+      ['028_beer.png', 'beer'],  // 맥주 일반
+      ['029_americano.png', 'americano'],  // 아메리카노 일반
+      ['001_bicycle.png', 'bicycle'],  // 자전거 일반
+      ['002_refrigerator.png', 'refrigerator'],  // 냉장고 일반
+      ['003_washing_machine.png', 'washing-machine'],  // 세탁기 드럼형
+      ['004_microwave.png', 'microwave'],  // 전자레인지 일반
+      ['005_electric_kettle.png', 'electric-kettle'],  // 전기주전자 일반
+      ['007_rubber_gloves.png', 'rubber-gloves'],  // 고무장갑 한 쌍
+      ['008_shampoo_bottle.png', 'shampoo-bottle'],  // 샴푸통 펌프형
+      ['009_school_backpack.png', 'school-backpack'],  // 책가방 일반
+      ['011_wool_hat.png', 'wool-hat'],  // 털모자 방울 달린 형태
+      ['012_scarf.png', 'scarf'],  // 목도리 일반
+      ['013_flashlight.png', 'flashlight'],  // 손전등 일반
+      ['014_binoculars.png', 'binoculars'],  // 쌍안경 일반
+      ['015_watering_can.png', 'watering-can'],  // 물뿌리개 일반
+      ['016_toy_train.png', 'toy-train'],  // 장난감기차 증기기관차형
+      ['017_dinosaur_toy.png', 'dinosaur-toy'],  // 공룡인형 티라노사우루스형
+      ['018_soccer_ball.png', 'soccer-ball'],  // 축구공 일반
+      ['019_badminton_racket.png', 'badminton-racket'],  // 배드민턴채 일반
+      ['020_roller_skates.png', 'roller-skates'],  // 롤러스케이트 한 켤레
+      ['021_sunflower.png', 'sunflower'],  // 해바라기 일반
+      ['022_cactus.png', 'cactus'],  // 선인장 화분형
+      ['024_ladybug.png', 'ladybug'],  // 무당벌레 일반
+      ['025_squirrel.png', 'squirrel'],  // 다람쥐 일반
+      ['026_ice_cream_cone.png', 'ice-cream-cone'],  // 아이스크림 콘 형태
+      ['027_fish_bread.png', 'fish-bread'],  // 붕어빵 일반
+      ['028_chocolate_donut.png', 'chocolate-donut'],  // 초코도넛 초콜릿 코팅
+      ['029_strawberry_milk.png', 'strawberry-milk'],  // 딸기우유 우유갑 형태
+      ['001_smartphone.png', 'smartphone'],  // 전화기 스마트폰형
+      ['002_desk_phone.png', 'desk-phone'],  // 전화기 버튼형 유선전화
+      ['004_digital_camera.png', 'digital-camera'],  // 카메라 디지털카메라
+      ['005_vertical_traffic_light.png', 'vertical-traffic-light'],  // 신호등 세로형
+      ['007_wired_headphones.png', 'wired-headphones'],  // 헤드폰 유선형
+      ['010_mesh_trash_bin.png', 'mesh-trash-bin'],  // 휴지통 망사형
+      ['011_tv_remote.png', 'tv-remote'],  // 리모컨 텔레비전용
+      ['014_compact_keyboard.png', 'compact-keyboard'],  // 키보드 미니 무선형
+      ['016_desktop_speaker.png', 'desktop-speaker'],  // 스피커 탁상용 상자형
+      ['017_upright_vacuum.png', 'upright-vacuum'],  // 청소기 스틱형
+      ['018_robot_vacuum.png', 'robot-vacuum'],  // 청소기 로봇형
+      ['019_tissue_box.png', 'tissue-box'],  // 화장지 각티슈형
+      ['020_toilet_paper_roll.png', 'toilet-paper-roll'],  // 화장지 두루마리형
+      ['021_handheld_sharpener.png', 'handheld-sharpener'],  // 연필깎이 휴대용
+      ['022_crank_sharpener.png', 'crank-sharpener'],  // 연필깎이 손잡이형
+      ['023_gooseneck_desk_lamp.png', 'gooseneck-desk-lamp'],  // 탁상조명 목이 휘는 형태
+      ['024_shade_desk_lamp.png', 'shade-desk-lamp'],  // 탁상조명 갓 달린 형태
+      ['025_fire_extinguisher.png', 'fire-extinguisher'],  // 소화기 일반
+      ['026_first_aid_kit.png', 'first-aid-kit'],  // 구급상자 손잡이형
+      ['027_wristwatch.png', 'wristwatch'],  // 손목시계 일반
+      ['028_laundry_basket.png', 'laundry-basket'],  // 빨래바구니 손잡이형
+      ['029_clothes_hanger.png', 'clothes-hanger'],  // 옷걸이 일반
+      ['001_sunflower_seed.png', 'sunflower-seed'],  // 씨앗 해바라기 씨앗
+      ['002_iron.png', 'iron'],  // 다리미 일반
+      ['003_blue_shirt.png', 'blue-shirt'],  // 셔츠 일반
+      ['004_burnt_hole_shirt.png', 'burnt-hole-shirt'],  // 구멍 난 셔츠 다리미로 탄 형태
+      ['005_egg.png', 'egg'],  // 계란 일반
+      ['006_frying_pan.png', 'frying-pan'],  // 프라이팬 일반
+      ['007_fried_egg_in_pan.png', 'fried-egg'],  // 계란 프라이 프라이팬에 익힌 형태
+      ['008_milk_carton.png', 'milk-carton'],  // 우유 흰 우유팩
+      ['009_fart_smell_cloud.png', 'fart-cloud'],  // 방귀 냄새 냄새 구름
+      ['010_pine_tree_christmas_shape.png', 'pine-tree'],  // 소나무 크리스마스트리형 수형
+      ['011_gold_star.png', 'gold-star'],  // 별 트리 꼭대기 별
+      ['012_crescent_moon.png', 'crescent-moon'],  // 달 초승달
+      ['013_alarm_clock.png', 'alarm-clock'],  // 알람시계 클래식 쌍종형
+      ['014_sunlight.png', 'sunlight'],  // 햇빛 아침 햇살
+      ['015_rice_plant.png', 'rice-plant'],  // 벼 이삭 한 포기
+      ['016_salmon_fish.png', 'salmon-fish'],  // 생선 연어형
+      ['017_salmon_sushi.png', 'salmon-sushi'],  // 초밥 연어초밥
+      ['018_round_hand_mirror.png', 'hand-mirror'],  // 거울 둥근 손잡이형
+      ['019_globe.png', 'desk-globe'],  // 지구본 탁상형
+      ['020_mirror_ball.png', 'mirror-ball'],  // 미러볼 매달린 구형
+      ['021_window.png', 'window'],  // 창문 닫힌 유리창
+      ['022_baseball_bat.png', 'baseball-bat'],  // 야구 배트 나무 배트
+      ['023_glass_shards.png', 'glass-shards'],  // 유리조각 깨진 창유리
+      ['024_heart.png', 'heart'],  // 하트 붉은 하트
+      ['025_candle.png', 'candle'],  // 촛불 짧은 양초
+      ['026_heart_ring.png', 'heart-ring'],  // 반지 하트 보석 반지
+      ['027_rabbit.png', 'rabbit'],  // 토끼 달리기 직전
+      ['028_turtle.png', 'turtle'],  // 거북이 걷는 형태
+      ['029_racing_flag.png', 'racing-flag'],  // 레이싱 깃발 체크무늬 결승 깃발
+      ['031_running_shoe.png', 'sneakers'],  // 운동화 빠른 달리기용
+      ['032_gold_medal.png', 'gold-medal'],  // 금메달 달리기 우승
+      ['033_old_key.png', 'old-key'],  // 열쇠 보물상자 열쇠
+      ['034_treasure_map.png', 'treasure-map'],  // 지도 보물 지도
+      ['035_treasure_chest.png', 'treasure-chest'],  // 보물상자 닫힌 모험 상자
+      ['036_padlock.png', 'padlock'],  // 자물쇠 작은 일기장 자물쇠
+      ['037_quill_feather.png', 'quill-feather'],  // 깃털 필기용 깃펜
+      ['038_secret_diary.png', 'secret-diary'],  // 비밀일기 잠긴 깃펜 일기장
+      ['039_telescope.png', 'telescope'],  // 망원경 천체 관측용
+      ['040_shooting_star.png', 'shooting-star'],  // 별똥별 긴 꼬리 별
+      ['041_spaceship.png', 'spaceship'],  // 우주선 탐사 로켓형
+      ['042_camera.png', 'camera'],  // 카메라 여행용 카메라
+      ['043_footprints.png', 'footprints'],  // 발자국 여행 발자국
+      ['044_travel_album.png', 'travel-album'],  // 여행앨범 사진 여행 기록
+      ['045_round_glasses.png', 'round-glasses'],  // 안경 둥근 공부 안경
+      ['046_study_book.png', 'study-book'],  // 책 두꺼운 공부책
+      ['047_graduation_cap.png', 'graduation-cap'],  // 졸업모자 학업 성취
+      ['048_broom.png', 'broom'],  // 빗자루 긴 마녀 빗자루
+      ['049_stardust.png', 'stardust'],  // 별가루 병에 담긴 별가루
+      ['050_magic_wand.png', 'magic-wand'],  // 마법봉 별 장식 마법봉
+      ['052_spider_web.png', 'spider-web'],  // 거미줄 둥근 연결망
+      ['053_internet_router.png', 'internet-router'],  // 인터넷 공유기 세계 연결 공유기
+      ['054_compass.png', 'compass'],  // 나침반 여행 나침반
+      ['055_paper_airplane.png', 'paper-airplane'],  // 종이비행기 여행 출발
+      ['056_travel_suitcase.png', 'travel-suitcase'],  // 여행가방 모험 여행용
     ],
   },
   {
     /*
-     * 합성 세트. 서로 다른 물건을 합치는 레시피 20개를 위해 재료와 결과를 함께 그렸다.
+     * 히든 26종. 같은 물건의 **다른 형태**라 기본형과 나란히 서야 한다 —
+     * 비행기는 여객기와 복엽기, 알람시계는 쌍종형과 디지털이다.
      *
-     * 프라이팬·알람시계·운동화·소나무는 **기존 물건을 다시 그린 것**이라 같은 이름을
-     * 가져간다. 레시피가 그림으로 읽히도록 형태를 맞춘 것이고, 특히 소나무는 원뿔형이
-     * 아니면 별을 얹어도 크리스마스트리가 되지 않는다. 번개는 기존 그림을 그대로 쓴다.
+     * 이름은 `기본형-특징`으로 짓는다. 파일명의 `_hidden_`을 빼면 그 꼴이 되고,
+     * 도감에서 기본형 옆에 붙여 읽기에도 그편이 낫다.
      */
-    dir: '이미지-합성세트',
+    dir: '히든',
     items: [
-      ['001_sunflower_seed.png', 'sunflower-seed'],
-      ['002_iron.png', 'iron'],
-      ['003_blue_shirt.png', 'blue-shirt'],
-      ['004_burnt_hole_shirt.png', 'burnt-hole-shirt'],
-      ['005_egg.png', 'egg'],
-      ['006_frying_pan.png', 'frying-pan'],
-      ['007_fried_egg_in_pan.png', 'fried-egg'],
-      ['008_milk_carton.png', 'milk-carton'],
-      ['009_fart_smell_cloud.png', 'fart-cloud'],
-      ['010_pine_tree_christmas_shape.png', 'pine-tree'],
-      ['011_gold_star.png', 'gold-star'],
-      ['012_crescent_moon.png', 'crescent-moon'],
-      ['013_alarm_clock.png', 'alarm-clock'],
-      ['014_sunlight.png', 'sunlight'],
-      ['015_rice_plant.png', 'rice-plant'],
-      ['016_salmon_fish.png', 'salmon-fish'],
-      ['017_salmon_sushi.png', 'salmon-sushi'],
-      ['018_round_hand_mirror.png', 'hand-mirror'],
-      ['019_globe.png', 'desk-globe'],
-      ['020_mirror_ball.png', 'mirror-ball'],
-      ['021_window.png', 'window'],
-      ['022_baseball_bat.png', 'baseball-bat'],
-      ['023_glass_shards.png', 'glass-shards'],
-      ['024_heart.png', 'heart'],
-      ['025_candle.png', 'candle'],
-      ['026_heart_ring.png', 'heart-ring'],
-      ['027_rabbit.png', 'rabbit'],
-      ['028_turtle.png', 'turtle'],
-      ['029_racing_flag.png', 'racing-flag'],
-      ['031_running_shoe.png', 'sneakers'],
-      ['032_gold_medal.png', 'gold-medal'],
-      ['033_old_key.png', 'old-key'],
-      ['034_treasure_map.png', 'treasure-map'],
-      ['035_treasure_chest.png', 'treasure-chest'],
-      ['036_padlock.png', 'padlock'],
-      ['037_quill_feather.png', 'quill-feather'],
-      ['038_secret_diary.png', 'secret-diary'],
-      ['039_telescope.png', 'telescope'],
-      ['040_shooting_star.png', 'shooting-star'],
-      ['041_spaceship.png', 'spaceship'],
-      ['042_camera.png', 'camera'],
-      ['043_footprints.png', 'footprints'],
-      ['044_travel_album.png', 'travel-album'],
-      ['045_round_glasses.png', 'round-glasses'],
-      ['046_study_book.png', 'study-book'],
-      ['047_graduation_cap.png', 'graduation-cap'],
-      ['048_broom.png', 'broom'],
-      ['049_stardust.png', 'stardust'],
-      ['050_magic_wand.png', 'magic-wand'],
-      // 051_world_globe는 넣지 않는다. 019_globe와 받침 색만 다른 같은 그림이라
-      // 도감에 거의 똑같은 칸이 둘 생긴다. 지구본 하나를 두 레시피가 함께 쓴다
-      ['052_spider_web.png', 'spider-web'],
-      ['053_internet_router.png', 'internet-router'],
-      ['054_compass.png', 'compass'],
-      ['055_paper_airplane.png', 'paper-airplane'],
-      ['056_travel_suitcase.png', 'travel-suitcase'],
+      ['001_airplane_hidden_biplane.png', 'airplane-biplane'],  // 비행기 히든 · 복엽 프로펠러기
+      ['002_alarm_clock_hidden_digital.png', 'alarm-clock-digital'],  // 알람시계 히든 · 디지털 탁상형
+      ['003_beer_hidden_bottle.png', 'beer-bottle'],  // 맥주 히든 · 병맥주
+      ['004_americano_hidden_iced.png', 'americano-iced'],  // 아메리카노 히든 · 아이스 아메리카노
+      ['005_bicycle_hidden_folding.png', 'bicycle-folding'],  // 자전거 히든 · 접이식 자전거
+      ['006_electric_kettle_hidden_gooseneck.png', 'electric-kettle-gooseneck'],  // 전기주전자 히든 · 구즈넥형
+      ['007_toy_train_hidden_bullet_train.png', 'toy-train-bullet-train'],  // 장난감기차 히든 · 고속열차형
+      ['008_dinosaur_toy_hidden_triceratops.png', 'dinosaur-toy-triceratops'],  // 공룡인형 히든 · 트리케라톱스형
+      ['009_telescope_hidden_spyglass.png', 'telescope-spyglass'],  // 망원경 히든 · 손망원경
+      ['010_spaceship_hidden_flying_saucer.png', 'spaceship-flying-saucer'],  // 우주선 히든 · 원반형 비행접시
+      ['011_travel_suitcase_hidden_vintage_trunk.png', 'travel-suitcase-vintage-trunk'],  // 여행가방 히든 · 빈티지 가죽 트렁크
+      ['012_toy_car_hidden_dump_truck.png', 'toy-car-dump-truck'],  // 장난감자동차 히든 · 덤프트럭형
+      ['013_macaron_hidden_bear_face.png', 'macaron-bear-face'],  // 마카롱 히든 · 곰 얼굴형
+      ['014_terrarium_hidden_hanging_geometric.png', 'terrarium-hanging-geometric'],  // 테라리움 히든 · 행잉 기하학형
+      ['015_cactus_hidden_mexican_character.png', 'cactus-mexican-character'],  // 선인장 히든 · 멕시칸 캐릭터형
+      ['016_lunchbox_hidden_bear_omelet_rice.png', 'lunchbox-bear-omelet-rice'],  // 도시락 히든 · 곰돌이 오므라이스형
+      ['017_sunglasses_hidden_black_narrow_frame.png', 'sunglasses-black-narrow-frame'],  // 선글라스 히든 · 젠틀몬스터풍 좁은 사각형
+      ['018_magic_wand_hidden_winged_star.png', 'magic-wand-winged-star'],  // 마법봉 히든 · 날개 달린 별 원형봉
+      ['019_wool_hat_hidden_nordic_earflap.png', 'wool-hat-nordic-earflap'],  // 털모자 히든 · 노르딕 귀덮개형
+      ['020_wristwatch_hidden_silver_ultra_smartwatch.png', 'wristwatch-silver-ultra-smartwatch'],  // 손목시계 히든 · 실버 울트라 스마트워치형
+      ['021_milk_hidden_vintage_cart.png', 'milk-vintage-cart'],  // 우유 히든 · 빈티지 밀크 카트형
+      ['022_ring_hidden_diamond.png', 'ring-diamond'],  // 반지 히든 · 다이아몬드 반지
+      ['023_turtle_hidden_sea_turtle.png', 'turtle-sea-turtle'],  // 거북이 히든 · 바다거북
+      ['024_map_hidden_world_map.png', 'map-world-map'],  // 지도 히든 · 세계 지도
+      ['025_footprints_hidden_dinosaur.png', 'footprints-dinosaur'],  // 발자국 히든 · 공룡 발자국
+      ['026_sketchbook_hidden_open_landscape.png', 'sketchbook-open-landscape'],  // 스케치북 히든 · 가로형 열린 그림 스케치북
+    ],
+  },
+  {
+    /*
+     * 합성 콤보 세트. 재료를 셋에서 여섯까지 모아 하나로 만드는 레시피 17개를 위해
+     * 왔다. 결과물이 열일곱이고 새 재료가 열둘이다.
+     *
+     * 재료 넷 중 하나가 아직 그림이 없는 레시피가 넷 있다(삼각김밥·옷걸이·연필깎이·화장지).
+     * 그림이 오기 전까지 그 레시피는 넣지 않는다 — 넣으면 영영 못 만드는 줄이 생긴다.
+     */
+    dir: '이미지-합성콤보',
+    items: [
+      /* 새 재료 */
+      ['002_racing_toy_car.png', 'toy-car'],
+      ['008_pink_chocolate_macaron.png', 'macaron'],
+      ['027_butter_biscuit.png', 'biscuit'],
+      ['028_glowing_fantasy_mushroom.png', 'mushroom'],
+      ['029_purple_crystal_cluster.png', 'crystal'],
+      ['012_snowflake.png', 'snowflake'],
+      ['015_top_spiral_sketchbook.png', 'sketchbook'],
+      ['016_boxed_colored_pencil_set.png', 'pencil-set'],
+      ['018_bubble_solution_bottle.png', 'bubble-bottle'],
+      ['020_handheld_portable_fan.png', 'hand-fan'],
+      ['021_straw_kids_water_bottle.png', 'kids-bottle'],
+      ['025_wooden_door.png', 'wooden-door'],
+      /* 합성 결과물 */
+      ['001_world_travel_passport.png', 'travel-passport'],
+      ['003_speed_course.png', 'speed-course'],
+      ['004_space_travel_poster.png', 'space-poster'],
+      ['005_explorer_badge.png', 'explorer-badge'],
+      ['006_picnic_basket.png', 'picnic-basket'],
+      ['007_pub_platter.png', 'pub-platter'],
+      ['009_dessert_tower.png', 'dessert-tower'],
+      ['010_lucky_flowerpot.png', 'lucky-flowerpot'],
+      ['011_fantasy_terrarium.png', 'terrarium'],
+      ['013_christmas_snow_globe.png', 'snow-globe'],
+      ['014_korean_clothing_repair_shop.png', 'repair-shop'],
+      ['017_art_academy_bag.png', 'art-bag'],
+      ['019_bathroom_cleaning_set.png', 'cleaning-set'],
+      ['022_desert_survival_kit.png', 'survival-kit'],
+      ['023_sports_day_trophy.png', 'sports-trophy'],
+      ['024_magic_secret_book.png', 'magic-book'],
+      ['026_magic_door_in_mirror.png', 'mirror-door'],
     ],
   },
 ]
@@ -206,15 +300,24 @@ const SIMPLIFY_RATIO = 0.012
  * 44였을 때 거북이·별똥별·학사모·별가루가 정확히 44에서 멈췄다 — 더 정밀해질 수 있는데
  * 상한이 막고 있던 것이다. 점 수는 조각 수를 통해서만 물리에 값을 매기므로
  * (콜라이더 비용은 조각이 정한다) 여기를 넉넉히 두고 조각 쪽에서 조인다.
+ *
+ * **64에서 96으로 올린 것은 눈 결정 때문이다.** 여섯 갈래가 가늘어 윤곽이 60점에서
+ * 막혔고, 갈래 끝이 잘려 실루엣이 87%로 문턱(90%) 아래였다 — 화면에는 보이는데
+ * 부딪히지 않는 유령이 13%였다는 뜻이다. 96에서 93%, 140에서 96%가 된다.
+ * 96을 고른 것은 문턱을 넘기면서 전체 조각 수가 13%만 느는 자리라서다.
  */
-const MAX_OUTLINE_POINTS = 64
+const MAX_OUTLINE_POINTS = 96
 /**
  * 조각 수 상한. 우산 캐노피처럼 물결진 윤곽은 오목한 꼭짓점이 많아 조각이 불어난다.
  * 상한에 걸리면 볼록껍질로 때우면서 정확도를 잃으므로, 그 전에 윤곽선을 더 단순화해
  * 조각 수를 TARGET_PIECES 아래로 떨어뜨린다.
+ *
+ * **40에서 64로 올린 것도 눈 결정 때문이다.** 39개로 상한에 붙어 볼록껍질로 때우느라
+ * 조각이 윤곽 밖으로 6.7% 부풀었다(상한 1%). 풀어주니 99.8%로 내려왔다.
+ * 콜라이더 비용은 실측으로 무시할 수준이다 — 물건 15개·조각 456개에서 스텝 0.134ms다.
  */
-const MAX_PIECES = 40
-const TARGET_PIECES = 20
+const MAX_PIECES = 64
+const TARGET_PIECES = 24
 
 const processInPage = ([
   dataUrl,

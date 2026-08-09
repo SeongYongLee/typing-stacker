@@ -9,12 +9,12 @@
  * ## 대부분의 물건은 아무것도 흘리지 않는다
  *
  * 107종 중 38종만 여기 있다. 금속·기계·유리·플라스틱은 비워뒀다 — 다 흘리면 화면이
- * 늘 부스러기로 차서 아무 뜻이 없어진다. 색번짐을 빛나는 10종으로 좁힌 것과 같은
+ * 늘 부스러기로 차서 아무 뜻이 없어진다. 색번짐을 빛나는 것으로 좁힌 것과 같은
  * 판단이고, 여기서도 기준은 **"그 물건이 움직이면 정말 뭔가 떨어지겠는가"** 하나다.
  *
  * ## 색번짐과 갈래를 나눠 둔 이유
  *
- * `sparkle`은 `glowItems.ts`의 10종과 정확히 같다. 같은 물건이 화면을 물들이고 또
+ * `sparkle`은 `glowItems.ts`와 정확히 같은 집합이다. 같은 물건이 화면을 물들이고 또
  * 반짝임을 흘리는 것이라, 규칙("빛나는 것은 다르다")이 두 번 강화된다. 그래도 표를
  * 합치지 않은 것은 **다른 갈래가 넷 더 있기** 때문이다 — 색번짐은 빛나는 것만의 일이고
  * 꼬리는 그보다 넓다.
@@ -27,7 +27,7 @@
 type Trail = 'sparkle' | 'droplet' | 'petal' | 'fluff' | 'crumb' | 'splash' | 'steam'
 
 const TRAILS: Readonly<Record<string, Trail>> = {
-  /* 빛나는 것 — 반짝임을 흘린다. glowItems.ts와 같은 열 종 */
+  /* 빛나는 것 — 반짝임을 흘린다. glowItems.ts와 같은 집합 */
   bolt: 'sparkle',
   'shooting-star': 'sparkle',
   stardust: 'sparkle',
@@ -36,6 +36,9 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   'gold-star': 'sparkle',
   candle: 'sparkle',
   flashlight: 'sparkle',
+  'desk-lamp': 'sparkle',
+  'gooseneck-lamp': 'sparkle',
+  'traffic-light': 'sparkle',
   'magic-wand': 'sparkle',
   'mirror-ball': 'sparkle',
 

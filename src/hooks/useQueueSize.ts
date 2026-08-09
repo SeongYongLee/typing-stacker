@@ -13,6 +13,16 @@ import { fetchQueueSize } from '../rank/queue.ts'
  */
 const REFRESH_MS = 6000
 
+/**
+ * 로비를 오래 열어두면 뜸하게 묻는다.
+ *
+ * 이 값은 **누르기 전에 참고하는 숫자**다. 처음 몇 번은 최근값이어야 하지만, 로비를
+ * 켜둔 채 자리를 뜬 사람에게까지 6초마다 물으면 아무도 안 보는 값에 하루치 요청을 쓴다.
+ * 줄에 서 있을 때와 달리 여기서는 늦어도 잃을 것이 없다 — 아무 일도 시작되지 않는다.
+ */
+const SLOW_AFTER = 10
+const SLOW_MS = 30000
+
 function useQueueSize(active: boolean): number | null {
   const [waiting, setWaiting] = useState<number | null>(null)
 
@@ -21,6 +31,7 @@ function useQueueSize(active: boolean): number | null {
       return
     }
     let alive = true
+    let asked = 0
     let timer: ReturnType<typeof setTimeout> | null = null
 
     const ask = async (): Promise<void> => {
@@ -29,7 +40,8 @@ function useQueueSize(active: boolean): number | null {
         return
       }
       setWaiting(next)
-      timer = setTimeout(() => void ask(), REFRESH_MS)
+      asked += 1
+      timer = setTimeout(() => void ask(), asked < SLOW_AFTER ? REFRESH_MS : SLOW_MS)
     }
 
     void ask()

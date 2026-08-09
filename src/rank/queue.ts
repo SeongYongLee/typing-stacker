@@ -22,6 +22,23 @@ const BASE = RELAY_URL.replace(/^ws/, 'http')
  */
 const POLL_MS = 1500
 
+/**
+ * 오래 기다릴수록 뜸하게 묻는다.
+ *
+ * 처음에는 자주 물어야 한다 — 그때가 짝이 맺어질 가능성이 가장 높고, 붙는 순간이
+ * 늦으면 사람이 바로 느낀다. 하지만 5분을 기다리는 사람에게까지 1.5초를 유지하면
+ * 그 한 사람이 200번을 부른다. 요청 수는 무료 한도에서 가장 먼저 차는 값이다.
+ *
+ * **서버가 줄에서 치우는 기준(6초)을 넘으면 안 된다.** 넘으면 멀쩡히 기다리는
+ * 사람이 줄에서 빠지고, 본인은 여전히 기다리는 줄 안다. 그래서 4초에서 멈춘다.
+ */
+function pollDelay(waitedSec: number): number {
+  if (waitedSec < 15) {
+    return POLL_MS
+  }
+  return waitedSec < 45 ? 2500 : 4000
+}
+
 /** 한 번의 응답을 기다리는 상한. 넘으면 그 회차만 건너뛰고 다음에 다시 묻는다 */
 const TIMEOUT_MS = 5000
 
@@ -162,5 +179,5 @@ async function post(
   }
 }
 
-export { enterQueue, leaveQueue, fetchQueueSize, POLL_MS }
+export { enterQueue, leaveQueue, fetchQueueSize, pollDelay, POLL_MS }
 export type { QueueStatus }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { POLL_MS, enterQueue, leaveQueue, type QueueStatus } from '../rank/queue.ts'
+import { enterQueue, leaveQueue, pollDelay, type QueueStatus } from '../rank/queue.ts'
 
 /**
  * 자동매칭 줄에 서 있는 동안의 상태.
@@ -93,7 +93,13 @@ function useAutoMatch(onMatched: (code: string) => void): AutoMatchView {
         activeRef.current = false
         return
       }
-      timer = setTimeout(() => void ask(), POLL_MS)
+      /*
+       * 오래 기다릴수록 뜸하게 묻는다. 서버가 알려준 대기 시간을 그대로 쓴다 —
+       * 이쪽에서 따로 세면 회차를 건너뛰거나 늦게 답이 올 때 두 값이 어긋난다.
+       */
+      // 닿지 못한 회차는 기다린 시간을 모른다. 그때는 기본 주기로 다시 묻는다
+      const waited = next.kind === 'waiting' ? next.waitedSec : 0
+      timer = setTimeout(() => void ask(), pollDelay(waited))
     }
 
     void ask()

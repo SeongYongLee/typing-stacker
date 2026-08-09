@@ -37,6 +37,12 @@ interface RankView {
   /** 내 순위(1부터). 기록이 없으면 null */
   readonly rank: number | null
   readonly top: readonly RunRecord[]
+  /**
+   * 레이팅 순위. 대전 쪽의 순위표다.
+   *
+   * 옛 서버는 이 값을 모른다 — 그때는 빈 배열이라 화면이 조용히 순위표만 감춘다.
+   */
+  readonly ladder: readonly LadderRecord[]
   readonly rating: number
   readonly wins: number
   readonly losses: number
@@ -48,10 +54,20 @@ interface RankView {
   readonly disputed?: boolean
 }
 
+interface LadderRecord {
+  readonly id: string
+  readonly name: string
+  readonly icon?: string
+  readonly rating: number
+  readonly wins: number
+  readonly losses: number
+}
+
 const EMPTY: RankView = {
   best: null,
   rank: null,
   top: [],
+  ladder: [],
   rating: START_RATING,
   wins: 0,
   losses: 0,
@@ -176,4 +192,4 @@ async function request(path: string, init: RequestInit): Promise<Partial<RankVie
 }
 
 export { submitRun, reportMatch, fetchRank, fetchMyRating, fetchRatings, EMPTY }
-export type { RankView, RunRecord }
+export type { RankView, RunRecord, LadderRecord }

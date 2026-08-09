@@ -139,7 +139,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
     <div style={rootStyle}>
       <div style={{ maxWidth: 760, margin: '0 auto 24px', textAlign: 'center' }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>도감</h1>
-        <p style={{ color: '#ffcf5c', fontSize: 15, fontWeight: 600, margin: '12px 0 0' }}>
+        <p style={{ color: '#e4e68a', fontSize: 15, fontWeight: 600, margin: '12px 0 0' }}>
           {found.size} / {total}
         </p>
       </div>
@@ -210,7 +210,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
                   fontWeight: 600,
                   color: item.hidden
                     ? owned
-                      ? '#ffcf5c'
+                      ? '#e4e68a'
                       : '#5c4a1c'
                     : owned
                       ? '#f2f4fb'

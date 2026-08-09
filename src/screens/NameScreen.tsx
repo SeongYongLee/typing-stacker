@@ -228,7 +228,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
         >
           {/* 테두리는 다른 자리와 같은 색이다. 여기만 강조하면 아이콘이 골라진 줄로 읽힌다 */}
           <Avatar icon={pickedIcon} size={34} />
-          <p style={{ font: '700 22px/1.3 var(--sans)', color: '#ffcf5c', margin: 0 }} data-my-name>
+          <p style={{ font: '700 22px/1.3 var(--sans)', color: '#e4e68a', margin: 0 }} data-my-name>
             {name}
           </p>
         </div>
@@ -265,7 +265,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
     width: 34,
     padding: '6px 0',
     fontSize: 15,
-    color: selected ? '#ffcf5c' : '#6a7290',
+    color: selected ? '#e4e68a' : '#6a7290',
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
@@ -280,7 +280,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
         alignItems: 'center',
         padding: '7px 8px',
         borderRadius: 10,
-        border: `1px solid ${selected ? '#ffcf5c' : '#48507a'}`,
+        border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
         background: selected ? '#2c2413' : 'transparent',
       }}
       data-pick-row={label}
@@ -293,7 +293,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
         {icon !== undefined && <Avatar icon={icon} size={30} />}
         <div>
           <div style={rowLabelStyle}>{label}</div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: selected ? '#ffcf5c' : '#b6bdd4' }}>
+          <div style={{ fontSize: 17, fontWeight: 600, color: selected ? '#e4e68a' : '#b6bdd4' }}>
             {value}
           </div>
         </div>

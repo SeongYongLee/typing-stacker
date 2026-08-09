@@ -23,7 +23,7 @@ function WaitingRoom({ roomCode, onBack }: { roomCode: string; onBack: () => voi
           style={{
             font: '700 40px/1.2 var(--mono)',
             letterSpacing: '0.14em',
-            color: '#ffcf5c',
+            color: '#e4e68a',
             background: '#0d0f16',
             border: '1px solid #2e3448',
             borderRadius: 12,

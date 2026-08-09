@@ -1,10 +1,16 @@
+import { useState } from 'react'
+import backgroundDay from '../assets/splash/background-day.png'
+import backgroundNight from '../assets/splash/background-night.png'
+import titleDay from '../assets/splash/title-day.png'
+import titleNight from '../assets/splash/title-night.png'
 import { MenuButton } from '../components/MenuButton.tsx'
-import { MenuLayout } from '../components/MenuLayout.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'
 import { useLeaderboard } from '../hooks/useLeaderboard.ts'
+import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { loadProfile } from '../storage/profile.ts'
 import { TitleSidePanel } from './TitleSidePanel.tsx'
-import { useMenuKeys } from '../hooks/useMenuKeys.ts'
+import { titleThemeForHour, type TitleTheme } from './titleTheme.ts'
+import './TitleScreen.css'
 
 interface TitleScreenProps {
   onStart: () => void
@@ -17,8 +23,17 @@ interface TitleScreenProps {
   ready: boolean
 }
 
+const SPLASH_ASSETS: Record<TitleTheme, { background: string; title: string }> = {
+  day: { background: backgroundDay, title: titleDay },
+  night: { background: backgroundNight, title: titleNight },
+}
+
 function TitleScreen({ onStart, onName, onMultiplayer, onCollection, onOptions, ready, progress }: TitleScreenProps) {
   const board = useLeaderboard()
+  // 타이틀에 머무는 동안 낮·밤 그림이 갑자기 바뀌지 않도록 진입 시각으로 고정한다
+  const [theme] = useState<TitleTheme>(() => titleThemeForHour(new Date().getHours()))
+  const [loadedAssets, setLoadedAssets] = useState(0)
+  const assets = SPLASH_ASSETS[theme]
 
   // 이름이 맨 앞이되 버튼 무리에는 끼지 않는다 — 까닭은 NameGreeting에 적었다
   const items: readonly {
@@ -58,36 +73,65 @@ function TitleScreen({ onStart, onName, onMultiplayer, onCollection, onOptions, 
     },
   })
 
+  const markAssetLoaded = () => {
+    setLoadedAssets((count) => Math.min(count + 1, 2))
+  }
+
   return (
-    <MenuLayout
-      title="타자 스태커"
-      titleSize={46}
-      hint="↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다"
-      menu={
-        <>
-          <NameGreeting
-            name={me.name}
+    <div
+      className="title-splash"
+      data-theme={theme}
+      data-ready={loadedAssets === 2 ? 'yes' : 'no'}
+    >
+      <img
+        className="title-splash__background"
+        src={assets.background}
+        alt=""
+        aria-hidden="true"
+        onLoad={markAssetLoaded}
+        onError={markAssetLoaded}
+      />
+      <div className="title-splash__veil" aria-hidden="true" />
+
+      <main className="title-splash__stage">
+        <h1 className="sr-only">수상한 분실물 보관소</h1>
+        <img
+          className="title-splash__logo"
+          src={assets.title}
+          alt=""
+          aria-hidden="true"
+          onLoad={markAssetLoaded}
+          onError={markAssetLoaded}
+        />
+
+        <div className="title-splash__content">
+          <div className="title-splash__menu">
+            <NameGreeting
+              name={me.name}
               icon={me.icon}
-            selected={menu.index === 0}
-            onSelect={() => menu.select(0)}
-            onActivate={onName}
-          />
-          {items.slice(1).map((item, index) => (
-            <MenuButton
-              key={item.label}
-              selected={menu.index === index + 1}
-              onClick={item.run}
-              onHover={() => menu.select(index + 1)}
-              primary={item.primary}
-              disabled={item.disabled}
-            >
-              {item.label}
-            </MenuButton>
-          ))}
-        </>
-      }
-      panel={<TitleSidePanel kind={items[menu.index]?.panel ?? null} board={board} />}
-    />
+              selected={menu.index === 0}
+              onSelect={() => menu.select(0)}
+              onActivate={onName}
+            />
+            {items.slice(1).map((item, index) => (
+              <MenuButton
+                key={item.label}
+                selected={menu.index === index + 1}
+                onClick={item.run}
+                onHover={() => menu.select(index + 1)}
+                primary={item.primary}
+                disabled={item.disabled}
+              >
+                {item.label}
+              </MenuButton>
+            ))}
+          </div>
+          <TitleSidePanel kind={items[menu.index]?.panel ?? null} board={board} />
+        </div>
+
+        <p className="title-splash__hint">↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다</p>
+      </main>
+    </div>
   )
 }
 

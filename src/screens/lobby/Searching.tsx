@@ -42,13 +42,13 @@ function Searching({
 
         {unsupported ? (
           <p
-            style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}
+            style={{ color: '#e4e68a', margin: 0, fontSize: 15, lineHeight: 1.7 }}
             data-queue-unsupported
           >
             서버가 아직 랭크 게임을 모릅니다. 친선전으로 방을 만들어 주세요.
           </p>
         ) : unreachable ? (
-          <p style={{ color: '#ffcf5c', margin: 0, fontSize: 15, lineHeight: 1.7 }}>
+          <p style={{ color: '#e4e68a', margin: 0, fontSize: 15, lineHeight: 1.7 }}>
             서버에 닿지 못했습니다. 잠시 뒤 다시 시도합니다.
           </p>
         ) : (

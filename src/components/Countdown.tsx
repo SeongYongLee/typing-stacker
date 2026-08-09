@@ -58,7 +58,7 @@ function Countdown({ secondsLeft, note }: CountdownProps) {
           ref={ref}
           style={{
             font: '700 96px/1 var(--sans)',
-            color: '#ffcf5c',
+            color: '#e4e68a',
             fontVariantNumeric: 'tabular-nums',
           }}
         >

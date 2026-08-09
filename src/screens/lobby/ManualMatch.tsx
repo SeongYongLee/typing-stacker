@@ -136,7 +136,7 @@ function ManualMatch({
           사람에게 아래를 가리키는 말은 아무것도 알려주지 않는다.
         */}
         {!named && (
-          <span style={{ ...pathLabelStyle, color: '#ffcf5c' }} data-name-hint>
+          <span style={{ ...pathLabelStyle, color: '#e4e68a' }} data-name-hint>
             이름을 적으면 방을 만들거나 참가할 수 있습니다
           </span>
         )}

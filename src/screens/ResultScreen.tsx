@@ -102,7 +102,7 @@ function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
           <div
             style={{
               font: '700 52px/1.1 var(--sans)',
-              color: '#ffcf5c',
+              color: '#e4e68a',
               margin: '8px 0 6px',
               fontVariantNumeric: 'tabular-nums',
             }}
@@ -155,7 +155,7 @@ function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
               <p style={{ fontSize: 12, color: '#6a7290', letterSpacing: '0.08em', margin: 0 }}>
                 발견한 히든
               </p>
-              <p style={{ margin: '6px 0 0', color: '#ffcf5c' }}>
+              <p style={{ margin: '6px 0 0', color: '#e4e68a' }}>
                 {stats.hiddenFound.join(' · ')}
               </p>
             </div>
@@ -228,7 +228,7 @@ function RankBoard({ ranking }: { ranking: RunRanking }) {
               display: 'flex',
               gap: 10,
               fontSize: 13,
-              color: run.id === profile.id ? '#ffcf5c' : '#8b93b0',
+              color: run.id === profile.id ? '#e4e68a' : '#8b93b0',
               fontWeight: run.id === profile.id ? 700 : 400,
             }}
           >

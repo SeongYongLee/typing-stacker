@@ -65,7 +65,7 @@ function RunChase({ score }: { score: number }) {
           목표
         </span>
       )}
-      <span style={{ fontSize: 17, fontWeight: 600, color: '#ffcf5c' }}>
+      <span style={{ fontSize: 17, fontWeight: 600, color: '#e4e68a' }}>
         {chase === null ? label : `${label}까지`}
       </span>
       {chase !== null && (

@@ -43,14 +43,14 @@ function MenuButton({
     ? { border: '1px solid #262b3d', background: '#1a1e2c', color: '#4a5171' }
     : primary
       ? {
-          border: `1px solid ${selected ? '#ffcf5c' : '#48507a'}`,
-          background: selected ? '#ffcf5c' : '#2c2413',
-          color: selected ? '#1a1405' : '#ffcf5c',
+          border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
+          background: selected ? '#e4e68a' : '#2c2413',
+          color: selected ? '#1a1405' : '#e4e68a',
         }
       : {
-          border: `1px solid ${selected ? '#ffcf5c' : '#48507a'}`,
+          border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
           background: selected ? '#2c2413' : 'transparent',
-          color: selected ? '#ffcf5c' : '#b6bdd4',
+          color: selected ? '#e4e68a' : '#b6bdd4',
         }
 
   /* 키보드로 고르면 useMenuKeys가 소리를 낸다. 마우스로 누른 길에도 같은 소리가 나야 한다 */
@@ -65,6 +65,7 @@ function MenuButton({
       onClick={disabled ? undefined : activate}
       onMouseEnter={disabled ? undefined : onHover}
       disabled={disabled}
+      className="menu-button"
       data-menu-item
       data-selected={selected ? 'yes' : 'no'}
       style={{ ...base, ...look, ...style }}

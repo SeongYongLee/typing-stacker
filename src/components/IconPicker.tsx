@@ -94,7 +94,7 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
     <div
       style={{
         ...rootStyle,
-        borderColor: selected ? '#ffcf5c' : '#2e3448',
+        borderColor: selected ? '#e4e68a' : '#2e3448',
         background: selected ? '#2c2413' : '#0d0f16',
       }}
       onMouseEnter={onHover}
@@ -123,7 +123,7 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       </button>
       <Avatar icon={icon} size={34} />
       <span
-        style={{ flex: 1, fontSize: 14, color: selected ? '#ffcf5c' : '#b6bdd4', textAlign: 'left' }}
+        style={{ flex: 1, fontSize: 14, color: selected ? '#e4e68a' : '#b6bdd4', textAlign: 'left' }}
       >
         {label}
       </span>

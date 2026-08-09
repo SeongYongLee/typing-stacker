@@ -57,7 +57,7 @@ function Blurb({ lines, kind }: { lines: readonly ReactNode[]; kind: string }) {
 }
 
 function Key({ children }: { children: ReactNode }) {
-  return <strong style={{ color: '#ffcf5c' }}>{children}</strong>
+  return <strong style={{ color: '#e4e68a' }}>{children}</strong>
 }
 
 function Danger({ children }: { children: ReactNode }) {

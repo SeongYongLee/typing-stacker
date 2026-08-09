@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import type { BgmTrackName } from '../audio/tracks.ts'
-import type { GameEvent } from '../game/types/events.ts'
 import type { AudioSettings } from '../storage/audioSettings.ts'
-
-/** 엔진 종류를 가리지 않고 사건만 내주면 된다 — 싱글도 대전도 같은 통로다 */
-interface EventSource {
-  onEvent: (sink: (event: GameEvent) => void) => void
-}
 
 /**
  * 소리를 페이지에 붙인다. 앱에서 한 번만 부른다.
@@ -31,17 +25,6 @@ function useAudioBoot(): void {
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
-}
-
-/** 엔진의 사건을 소리로 흘린다 */
-function useGameSound(source: EventSource | null): void {
-  useEffect(() => {
-    if (source === null) {
-      return
-    }
-    const board = soundBoard()
-    source.onEvent((event) => board.handle(event))
-  }, [source])
 }
 
 /**
@@ -93,4 +76,4 @@ function useAudioSettings(): {
   return { settings, update }
 }
 
-export { useAudioBoot, useGameSound, useTypingSound, useMusic, useAudioSettings }
+export { useAudioBoot, useTypingSound, useMusic, useAudioSettings }

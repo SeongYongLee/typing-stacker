@@ -108,25 +108,11 @@ function spriteShape(name: SpriteName, size: SpriteSize): ShapeDef {
   return { kind: 'compound', parts }
 }
 
-/**
- * 그리기용 실루엣 윤곽선들 (각각 닫힌 폴리곤).
- *
- * 하나가 아니라 여럿인 것은 그림이 떨어진 덩어리로 이루어질 수 있기 때문이다 —
- * 햇빛의 광선, 흩어진 유리조각, 발자국 여덟 개가 그렇다.
- */
-function spriteOutlines(name: SpriteName, size: SpriteSize): Vec2[][] {
-  const { hw, hh } = spriteBounds(name, size)
-  return metaOf(name).outlines.map((outline) =>
-    outline.map(([x, y]) => ({ x: x * hw, y: y * hh })),
-  )
-}
-
 export {
   primitiveBounds,
   shapeBounds,
   halfExtentY,
   spriteShape,
   spriteBounds,
-  spriteOutlines,
 }
 export type { Bounds, SpriteSize }

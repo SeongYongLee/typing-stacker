@@ -110,18 +110,6 @@ async function reportMatch(input: {
 }
 
 /**
- * 내 레이팅만 다시 본다.
- *
- * 먼저 보고한 쪽은 그 순간 상대의 보고가 아직 없어 "기다리는 중"을 받는다.
- * 그 뒤로는 아무도 알려주지 않으므로 이쪽에서 한 번 더 물어봐야 결과를 알 수 있다.
- */
-async function fetchMyRating(): Promise<RankView | null> {
-  const profile = loadProfile()
-  const me = await get(`/rank/me?id=${encodeURIComponent(profile.id)}`)
-  return me === null ? null : { ...EMPTY, ...me }
-}
-
-/**
  * 여럿의 레이팅을 한 번에 본다. 준비 화면에서 **누구와 붙는지** 보여주려는 것이다.
  *
  * **각자 자기 레이팅을 실어 보내게 하지 않는다.** 그렇게 하면 아무 티어나 적어
@@ -191,5 +179,5 @@ async function request(path: string, init: RequestInit): Promise<Partial<RankVie
   }
 }
 
-export { submitRun, reportMatch, fetchRank, fetchMyRating, fetchRatings, EMPTY }
+export { submitRun, reportMatch, fetchRank, fetchRatings, EMPTY }
 export type { RankView, RunRecord, LadderRecord }

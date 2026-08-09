@@ -11,7 +11,7 @@ import { DAY_SEC, FIRST_NIGHT_SEC, NIGHT_SEC } from '../config.ts'
  *
  * | 국면 | 내려오는 단어 | 왜 |
  * |---|---|---|
- * | 첫 밤 | 정해둔 재료 두엇 | 치는 족족 짝이 갖춰진다. 합성을 배우는 구간 |
+ * | 첫 밤 | 정해둔 재료 두엇 | 치는 족족 짝이 갖춰진다. **합성 두 번**이면 끝난다 |
  * | 낮 | 전부 | 판의 보통 상태 |
  * | 밤 | 재료만 | 몰아서 합칠 수 있는 구간 |
  *
@@ -51,21 +51,34 @@ interface TimeOfDay {
 const TWILIGHT_SEC = 2.5
 
 /**
- * 지금 몇 시인가. 판이 흐른 시간만 있으면 된다 —
- * 상태를 들고 있지 않으므로 같은 시각이면 늘 같은 답이다.
+ * 지금 몇 시인가.
+ *
+ * **첫 밤이 언제 끝나는지는 밖에서 받는다.** 첫 밤은 시간이 아니라 사건(합성 두 번)으로
+ * 끝나는데, 그것을 아는 것은 판을 굴리는 엔진이다. 이 함수가 직접 세면 상태를 들게
+ * 되어 "같은 시각이면 늘 같은 답"이 깨진다 — 그 성질이 있어야 화면·시계·밭이
+ * 서로 다른 곳에서 물어봐도 답이 갈리지 않는다.
+ *
+ * 아직 안 끝났으면 엔진이 **상한**(`FIRST_NIGHT_SEC`)을 넘긴다. 그래서 이 함수는
+ * "첫 밤이 이만큼 걸린다"는 사실만 알면 되고, 그것이 사건으로 정해졌는지 상한에
+ * 걸린 것인지는 알 필요가 없다.
  */
-function timeOfDay(elapsedSec: number): TimeOfDay {
-  if (elapsedSec < FIRST_NIGHT_SEC) {
+function timeOfDay(elapsedSec: number, firstNightEnd: number = FIRST_NIGHT_SEC): TimeOfDay {
+  /*
+   * 0으로 들어오면 첫 밤이 없는 것이 아니라 **나누기가 무너진다.** 상한이 0일 리는
+   * 없지만 사건으로 정해지는 값이라 이론상 0이 올 수 있다.
+   */
+  const end = Math.max(firstNightEnd, 0.001)
+  if (elapsedSec < end) {
     return {
       phase: 'firstNight',
-      progress: clamp01(elapsedSec / FIRST_NIGHT_SEC),
+      progress: clamp01(elapsedSec / end),
       // 첫 밤의 끝자락에서 날이 밝기 시작한다
-      nightfall: clamp01((FIRST_NIGHT_SEC - elapsedSec) / TWILIGHT_SEC),
+      nightfall: clamp01((end - elapsedSec) / TWILIGHT_SEC),
     }
   }
 
   const cycle = DAY_SEC + NIGHT_SEC
-  const at = (elapsedSec - FIRST_NIGHT_SEC) % cycle
+  const at = (elapsedSec - end) % cycle
 
   if (at < DAY_SEC) {
     return {

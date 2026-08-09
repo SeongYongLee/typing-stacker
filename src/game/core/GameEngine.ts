@@ -1,6 +1,8 @@
 import {
   AIM_HALF_RANGE,
   DROP_COOLDOWN_MS,
+  FIRST_NIGHT_MERGES,
+  FIRST_NIGHT_SEC,
   HIDDEN_CHANCE,
   INVULNERABLE_SEC,
   LEDGE,
@@ -187,6 +189,21 @@ class GameEngine {
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
   /** 지금 국면. 바뀔 때만 밭을 갈아끼우려고 들고 있는다 */
   private phaseNow: Phase = 'firstNight'
+  /**
+   * 이번 판의 합성 횟수. 첫 밤을 끝내는 조건이라 세어 둔다.
+   *
+   * `ScoreManager`가 아니라 여기서 세는 이유는 **국면이 엔진의 것**이기 때문이다.
+   * 점수는 판이 끝난 뒤에 보는 값이고 이것은 판이 도는 동안 쓰는 값이다.
+   */
+  private mergeCount = 0
+  /**
+   * 첫 밤이 끝나는 시각(초).
+   *
+   * 합성 두 번을 하기 전에는 **상한**(`FIRST_NIGHT_SEC`)이다 — `timeOfDay`는 "첫 밤이
+   * 이만큼 걸린다"만 알면 되고, 그것이 사건으로 정해졌는지 상한에 걸린 것인지는
+   * 알 필요가 없다. 두 번째 합성이 일어나면 그 순간의 시각으로 못 박는다.
+   */
+  private firstNightEnd = FIRST_NIGHT_SEC
   /** 첫 밤에 내보낼 단어. 판마다 다르게 뽑으므로 시작할 때 정해 둔다 */
   private firstNightPool: readonly WordEntry[] = []
   /** 밤에 내보낼 단어 — 재료만. 판 내내 같으므로 한 번만 만든다 */
@@ -273,6 +290,8 @@ class GameEngine {
      */
     this.firstNightPool = openingEntries(this.rng, WORDS)
     this.phaseNow = 'firstNight'
+    this.mergeCount = 0
+    this.firstNightEnd = FIRST_NIGHT_SEC
     this.spawner.restrict(this.firstNightPool)
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
@@ -532,7 +551,7 @@ class GameEngine {
       difficultyProgress(this.physics.stackTop()),
     )
     this.frameSeq += 1
-    this.applyPhase(timeOfDay(this.elapsed).phase)
+    this.applyPhase(timeOfDay(this.elapsed, this.firstNightEnd).phase)
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
@@ -625,6 +644,17 @@ class GameEngine {
       duration: MERGE_REVEAL_SEC,
     }
     this.fire({ kind: 'merge' })
+    this.mergeCount += 1
+    /*
+     * 첫 밤은 시간이 아니라 **이 사건**으로 끝난다. 목적이 "합성이라는 것이 있다"를
+     * 알리는 것이므로 알린 그 순간이 끝나는 지점이다 — 까닭은 `FIRST_NIGHT_MERGES`에.
+     *
+     * 이미 낮으로 넘어간 뒤의 합성은 아무것도 바꾸지 않는다. `elapsed`가 상한보다
+     * 커서 못 박아봐야 이미 지난 시각이 되고, 그러면 주기의 시작점이 뒤로 밀린다.
+     */
+    if (this.mergeCount === FIRST_NIGHT_MERGES && this.phaseNow === 'firstNight') {
+      this.firstNightEnd = this.elapsed
+    }
     this.score.onCrafted(result)
     this.discover(result)
     this.growLedge()
@@ -818,7 +848,7 @@ class GameEngine {
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
-      nightfall: timeOfDay(this.elapsed).nightfall,
+      nightfall: timeOfDay(this.elapsed, this.firstNightEnd).nightfall,
       ledges: this.physics.ledges(),
       formingLedge:
         this.formingLedge === null
@@ -853,7 +883,7 @@ class GameEngine {
       words: this.spawner.words,
       wordMarks: this.wordMarks(this.marks()),
       pairPulse: pairPulse(this.elapsed),
-      timeOfDay: timeOfDay(this.elapsed),
+      timeOfDay: timeOfDay(this.elapsed, this.firstNightEnd),
       aimNormalized: this.aimer.normalized,
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,

@@ -77,6 +77,7 @@ class Hub {
 class HubTransport implements Transport {
   readonly selfId: PlayerId
   readonly isHost: boolean
+  readonly hostId = 'p0'
   readonly roomCode: string | null
   closed = false
   private readonly hub: Hub

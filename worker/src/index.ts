@@ -114,6 +114,7 @@ export class MatchRoom {
     const wantsToCreate = url.searchParams.get('create') === '1'
 
     const sockets = this.state.getWebSockets()
+    const existingHostId = await this.resolveExistingHostId(sockets)
 
     const pair = new WebSocketPair()
     const client = pair[0]
@@ -154,14 +155,17 @@ export class MatchRoom {
     const taken = asked !== null && others.includes(asked)
     const id = asked !== null && !taken ? asked : crypto.randomUUID()
     const returning = id === asked
+    // 배포 전부터 열려 있던 방만 기존 소켓 순서를 한 번 사용하고, 이후에는 저장소가 정본이다.
+    const hostId = existingHostId ?? (sockets.length === 0 ? id : idOf(sockets[0]!) ?? id)
+    if (existingHostId === null) await this.state.storage.put('hostId', hostId)
 
     this.state.acceptWebSocket(server)
-    // 잠들었다 깨어나도 누가 누구인지 알아야 한다
-    server.serializeAttachment({ id })
+    // 잠들었다 깨어나도 누가 누구인지와 처음 방장이 누구인지 알아야 한다
+    server.serializeAttachment({ id, hostId, host: id === hostId })
 
-    server.send(
-      JSON.stringify({ t: 'welcome', self: id, peers: others, host: others.length === 0, returning }),
-    )
+    server.send(JSON.stringify({
+      t: 'welcome', self: id, peers: others, host: id === hostId, hostId, returning,
+    }))
     this.broadcast({ t: 'peerJoined', peer: id }, id)
 
     return new Response(null, { status: 101, webSocket: client })
@@ -207,12 +211,45 @@ export class MatchRoom {
       }
     }
   }
+
+  /** 방장 ID는 소켓 배열 순서가 아니라 DO 저장소와 명시적 attachment로 보존한다. */
+  private async resolveExistingHostId(sockets: readonly WebSocket[]): Promise<string | null> {
+    if (sockets.length === 0) return null
+    const isConnected = (id: string): boolean => sockets.some((socket) => idOf(socket) === id)
+    const stored = await this.state.storage.get<string>('hostId')
+    if (stored !== undefined && isConnected(stored)) return stored
+
+    const explicit = sockets.find((socket) => isHost(socket))
+    const explicitId = explicit === undefined ? null : idOf(explicit)
+    if (explicitId !== null) {
+      await this.state.storage.put('hostId', explicitId)
+      return explicitId
+    }
+
+    const attached = hostIdOf(sockets[0]!)
+    if (attached !== null && isConnected(attached)) {
+      await this.state.storage.put('hostId', attached)
+      return attached
+    }
+
+    return null
+  }
 }
 
 /** 소켓에 붙여둔 참가자 id. 하이버네이션에서 깨어난 뒤에도 이것만은 남는다 */
 function idOf(socket: WebSocket): string | null {
   const attachment = socket.deserializeAttachment() as { id?: unknown } | null
   return typeof attachment?.id === 'string' ? attachment.id : null
+}
+
+function hostIdOf(socket: WebSocket): string | null {
+  const attachment = socket.deserializeAttachment() as { hostId?: unknown } | null
+  return typeof attachment?.hostId === 'string' ? attachment.hostId : null
+}
+
+function isHost(socket: WebSocket): boolean {
+  const attachment = socket.deserializeAttachment() as { host?: unknown } | null
+  return attachment?.host === true
 }
 
 /** 상대가 보낸 것은 무엇이든 올 수 있다. 모양이 맞지 않으면 조용히 버린다 */

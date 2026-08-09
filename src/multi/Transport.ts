@@ -15,6 +15,8 @@ interface Transport {
   /** 참가자가 들어올 때 쓸 방 코드. 방장만 값을 가진다 */
   readonly roomCode: string | null
   readonly isHost: boolean
+  /** 권위 참가자의 전송로 id. 참가자용 메시지의 발신자를 검증한다. */
+  readonly hostId: PlayerId
   /** 지금 붙어 있는 상대들 */
   peers(): readonly PlayerId[]
   /** 특정 상대에게. 방장이 개별 응답할 때 쓴다 */

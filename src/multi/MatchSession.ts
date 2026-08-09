@@ -116,6 +116,11 @@ interface SessionOptions {
 class MatchSession {
   private transport: Transport | null = null
   private engine: MatchEngine | null = null
+  private creatingEngine = false
+  /** 겹친 생성 중 늦게 끝난 엔진이 현재 판을 덮어쓰지 못하게 하는 세대 번호. */
+  private engineGeneration = 0
+  /** 새 물리 세계를 기다리는 동안 먼저 온 새 판 메시지. 순서를 보존해 재생한다. */
+  private readonly pendingEngineEvents: TransportEvent[] = []
   private readonly nickname: string
   private readonly deviceId: string
   private readonly icon: string
@@ -251,6 +256,28 @@ class MatchSession {
     }
     const transport = this.transport
 
+    if (this.creatingEngine) {
+      // 구형 참가자의 판 ID 없는 명령은 어느 판의 것인지 알 수 없어 새 엔진에 넘기지 않는다.
+      if (
+        this.transport?.isHost === true &&
+        event.kind === 'message' &&
+        (event.message.t === 'drop' || event.message.t === 'rematch') &&
+        (!('matchId' in event.message) || event.message.matchId === undefined)
+      ) {
+        return
+      }
+      if (event.kind === 'error') {
+        this.engineGeneration += 1
+        this.creatingEngine = false
+        this.started = false
+        this.pendingEngineEvents.length = 0
+        this.onPhase({ kind: 'failed', failure: event.failure })
+        return
+      }
+      this.pendingEngineEvents.push(event)
+      return
+    }
+
     // 판이 시작된 뒤에는 엔진이 받아 처리한다
     if (this.engine !== null) {
       this.engine.handleTransportEvent(event)
@@ -293,6 +320,10 @@ class MatchSession {
       return
     }
     if (event.kind !== 'message') {
+      return
+    }
+    // 참가자는 준비·시작 메시지도 실제 방장에게서 온 것만 따른다.
+    if (!transport.isHost && event.from !== transport.hostId) {
       return
     }
 
@@ -552,31 +583,48 @@ class MatchSession {
       return
     }
     this.started = true
+    this.creatingEngine = true
+    const generation = ++this.engineGeneration
     this.roster = players
     this.clearHandshakeTimeout()
 
-    const engine = await MatchEngine.create({
-      transport,
-      players,
-      seed,
-      wins: this.wins,
-      chat: this.chat,
-      chatEnabled: this.chatEnabled,
-      chatClock: this.chatClock,
-      // 코드로 모인 방은 상대를 고를 수 있어 사다리에 올리지 않는다
-      ranked: this.autoMatched,
-      onFailure: (reason) => this.onPhase({ kind: 'failed', failure: reason }),
-      onRestart: (next) => this.restart(next),
-    })
-    if (this.disposed) {
+    let engine: MatchEngine
+    try {
+      engine = await MatchEngine.create({
+        transport,
+        players,
+        seed,
+        wins: this.wins,
+        chat: this.chat,
+        chatEnabled: this.chatEnabled,
+        chatClock: this.chatClock,
+        // 코드로 모인 방은 상대를 고를 수 있어 사다리에 올리지 않는다
+        ranked: this.autoMatched,
+        onFailure: (reason) => this.onPhase({ kind: 'failed', failure: reason }),
+        onRestart: (next) => this.restart(next),
+      })
+    } catch (error) {
+      if (!this.disposed && generation === this.engineGeneration) {
+        this.creatingEngine = false
+        this.started = false
+        this.onPhase({ kind: 'failed', failure: asFailure(error) })
+      }
+      return
+    }
+    if (this.disposed || generation !== this.engineGeneration) {
       engine.dispose()
       return
     }
-    // 다음 판이면 앞 판의 엔진을 확실히 치운다 — 남겨두면 물리 세계가 둘이 된다
-    this.engine?.dispose()
     this.engine = engine
+    this.creatingEngine = false
     engine.start()
-    this.onPhase({ kind: 'playing', engine })
+    for (const event of this.pendingEngineEvents.splice(0)) {
+      if (generation !== this.engineGeneration || this.engine !== engine) break
+      engine.handleTransportEvent(event)
+    }
+    if (generation === this.engineGeneration && this.engine === engine) {
+      this.onPhase({ kind: 'playing', engine })
+    }
   }
 
   /**
@@ -589,6 +637,11 @@ class MatchSession {
     if (this.disposed) {
       return
     }
+    this.engineGeneration += 1
+    this.engine?.dispose()
+    this.engine = null
+    this.creatingEngine = false
+    this.pendingEngineEvents.length = 0
     this.started = false
     void this.begin(this.roster, seed)
   }

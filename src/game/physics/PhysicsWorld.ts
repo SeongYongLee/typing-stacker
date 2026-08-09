@@ -22,6 +22,7 @@ import {
 import { halfExtentY } from '../shapes.ts'
 import type { ContactGraph, TouchNode } from '../systems/Merger.ts'
 import type {
+  AuthorityBodyFrame,
   BodySnapshot,
   ItemVariant,
   OwnerId,
@@ -122,6 +123,8 @@ interface SettleEvent {
  * 그 순간에 나야 한다 — 0.35초 늦은 "쿵"은 화면과 어긋난 것으로 들린다.
  */
 interface ImpactEvent {
+  /** 표시 보정 중인 물건의 위치 연출만 골라 숨기기 위한 로컬 바디 식별자 */
+  readonly handle: number
   readonly variant: ItemVariant
   /** 물리 세계에서 콜라이더까지 반영해 잰 실제 질량 */
   readonly mass: number
@@ -199,6 +202,8 @@ interface TrackedBody {
   /** 마지막으로 자리를 잡은 지점. 여기서 QUAKE_REARM_DISTANCE만큼 벗어나면 자리를 잃는다 */
   restX: number
   restY: number
+  /** 권위 교정 직후의 속도 변화가 가짜 충격으로 읽히지 않게 한 스텝 쉰다 */
+  suppressImpactSteps: number
 }
 
 /**
@@ -226,15 +231,51 @@ function polygonThickness(points: readonly Vec2[]): number {
   return longest === 0 ? 0 : Math.abs(doubleArea) / longest
 }
 
-/** 권위 키프레임이 준 자리로 바디를 옮긴다. 속도까지 지워야 튀지 않는다 */
-function place(
-  entry: TrackedBody,
-  frame: { x: number; y: number; rotation: number },
-): void {
-  entry.body.setTranslation({ x: frame.x, y: frame.y }, true)
-  entry.body.setRotation(frame.rotation, true)
-  entry.body.setLinvel({ x: 0, y: 0 }, true)
-  entry.body.setAngvel(0, true)
+interface BodyCorrection {
+  readonly handle: number
+  readonly itemId: number
+  /** 교정 첫 화면을 직전 표시 위치에 두기 위한 pre - authority 오프셋 */
+  readonly dx: number
+  readonly dy: number
+  readonly rotation: number
+}
+
+function shortestAngle(value: number): number {
+  return Math.atan2(Math.sin(value), Math.cos(value))
+}
+
+/** 권위 키프레임을 적용하되 파생 상태와 잠듦까지 일관되게 복원한다. */
+function place(entry: TrackedBody, frame: AuthorityBodyFrame): void {
+  entry.body.setTranslation({ x: frame.x, y: frame.y }, false)
+  entry.body.setRotation(frame.rotation, false)
+  entry.suppressImpactSteps = 1
+
+  // 구형 프레임은 위치만 권위였다. 새 상태가 없다고 로컬 정착·앵커를 지우면 안 된다.
+  if (frame.stateVersion === undefined) {
+    entry.body.setLinvel({ x: 0, y: 0 }, false)
+    entry.body.setAngvel(0, false)
+    entry.previousSpeed = 0
+    return
+  }
+
+  entry.body.setLinvel({ x: frame.vx, y: frame.vy }, false)
+  entry.body.setAngvel(frame.angularVelocity, false)
+  entry.settled = frame.settled
+  entry.anchored = frame.anchored
+  entry.lost = frame.lost
+  entry.dislodged = frame.dislodged
+  entry.impacted = frame.impacted
+  entry.struck = frame.struck
+  entry.restX = frame.restX
+  entry.restY = frame.restY
+  entry.settleTimer = frame.settleTimer
+  entry.previousSpeed = frame.previousSpeed
+  entry.body.setLinearDamping(frame.anchored ? ANCHOR_LINEAR_DAMPING : LINEAR_DAMPING)
+  entry.body.setAngularDamping(
+    frame.anchored ? ANCHOR_ANGULAR_DAMPING : entry.variant.angularDamping,
+  )
+  if (frame.sleeping) entry.body.sleep()
+  else entry.body.wakeUp()
 }
 
 /** 만들 수 없는 도형이면 null을 준다 — 호출부가 그 조각을 건너뛴다 */
@@ -374,6 +415,7 @@ class PhysicsWorld {
       lost: false,
       restX: x,
       restY: y,
+      suppressImpactSteps: 0,
     })
     return body.handle
   }
@@ -628,6 +670,7 @@ class PhysicsWorld {
       // 접촉 이벤트를 따로 배선하지 않아도 착지 순간을 충분히 정확하게 잡는다.
       const minImpactSpeed = entry.dislodged ? QUAKE_REIMPACT_SPEED : QUAKE_MIN_SPEED
       if (
+        entry.suppressImpactSteps <= 0 &&
         entry.shakes &&
         !entry.impacted &&
         entry.previousSpeed >= minImpactSpeed &&
@@ -645,6 +688,7 @@ class PhysicsWorld {
        * 탑 위에 얹히는 순간이 통째로 빠진다 — 정작 가장 자주 일어나는 일이다.
        */
       if (
+        entry.suppressImpactSteps <= 0 &&
         !entry.struck &&
         entry.previousSpeed >= IMPACT_MIN_SPEED &&
         speed < entry.previousSpeed * 0.55
@@ -652,6 +696,7 @@ class PhysicsWorld {
         entry.struck = true
         const mass = entry.body.mass()
         impacts.push({
+          handle,
           variant: entry.variant,
           mass,
           impact: entry.previousSpeed * mass,
@@ -663,6 +708,7 @@ class PhysicsWorld {
       }
 
       entry.previousSpeed = speed
+      if (steps > 0 && entry.suppressImpactSteps > 0) entry.suppressImpactSteps -= 1
 
       if (entry.settled) {
         continue
@@ -785,17 +831,11 @@ class PhysicsWorld {
    * 지금 상태를 네트워크로 보낼 수 있는 형태로 뽑는다.
    * 방장이 턴 끝에 한 번 보내는 권위 키프레임이다 — 매 프레임 흘리지 않는다.
    */
-  frames(): {
-    itemId: number
-    variantId: string
-    owner: OwnerId
-    x: number
-    y: number
-    rotation: number
-  }[] {
-    const result = []
+  frames(): AuthorityBodyFrame[] {
+    const result: AuthorityBodyFrame[] = []
     for (const entry of this.tracked.values()) {
       const { x, y } = entry.body.translation()
+      const velocity = entry.body.linvel()
       result.push({
         itemId: entry.itemId,
         variantId: entry.variant.id,
@@ -803,6 +843,21 @@ class PhysicsWorld {
         x,
         y,
         rotation: entry.body.rotation(),
+        stateVersion: 1,
+        vx: velocity.x,
+        vy: velocity.y,
+        angularVelocity: entry.body.angvel(),
+        sleeping: entry.body.isSleeping(),
+        settled: entry.settled,
+        anchored: entry.anchored,
+        lost: entry.lost,
+        settleTimer: entry.settleTimer,
+        restX: entry.restX,
+        restY: entry.restY,
+        previousSpeed: entry.previousSpeed,
+        dislodged: entry.dislodged,
+        impacted: entry.impacted,
+        struck: entry.struck,
       })
     }
     return result
@@ -842,17 +897,11 @@ class PhysicsWorld {
   }
 
   applyFrames(
-    frames: readonly {
-      itemId: number
-      variantId: string
-      owner: OwnerId
-      x: number
-      y: number
-      rotation: number
-    }[],
+    frames: readonly AuthorityBodyFrame[],
     lookup: (variantId: string) => ItemVariant | undefined,
     welds: readonly (readonly [number, number])[] = [],
-  ): void {
+  ): BodyCorrection[] {
+    const corrections: BodyCorrection[] = []
     const wanted = new Map(frames.map((frame) => [frame.itemId, frame]))
 
     // 방장에게 없는 물건은 지운다 — 방장이 본 것이 사실이다
@@ -870,23 +919,44 @@ class PhysicsWorld {
     }
 
     for (const frame of frames) {
-      const existing = mine.get(frame.itemId)
+      let existing = mine.get(frame.itemId)
+      if (
+        existing !== undefined &&
+        (existing.variant.id !== frame.variantId || existing.owner !== frame.owner)
+      ) {
+        const handle = existing.body.handle
+        this.forgetWelds(handle)
+        this.world.removeRigidBody(existing.body)
+        this.tracked.delete(handle)
+        existing = undefined
+      }
       if (existing !== undefined) {
+        const before = existing.body.translation()
+        corrections.push({
+          handle: existing.body.handle,
+          itemId: frame.itemId,
+          dx: before.x - frame.x,
+          dy: before.y - frame.y,
+          rotation: shortestAngle(existing.body.rotation() - frame.rotation),
+        })
         place(existing, frame)
         continue
       }
       const variant = lookup(frame.variantId)
-      if (variant === undefined) {
-        continue
-      }
+      if (variant === undefined) continue
       const handle = this.spawnItem(variant, frame.x, frame.owner, frame.itemId)
       const spawned = this.tracked.get(handle)
-      if (spawned !== undefined) {
-        place(spawned, frame)
-      }
+      if (spawned !== undefined) place(spawned, frame)
     }
 
     this.applyWelds(welds)
+    // 관절 생성은 바디를 깨우므로 권위가 잠든 바디를 마지막에 다시 잠근다.
+    const frameById = new Map(frames.map((frame) => [frame.itemId, frame]))
+    for (const entry of this.tracked.values()) {
+      const frame = frameById.get(entry.itemId)
+      if (frame?.stateVersion === 1 && frame.sleeping) entry.body.sleep()
+    }
+    return corrections
   }
 
   /**
@@ -1004,4 +1074,4 @@ class PhysicsWorld {
 }
 
 export { PhysicsWorld }
-export type { SettleEvent, ImpactEvent, StepResult }
+export type { SettleEvent, ImpactEvent, StepResult, BodyCorrection }

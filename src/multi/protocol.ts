@@ -9,7 +9,7 @@
  * 순서가 하나로 정해진다. 2명이든 N명이든 같은 구조다.
  */
 
-import type { FallingWord } from '../game/types/game.ts'
+import type { AuthorityBodyFrame, FallingWord } from '../game/types/game.ts'
 
 /**
  * 한 방에 들어올 수 있는 인원.
@@ -25,6 +25,13 @@ const MAX_WORDS = 24
 
 /** 한 번에 받아들일 관절 수. 물건 하나가 여럿에 붙을 수 있어 물건 수보다 넉넉히 둔다 */
 const MAX_WELDS = 256
+/** 한 키프레임에 허용할 물건 수. 64KB 전송 상한보다 먼저 의미 범위를 제한한다. */
+const MAX_BODIES = 128
+/** Rapier에 넘기기 전 클라이언트 안정성을 지키는 보수적인 물리 값 범위. */
+const MAX_POSITION = 100
+const MAX_SPEED = 100
+const MAX_ANGULAR_SPEED = 1000
+const MAX_SETTLE_TIMER = 60
 
 /** 방 코드 길이. 짧으면 무작위 대입으로 남의 방에 들어올 수 있다 */
 const ROOM_CODE_LENGTH = 8
@@ -77,9 +84,9 @@ type ToHost =
   /** 준비를 눌렀다. 모두가 누르면 방장이 판을 연다 */
   | { readonly t: 'ready' }
   /** 판이 끝난 뒤 계속하기를 눌렀다 */
-  | { readonly t: 'rematch' }
+  | { readonly t: 'rematch'; readonly matchId?: string }
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
-  | { readonly t: 'drop'; readonly word: string; readonly aimX: number }
+  | { readonly t: 'drop'; readonly word: string; readonly aimX: number; readonly matchId?: string }
   /**
    * 한마디 한다. 방장이 걸러서 모두에게 돌린다.
    *
@@ -108,9 +115,12 @@ type ToGuest =
       readonly by: PlayerId
       readonly word: string
       readonly aimX: number
+      /** 방장이 계산한 생성 높이. 빠지면 구형 클라이언트 호환값을 쓴다 */
+      readonly spawnY?: number
       readonly variantId: string
       /** 양쪽이 같은 물건으로 취급하도록 방장이 매기는 번호 */
       readonly itemId: number
+      readonly matchId?: string
     }
   /**
    * 누가 무슨 말을 했는지. **한 말은 방장을 거쳐서만 퍼진다.**
@@ -126,7 +136,7 @@ type ToGuest =
    * 무너져서 탈락한 것과 나가버린 것은 남은 사람에게 다른 소식이고, 화면도 다르게
    * 말해야 한다. 판정은 방장이 하고 참가자는 따른다.
    */
-  | { readonly t: 'left'; readonly who: PlayerId }
+  | { readonly t: 'left'; readonly who: PlayerId; readonly matchId?: string }
   /**
    * 지금 내려오는 단어 밭. 방장이 소유한다.
    *
@@ -134,8 +144,8 @@ type ToGuest =
    * 그 높이는 양쪽에서 미세하게 어긋나고, 그러면 단어가 나오는 순간이 갈린다.
    * 밭이 바뀔 때만 보내므로 흐르는 양은 몇 초에 한 번이다.
    */
-  | { readonly t: 'words'; readonly words: readonly FallingWord[] }
-  | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[] }
+  | { readonly t: 'words'; readonly words: readonly FallingWord[]; readonly matchId?: string }
+  | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[]; readonly matchId?: string }
   /**
    * 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다.
    *
@@ -147,12 +157,13 @@ type ToGuest =
       readonly t: 'sync'
       readonly bodies: readonly BodyFrame[]
       readonly welds: readonly (readonly [number, number])[]
+      readonly matchId?: string
     }
-  | { readonly t: 'over'; readonly winner: PlayerId | null }
+  | { readonly t: 'over'; readonly winner: PlayerId | null; readonly matchId?: string }
   /** 판이 끝난 뒤 계속하기를 누른 사람들 */
-  | { readonly t: 'rematchList'; readonly ready: readonly PlayerId[] }
+  | { readonly t: 'rematchList'; readonly ready: readonly PlayerId[]; readonly matchId?: string }
   /** 다음 판을 연다. 시드가 바뀌므로 단어도 새로 나온다 */
-  | { readonly t: 'restart'; readonly seed: number }
+  | { readonly t: 'restart'; readonly seed: number; readonly matchId?: string }
 
 /**
  * 어느 쪽이든 보낼 수 있는 것.
@@ -163,15 +174,7 @@ type Either = { readonly t: 'bye' }
 
 type Message = ToHost | ToGuest | Either
 
-interface BodyFrame {
-  /** 양쪽이 합의한 물건 식별자. Rapier 핸들은 클라이언트마다 달라 기준이 될 수 없다 */
-  readonly itemId: number
-  readonly variantId: string
-  readonly owner: PlayerId
-  readonly x: number
-  readonly y: number
-  readonly rotation: number
-}
+type BodyFrame = AuthorityBodyFrame
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -181,8 +184,18 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+function isBoundedNumber(value: unknown, maxAbs: number): value is number {
+  return isFiniteNumber(value) && Math.abs(value) <= maxAbs
+}
+
 function isShortString(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= max
+}
+
+/** 빠진 값은 구형 메시지로 허용하고, 있으면 올바른 문자열만 받는다. */
+function optionalShortString(value: unknown, max: number): { matchId?: string } | null {
+  if (value === undefined) return {}
+  return isShortString(value, max) ? { matchId: value } : null
 }
 
 function sanitizeNickname(raw: unknown): string {
@@ -211,9 +224,12 @@ function parseMessage(raw: unknown): Message | null {
         device: deviceId(raw['device']),
         icon: iconId(raw['icon']),
       }
-    case 'drop':
+    case 'drop': {
       if (!isShortString(raw['word'], 20) || !isFiniteNumber(raw['aimX'])) return null
-      return { t: 'drop', word: raw['word'], aimX: raw['aimX'] }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      if (matchId === null) return null
+      return { t: 'drop', word: raw['word'], aimX: raw['aimX'], ...matchId }
+    }
     case 'chat':
       if (!isShortString(raw['text'], CHAT_MAX)) return null
       return { t: 'chat', text: raw['text'] }
@@ -224,13 +240,17 @@ function parseMessage(raw: unknown): Message | null {
       return { t: 'full' }
     case 'ready':
       return { t: 'ready' }
-    case 'rematch':
-      return { t: 'rematch' }
+    case 'rematch': {
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'rematch', ...matchId }
+    }
     case 'bye':
       return { t: 'bye' }
-    case 'restart':
+    case 'restart': {
       if (!isFiniteNumber(raw['seed'])) return null
-      return { t: 'restart', seed: raw['seed'] }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'restart', seed: raw['seed'], ...matchId }
+    }
     case 'rematchList': {
       if (!Array.isArray(raw['ready'])) return null
       const ready: PlayerId[] = []
@@ -238,7 +258,8 @@ function parseMessage(raw: unknown): Message | null {
         if (isShortString(id, 64)) ready.push(id)
         if (ready.length >= MAX_PLAYERS) break
       }
-      return { t: 'rematchList', ready }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'rematchList', ready, ...matchId }
     }
     case 'roster':
       if (!Array.isArray(raw['players'])) return null
@@ -264,20 +285,28 @@ function parseMessage(raw: unknown): Message | null {
         !isFiniteNumber(raw['itemId'])
       )
         return null
+      if (!Number.isSafeInteger(raw['itemId']) || raw['itemId'] <= 0) return null
+      if (raw['spawnY'] !== undefined && !isFiniteNumber(raw['spawnY'])) return null
+      const droppedMatchId = optionalShortString(raw['matchId'], 96)
+      if (droppedMatchId === null) return null
       return {
         t: 'dropped',
         by: raw['by'],
         word: raw['word'],
         aimX: raw['aimX'],
+        spawnY: raw['spawnY'],
         variantId: raw['variantId'],
         itemId: raw['itemId'],
+        ...droppedMatchId,
       }
     case 'chatted':
       if (!isShortString(raw['from'], 64) || !isShortString(raw['text'], CHAT_MAX)) return null
       return { t: 'chatted', from: raw['from'], text: raw['text'] }
-    case 'left':
+    case 'left': {
       if (!isShortString(raw['who'], 64)) return null
-      return { t: 'left', who: raw['who'] }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'left', who: raw['who'], ...matchId }
+    }
     case 'words': {
       if (!Array.isArray(raw['words'])) return null
       const words: FallingWord[] = []
@@ -286,7 +315,8 @@ function parseMessage(raw: unknown): Message | null {
         if (word !== null) words.push(word)
         if (words.length >= MAX_WORDS) break
       }
-      return { t: 'words', words }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'words', words, ...matchId }
     }
     case 'lives': {
       if (!Array.isArray(raw['lives'])) return null
@@ -303,31 +333,46 @@ function parseMessage(raw: unknown): Message | null {
          */
         lives.push([id, Math.max(0, Math.min(Math.round(count * 2) / 2, MAX_LIVES))])
       }
-      return { t: 'lives', lives }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'lives', lives, ...matchId }
     }
     case 'sync': {
-      if (!Array.isArray(raw['bodies'])) return null
+      if (!Array.isArray(raw['bodies']) || raw['bodies'].length > MAX_BODIES) return null
       const bodies: BodyFrame[] = []
+      const ids = new Set<number>()
       for (const entry of raw['bodies']) {
         const frame = parseBodyFrame(entry)
-        if (frame !== null) bodies.push(frame)
+        if (frame === null || ids.has(frame.itemId)) return null
+        ids.add(frame.itemId)
+        bodies.push(frame)
       }
       const welds: [number, number][] = []
+      const weldKeys = new Set<string>()
+      if (raw['welds'] !== undefined && !Array.isArray(raw['welds'])) return null
       if (Array.isArray(raw['welds'])) {
+        if (raw['welds'].length > MAX_WELDS) return null
         for (const entry of raw['welds']) {
-          if (!Array.isArray(entry) || entry.length !== 2) continue
-          const [a, b] = entry
-          if (!isFiniteNumber(a) || !isFiniteNumber(b)) continue
-          welds.push([Math.floor(a), Math.floor(b)])
-          if (welds.length >= MAX_WELDS) break
+          if (!Array.isArray(entry) || entry.length !== 2) return null
+          const [rawA, rawB] = entry
+          if (!Number.isSafeInteger(rawA) || !Number.isSafeInteger(rawB)) return null
+          const a = rawA as number
+          const b = rawB as number
+          if (a <= 0 || b <= 0 || a === b || !ids.has(a) || !ids.has(b)) return null
+          const pair: [number, number] = a < b ? [a, b] : [b, a]
+          const key = `${pair[0]}:${pair[1]}`
+          if (weldKeys.has(key)) return null
+          weldKeys.add(key)
+          welds.push(pair)
         }
       }
-      return { t: 'sync', bodies, welds }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'sync', bodies, welds, ...matchId }
     }
     case 'over': {
       const winner = raw['winner']
       if (winner !== null && !isShortString(winner, 64)) return null
-      return { t: 'over', winner: winner as PlayerId | null }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'over', winner: winner as PlayerId | null, ...matchId }
     }
     default:
       return null
@@ -352,22 +397,67 @@ function parsePlayers(raw: readonly unknown[]): PlayerInfo[] {
 function parseBodyFrame(raw: unknown): BodyFrame | null {
   if (!isRecord(raw)) return null
   if (
-    !isFiniteNumber(raw['itemId']) ||
+    !Number.isSafeInteger(raw['itemId']) ||
+    (raw['itemId'] as number) <= 0 ||
     !isShortString(raw['variantId'], 40) ||
     !isShortString(raw['owner'], 64) ||
-    !isFiniteNumber(raw['x']) ||
-    !isFiniteNumber(raw['y']) ||
+    !isBoundedNumber(raw['x'], MAX_POSITION) ||
+    !isBoundedNumber(raw['y'], MAX_POSITION) ||
     !isFiniteNumber(raw['rotation'])
   ) {
     return null
   }
-  return {
-    itemId: raw['itemId'],
+  const base = {
+    itemId: raw['itemId'] as number,
     variantId: raw['variantId'],
     owner: raw['owner'],
     x: raw['x'],
     y: raw['y'],
     rotation: raw['rotation'],
+  }
+  if (raw['stateVersion'] === undefined) {
+    const currentOnly = [
+      'vx', 'vy', 'angularVelocity', 'sleeping', 'settled', 'anchored', 'lost',
+      'settleTimer', 'restX', 'restY', 'previousSpeed', 'dislodged', 'impacted', 'struck',
+    ] as const
+    return currentOnly.some((key) => raw[key] !== undefined) ? null : base
+  }
+  if (raw['stateVersion'] !== 1) return null
+  if (
+    !isBoundedNumber(raw['vx'], MAX_SPEED) ||
+    !isBoundedNumber(raw['vy'], MAX_SPEED) ||
+    !isBoundedNumber(raw['angularVelocity'], MAX_ANGULAR_SPEED) ||
+    !isBoundedNumber(raw['settleTimer'], MAX_SETTLE_TIMER) ||
+    (raw['settleTimer'] as number) < 0 ||
+    !isBoundedNumber(raw['restX'], MAX_POSITION) ||
+    !isBoundedNumber(raw['restY'], MAX_POSITION) ||
+    !isBoundedNumber(raw['previousSpeed'], MAX_SPEED) ||
+    (raw['previousSpeed'] as number) < 0
+  ) {
+    return null
+  }
+  for (const key of [
+    'sleeping', 'settled', 'anchored', 'lost', 'dislodged', 'impacted', 'struck',
+  ] as const) {
+    if (typeof raw[key] !== 'boolean') return null
+  }
+  return {
+    ...base,
+    stateVersion: 1,
+    vx: raw['vx'],
+    vy: raw['vy'],
+    angularVelocity: raw['angularVelocity'],
+    sleeping: raw['sleeping'] as boolean,
+    settled: raw['settled'] as boolean,
+    anchored: raw['anchored'] as boolean,
+    lost: raw['lost'] as boolean,
+    settleTimer: raw['settleTimer'],
+    restX: raw['restX'],
+    restY: raw['restY'],
+    previousSpeed: raw['previousSpeed'],
+    dislodged: raw['dislodged'] as boolean,
+    impacted: raw['impacted'] as boolean,
+    struck: raw['struck'] as boolean,
   }
 }
 
@@ -432,6 +522,7 @@ function isRoomCode(value: string): boolean {
 
 export {
   MAX_PLAYERS,
+  MAX_BODIES,
   ROOM_CODE_LENGTH,
   ROOM_CODE_ALPHABET,
   NICKNAME_MAX,

@@ -26,6 +26,7 @@ import type { Message, PlayerId, PlayerInfo } from './protocol.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 import type { ChatLine } from './ChatLog.ts'
 import type { ChatLog } from './ChatLog.ts'
+import { BodyCorrection } from './BodyCorrection.ts'
 import { Presence } from './Presence.ts'
 
 /**
@@ -65,6 +66,8 @@ const TURN_HURRY_SEC = 5
 
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
+/** 판 전환 직후에는 구형 판 ID 없는 지연 명령을 잠깐 버린다. */
+const LEGACY_COMMAND_GRACE_SEC = 1
 
 /**
  * 판을 가리키는 이름. 인원이 몇이든 길이가 같다.
@@ -86,6 +89,10 @@ function matchIdOf(seed: number, devices: readonly string[]): string {
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
 
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
+
+const HOST_MESSAGES = new Set<Message['t']>([
+  'dropped', 'chatted', 'left', 'words', 'lives', 'sync', 'over', 'rematchList', 'restart',
+])
 
 interface MatchViewState {
   readonly phase: 'playing' | 'over'
@@ -234,6 +241,8 @@ class MatchEngine {
   private readonly wantRematch = new Set<PlayerId>()
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
   private recorded = false
+  /** 모두의 계속하기가 모인 뒤 재시작 신호는 판마다 한 번만 보낸다. */
+  private restartRequested = false
   private opponentLeft = false
   /** 지금 다시 붙는 중인가. 판을 접는 것과 갈라 보여줘야 한다 */
   private reconnecting = false
@@ -262,6 +271,8 @@ class MatchEngine {
   private readonly landing = new LandingGlow()
   /** 이번 프레임에 부딪힌 자리들. 배열을 새로 만들지 않고 비워 쓴다 */
   private readonly frameImpacts: TrailHit[] = []
+  /** 표시 보정 중인 물건의 충돌만 걷어낸 렌더용 버퍼 */
+  private readonly visibleImpacts: TrailHit[] = []
   private elapsed = 0
 
   /** 사람별로 다음에 떨굴 수 있을 때까지 남은 시간(초) */
@@ -284,6 +295,8 @@ class MatchEngine {
    */
   private turnElapsed = 0
   private sinceSync = 0
+  /** 참가자 화면에서만 권위 위치 교정을 짧게 이어 붙인다. */
+  private readonly bodyCorrection = new BodyCorrection()
 
   /**
    * 덫이 걸린 단어 — 단어 → 건 사람.
@@ -521,7 +534,7 @@ class MatchEngine {
   /** 유예가 지난 사람을 판에서 뺀다. 방장만 본다 */
   private sweepGone(): void {
     for (const who of this.presence.expired(this.elapsed)) {
-      this.transport.broadcast({ t: 'left', who })
+      this.transport.broadcast({ t: 'left', who, matchId: this.matchId })
       this.applyLeft(who)
     }
   }
@@ -533,12 +546,17 @@ class MatchEngine {
    * 그 사람 화면에는 아직 옛 목숨이 걸린 채로 새 탑이 서고, 그 사이가 눈에 남는다.
    */
   private resendTo(peer: PlayerId): void {
-    this.transport.sendTo(peer, { t: 'words', words: this.spawner.words })
-    this.transport.sendTo(peer, { t: 'lives', lives: this.match.snapshot().lives })
+    this.transport.sendTo(peer, {
+      t: 'words', words: this.spawner.words, matchId: this.matchId,
+    })
+    this.transport.sendTo(peer, {
+      t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
+    })
     this.transport.sendTo(peer, {
       t: 'sync',
       bodies: this.physics.frames(),
       welds: this.physics.weldPairs(),
+      matchId: this.matchId,
     })
   }
 
@@ -556,11 +574,15 @@ class MatchEngine {
     // 사라진 사람 차례에서 시계가 이어지면 안 된다
     this.turnElapsed = 0
     if (this.isHost) {
-      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
+      this.transport.broadcast({
+        t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
+      })
       if (this.match.over) {
         this.loop.stop()
         this.recordWin(this.match.winner)
-        this.transport.broadcast({ t: 'over', winner: this.match.winner })
+        this.transport.broadcast({
+          t: 'over', winner: this.match.winner, matchId: this.matchId,
+        })
       }
     }
     this.emit()
@@ -585,7 +607,13 @@ class MatchEngine {
         this.handleMessage(event.from, event.message)
         break
       case 'peerLeft':
-        this.noticeGone(event.peer)
+        // bye를 먼저 받았다면 사고가 아니라 상대가 나간 것이다. 안내를 실패로 덮지 않는다.
+        if (this.opponentLeft && this.match.players.length <= 2) {
+          this.loop.stop()
+          this.emit()
+        } else {
+          this.noticeGone(event.peer)
+        }
         break
       case 'error':
         this.onFailure?.(event.failure)
@@ -687,7 +715,7 @@ class MatchEngine {
       this.publishRematch()
       return
     }
-    this.transport.broadcast({ t: 'rematch' })
+    this.transport.broadcast({ t: 'rematch', matchId: this.matchId })
   }
 
   /** 화면에서 로비로 나가기를 눌렀다. 상대가 영문을 모른 채 기다리지 않게 알리고 나간다 */
@@ -701,16 +729,19 @@ class MatchEngine {
   /** 방장만 부른다. 모두 누르면 여기서 다음 판이 열린다 */
   private publishRematch(): void {
     this.rematchView = [...this.wantRematch]
-    this.transport.broadcast({ t: 'rematchList', ready: this.rematchView })
+    this.transport.broadcast({
+      t: 'rematchList', ready: this.rematchView, matchId: this.matchId,
+    })
     this.emit()
 
     const all = this.match.players.every((player) => this.wantRematch.has(player.id))
-    if (!all) {
+    if (!all || this.restartRequested) {
       return
     }
+    this.restartRequested = true
     // 시드를 새로 뽑아야 다음 판에 같은 단어가 같은 순서로 되풀이되지 않는다
     const seed = Date.now() >>> 0
-    this.transport.broadcast({ t: 'restart', seed })
+    this.transport.broadcast({ t: 'restart', seed, matchId: this.matchId })
     this.onRestart?.(seed)
   }
 
@@ -810,7 +841,9 @@ class MatchEngine {
       this.resolveDrop(this.transport.selfId, word, this.aimer.worldX)
       return
     }
-    this.transport.broadcast({ t: 'drop', word, aimX: this.aimer.worldX })
+    this.transport.broadcast({
+      t: 'drop', word, aimX: this.aimer.worldX, matchId: this.matchId,
+    })
   }
 
   /**
@@ -832,15 +865,18 @@ class MatchEngine {
     const itemId = this.nextItemId
     this.nextItemId += 1
 
+    const spawnY = spawnYFor(this.cameraY)
     this.transport.broadcast({
       t: 'dropped',
       by,
       word,
       aimX,
+      spawnY,
       variantId: variant.id,
       itemId,
+      matchId: this.matchId,
     })
-    this.applyDrop(by, word, aimX, variant.id, itemId)
+    this.applyDrop(by, word, aimX, spawnY, variant.id, itemId)
   }
 
   /** 양쪽이 똑같이 실행하는 부분. 물건 정체는 방장이 정한 id를 그대로 쓴다 */
@@ -848,6 +884,7 @@ class MatchEngine {
     by: PlayerId,
     word: string,
     aimX: number,
+    spawnY: number,
     variantId: string,
     itemId: number,
   ): void {
@@ -862,7 +899,7 @@ class MatchEngine {
       this.spawner.remove(target.id)
     }
 
-    this.physics.spawnItemAt(variant, aimX, spawnYFor(this.cameraY), by, itemId)
+    this.physics.spawnItemAt(variant, aimX, spawnY, by, itemId)
     // 양쪽이 다 지나는 자리다 — 상대가 떨군 것도 소리로 들린다
     this.fire({
       kind: 'drop',
@@ -897,10 +934,17 @@ class MatchEngine {
   }
 
   private handleMessage(from: PlayerId, message: Message): void {
+    if (!this.isHost && HOST_MESSAGES.has(message.t) && from !== this.presence.host) {
+      return
+    }
+    if ('matchId' in message && message.matchId !== undefined && message.matchId !== this.matchId) {
+      return
+    }
     switch (message.t) {
       case 'drop':
         // 게스트가 보낸 청. 방장만 처리하고, 검증은 resolveDrop이 한다
         if (this.isHost) {
+          if (message.matchId === undefined && this.elapsed < LEGACY_COMMAND_GRACE_SEC) return
           this.resolveDrop(from, message.word, message.aimX)
         }
         break
@@ -910,6 +954,7 @@ class MatchEngine {
             message.by,
             message.word,
             message.aimX,
+            message.spawnY ?? spawnYFor(this.cameraY),
             message.variantId,
             message.itemId,
           )
@@ -940,7 +985,12 @@ class MatchEngine {
         break
       case 'sync':
         if (!this.isHost) {
-          this.physics.applyFrames(message.bodies, (id) => VARIANT_BY_ID.get(id), message.welds)
+          const corrections = this.physics.applyFrames(
+            message.bodies,
+            (id) => VARIANT_BY_ID.get(id),
+            message.welds,
+          )
+          this.bodyCorrection.note(corrections)
           this.emit()
         }
         break
@@ -952,7 +1002,7 @@ class MatchEngine {
         }
         break
       case 'rematch':
-        if (this.isHost) {
+        if (this.isHost && this.match.over) {
           this.wantRematch.add(from)
           this.publishRematch()
         }
@@ -1073,6 +1123,7 @@ class MatchEngine {
   }
 
   private readonly update = (dt: number): void => {
+    this.bodyCorrection.advance(dt)
     this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
     // 판이 끝난 뒤에도 색은 계속 사라져야 한다 — 그리기가 매 프레임 이어지므로
     this.landing.advance(dt)
@@ -1167,7 +1218,9 @@ class MatchEngine {
       return
     }
     this.sentWordVersion = this.spawner.version
-    this.transport.broadcast({ t: 'words', words: this.spawner.words })
+    this.transport.broadcast({
+      t: 'words', words: this.spawner.words, matchId: this.matchId,
+    })
   }
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
@@ -1189,13 +1242,17 @@ class MatchEngine {
       // 참가자도 같은 순서로 건너뛰도록 양쪽이 똑같이 부른다
       this.match.ensureTurnAlive()
       this.turnElapsed = 0
-      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
+      this.transport.broadcast({
+        t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
+      })
     }
 
     if (this.match.over) {
       this.loop.stop()
       this.recordWin(this.match.winner)
-      this.transport.broadcast({ t: 'over', winner: this.match.winner })
+      this.transport.broadcast({
+        t: 'over', winner: this.match.winner, matchId: this.matchId,
+      })
       return
     }
 
@@ -1213,17 +1270,26 @@ class MatchEngine {
         t: 'sync',
         bodies: this.physics.frames(),
         welds: this.physics.weldPairs(),
+        matchId: this.matchId,
       })
     }
   }
 
   private readonly render = (): void => {
+    const bodies = this.isHost
+      ? this.physics.snapshots()
+      : this.bodyCorrection.apply(this.physics.snapshots())
+    const suppressed = this.bodyCorrection.suppressedHandles
+    this.visibleImpacts.length = 0
+    for (const impact of this.frameImpacts) {
+      if (!suppressed.has(impact.handle)) this.visibleImpacts.push(impact)
+    }
     /*
      * 혼자 하기에만 있는 것(밤·통나무·합성 표식·히든 공개·지진)은 **넘기지 않는다.**
      * 렌더러가 기본값을 갖고 있어서, 그쪽에 연출이 늘어도 이 자리는 그대로다.
      */
     this.renderer?.draw({
-      bodies: this.physics.snapshots(),
+      bodies,
       aimX: this.aimer.worldX,
       showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
       landing: this.landing.view,
@@ -1231,7 +1297,9 @@ class MatchEngine {
       stackTop: this.physics.stackTop(),
       // 꼬리 부스러기가 이 값의 차이로 시간을 흘린다
       time: this.elapsed,
-      impacts: this.frameImpacts,
+      // 실제 물리 위치와 표시 위치가 다른 물건의 물 튐만 잠시 숨긴다.
+      impacts: this.visibleImpacts,
+      suppressTrails: suppressed,
       ownerColors: this.ownerColors,
     })
   }

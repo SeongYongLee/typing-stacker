@@ -213,6 +213,16 @@ describe('부스러기를 흘린다', () => {
     expect(fast.particles.length).toBeGreaterThan(slow.particles.length)
   })
 
+  it('표시 보정 중에는 흘리지 않고 해제 프레임도 점프 속도로 읽지 않는다', () => {
+    const field = new TrailField()
+    const suppressed = new Set([1])
+    field.update([body('bolt', 0, 5)], 1 / 60, [], suppressed)
+    field.update([body('bolt', 0.5, 5)], 1 / 60, [], suppressed)
+    expect(field.particles).toHaveLength(0)
+    field.update([body('bolt', 0.51, 5)], 1 / 60)
+    expect(field.particles).toHaveLength(0)
+  })
+
   /**
    * 매 프레임 내림하면 느린 갈래(초당 6개)는 한 프레임 몫이 0.1이라
    * 영영 하나도 안 나온다.
@@ -572,7 +582,7 @@ describe('닿으면 터진다', () => {
   function hit(id: string, strength = 1) {
     const variant = ALL_VARIANTS.find((item) => item.id === id)
     if (variant === undefined) throw new Error(id)
-    return { id, color: variant.color, x: 0, y: 1, strength }
+    return { handle: 1, id, color: variant.color, x: 0, y: 1, strength }
   }
 
   it('액체가 담긴 것이 닿으면 터진다', () => {
@@ -698,7 +708,7 @@ describe('맞은 쪽도 반응한다', () => {
         { handle: 1, x: 0, y: underY, settled: true, variant: under },
         { handle: 2, x: 0, y: fallerY, settled: false, variant: faller },
       ],
-      hit: { id: fallerId, color: faller.color, x: 0, y: fallerY, strength: 1 },
+      hit: { handle: 2, id: fallerId, color: faller.color, x: 0, y: fallerY, strength: 1 },
     }
   }
 
@@ -757,7 +767,7 @@ describe('물은 부채꼴로 솟는다', () => {
     const variant = ALL_VARIANTS.find((item) => item.id === 'beer')
     if (variant === undefined) throw new Error('beer')
     const field = new TrailField()
-    field.update([], 0, [{ id: 'beer', color: variant.color, x: 0, y: 1, strength: 1 }])
+    field.update([], 0, [{ handle: 1, id: 'beer', color: variant.color, x: 0, y: 1, strength: 1 }])
     return field
   }
 

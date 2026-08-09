@@ -191,6 +191,8 @@ interface ArenaRenderState {
    * 소리도 같은 판정을 쓴다.
    */
   readonly impacts: readonly TrailHit[]
+  /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
+  readonly suppressTrails?: ReadonlySet<number>
 }
 
 const COLORS = {
@@ -438,7 +440,7 @@ class ArenaRenderer {
       this.trails.reset()
       return
     }
-    this.trails.update(state.bodies, dt, state.impacts)
+    this.trails.update(state.bodies, dt, state.impacts, state.suppressTrails)
 
     const { ctx } = this
     ctx.save()

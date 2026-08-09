@@ -40,6 +40,7 @@ interface TrailBody {
 
 /** 부딪힌 자리 하나 — 물리가 돌려주는 것 중 이 연출에 필요한 부분만 */
 interface TrailHit {
+  readonly handle: number
   readonly id: string
   readonly color: string
   readonly x: number
@@ -261,6 +262,7 @@ const STEAM_MAX = 90
 
 /** 한 프레임에 흐를 수 있는 최대 시간(초). 탭이 가려졌다 돌아올 때 한꺼번에 튀지 않게 */
 const MAX_STEP = 0.05
+const NO_SUPPRESSED: ReadonlySet<number> = new Set()
 
 class TrailField {
   private readonly live: Particle[] = []
@@ -304,6 +306,7 @@ class TrailField {
     bodies: readonly TrailBody[],
     dt: number,
     hits: readonly TrailHit[] = [],
+    suppressed: ReadonlySet<number> = NO_SUPPRESSED,
   ): void {
     /*
      * 부딪힘은 dt가 0이어도 처리한다. 물이 퍼지는 것은 **사건**이라 흘려보내면
@@ -316,7 +319,7 @@ class TrailField {
       return
     }
     this.advance(step)
-    this.emit(bodies, step)
+    this.emit(bodies, step, suppressed)
     this.forget(bodies)
   }
 
@@ -485,11 +488,20 @@ class TrailField {
     this.live.length = write
   }
 
-  private emit(bodies: readonly TrailBody[], dt: number): void {
+  private emit(
+    bodies: readonly TrailBody[],
+    dt: number,
+    suppressed: ReadonlySet<number>,
+  ): void {
     for (const body of bodies) {
       const kind = trailOf(body.variant.id)
       const last = this.previous.get(body.handle)
       this.previous.set(body.handle, { x: body.x, y: body.y })
+      // 표시 보정은 실제 이동이 아니다. 기록만 새 위치로 옮겨 해제 프레임도 튀지 않게 한다.
+      if (suppressed.has(body.handle)) {
+        this.debt.set(body.handle, 0)
+        continue
+      }
       /*
        * 김은 꼬리와 **겹쳐도 되는 축**이다 — 나머지는 움직이는 동안 흘리고 김은
        * 얹힌 뒤에 오르므로 시간이 겹치지 않는다. 그래서 갈래를 보기 전에 따로 본다.

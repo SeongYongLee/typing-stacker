@@ -19,7 +19,7 @@ import type { Transport, TransportEvent, TransportFailure } from './Transport.ts
 
 /** 서버가 보내는 것 */
 type ServerFrame =
-  | { t: 'welcome'; self: string; peers: string[]; host: boolean }
+  | { t: 'welcome'; self: string; peers: string[]; host: boolean; hostId?: string }
   | { t: 'peerJoined'; peer: string }
   | { t: 'peerLeft'; peer: string }
   | { t: 'msg'; from: string; data: unknown }
@@ -107,12 +107,14 @@ class RelayTransport implements Transport {
   private retryTimer: ReturnType<typeof setTimeout> | null = null
   readonly selfId: PlayerId
   readonly isHost: boolean
+  readonly hostId: PlayerId
   readonly roomCode: string | null
 
   private constructor(
     socket: WebSocket,
     selfId: PlayerId,
     isHost: boolean,
+    hostId: PlayerId,
     roomCode: string,
     peers: readonly PlayerId[],
     onEvent: (event: TransportEvent) => void,
@@ -121,6 +123,7 @@ class RelayTransport implements Transport {
     this.socket = socket
     this.selfId = selfId
     this.isHost = isHost
+    this.hostId = hostId
     this.roomCode = roomCode
     this.onEvent = onEvent
     this.baseUrl = baseUrl
@@ -256,6 +259,7 @@ class RelayTransport implements Transport {
             socket,
             frame.self,
             frame.host,
+            frame.hostId ?? (frame.host ? frame.self : frame.peers[0] ?? ''),
             code,
             frame.peers,
             options.onEvent,

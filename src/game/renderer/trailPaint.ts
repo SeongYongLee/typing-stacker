@@ -13,22 +13,37 @@ import type { Trail } from '../data/trails.ts'
 interface TrailPaint {
   readonly style: string
   readonly alpha: number
-  /** 빛을 더해 칠하는가. 반짝임만 그렇다 */
+  /** 빛을 더해 칠하는가. 반짝임만, 그리고 배경이 어두울 때만 그렇다 */
   readonly additive: boolean
+  /**
+   * 두를 테두리. 필요 없으면 null이다.
+   *
+   * **배경이 그림이 된 뒤에 생긴 것이다.** 예전 아레나는 단색 어두운 색이라 밝은
+   * 부스러기가 그대로 떠 보였는데, 지금은 밝은 벽·화이트보드·창문 위에 얹히므로
+   * 밝은 점을 밝은 곳에 찍는 꼴이 된다. 물건 스티커가 검은 윤곽을 두르는 것과 같은
+   * 해법이고, 같은 어법이라 겉돌지도 않는다.
+   *
+   * 어두운 배경에서는 어두운 테두리가 배경에 묻혀 저절로 사라진다 — 낮과 밤에
+   * 다른 값을 쓰지 않아도 되는 이유다.
+   */
+  readonly outline: { readonly style: string; readonly width: number } | null
 }
 
 /**
  * 갈래마다 가장 진할 때의 알파.
  *
  * 반짝임만 가산 합성이라 값이 낮다 — 더하는 색은 같은 알파에서도 훨씬 세게 보인다.
- * 나머지는 물감처럼 덮으므로 어두운 배경에서 이 정도는 되어야 보인다.
+ *
+ * **2026-08-09에 전반으로 올렸다.** 예전 값은 "어두운 배경에서 이 정도면 보인다"를
+ * 기준으로 잡은 것인데, 아레나 배경이 단색에서 밝은 그림으로 바뀌며 그 전제가 깨졌다.
+ * 김만 그대로다 — 김은 배경이고, 진해지면 쌓인 물건을 가린다.
  */
 const PEAK: Readonly<Record<Trail, number>> = {
-  sparkle: 0.75,
-  droplet: 0.7,
-  petal: 0.82,
-  fluff: 0.5,
-  crumb: 0.62,
+  sparkle: 0.85,
+  droplet: 0.82,
+  petal: 0.92,
+  fluff: 0.66,
+  crumb: 0.78,
   /* 퍼지는 물은 짧게 살아서 눈에 남는 시간이 적다. 그만큼 진해야 보인다 */
   splash: 0.85,
   /* 김은 배경이다. 진하면 쌓인 물건을 가려 무엇이 얹혔는지가 안 보인다 */
@@ -106,7 +121,37 @@ function grownBy(particle: Particle): number {
   return 1 + grow * aged
 }
 
-function trailPaint(particle: Particle, scale: number): TrailPaint {
+/**
+ * 테두리를 두르지 않는 갈래.
+ *
+ * 김은 배경이라 윤곽이 생기면 연기가 아니라 덩어리로 보인다. 나머지는 전부 두른다 —
+ * 밝은 배경에서 형태를 만들어주는 것이 이 선의 일이다.
+ */
+const NO_OUTLINE: ReadonlySet<Trail> = new Set<Trail>(['steam'])
+
+/** 테두리 색. 물건 스티커의 윤곽과 같은 어법이라 검정 계열이다 */
+const OUTLINE_RGB = '26, 22, 30'
+
+/**
+ * 테두리를 본체 알파의 몇 배로 칠하는가.
+ *
+ * 1을 넘긴 이유는 **본체가 옅어질 때 형태가 먼저 사라지면 안 되기 때문**이다.
+ * 같은 비율로 옅어지면 밝은 배경에서 부스러기가 수명 절반쯤부터 안 보인다.
+ */
+const OUTLINE_ALPHA = 1.15
+
+/** 테두리 두께(px). 부스러기가 작으므로 이보다 굵으면 선이 속을 다 먹는다 */
+const OUTLINE_WIDTH = 1.1
+
+/**
+ * `nightfall`이 이보다 크면 반짝임을 빛으로 더해 칠한다.
+ *
+ * 가산 합성은 **어두운 곳에서만 뜻이 있다.** 밝은 벽에 빛을 더하면 이미 밝아서
+ * 더할 여지가 없고, 그러면 반짝임이 통째로 사라진다 — 낮에는 물감처럼 덮는다.
+ */
+const ADDITIVE_NIGHT = 0.55
+
+function trailPaint(particle: Particle, scale: number, nightfall = 1): TrailPaint {
   const base = NORMALIZED[particle.kind]
     ? glowColor(particle.color)
     : parseHex(particle.color)
@@ -115,9 +160,15 @@ function trailPaint(particle: Particle, scale: number): TrailPaint {
   return {
     style: `rgba(${to255(base.r)}, ${to255(base.g)}, ${to255(base.b)}, ${alpha})`,
     alpha,
-    additive: ADDITIVE[particle.kind],
+    additive: ADDITIVE[particle.kind] && nightfall >= ADDITIVE_NIGHT,
+    outline: NO_OUTLINE.has(particle.kind)
+      ? null
+      : {
+          style: `rgba(${OUTLINE_RGB}, ${Math.min(1, alpha * OUTLINE_ALPHA)})`,
+          width: OUTLINE_WIDTH,
+        },
   }
 }
 
-export { trailPaint, fadeOf, grownBy, PEAK, ADDITIVE, NORMALIZED }
+export { trailPaint, fadeOf, grownBy, PEAK, ADDITIVE, NORMALIZED, ADDITIVE_NIGHT }
 export type { TrailPaint }

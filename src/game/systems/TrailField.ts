@@ -1,4 +1,4 @@
-import { STEAM_COLOR, splashColorOf, trailOf, type Trail } from '../data/trails.ts'
+import { STEAM_COLOR, splashColorOf, steams, trailOf, type Trail } from '../data/trails.ts'
 
 /**
  * 물건이 움직인 자리에 남는 부스러기들.
@@ -105,39 +105,43 @@ interface TrailSpec {
  * 갈래마다 다른 것은 **네 가지**다 — 얼마나 많이, 얼마나 오래, 얼마나 무겁게,
  * 얼마나 흔들리며. 이 넷이 갈리면 눈으로 갈래가 구분된다.
  *
+ * **크기는 2026-08-09에 1.35배로 키웠다.** 아레나 배경이 단색에서 밝은 그림으로
+ * 바뀌고 물건 스티커도 다시 그려지며, 예전 크기로는 부스러기가 배경 무늬에 묻혔다.
+ * 김만 그대로다 — 그쪽은 배경이라 커지면 쌓인 물건을 가린다.
+ *
  * 색은 여기 없다. 물건이 갖고 온다(`words.ts`의 `color`) — 같은 갈래 안에서도
  * 단풍잎과 클로버가 다른 색으로 흩날려야 하기 때문이다.
  */
 const SPECS: Readonly<Record<Trail, TrailSpec>> = {
   /* 빠르게 반짝이고 곧 사라진다. 뜬 자리에 남아 물건이 지나간 길을 그린다 */
   sparkle: {
-    rate: 40, life: 0.55, size: 0.055, gravity: 0, inherit: 0.15, sway: 0, spread: 0.35,
+    rate: 40, life: 0.55, size: 0.075, gravity: 0, inherit: 0.15, sway: 0, spread: 0.35,
     // 별은 제자리에서 천천히 돈다. 빠르게 돌리면 반짝임이 아니라 바람개비가 된다
     spin: 1.2,
     grow: 0,
   },
   /* 튀어서 아래로 가속한다. 물건보다 빨리 떨어져 뒤로 처진다 */
   droplet: {
-    rate: 22, life: 0.5, size: 0.045, gravity: 1.3, inherit: 0.35, sway: 0, spread: 0.5,
+    rate: 22, life: 0.5, size: 0.062, gravity: 1.3, inherit: 0.35, sway: 0, spread: 0.5,
     // 방울은 진행 방향으로 늘어나야 하므로 돌지 않는다
     spin: 0,
     grow: 0,
   },
   /* 좌우로 흔들리며 천천히 내려온다. 잎은 뒹굴어야 잎으로 보인다 */
   petal: {
-    rate: 14, life: 1.5, size: 0.075, gravity: 0.18, inherit: 0.2, sway: 0.9, spread: 0.3,
+    rate: 14, life: 1.5, size: 0.098, gravity: 0.18, inherit: 0.2, sway: 0.9, spread: 0.3,
     spin: 3.4,
     grow: 0,
   },
   /* 가장 느리다. 크고 옅어서 거의 떠 있다 */
   fluff: {
-    rate: 10, life: 2.2, size: 0.09, gravity: 0.06, inherit: 0.12, sway: 0.5, spread: 0.2,
+    rate: 10, life: 2.2, size: 0.115, gravity: 0.06, inherit: 0.12, sway: 0.5, spread: 0.2,
     spin: 0.8,
     grow: 0,
   },
   /* 작고 짧게 아래로 흩어진다. 부러진 조각처럼 빠르게 뒹군다 */
   crumb: {
-    rate: 24, life: 0.65, size: 0.04, gravity: 1, inherit: 0.3, sway: 0, spread: 0.6,
+    rate: 24, life: 0.65, size: 0.055, gravity: 1, inherit: 0.3, sway: 0, spread: 0.6,
     spin: 5,
     grow: 0,
   },
@@ -149,7 +153,7 @@ const SPECS: Readonly<Record<Trail, TrailSpec>> = {
    * 가벼우면 솟은 채로 떠 있어 "튀었다"가 아니라 "흩날렸다"가 된다.
    */
   splash: {
-    rate: 0, life: 0.55, size: 0.038, gravity: 1.1, inherit: 0, sway: 0, spread: 0,
+    rate: 0, life: 0.55, size: 0.052, gravity: 1.1, inherit: 0, sway: 0, spread: 0,
     spin: 0, grow: 0,
   },
   /*
@@ -364,14 +368,14 @@ class TrailField {
       const kind = trailOf(body.variant.id)
       const last = this.previous.get(body.handle)
       this.previous.set(body.handle, { x: body.x, y: body.y })
-      if (kind === null) {
-        continue
-      }
-      if (kind === 'steam') {
+      /*
+       * 김은 꼬리와 **겹쳐도 되는 축**이다 — 나머지는 움직이는 동안 흘리고 김은
+       * 얹힌 뒤에 오르므로 시간이 겹치지 않는다. 그래서 갈래를 보기 전에 따로 본다.
+       */
+      if (steams(body.variant.id)) {
         this.emitSteam(body, dt)
-        continue
       }
-      if (last === undefined || body.settled) {
+      if (kind === null || last === undefined || body.settled) {
         continue
       }
       const vx = (body.x - last.x) / dt

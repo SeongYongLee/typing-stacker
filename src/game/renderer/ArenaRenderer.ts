@@ -359,6 +359,16 @@ class ArenaRenderer {
             : particle.angle,
       })
       ctx.fill()
+      /*
+       * 테두리는 **가산 합성 밖에서** 두른다. 빛을 더하는 상태로 어두운 선을 그으면
+       * 아무것도 더해지지 않아 선이 사라진다 — 어두운 색의 가산은 0을 더하는 것이다.
+       */
+      if (paint.outline !== null) {
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.lineWidth = paint.outline.width
+        ctx.strokeStyle = paint.outline.style
+        ctx.stroke()
+      }
     }
     ctx.restore()
   }

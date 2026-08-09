@@ -80,25 +80,12 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   /* 털과 솜 — 느리게 떠서 늦게 내려앉는다. 다른 갈래와 **속도로** 갈린다 */
   'quill-feather': 'fluff',
   rabbit: 'fluff',
+  /* 꼬리가 굵어 흔들 때마다 털이 날린다 — 토끼와 같은 자리 */
+  squirrel: 'fluff',
   'wool-hat': 'fluff',
   'wool-hat-nordic-earflap': 'fluff',
   scarf: 'fluff',
 
-  /*
-   * 뜨거운 것 — 김이 피어오른다.
-   *
-   * **다른 갈래와 조건이 반대다.** 나머지는 움직이는 동안 흘리고 정착하면 멈추는데,
-   * 김은 얹힌 **뒤에** 천천히 올라온다. 떨어지는 동안 김이 나면 그건 김이 아니라
-   * 연기 꼬리이고, 쌓인 탑에서 김이 오르는 것은 지금 화면에 없던 종류의 움직임이다.
-   *
-   * 아메리카노·전기주전자·붕어빵도 뜨겁지만 이미 다른 갈래를 갖고 있어 두었다.
-   * 한 물건이 갈래 둘을 갖는 구조는 아직 필요하지 않다 — 필요해지면 그때 만든다.
-   */
-  'frying-pan': 'steam',
-  'fried-egg': 'steam',
-  iron: 'steam',
-  /* 다리미에 탄 자국. 타고 나면 연기가 남는다 */
-  'burnt-hole-shirt': 'steam',
 
   /* 마르고 부스러지는 것 */
   broom: 'crumb',
@@ -113,6 +100,43 @@ const TRAILS: Readonly<Record<string, Trail>> = {
   biscuit: 'crumb',
   /* 김이 부스러지고 밥알이 떨어진다 */
   'triangle-gimbap': 'crumb',
+}
+
+/**
+ * 얹힌 뒤 김이 오르는 물건.
+ *
+ * **꼬리와 겹쳐도 되는 유일한 축이다.** 나머지 갈래는 움직이는 동안 흘리고 정착하면
+ * 멈추는데 김은 반대로 얹힌 **뒤에** 오른다. 시간이 겹치지 않으니 아메리카노가
+ * 떨어지며 물방울을 흘리고, 얹힌 뒤에 김을 낼 수 있다.
+ *
+ * 예전에는 `TRAILS`에 `steam`으로 적었다. 그러면 한 물건이 갈래 하나만 갖게 되어
+ * **뜨거운 것 대부분이 김을 못 냈다** — 실제로 스폰되는 것은 프라이팬과 다리미
+ * 둘뿐이었고(계란 프라이와 구멍 난 셔츠는 합성 전용이라 타이핑으로 안 떨어진다),
+ * 판당 0.3개라 세 판에 두 판은 김을 아예 못 봤다. 김은 "쌓인 탑이 아직 살아 있다"를
+ * 말하는 배경인데 그 역할을 못 하고 있었다.
+ *
+ * **아이스 아메리카노는 없다.** 같은 단어의 다른 형태여도 그쪽은 차갑다 —
+ * "기본형이 가지면 히든도 가진다"는 꼬리 쪽 규칙이 여기서는 통하지 않는다.
+ */
+const STEAMING_IDS: ReadonlySet<string> = new Set([
+  /* 불 위에 있던 것 */
+  'frying-pan',
+  'fried-egg',
+  'iron',
+  /* 다리미에 탄 자국. 타고 나면 연기가 남는다 */
+  'burnt-hole-shirt',
+  /* 갓 만들어 나온 것 */
+  'fish-bread',
+  'lunchbox-bear-omelet-rice',
+  /* 뜨거운 것이 담겼다 */
+  'americano',
+  'electric-kettle',
+  'electric-kettle-gooseneck',
+])
+
+/** 얹힌 뒤 김이 오르는가. 꼬리와 따로 본다 */
+function steams(id: string): boolean {
+  return STEAMING_IDS.has(id)
 }
 
 /**
@@ -161,5 +185,5 @@ function splashColorOf(id: string, fallback: string): string {
   return SPLASH_COLORS[id] ?? fallback
 }
 
-export { TRAILS, SPLASH_COLORS, STEAM_COLOR, trailOf, splashColorOf }
+export { TRAILS, STEAMING_IDS, SPLASH_COLORS, STEAM_COLOR, trailOf, steams, splashColorOf }
 export type { Trail }

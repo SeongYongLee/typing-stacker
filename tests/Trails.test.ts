@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
 import { GLOWING_IDS } from '../src/game/data/glowItems.ts'
-import { TRAILS, trailOf, type Trail } from '../src/game/data/trails.ts'
+import { STEAMING_IDS, TRAILS, trailOf, type Trail } from '../src/game/data/trails.ts'
 import { ALL_VARIANTS, WORDS } from '../src/game/data/words.ts'
-import { fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
+import { ADDITIVE_NIGHT, fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
 import {
   FULL_SPEED,
   MAX_PARTICLES,
@@ -44,21 +44,42 @@ function fall(field: TrailField, id: string, frames: number, speed = 4, settled 
 
 describe('꼬리 갈래 표', () => {
   /**
-   * `splash`만 빼고 모든 갈래에 물건이 있어야 한다. 배정된 물건이 없는 갈래는
-   * 표만 있고 화면에는 영영 안 나온다.
+   * 모든 갈래에 물건이 있어야 한다. 배정된 물건이 없는 갈래는 표만 있고 화면에는
+   * 영영 안 나온다.
    *
-   * `splash`는 예외다 — **움직이는 동안** 흘리는 것이 아니라 **부딪히는 순간** 터지는
-   * 것이라 물건에 배정되지 않는다. 액체가 담긴 것(`droplet`)이 닿을 때 만들어진다.
+   * **둘은 이 표에 없다.** `splash`는 움직이는 동안이 아니라 **부딪히는 순간** 터지는
+   * 것이라 액체(`droplet`)가 닿을 때 만들어지고, `steam`은 **얹힌 뒤에** 오르는 것이라
+   * 꼬리와 겹쳐도 되므로 `STEAMING_IDS`라는 두 번째 축에 산다.
    */
-  it('splash 말고는 모든 갈래에 물건이 배정돼 있다', () => {
+  it('갈래마다 물건이 배정돼 있다', () => {
     const used = new Set(Object.values(TRAILS))
     for (const kind of Object.keys(SPECS) as Trail[]) {
       if (kind === 'splash') {
         expect(used.has(kind), 'splash는 물건에 배정되지 않는다').toBe(false)
         continue
       }
+      if (kind === 'steam') {
+        expect(used.has(kind), 'steam은 STEAMING_IDS에 산다').toBe(false)
+        expect(STEAMING_IDS.size, '김을 낼 물건이 있어야 한다').toBeGreaterThan(0)
+        continue
+      }
       expect(used.has(kind), kind).toBe(true)
     }
+  })
+
+  /**
+   * 김은 꼬리와 **겹쳐도 되는 유일한 축**이다. 겹치는 물건이 실제로 있어야 축을
+   * 나눈 뜻이 산다 — 없으면 예전처럼 한 물건이 하나만 갖는 것과 같다.
+   */
+  it('김과 꼬리를 함께 갖는 물건이 있다', () => {
+    const both = [...STEAMING_IDS].filter((id) => trailOf(id) !== null)
+    expect(both.length, `겹치는 물건: ${both.join(', ')}`).toBeGreaterThan(0)
+  })
+
+  it('김을 내는 물건이 모두 실제로 있다', () => {
+    const known = new Set(ALL_VARIANTS.map((item) => item.id))
+    const missing = [...STEAMING_IDS].filter((id) => !known.has(id))
+    expect(missing, `없는 물건: ${missing.join(', ')}`).toEqual([])
   })
 
   it('표의 id가 모두 실제로 있는 물건이다', () => {
@@ -267,6 +288,41 @@ describe('부스러기를 어떻게 칠하는가', () => {
   it('반짝임만 빛을 더한다', () => {
     expect(trailPaint({ ...particle, kind: 'sparkle' }, 1).additive).toBe(true)
     expect(trailPaint({ ...particle, kind: 'petal' }, 1).additive).toBe(false)
+  })
+
+  /**
+   * 가산 합성은 **어두운 곳에서만 뜻이 있다.** 밝은 벽에 빛을 더하면 이미 밝아서
+   * 더할 여지가 없고, 그러면 반짝임이 통째로 사라진다 — 아레나 배경이 단색에서
+   * 밝은 그림으로 바뀌며 실제로 그렇게 됐다.
+   */
+  it('낮에는 빛을 더하지 않는다', () => {
+    const sparkle = { ...particle, kind: 'sparkle' as Trail }
+    expect(trailPaint(sparkle, 1, 1).additive, '밤').toBe(true)
+    expect(trailPaint(sparkle, 1, ADDITIVE_NIGHT).additive, '문턱').toBe(true)
+    expect(trailPaint(sparkle, 1, 0).additive, '낮').toBe(false)
+  })
+
+  /**
+   * 밝은 배경에서 형태를 만들어주는 것이 테두리의 일이다. 물건 스티커가 검은 윤곽을
+   * 두르는 것과 같은 어법이고, 어두운 배경에서는 배경에 묻혀 저절로 사라진다.
+   */
+  it('김 말고는 테두리를 두른다', () => {
+    for (const kind of ['sparkle', 'droplet', 'petal', 'fluff', 'crumb', 'splash'] as Trail[]) {
+      expect(trailPaint({ ...particle, kind }, 1).outline, kind).not.toBeNull()
+    }
+    // 김은 배경이라 윤곽이 생기면 연기가 아니라 덩어리로 보인다
+    expect(trailPaint({ ...particle, kind: 'steam' }, 1).outline).toBeNull()
+  })
+
+  /**
+   * 본체가 옅어질 때 형태가 먼저 사라지면 밝은 배경에서 수명 절반쯤부터 안 보인다.
+   * 테두리는 본체보다 늦게 옅어져야 한다.
+   */
+  it('테두리가 본체보다 늦게 옅어진다', () => {
+    const faded = { ...particle, life: 0.3 }
+    const paint = trailPaint(faded, 1)
+    const outlineAlpha = Number(paint.outline!.style.match(/([\d.]+)\)$/)![1])
+    expect(outlineAlpha).toBeGreaterThan(paint.alpha)
   })
 
   /**

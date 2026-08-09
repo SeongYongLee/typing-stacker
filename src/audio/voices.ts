@@ -1,3 +1,4 @@
+import { HEAVY_MASS } from '../game/config.ts'
 import type { Material } from '../game/types/game.ts'
 
 /**
@@ -370,6 +371,212 @@ function detuneRatio(tone: number, spread: number): number {
   return 2 ** (((tone - 0.5) * spread) / 12)
 }
 
+type WeightClass = 'veryLight' | 'light' | 'medium' | 'heavy'
+
+/**
+ * 박스가 받아내는 소리를 네 무게대로 가른다.
+ *
+ * 현재 185종의 실제 질량 분포를 재면 0.08 / 0.18 / 0.35에서 각각 41 / 64 / 42 / 38종으로
+ * 갈린다. 맨 위 문턱은 물리의 무거운 물건 기준과 같아서, 쿵 소리와 잠금 판정이 서로
+ * 다른 물건을 무겁다고 말하지 않는다.
+ */
+function weightClassOf(mass: number): WeightClass {
+  if (mass < 0.08) return 'veryLight'
+  if (mass < 0.18) return 'light'
+  if (mass < HEAVY_MASS) return 'medium'
+  return 'heavy'
+}
+
+/**
+ * 물건 아래에서 함께 울리는 종이 박스의 반응.
+ *
+ * 기존 재질음은 "무엇이 떨어졌는가"를 말하고, 이 층은 "얼마나 무거운가"를 말한다.
+ * 아주 가벼우면 사뿐, 가벼우면 풀썩, 중간은 척/탁, 무거우면 쿵으로 읽히게 한다.
+ */
+function boxLanding(voice: Voice, strength: number, mass: number, grain: number): void {
+  const weight = weightClassOf(mass)
+  const intensity = 0.45 + clamp(strength, 0, 1) * 0.55
+
+  if (weight === 'veryLight') {
+    // 사뿐 — 모서리를 건드리는 얇은 숨과 작은 몸통만 남긴다
+    burst(voice, {
+      filter: 'lowpass',
+      freq: 1050,
+      toFreq: 520,
+      gain: 0.016 * intensity,
+      duration: 0.07,
+      attack: 0.018,
+    })
+    tone(voice, {
+      type: 'sine',
+      freq: 210,
+      toFreq: 145,
+      gain: 0.012 * intensity,
+      duration: 0.08,
+      attack: 0.02,
+    })
+    return
+  }
+
+  if (weight === 'light') {
+    // 풀썩 — 접힌 골판지가 공기를 먹으며 눌리는 둔한 잡음
+    burst(voice, {
+      filter: 'lowpass',
+      freq: 720,
+      toFreq: 190,
+      gain: 0.035 * intensity,
+      duration: 0.13,
+      attack: 0.018,
+    })
+    tone(voice, {
+      type: 'sine',
+      freq: 125,
+      toFreq: 82,
+      gain: 0.025 * intensity,
+      duration: 0.13,
+      attack: 0.016,
+    })
+    return
+  }
+
+  if (weight === 'medium') {
+    /*
+     * 척/탁 — 같은 무게라도 개체의 grain으로 둘을 가른다. 난수로 고르면 같은 물건이
+     * 매번 다른 소리를 내지만, 개체값을 쓰면 반복하면서 그 물건의 감각이 익는다.
+     */
+    const crisp = grain < 0.5
+    burst(voice, {
+      filter: crisp ? 'bandpass' : 'lowpass',
+      freq: crisp ? 1500 : 1050,
+      toFreq: crisp ? 480 : 360,
+      q: crisp ? 0.8 : 0.6,
+      gain: 0.045 * intensity,
+      duration: crisp ? 0.055 : 0.085,
+      attack: 0.004,
+    })
+    tone(voice, {
+      type: 'sine',
+      freq: 115,
+      toFreq: 68,
+      gain: 0.042 * intensity,
+      duration: 0.16,
+      attack: 0.008,
+    })
+    return
+  }
+
+  // 쿵 — 상자 몸통 전체가 눌렸다 돌아오는 저음. 고역을 늘려 세게 만들지 않는다
+  burst(voice, {
+    filter: 'lowpass',
+    freq: 440,
+    toFreq: 75,
+    gain: 0.07 * intensity,
+    duration: 0.25,
+    attack: 0.012,
+  })
+  burst(voice, {
+    filter: 'bandpass',
+    freq: 900,
+    toFreq: 260,
+    q: 0.7,
+    gain: 0.025 * intensity,
+    duration: 0.09,
+    attack: 0.004,
+  })
+  tone(voice, {
+    type: 'sine',
+    freq: 74,
+    toFreq: 38,
+    gain: (0.09 + strength * 0.05) * intensity,
+    duration: 0.34,
+    attack: 0.008,
+  })
+}
+
+/** 스플래시 화면용 사무실 나무문이 경첩 소리를 내며 열린다. 아직 재생 위치에는 연결하지 않는다 */
+function woodenDoorOpen(voice: Voice): void {
+  // 한 번 매끈하게 훑으면 바람처럼 들린다. 방향이 다른 짧은 마찰을 겹쳐 경첩을 만든다
+  burst(voice, {
+    filter: 'bandpass',
+    freq: 220,
+    toFreq: 820,
+    q: 4.2,
+    gain: 0.02,
+    duration: 0.55,
+    attack: 0.07,
+  })
+  tone(voice, {
+    type: 'triangle',
+    freq: 132,
+    toFreq: 188,
+    gain: 0.018,
+    duration: 0.22,
+    delay: 0.03,
+    attack: 0.035,
+  })
+  tone(voice, {
+    type: 'triangle',
+    freq: 196,
+    toFreq: 148,
+    gain: 0.014,
+    duration: 0.2,
+    delay: 0.22,
+    attack: 0.025,
+  })
+  burst(voice, {
+    filter: 'bandpass',
+    freq: 780,
+    toFreq: 360,
+    q: 5.5,
+    gain: 0.015,
+    duration: 0.24,
+    delay: 0.27,
+    attack: 0.04,
+  })
+}
+
+/** 스플래시 화면용 사무실 나무문의 문짝과 잠금쇠가 차례로 쿵 닫힌다 */
+function woodenDoorClose(voice: Voice, strength: number): void {
+  const intensity = 0.55 + clamp(strength, 0, 1) * 0.45
+  // 문짝의 넓은 저음
+  tone(voice, {
+    type: 'sine',
+    freq: 78,
+    toFreq: 36,
+    gain: 0.11 * intensity,
+    duration: 0.32,
+    attack: 0.006,
+  })
+  burst(voice, {
+    filter: 'lowpass',
+    freq: 650,
+    toFreq: 90,
+    gain: 0.09 * intensity,
+    duration: 0.22,
+    attack: 0.004,
+  })
+  // 나무판이 문틀에 맞는 짧은 척
+  burst(voice, {
+    filter: 'bandpass',
+    freq: 1300,
+    toFreq: 460,
+    q: 0.9,
+    gain: 0.045 * intensity,
+    duration: 0.07,
+    attack: 0.003,
+  })
+  // 손잡이와 잠금쇠가 한 박자 늦게 따라온다
+  tone(voice, {
+    type: 'sine',
+    freq: 880,
+    toFreq: 620,
+    gain: 0.012 * intensity,
+    duration: 0.075,
+    delay: 0.035,
+    attack: 0.004,
+  })
+}
+
 /**
  * 물건이 손을 떠났다.
  *
@@ -428,11 +635,14 @@ function dropWhoosh(voice: Voice, material: Material, tone: number, hidden: bool
 function impact(
   voice: Voice,
   strength: number,
+  mass: number,
   size: number,
   material: Material,
   itemTone: number,
   itemGrain: number,
 ): void {
+  boxLanding(voice, strength, mass, itemGrain)
+
   const recipe = MATERIAL_VOICES[material]
   // 큰 물건일수록 낮게. 재질이 정한 기준음에서 크기만큼 내려간다
   const body = clamp(recipe.body - size * 78, 44, 320) * detuneRatio(itemTone, recipe.spread)
@@ -658,6 +868,10 @@ export {
   tone,
   burst,
   hz,
+  weightClassOf,
+  boxLanding,
+  woodenDoorOpen,
+  woodenDoorClose,
   typeTick,
   wordHit,
   wordMiss,
@@ -674,4 +888,4 @@ export {
   turnCue,
   chat,
 }
-export type { Voice }
+export type { Voice, WeightClass }

@@ -130,6 +130,8 @@ describe('GameEngine이 사건을 흘린다', () => {
       // 세기는 0~1로 눌러서 나온다 — 받는 쪽이 물리 단위를 몰라도 되게
       expect(impact.strength).toBeGreaterThan(0)
       expect(impact.strength).toBeLessThanOrEqual(1)
+      // 실제 질량이 있어야 사뿐·풀썩·척·쿵을 물건 크기가 아니라 무게로 가를 수 있다
+      expect(impact.mass).toBeGreaterThan(0)
       expect(impact.size).toBeGreaterThan(0)
     }
 

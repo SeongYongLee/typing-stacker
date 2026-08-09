@@ -19,7 +19,7 @@ import { ALL_VARIANTS } from '../src/game/data/words.ts'
 const variant = ALL_VARIANTS[0]!
 
 function hitOf(impact: number) {
-  return { variant, x: 0.5, y: 1.2, impact, first: true }
+  return { variant, x: 0.5, y: 1.2, mass: 0.24, impact, first: true }
 }
 
 describe('부딪힘의 값', () => {
@@ -57,6 +57,12 @@ describe('부딪힘의 값', () => {
     const event = impactEventOf(hitOf(1))
     const expected = Math.max(variant.artBounds.hw, variant.artBounds.hh) * 2
     expect(event.kind === 'impact' && event.size).toBe(expected)
+  })
+
+  it('박스 반응음을 가르는 실제 질량을 손대지 않고 넘긴다', () => {
+    const hit = hitOf(1)
+    const event = impactEventOf(hit)
+    expect(event.kind === 'impact' && event.mass).toBe(hit.mass)
   })
 
   it('재질과 개체값은 손대지 않고 넘긴다', () => {

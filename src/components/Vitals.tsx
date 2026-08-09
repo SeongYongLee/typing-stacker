@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { LIVES } from '../game/config.ts'
 import { play } from './animate.ts'
 
+/*
+ * 이름표는 원래 `#6a7290`이었다. 배경이 단색일 때는 값보다 한 걸음 물러난 회색이었는데,
+ * 방 그림 위에서는 하필 이 자리 뒤가 가장 밝은 바닥이라 **통째로 사라졌다**.
+ * 한 단계 밝혀 아래쪽 그러데이션 위에서 읽히게 한다.
+ */
 const KEPT = '#ff6b6b'
 const LOST = '#2e3448'
 
@@ -95,7 +100,7 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#6a7290', letterSpacing: '0.08em' }}>목숨</span>
+      <span style={{ fontSize: 11, color: '#a7afc9', letterSpacing: '0.08em' }}>목숨</span>
       <span
         ref={rowRef}
         style={{
@@ -130,7 +135,7 @@ function Combo({ combo }: { combo: number }) {
   const active = combo > 0
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#6a7290', letterSpacing: '0.08em' }}>콤보</span>
+      <span style={{ fontSize: 11, color: '#a7afc9', letterSpacing: '0.08em' }}>콤보</span>
       <span
         style={{
           fontSize: 26,
@@ -199,7 +204,7 @@ function Score({ score }: { score: number }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#6a7290', letterSpacing: '0.08em' }}>점수</span>
+      <span style={{ fontSize: 11, color: '#a7afc9', letterSpacing: '0.08em' }}>점수</span>
       {/* 기준을 숫자로 잡는다. 바깥 상자에 붙이면 "점수" 라벨 위에 뜬다 */}
       <span style={{ position: 'relative', display: 'inline-block' }}>
         <span

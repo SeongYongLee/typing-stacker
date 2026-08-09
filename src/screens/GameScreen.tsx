@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { Hud } from '../components/Hud.tsx'
 import { InputBar } from '../components/InputBar.tsx'
 import { StackArena } from '../components/StackArena.tsx'
+import { ArenaBackdrop } from '../components/ArenaBackdrop.tsx'
 import { OptionsScreen } from './OptionsScreen.tsx'
 import { PauseOverlay } from './PauseOverlay.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
@@ -127,12 +128,24 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
 
   return (
     <div style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
+      {/*
+       * 보관소는 **화면 전체**에 깔린다. 판이 도는 칸에만 두었더니 위아래 띠에서
+       * 방이 끊겨, 배경이 아니라 판에 붙은 그림처럼 보였다. 위아래 띠를 반투명으로
+       * 두고 그 뒤로 같은 방이 이어지게 하면 판이 방 안에 놓인 것으로 읽힌다.
+       */}
+      <ArenaBackdrop nightfall={state.timeOfDay.nightfall} />
       <Hud stats={state.stats} />
 
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>
-          <TypingLane words={state.words} side="left" missSeq={state.stats.missedWords} />
+          <TypingLane
+            words={state.words}
+            side="left"
+            missSeq={state.stats.missedWords}
+            wordMarks={state.wordMarks}
+            pairPulse={state.pairPulse}
+          />
           {/* data-aim은 화살표 위치(-1~1). 자동화 테스트가 조준을 읽는 유일한 통로다 */}
           <div
             style={{ position: 'relative', minHeight: 0 }}
@@ -140,7 +153,13 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
           >
             {collapsing && <CollapseOverlay />}
           </div>
-          <TypingLane words={state.words} side="right" missSeq={state.stats.missedWords} />
+          <TypingLane
+            words={state.words}
+            side="right"
+            missSeq={state.stats.missedWords}
+            wordMarks={state.wordMarks}
+            pairPulse={state.pairPulse}
+          />
         </div>
       </div>
 
@@ -149,6 +168,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         feedback={state.feedback}
         stats={state.stats}
         invulnerable={state.invulnerable}
+        nightfall={state.timeOfDay.nightfall}
       />
 
       {/* 화면 전체를 덮는다. 아레나 안쪽에만 두면 HUD와 입력칸이 살아 있는 것처럼 보인다 */}

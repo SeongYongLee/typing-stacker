@@ -58,6 +58,39 @@ const GLOW_PEAK_ALPHA = 0.085
  */
 const GLOW_MIN_ALPHA = 0.03
 
+/**
+ * 밤이 이보다 깊으면 **빛을 더해** 칠하고, 그보다 낮으면 물감처럼 덮는다.
+ *
+ * 가산 합성은 어두운 곳에서만 뜻이 있다. 배경이 방 그림으로 바뀌면서 낮의 벽은
+ * 밝기 149가 됐는데(예전 단색 배경은 15였다), 거기에 빛을 더해봐야 더할 여지가
+ * 없어 **얹힘 색이 통째로 사라진다.**
+ *
+ * 낮에는 반대로 간다 — 곱하기로 덮어 그늘을 지우는 쪽이다. 밝은 벽에서는 빼는 것만
+ * 보인다.
+ *
+ * **부스러기(`trailPaint.ts`의 `ADDITIVE_NIGHT`)와 같은 값이어야 한다.** 다르면
+ * 반짝임과 얹힘 색이 서로 다른 순간에 갈려서 화면이 두 번 바뀐다.
+ * `tests/ArenaGlow.test.ts`가 두 값이 같은지 지킨다.
+ */
+const GLOW_ADDITIVE_NIGHT = 0.55
+
+/**
+ * 낮에 알파를 이만큼 키운다.
+ *
+ * 같은 알파로는 낮이 훨씬 약하다. 밤에는 어두운 벽(54)에 밝은 색을 더하므로 변화가
+ * 큰데, 낮에는 밝은 벽(149)을 곱으로 누르는 것이라 같은 알파에서 변화가 절반도
+ * 안 된다. 산술로 맞추면 2.6배인데, 화면 전체를 덮는 색이라 그만큼 올리면 눈이
+ * 먼저 피로해진다 — 그 중간에서 잡았다.
+ *
+ * **세기는 실기로만 정할 수 있다.** headless로는 노드가 예약되는지까지만 보인다.
+ */
+const GLOW_DAY_GAIN = 2.2
+
+/** 지금 빛을 더해야 하는가. 아니면 물감처럼 덮는다 */
+function glowAdditive(nightfall: number): boolean {
+  return nightfall >= GLOW_ADDITIVE_NIGHT
+}
+
 function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1)
 }
@@ -128,14 +161,15 @@ function glowColor(hex: string): Rgb {
  * 사라지는 곡선을 제곱으로 두는 이유는, 선형으로 빼면 끝까지 옅은 색이 남아 **화면이
  * 늘 물들어 있는 것처럼** 보이기 때문이다. 처음에 훅 빠지고 꼬리가 짧아야 "번쩍"이 된다.
  */
-function glowAlpha(progress: number, strength: number): number {
+function glowAlpha(progress: number, strength: number, nightfall = 1): number {
   if (progress >= 1 || progress < 0) {
     return 0
   }
   const peak =
     GLOW_MIN_ALPHA + (GLOW_PEAK_ALPHA - GLOW_MIN_ALPHA) * clamp01(strength)
   const fade = 1 - progress
-  return peak * fade * fade
+  const gain = glowAdditive(nightfall) ? 1 : GLOW_DAY_GAIN
+  return peak * fade * fade * gain
 }
 
 /** 캔버스에 넘길 문자열. 알파가 0이면 그리지 않아야 하므로 부르는 쪽이 먼저 본다 */
@@ -144,5 +178,15 @@ function glowStyle(color: Rgb, alpha: number): string {
   return `rgba(${to255(color.r)}, ${to255(color.g)}, ${to255(color.b)}, ${alpha})`
 }
 
-export { glowAlpha, glowColor, glowStyle, GLOW_LIGHTNESS, GLOW_PEAK_ALPHA, GLOW_MIN_ALPHA }
+export {
+  glowAlpha,
+  glowAdditive,
+  glowColor,
+  glowStyle,
+  GLOW_LIGHTNESS,
+  GLOW_PEAK_ALPHA,
+  GLOW_MIN_ALPHA,
+  GLOW_ADDITIVE_NIGHT,
+  GLOW_DAY_GAIN,
+}
 export type { Rgb }

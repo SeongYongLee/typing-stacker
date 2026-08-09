@@ -22,7 +22,10 @@ import { RECIPES } from '../data/recipes.ts'
 import { placeLedge } from '../systems/Ledge.ts'
 import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
+import { pairMarks, pairPulse } from '../systems/PairMarks.ts'
 import { openingEntries } from '../systems/Opening.ts'
+import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
+import { nightEntries } from '../systems/NightWords.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
@@ -30,10 +33,18 @@ import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
-import type { FallingWord, GamePhase, ItemVariant, RunStats } from '../types/game.ts'
+import type { FallingWord, GamePhase, ItemVariant, RunStats, WordEntry } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
 import type { TrailHit } from '../systems/TrailField.ts'
 import { GameLoop } from './GameLoop.ts'
+
+/** 알릴 짝이 없을 때 돌려주는 빈 표. 프레임마다 빈 Map을 새로 만들지 않으려는 것 */
+const NO_MARKS: ReadonlyMap<string, number> = new Map()
+
+/** 단어 → 그 단어의 기본 변형 id. 내려오는 단어가 무슨 재료인지 보려는 것이다 */
+const WORD_BASE_ID = new Map(
+  WORDS.map((entry) => [entry.word, entry.variants[0]?.id ?? '']),
+)
 
 /** 표에서 못 찾은 재료를 걸러낸다 — 레시피는 id 문자열이라 오타가 조용히 지나갈 수 있다 */
 function isVariant(item: ItemVariant | undefined): item is ItemVariant {
@@ -56,23 +67,6 @@ const HIDDEN_REVEAL_SEC = 1.8
  */
 const MERGE_REVEAL_SEC = 3
 
-/** 미러볼이 클럽 조명을 비추는 시간 */
-const MIRROR_BALL_LIGHTS_SEC = 2.8
-
-const MIRROR_BALL_FIXTURE_DROPS = [
-  { id: 'hand-mirror', x: -0.45 },
-  { id: 'desk-globe', x: -0.45 },
-  { id: 'hand-mirror', x: 0.45 },
-  { id: 'desk-globe', x: 0.45 },
-  { id: 'hand-mirror', x: 0 },
-  { id: 'desk-globe', x: 0 },
-] as const
-
-interface GameEngineOptions {
-  /** 개발 중 미러볼 등장 연출을 바로 확인할 수 있게 하는 재료 낙하 묶음 */
-  readonly mirrorBallFixture?: boolean
-}
-
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
   readonly seq: number
@@ -87,6 +81,26 @@ interface GameState {
   readonly phase: GamePhase
   readonly elapsed: number
   readonly words: readonly FallingWord[]
+  /**
+   * 지금 내려오는 단어 중 **무엇과 붙는지 아는 것**들. 단어 → 표식 번호.
+   *
+   * 받침대의 물건에도 같은 번호가 붙어 있어서, 같은 모양끼리 붙이면 합쳐진다.
+   * 까닭은 `systems/PairMarks.ts`에.
+   */
+  readonly wordMarks: ReadonlyMap<string, number>
+  /**
+   * 짝 표식의 밝기(0~1). 받침대의 물건도 **같은 값**으로 빛난다 —
+   * 둘이 함께 뛰어야 한 쌍이라는 것이 색보다 먼저 읽힌다.
+   */
+  readonly pairPulse: number
+  /**
+   * 지금 몇 시인가 — 국면과 그 안의 진행도, 그리고 밤에 얼마나 잠겼는가.
+   *
+   * **규칙 쪽이 내놓는 값이다.** 그리는 쪽(시계·배경·받침대)은 이것을 받아 쓴다 —
+   * 배경의 낮/밤은 `timeOfDay.nightfall`을 그대로 따라가므로, 화면이 어두워졌다는
+   * 것은 지금 재료만 내려온다는 뜻이 된다. 화면이 곧 규칙을 말한다.
+   */
+  readonly timeOfDay: TimeOfDay
   readonly aimNormalized: number
   readonly stats: RunStats
   readonly feedback: SubmitFeedback | null
@@ -116,7 +130,6 @@ interface PendingDrop {
 
 class GameEngine {
   private readonly physics: PhysicsWorld
-  private readonly mirrorBallFixture: boolean
   private readonly loop = new GameLoop()
   private readonly score = new ScoreManager()
   private readonly collection: Collection
@@ -151,7 +164,6 @@ class GameEngine {
     | null = null
   /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
   private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
-  private mirrorBallLights: { elapsed: number } | null = null
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
   /**
@@ -171,6 +183,18 @@ class GameEngine {
   private lives = LIVES
   /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
   private invulnerableLeft = 0
+  /** 직전에 매긴 짝 표식. 색을 이어 쓰려면 지난 판정을 들고 있어야 한다 */
+  private lastMarks: ReadonlyMap<string, number> = NO_MARKS
+  /** 지금 국면. 바뀔 때만 밭을 갈아끼우려고 들고 있는다 */
+  private phaseNow: Phase = 'firstNight'
+  /** 첫 밤에 내보낼 단어. 판마다 다르게 뽑으므로 시작할 때 정해 둔다 */
+  private firstNightPool: readonly WordEntry[] = []
+  /** 밤에 내보낼 단어 — 재료만. 판 내내 같으므로 한 번만 만든다 */
+  private readonly nightPool: readonly WordEntry[] = nightEntries(WORDS)
+  /** 표식을 계산한 프레임. 한 프레임에 두 번 세지 않으려는 것 */
+  private markFrame = -1
+  /** 프레임 번호. 늘어나기만 하면 되므로 update에서 한 번 올린다 */
+  private frameSeq = 0
   private runSeq = 0
   private readonly dropQueue: PendingDrop[] = []
 
@@ -182,14 +206,8 @@ class GameEngine {
    */
   private events: GameEventSink | null = null
 
-  private constructor(
-    physics: PhysicsWorld,
-    seed: number,
-    known: readonly string[],
-    options: GameEngineOptions,
-  ) {
+  private constructor(physics: PhysicsWorld, seed: number, known: readonly string[]) {
     this.physics = physics
-    this.mirrorBallFixture = options.mirrorBallFixture ?? false
     this.seed = seed
     this.collection = new Collection(known)
     this.rng = createRng(seed)
@@ -197,13 +215,9 @@ class GameEngine {
     this.loop.setCallbacks(this.update, this.render)
   }
 
-  static async create(
-    seed: number,
-    known: readonly string[] = [],
-    options: GameEngineOptions = {},
-  ): Promise<GameEngine> {
+  static async create(seed: number, known: readonly string[] = []): Promise<GameEngine> {
     const physics = await PhysicsWorld.create()
-    return new GameEngine(physics, seed, known, options)
+    return new GameEngine(physics, seed, known)
   }
 
   /** 도감이 늘어날 때마다 부른다. 저장은 바깥(브라우저를 아는 쪽)이 한다 */
@@ -243,9 +257,9 @@ class GameEngine {
     this.collapseTimer = 0
     this.lives = LIVES
     this.invulnerableLeft = 0
+    this.lastMarks = NO_MARKS
     this.hiddenReveal = null
     this.formingLedge = null
-    this.mirrorBallLights = null
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
@@ -253,20 +267,19 @@ class GameEngine {
     this.rng = createRng(this.seed)
     this.spawner = new WordSpawner(this.rng, WORDS)
     /*
-     * 판 앞머리에는 쉽게 합쳐지는 몇 단어만 내보낸다. 좁히기 전에는 25번을 떨궈도
-     * 40판 중 7판만 첫 합성에 닿았다 — 만들어놓고 거의 아무도 못 보는 기능이었다.
-     * 첫 합성이 일어나면 `tryMerge`가 푼다. 측정값은 systems/Opening.ts에.
+     * 판은 **첫 밤에서 시작한다.** 쉽게 합쳐지는 두 단어만 내보내 치는 족족 짝이
+     * 갖춰지게 한다 — 좁히기 전에는 25번을 떨궈도 40판 중 7판만 첫 합성에 닿았다.
+     * 측정값은 systems/Opening.ts에. 국면이 바뀌면 `applyPhase`가 갈아끼운다.
      */
-    this.spawner.restrict(openingEntries(this.rng, WORDS))
+    this.firstNightPool = openingEntries(this.rng, WORDS)
+    this.phaseNow = 'firstNight'
+    this.spawner.restrict(this.firstNightPool)
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
     this.cameraY = 0
     this.difficultyPeak = 0
     this.physics.reset()
-    if (this.mirrorBallFixture) {
-      this.seedMirrorBallFixture()
-    }
     this.loop.start()
     this.fire({ kind: 'runStart' })
     this.emit()
@@ -314,13 +327,18 @@ class GameEngine {
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     /*
-     * 앞머리에는 히든을 눌러둔다. 그 구간의 밭은 히든 보유 단어만으로 이루어져 있어서
-     * 같은 확률이라도 밀도가 일곱 배로 뛴다 — 재본 값은 config의 OPENING_HIDDEN_CHANCE에.
+     * 첫 밤에는 히든을 눌러둔다. 그 구간의 밭은 히든 보유 단어만으로 이루어져 있어서
+     * 같은 확률이라도 밀도가 몇 배로 뛴다 — 재본 값은 config의 OPENING_HIDDEN_CHANCE에.
+     *
+     * **`spawner.restricted`로 판단하면 안 된다.** 밤에도 밭을 좁히므로(`NightWords.ts`)
+     * 그 플래그는 첫 밤과 밤 둘 다에서 참이고, 그러면 몰아치라고 만든 밤이 오히려
+     * 히든이 가장 마르는 구간이 된다. 눌러야 할 근거는 "좁다"가 아니라 **"밭이 전부
+     * 히든 보유 단어다"**인데, 밤의 밭은 79종 중 26종(33%)으로 낮(35%)과 같다.
      */
     const variant = resolveItem(
       result.word.word,
       this.rng,
-      this.spawner.restricted ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE,
+      this.phaseNow === 'firstNight' ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE,
     )
     this.queueDrop(variant, this.aimer.worldX)
     this.discover(variant)
@@ -335,7 +353,6 @@ class GameEngine {
        * 운으로 만난 히든에는 통나무를 주지 않는다. 여기 있었다가 뺐다 —
        * 이유는 `growLedge`에.
        */
-      this.startMirrorBallLights(variant)
       this.fire({ kind: 'reveal' })
     }
 
@@ -517,12 +534,6 @@ class GameEngine {
       }
     }
     this.advanceLedge(dt)
-    if (this.mirrorBallLights !== null) {
-      this.mirrorBallLights.elapsed += dt
-      if (this.mirrorBallLights.elapsed >= MIRROR_BALL_LIGHTS_SEC) {
-        this.mirrorBallLights = null
-      }
-    }
 
     /*
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
@@ -532,10 +543,17 @@ class GameEngine {
       this.difficultyPeak,
       difficultyProgress(this.physics.stackTop()),
     )
+    this.frameSeq += 1
+    this.applyPhase(timeOfDay(this.elapsed).phase)
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
-    // 놓친 단어는 그냥 사라진다. 대가는 점수에서만 치른다(ScoreManager.accuracy)
-    this.spawner.update(dt, difficulty)
+    /*
+     * 놓친 단어는 판을 방해하지 않고 사라진다. 대가는 **콤보와 점수**다 —
+     * 콤보가 타자와 무관해지면 손을 멈추고 쌓기만 봐도 배수가 유지된다.
+     */
+    if (this.spawner.update(dt, difficulty).length > 0) {
+      this.score.onWordMissed()
+    }
 
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
@@ -618,17 +636,37 @@ class GameEngine {
       elapsed: 0,
       duration: MERGE_REVEAL_SEC,
     }
-    this.startMirrorBallLights(match.recipe.result)
     this.fire({ kind: 'merge' })
     this.score.onCrafted(result)
     this.discover(result)
     this.growLedge()
     /*
-     * 앞머리 밭을 여기서 푼다. 목적이 "합성이라는 것이 있다"를 알리는 것이었으므로
-     * 알린 이 순간이 끝나는 지점이다 — 시간이나 드롭 수로 끊으면 느린 사람은 배우기
-     * 전에 풀리고 빠른 사람은 이미 아는 것을 계속 보게 된다. 이유는 systems/Opening.ts에.
+     * 예전에는 여기서 첫 밤의 밭을 풀었다. 지금은 **시간이 정한다**(`DayNight.ts`) —
+     * 첫 밤·낮·밤이 도는데 합성 하나로 그 시계를 앞당기면 국면과 화면이 어긋난다.
      */
-    this.spawner.release()
+  }
+
+  /**
+   * 국면이 바뀌면 단어 밭을 갈아끼운다.
+   *
+   * 시간이 정하는 것은 **어떤 단어가 내려오는가** 하나뿐이다 — 낙하 속도도 밀도도
+   * 건드리지 않는다(그쪽은 쌓은 높이가 정한다). 압박의 축을 둘로 늘리면 서로 겹쳐서
+   * 어느 쪽이 판을 끝냈는지 알 수 없게 된다.
+   *
+   * **이미 내려오는 단어는 그대로 둔다.** 국면이 바뀌었다고 화면의 단어가 사라지면
+   * 치려던 것이 손 아래에서 없어진다. 밭은 다음에 뽑을 것만 정한다.
+   */
+  private applyPhase(next: Phase): void {
+    if (next === this.phaseNow) {
+      return
+    }
+    this.phaseNow = next
+    if (next === 'day') {
+      this.spawner.release()
+      return
+    }
+    // 밤에는 재료만. 첫 밤으로 되돌아가는 일은 없다(`DayNight.ts`)
+    this.spawner.restrict(next === 'night' ? this.nightPool : this.firstNightPool)
   }
 
   /**
@@ -647,22 +685,6 @@ class GameEngine {
    * 기본 물건이 먼저 채워져야 도감이 비어 보이지 않고, 그 사이에 남은 빈 칸이
    * 무엇을 더 찾아야 하는지 알려준다.
    */
-  private seedMirrorBallFixture(): void {
-    for (const drop of MIRROR_BALL_FIXTURE_DROPS) {
-      const variant = VARIANT_BY_ID.get(drop.id)
-      if (variant === undefined) {
-        throw new Error(`미러볼 테스트 재료를 찾을 수 없다: ${drop.id}`)
-      }
-      this.queueDrop(variant, drop.x)
-    }
-  }
-
-  private startMirrorBallLights(variant: ItemVariant): void {
-    if (variant.id === 'mirror-ball') {
-      this.mirrorBallLights = { elapsed: 0 }
-    }
-  }
-
   private discover(variant: ItemVariant): void {
     if (this.collection.add(variant.id)) {
       this.onDiscover?.(this.collection.ids)
@@ -735,6 +757,59 @@ class GameEngine {
     }
   }
 
+  /**
+   * 지금 서로 붙일 수 있는 것들의 표식.
+   *
+   * 받침대의 물건과 **내려오는 단어**를 함께 센다 — 받침대만 보면 알았을 때는 이미
+   * 둘 다 놓인 뒤라 할 수 있는 일이 없다. 까닭은 `PairMarks.ts`에.
+   *
+   * 매 프레임 다시 세지만 `countsByVariant`는 이미 합성 판정이 프레임마다 쓰는 값이고,
+   * 단어는 많아야 예닐곱 개다.
+   */
+  private marks(): ReadonlyMap<string, number> {
+    /*
+     * 한 프레임에 두 번 부른다(그리는 쪽과 상태를 미는 쪽). 같은 프레임에서는 같은
+     * 답이어야 하고, 두 번 세는 것도 헛일이다 — 프레임 번호로 한 번만 세고 나눠 쓴다.
+     */
+    if (this.markFrame === this.frameSeq) {
+      return this.lastMarks
+    }
+    const counts = new Map(this.physics.countsByVariant())
+    for (const falling of this.spawner.words) {
+      if (falling.state !== 'active') {
+        continue
+      }
+      // 단어의 물건은 기본 변형으로 친다 — 히든은 Enter를 친 순간 정해진다
+      const id = WORD_BASE_ID.get(falling.word)
+      if (id !== undefined) {
+        counts.set(id, (counts.get(id) ?? 0) + 1)
+      }
+    }
+    /*
+     * 직전 배정을 넘겨 **쓰던 색을 지키게** 한다. 안 그러면 다른 단어가 사라진 것만으로
+     * 내 색이 바뀐다 — 까닭은 `PairMarks.ts`에.
+     */
+    this.lastMarks = pairMarks(counts, RECIPES, this.lastMarks)
+    this.markFrame = this.frameSeq
+    return this.lastMarks
+  }
+
+  /** 물건 표식을 단어 쪽으로 옮긴다. 화면은 단어만 알고 물건 id는 모른다 */
+  private wordMarks(marks: ReadonlyMap<string, number>): ReadonlyMap<string, number> {
+    if (marks.size === 0) {
+      return NO_MARKS
+    }
+    const byWord = new Map<string, number>()
+    for (const falling of this.spawner.words) {
+      const id = WORD_BASE_ID.get(falling.word)
+      const mark = id === undefined ? undefined : marks.get(id)
+      if (mark !== undefined) {
+        byWord.set(falling.word, mark)
+      }
+    }
+    return byWord
+  }
+
   private readonly render = (): void => {
     const reveal = this.hiddenReveal
     this.renderer?.draw({
@@ -750,15 +825,12 @@ class GameEngine {
               from: reveal.from.map((item) => item.sprite),
               progress: reveal.elapsed / reveal.duration,
             },
-      mirrorBallLights:
-        this.mirrorBallLights === null
-          ? null
-          : { progress: this.mirrorBallLights.elapsed / MIRROR_BALL_LIGHTS_SEC },
       landing: this.landing.view,
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
+      nightfall: timeOfDay(this.elapsed).nightfall,
       ledges: this.physics.ledges(),
       formingLedge:
         this.formingLedge === null
@@ -778,6 +850,9 @@ class GameEngine {
       impacts: this.frameImpacts,
       // 싱글은 주인이 하나뿐이라 구분해 그릴 것이 없다
       ownerColors: null,
+      pairMarks: this.marks(),
+      // 단어 칩과 같은 값을 쓴다. 계산이 한 곳에 있어야 위상이 어긋나지 않는다
+      pairPulse: pairPulse(this.elapsed),
     })
   }
 
@@ -788,6 +863,9 @@ class GameEngine {
       // 스포너가 목록을 바꿀 때 새 배열로 갈아치우므로 여기서 또 복사하지 않는다 —
       // 매 프레임 복사하면 GC가 주기적으로 돌아 화면이 살짝 멈춘다
       words: this.spawner.words,
+      wordMarks: this.wordMarks(this.marks()),
+      pairPulse: pairPulse(this.elapsed),
+      timeOfDay: timeOfDay(this.elapsed),
       aimNormalized: this.aimer.normalized,
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,

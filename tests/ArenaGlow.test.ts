@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
-import { glowColor, glowStyle, glowAlpha } from '../src/game/renderer/glow.ts'
+import {
+  glowColor,
+  glowStyle,
+  glowAlpha,
+  GLOW_ADDITIVE_NIGHT,
+} from '../src/game/renderer/glow.ts'
+import { ADDITIVE_NIGHT } from '../src/game/renderer/trailPaint.ts'
 
 /**
  * 색이 실제로 화면에 깔리는지 본다.
@@ -94,8 +100,11 @@ const BASE_STATE = {
   quake: 0,
   quakePhase: 0,
   ownerColors: null,
+  pairMarks: new Map(),
+  pairPulse: 1,
   cameraY: 0,
   stackTop: 0.8,
+  nightfall: 0,
   ledges: [],
   formingLedge: null,
   time: 0,
@@ -137,16 +146,40 @@ describe('얹힘 색이 화면에 깔린다', () => {
   })
 
   /**
-   * 보통 합성으로 덮으면 짙은 색이 배경을 **어둡게** 만들어 "무엇이 얹혔다"가 아니라
-   * "화면이 꺼졌다"로 보인다. 빛을 더하는 쪽이어야 늘 같은 뜻으로 읽힌다.
+   * 어두운 밤에는 보통 합성으로 덮으면 짙은 색이 배경을 **어둡게** 만들어
+   * "무엇이 얹혔다"가 아니라 "화면이 꺼졌다"로 보인다. 빛을 더하는 쪽이 맞다.
    */
-  it('빛을 더하는 합성으로 칠한다', () => {
+  it('밤에는 빛을 더하는 합성으로 칠한다', () => {
     const { canvas, fills } = makeCanvas()
     new ArenaRenderer(canvas).draw({
       ...BASE_STATE,
+      nightfall: 1,
       landing: { color: '#f2d43c', strength: 1, progress: 0 },
     })
     expect(fullScreenFills(fills)[0]?.composite).toBe('lighter')
+  })
+
+  /**
+   * 낮에는 반대다. 배경이 방 그림으로 바뀌며 낮의 벽이 밝기 149가 됐는데(예전
+   * 단색 배경은 15였다) 거기에 빛을 더해봐야 더할 여지가 없어 **얹힘 색이 통째로
+   * 사라진다.** 밝은 벽에서는 빼는 것만 보이므로 곱으로 덮는다.
+   */
+  it('낮에는 물감처럼 덮는다', () => {
+    const { canvas, fills } = makeCanvas()
+    new ArenaRenderer(canvas).draw({
+      ...BASE_STATE,
+      nightfall: 0,
+      landing: { color: '#f2d43c', strength: 1, progress: 0 },
+    })
+    expect(fullScreenFills(fills)[0]?.composite).toBe('multiply')
+  })
+
+  /**
+   * 반짝임(`trailPaint`)과 얹힘 색이 **같은 순간에** 갈려야 한다.
+   * 문턱이 다르면 저물 때 화면이 두 번 바뀌어, 무엇이 규칙인지 읽히지 않는다.
+   */
+  it('부스러기와 같은 문턱에서 갈린다', () => {
+    expect(GLOW_ADDITIVE_NIGHT).toBe(ADDITIVE_NIGHT)
   })
 
   it('물건의 색과 세기가 그대로 칠에 들어간다', () => {
@@ -155,7 +188,10 @@ describe('얹힘 색이 화면에 깔린다', () => {
       ...BASE_STATE,
       landing: { color: '#f2d43c', strength: 1, progress: 0 },
     })
-    const expected = glowStyle(glowColor('#f2d43c'), glowAlpha(0, 1))
+    const expected = glowStyle(
+      glowColor('#f2d43c'),
+      glowAlpha(0, 1, BASE_STATE.nightfall),
+    )
     expect(fullScreenFills(fills)[0]?.style).toBe(expected)
   })
 

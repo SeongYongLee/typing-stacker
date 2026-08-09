@@ -84,6 +84,8 @@ function matchIdOf(seed: number, devices: readonly string[]): string {
 }
 
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
+/** 대전은 합성이 없어 표식도 없다. 매 프레임 빈 Map을 새로 만들지 않으려는 것 */
+const NO_PAIR_MARKS: ReadonlyMap<string, number> = new Map()
 
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
 
@@ -222,9 +224,9 @@ class MatchEngine {
   /**
    * 지금 방장. 처음에는 명단 맨 앞이고, 그 사람이 사라지면 다음 생존자가 이어받는다.
    *
-   * **모두가 같은 규칙으로 고르므로 알릴 필요가 없다** — 누가 사라졌는지는 이미
-   * 모두가 알고 명단 순서도 같다. 정해서 보내면 그 메시지가 늦거나 유실될 때
-   * 방장이 둘이 되거나 아무도 아니게 된다.
+   * **양쪽이 같은 규칙으로 고르므로 알릴 필요가 없다** — 누가 사라졌는지는 이미
+   * 모두가 알고, 명단 순서도 같다. 따로 정해 보내면 그 메시지가 늦거나 유실될 때
+   * 방장이 둘이 되거나 없어진다.
    */
   private host: PlayerId
   private readonly onFailure: ((failure: TransportFailure) => void) | null
@@ -467,7 +469,7 @@ class MatchEngine {
    * 네트워크 끊김이 나머지 일곱의 판을 죽인다. 그 사람만 빼고 이어간다.
    *
    * 다만 **방장이 사라지면 이어갈 수 없다.** 물리와 판정을 방장이 쥐고 있고 스타
-   * 토폴로지라 참가자끼리는 서로 닿지도 못한다.
+   * 토폴로지라 참가자끼리는 서로 닿지도 못한다. 그때만 판이 끝난다.
    *
    * 판정은 방장만 한다. 참가자는 자기 전송로가 알려준 것으로 움직이지 않고 방장이
    * 보내주는 `left`를 따른다 — 각자 판단하면 사람마다 다른 명단을 갖게 된다.
@@ -485,11 +487,17 @@ class MatchEngine {
       return
     }
     /*
-     * **방장이 사라지면 다음 사람이 이어받는다.** 이어받은 사람은 그 자리에서
-     * 심판이 된다 — 참가자도 목숨·차례를 따라 갱신해 왔고 물리도 각자 돌리고 있어서
-     * 새로 받아올 상태가 없다.
+     * **방장이 사라지면 다음 사람이 이어받는다.**
+     *
+     * 모두가 같은 규칙으로 고르므로 아무도 알릴 필요가 없다 — 누가 사라졌는지는
+     * 이미 모두가 알고 명단 순서도 같다. 정해서 보내면 그 메시지가 늦거나 유실될 때
+     * 방장이 둘이 되거나 아무도 아니게 된다.
+     *
+     * 이어받은 사람은 그 자리에서 심판이 된다. 참가자도 목숨·차례를 따라 갱신해
+     * 왔고 물리도 각자 돌리고 있어서, 새로 받아올 상태가 없다.
      */
-    if (who === this.host) {
+    const wasHost = who === this.host
+    if (wasHost) {
       this.host = this.nextHost(who)
       if (this.isHost) {
         this.spawner.lead()
@@ -501,6 +509,19 @@ class MatchEngine {
     }
     this.transport.broadcast({ t: 'left', who })
     this.applyLeft(who)
+  }
+
+  /**
+   * 사라진 방장을 대신할 사람. **살아 있는 사람 중 명단에서 가장 앞선 사람**이다.
+   *
+   * 규칙이 단순해야 모두가 같은 답에 이른다. 목숨이 남았는지까지 보는 것은,
+   * 이미 탈락한 사람이 심판이 되면 그 사람이 나가는 순간 또 넘겨야 하기 때문이다.
+   */
+  private nextHost(gone: PlayerId): PlayerId {
+    const next = this.match.players.find(
+      (player) => player.id !== gone && this.match.isAlive(player.id),
+    )
+    return next?.id ?? this.transport.selfId
   }
 
   /** 사라진 사람을 판에서 뺀다. 양쪽이 똑같이 실행한다 */
@@ -525,19 +546,6 @@ class MatchEngine {
       }
     }
     this.emit()
-  }
-
-  /**
-   * 사라진 방장을 대신할 사람. **살아 있는 사람 중 명단에서 가장 앞선 사람**이다.
-   *
-   * 규칙이 단순해야 모두가 같은 답에 이른다. 살아 있는지까지 보는 것은, 이미 탈락한
-   * 사람이 심판이 되면 그 사람이 나가는 순간 또 넘겨야 하기 때문이다.
-   */
-  private nextHost(gone: PlayerId): PlayerId {
-    const next = this.match.players.find(
-      (player) => player.id !== gone && this.match.isAlive(player.id),
-    )
-    return next?.id ?? this.transport.selfId
   }
 
   /**
@@ -1185,12 +1193,17 @@ class MatchEngine {
       aimX: this.aimer.worldX,
       showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
       hiddenReveal: null,
-      mirrorBallLights: null,
       landing: this.landing.view,
       quake: 0,
       quakePhase: 0,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
+      /*
+       * 대전은 낮에 머문다. 밤은 "얼마나 쌓았는가"를 말하는 것인데 받침대를 둘이
+       * 함께 쓰므로 그 값이 누구의 것인지 정해지지 않는다 — 한쪽 기준으로 어둡게
+       * 하면 다른 쪽에게는 근거 없이 어두워지는 화면이 된다.
+       */
+      nightfall: 0,
       // 통나무는 우선 혼자 하기에만 있다 — 대전은 자리를 방장이 정해 보내야 한다
       ledges: [],
       formingLedge: null,
@@ -1199,6 +1212,8 @@ class MatchEngine {
       impacts: this.frameImpacts,
       ownerColors: this.ownerColors,
       // 대전에는 합성이 없다 — 알릴 짝도 없다
+      pairMarks: NO_PAIR_MARKS,
+      pairPulse: 0,
     })
   }
 

@@ -1,12 +1,13 @@
 import { glowScale, shakeScale, trailScale } from './displayPrefs.ts'
-import { glowAlpha, glowColor, glowStyle } from './glow.ts'
-import { drawMirrorBallLights } from './mirrorBallLights.ts'
+import { glowAdditive, glowAlpha, glowColor, glowStyle } from './glow.ts'
 import { trailPaint } from './trailPaint.ts'
 import { traceTrail } from './trailShape.ts'
 import { grownBy } from './trailPaint.ts'
 import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import { sprite } from './spriteCache.ts'
+import { ARENA_ART as GENERATED_ART, type ArenaArtName } from './arenaArt.generated.ts'
 import { padRatio, rim } from './rimCache.ts'
+import { PAIR_MARK_COLORS } from '../systems/PairMarks.ts'
 import { ARENA, LEDGE, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
 import type {
@@ -80,8 +81,6 @@ interface ArenaRenderState {
   readonly aimX: number
   readonly showAim: boolean
   readonly hiddenReveal: HiddenReveal | null
-  /** 미러볼 등장 때만 켜지는 클럽 조명. 0 → 1 */
-  readonly mirrorBallLights?: { readonly progress: number } | null
   /** 방금 얹힌 물건의 색. 없으면 null */
   readonly landing: LandingGlow | null
   /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
@@ -95,12 +94,23 @@ interface ArenaRenderState {
    */
   readonly ownerColors: ReadonlyMap<OwnerId, string> | null
   /**
+   * 지금 서로 합칠 수 있는 것들의 표식. 변형 id → 모양 번호.
+   *
+   * 짝이 받침대 어디에 있는지 보여주려는 것이다 — 안 보이면 노릴 수가 없고,
+   * 그러면 합성은 손으로 만드는 것이 아니라 운으로 얻는 것이 된다. 까닭은 `PairMarks.ts`에.
+   */
+  readonly pairMarks: ReadonlyMap<string, number>
+  /** 짝 표식의 밝기(0~1). 단어 칩과 **같은 값**이어야 둘이 함께 뛴다 */
+  readonly pairPulse: number
+  /**
    * 화면이 올려다보는 높이. 탑이 자라면 이 값이 커져 시야가 따라 올라간다.
    * 이것이 없으면 탑이 스폰 높이에 닿는 순간 새 물건이 탑 속에 생긴다.
    */
   readonly cameraY: number
   /** 쌓인 것들의 꼭대기. 조준선이 여기까지 내려와 어디에 떨어질지 가리킨다 */
   readonly stackTop: number
+  /** 밤이 얼마나 왔는가(0 → 낮, 1 → 밤). 받침대와 먼지 뭉치의 조명이 이 값을 따른다 */
+  readonly nightfall: number
   /**
    * 히든을 만나 공중에 선 작은 통나무들. 없으면 빈 배열이다.
    *
@@ -146,22 +156,59 @@ interface ArenaRenderState {
 }
 
 const COLORS = {
-  frame: '#262b3d',
   aimTrack: 'rgba(255, 207, 92, 0.16)',
   danger: 'rgba(255, 107, 107, 0.5)',
   hidden: '#ffcf5c',
 } as const
 
-const ARENA_ART = {
-  platform: `${import.meta.env.BASE_URL}arena/stack-platform-log.png`,
-  arrow: `${import.meta.env.BASE_URL}arena/stack-drop-arrow.png`,
-} as const
+const ARROW_ART = `${import.meta.env.BASE_URL}arena/stack-drop-arrow.png`
 
-const ARENA_ART_SOURCES = Object.values(ARENA_ART)
+/** 파이프라인이 여백을 잘라둔 것들. 낮/밤이 한 쌍이다 */
+function artUrl(name: ArenaArtName): string {
+  return `${import.meta.env.BASE_URL}arena/${GENERATED_ART[name].file}`
+}
 
-/* 투명 여백을 빼고 그려, 그림의 윗면과 화살표 끝이 물리 위치에 맞는다. */
-const LOG_CROP = { x: 72, y: 26, width: 1391, height: 268 } as const
+const ARENA_ART_SOURCES = [
+  ARROW_ART,
+  ...(Object.keys(GENERATED_ART) as ArenaArtName[]).map(artUrl),
+]
+
+/* 투명 여백을 빼고 그려, 화살표 끝이 물리 위치에 맞는다. */
 const ARROW_CROP = { x: 208, y: 123, width: 621, height: 776 } as const
+
+/**
+ * 상자 그림에서 **물건이 얹히는 선**이 위에서 몇 %인가.
+ *
+ * 상자는 열린 채 비스듬히 보이므로 그림의 맨 위가 아니라 앞쪽 테두리가 바닥이다.
+ * 그 선을 `ARENA.platformTop`에 맞춰야 물건이 상자 **안에** 담긴 것으로 보인다 —
+ * 그림 위쪽(상자 안벽)이 물건 뒤로 남아 그렇게 읽힌다.
+ *
+ * 알파로는 잴 수 없는 값이라 눈으로 정했다. **그림을 다시 그리면 다시 봐야 한다.**
+ */
+const PLATFORM_SURFACE = 0.46
+
+/**
+ * 상자 그림에서 **몸통이 차지하는 폭**의 비율. 나머지는 양옆으로 열린 덮개다.
+ *
+ * 그림 전체를 받침대 폭에 맞추면 덮개까지 안으로 들어와 몸통이 받침대보다 좁아지고,
+ * 끝에 얹힌 물건이 허공에 뜬 것처럼 보인다. 몸통을 기준으로 맞추면 덮개는 밖으로
+ * 삐져나가는데 그쪽이 옳다 — 덮개는 물건을 받지 않는다.
+ */
+const PLATFORM_BODY = 0.88
+
+/**
+ * 히든 이름을 적는 **분실물 꼬리표**.
+ *
+ * 낙하 단어 쪽지(`TypingLane`)와 같은 종이·먹빛이다. 판에 글자가 적히는 자리는
+ * 전부 이 방의 종이여야 한다 — 한 곳만 다른 재질이면 그것만 화면에 얹은 UI로 뜬다.
+ *
+ * 방의 그림(메모장)을 쓰지 않고 직접 그리는 이유는 **크기가 글자를 따라야** 하기
+ * 때문이다. 물건 이름은 두 자에서 여덟 자까지라 그림 한 장을 늘여 쓰면 짧은 이름에서
+ * 종이가 휑하고 긴 이름에서는 스프링이 늘어난다.
+ */
+const TAG_PAPER = '#f0e6cd'
+const TAG_EDGE = 'rgba(150, 130, 96, 0.55)'
+const TAG_INK = '#3a3020'
 
 /**
  * index.css의 --sans와 같은 스택.
@@ -192,6 +239,8 @@ class ArenaRenderer {
   /** 흘린 부스러기들. 렌더러가 소유한다 — 판의 결과에 닿지 않는 연출이다 */
   private readonly trails = new TrailField()
   private trailTime = 0
+  /** 밤이 얼마나 왔는가. 프레임마다 상태에서 받아 낮/밤 그림을 겹치는 데 쓴다 */
+  private nightfall = 0
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d')
@@ -220,6 +269,7 @@ class ArenaRenderer {
   draw(state: ArenaRenderState): void {
     const { ctx } = this
     this.cameraY = state.cameraY
+    this.nightfall = state.nightfall
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
 
     /*
@@ -246,10 +296,6 @@ class ArenaRenderer {
       ctx.translate(Math.sin(t * 47) * amp, Math.cos(t * 31) * amp * 0.7)
     }
 
-    if (state.mirrorBallLights != null) {
-      this.drawMirrorBallLights(state.mirrorBallLights.progress)
-    }
-    this.drawFrame()
     // 히든 연출은 배경에 깔린다 — 쌓인 물건을 가리지 않아야 한다
     if (state.hiddenReveal !== null) {
       this.drawHiddenReveal(state.hiddenReveal)
@@ -268,7 +314,12 @@ class ArenaRenderer {
      */
     this.drawTrails(state)
     for (const body of state.bodies) {
-      this.drawBody(body, state.ownerColors)
+      this.drawBody(
+        body,
+        state.ownerColors,
+        state.pairMarks.get(body.variant.id),
+        state.pairPulse,
+      )
     }
     ctx.restore()
   }
@@ -299,13 +350,17 @@ class ArenaRenderer {
    * 눈에 피로한 사람에게는 그것만으로 이 게임이 오래 못 하는 게임이 된다.
    */
   private drawLandingGlow(landing: LandingGlow): void {
-    const alpha = glowAlpha(landing.progress, landing.strength) * glowScale()
+    const alpha = glowAlpha(landing.progress, landing.strength, this.nightfall) * glowScale()
     if (alpha <= 0) {
       return
     }
     const { ctx } = this
     ctx.save()
-    ctx.globalCompositeOperation = 'lighter'
+    /*
+     * 밤에는 빛을 더하고 낮에는 물감처럼 덮는다. 밝은 벽에 빛을 더해봐야 더할 여지가
+     * 없어 얹힘 색이 통째로 사라진다 — 까닭은 `glow.ts`의 `GLOW_ADDITIVE_NIGHT`에.
+     */
+    ctx.globalCompositeOperation = glowAdditive(this.nightfall) ? 'lighter' : 'multiply'
     ctx.fillStyle = glowStyle(glowColor(landing.color), alpha)
     ctx.fillRect(0, 0, this.cssWidth, this.cssHeight)
     ctx.restore()
@@ -339,7 +394,7 @@ class ArenaRenderer {
     const { ctx } = this
     ctx.save()
     for (const particle of this.trails.particles) {
-      const paint = trailPaint(particle, scale)
+      const paint = trailPaint(particle, scale, this.nightfall)
       if (paint.alpha <= 0) {
         continue
       }
@@ -379,68 +434,70 @@ class ArenaRenderer {
     ctx.restore()
   }
 
-  private drawFrame(): void {
-    const { ctx } = this
-    const left = this.toScreenX(-ARENA.halfWidth)
-    const right = this.toScreenX(ARENA.halfWidth)
-    /*
-     * 틀의 윗변은 시야에 붙여 둔다.
-     *
-     * 월드 좌표로 그리면 카메라가 올라갈 때 틀이 통째로 화면 아래로 흘러내려,
-     * 탑이 높아진 순간 좌우 경계가 사라진다. 어디까지가 아레나인지는 높이와
-     * 무관하게 늘 보여야 한다. 아래의 붉은 선(이탈선)은 반대로 월드에 속하므로
-     * 카메라가 올라가면 발밑으로 멀어지는 것이 맞다.
-     */
-    const top = this.toScreenY(ARENA.height + this.cameraY)
-    const bottom = this.toScreenY(ARENA.killY)
+  /*
+   * 아래 붉은 이탈선을 지웠다.
+   *
+   * 배경이 그림으로 바뀌면서 선 하나가 그 위에 떠 있는 것이 됐다. 무엇보다 어디서
+   * 잃는지는 **물건이 떨어져 사라지는 것**으로 이미 알 수 있다 — 선은 그 사실을
+   * 되풀이할 뿐이었다. 규칙은 그대로다(`collapseDetector`).
+   */
 
-    ctx.save()
-    ctx.strokeStyle = COLORS.frame
-    ctx.lineWidth = 2
-    ctx.setLineDash([6, 8])
-    ctx.strokeRect(left, top, right - left, bottom - top)
-    ctx.restore()
 
-    ctx.save()
-    ctx.strokeStyle = COLORS.danger
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(left, bottom - 1)
-    ctx.lineTo(right, bottom - 1)
-    ctx.stroke()
-    ctx.restore()
+  /**
+   * 낮 그림 위에 밤 그림을 `nightfall`만큼 덮어 그린다.
+   *
+   * 두 그림은 같은 자리에 같은 실루엣으로 그려져 있으므로(에셋 규칙이 그렇다)
+   * 겹쳐 놓고 위쪽 알파만 올리면 조명만 넘어간다. 색을 계산해 섞으려 들면 붓질과
+   * 그림자까지 뭉개진다 — **덮어 그리는 쪽이 그림이 가진 정보를 지키는 방법이다.**
+   */
+  private drawDayNight(
+    day: ArenaArtName,
+    night: ArenaArtName,
+    place: (image: HTMLImageElement) => void,
+  ): boolean {
+    const dayImage = sprite(artUrl(day))
+    if (dayImage === null) {
+      return false
+    }
+    place(dayImage)
+    const nightImage = sprite(artUrl(night))
+    if (nightImage !== null && this.nightfall > 0) {
+      const { ctx } = this
+      /*
+       * 지금 걸려 있는 알파에 **곱한다.** 덮어쓰면 이 함수를 페이드 안에서 못 쓴다 —
+       * 히든 쪽지가 사라지는 중인데 밤 그림만 또렷하게 남는다.
+       */
+      const base = ctx.globalAlpha
+      ctx.globalAlpha = base * this.nightfall
+      place(nightImage)
+      ctx.globalAlpha = base
+    }
+    return true
   }
 
-  private drawMirrorBallLights(progress: number): void {
-    drawMirrorBallLights(this.ctx, {
-      left: this.toScreenX(-ARENA.halfWidth),
-      top: this.toScreenY(ARENA.height + this.cameraY),
-      right: this.toScreenX(ARENA.halfWidth),
-      bottom: this.toScreenY(ARENA.killY),
-    }, progress)
-  }
-
+  /**
+   * 받침대 — 열린 적재 상자.
+   *
+   * 그림의 앞테두리(`PLATFORM_SURFACE`)를 물리 윗면에 맞춰, 물건이 상자 **안에**
+   * 담기는 것으로 보이게 한다. 물리는 `ARENA`의 상자가 정하므로 그림과 따로 논다 —
+   * 그림이 바뀌어도 쌓이는 방식은 달라지지 않는다.
+   */
   private drawPlatform(): void {
     const { ctx } = this
-    const left = this.toScreenX(-ARENA.platformHalfWidth)
-    const width = ARENA.platformHalfWidth * 2 * this.scale
     const top = this.toScreenY(ARENA.platformTop)
     const height = ARENA.platformHalfHeight * 2 * this.scale
-    const log = sprite(ARENA_ART.platform)
+    const lipWidth = ARENA.bowlLipHalfWidth * 2 * this.scale
+    const lipHeight = ARENA.bowlLipHeight * this.scale
+    const bodyWidth = ARENA.platformHalfWidth * 2 * this.scale
+    const width = bodyWidth / PLATFORM_BODY
+    const left = this.toScreenX(0) - width / 2
 
-    if (log !== null) {
-      const logHeight = width * (LOG_CROP.height / LOG_CROP.width)
-      ctx.drawImage(
-        log,
-        LOG_CROP.x,
-        LOG_CROP.y,
-        LOG_CROP.width,
-        LOG_CROP.height,
-        left,
-        top,
-        width,
-        logHeight,
-      )
+    const art = GENERATED_ART['platform-day']
+    const drawn = this.drawDayNight('platform-day', 'platform-night', (image) => {
+      const drawHeight = width * (art.height / art.width)
+      ctx.drawImage(image, left, top - drawHeight * PLATFORM_SURFACE, width, drawHeight)
+    })
+    if (drawn) {
       return
     }
 
@@ -449,6 +506,12 @@ class ArenaRenderer {
     ctx.fillRect(left, top, width, height)
     ctx.fillStyle = '#6b74a0'
     ctx.fillRect(left, top, width, Math.max(2, height * 0.16))
+    for (const side of [-1, 1]) {
+      const x = this.toScreenX(
+        side * (ARENA.platformHalfWidth - ARENA.bowlLipHalfWidth) - ARENA.bowlLipHalfWidth,
+      )
+      ctx.fillRect(x, top - lipHeight, lipWidth, lipHeight)
+    }
   }
 
   /**
@@ -465,31 +528,24 @@ class ArenaRenderer {
       return
     }
     const { ctx } = this
-    const log = sprite(ARENA_ART.platform)
     const height = LEDGE.halfHeight * 2 * this.scale
 
     for (const ledge of ledges) {
       const width = ledge.halfWidth * 2 * this.scale
       const left = this.toScreenX(ledge.x - ledge.halfWidth)
       const top = this.toScreenY(ledge.y)
-      if (log === null) {
+      /*
+       * 먼지 뭉치는 **콜라이더 높이에 맞춰 눌러 그린다.** 받침대처럼 그림 비율대로
+       * 늘리면 보이는 두께와 부딪히는 두께가 어긋나 허공에 걸린 것처럼 보인다.
+       * 뭉치는 형태가 무른 것이라 눌려도 어색하지 않다.
+       */
+      const drawn = this.drawDayNight('ledge-day', 'ledge-night', (image) => {
+        ctx.drawImage(image, left, top, width, height)
+      })
+      if (!drawn) {
         ctx.fillStyle = '#4a5171'
         ctx.fillRect(left, top, width, height)
-        continue
       }
-      // 받침대는 그림 비율대로 늘어나지만 여기는 콜라이더 높이에 맞춘다 —
-      // 보이는 두께와 부딪히는 두께가 어긋나면 허공에 걸린 것처럼 보인다
-      ctx.drawImage(
-        log,
-        LOG_CROP.x,
-        LOG_CROP.y,
-        LOG_CROP.width,
-        LOG_CROP.height,
-        left,
-        top,
-        width,
-        height,
-      )
     }
   }
 
@@ -534,21 +590,18 @@ class ArenaRenderer {
     ctx.ellipse(cx, cy, (width / 2) * spread, (height / 2) * spread * 1.6, 0, 0, Math.PI * 2)
     ctx.fill()
 
-    // 통나무는 뭉쳐질수록 또렷해진다
-    const log = sprite(ARENA_ART.platform)
+    /*
+     * 먼지 뭉치는 뭉쳐질수록 또렷해진다.
+     *
+     * 여기만 낮/밤을 겹치지 않고 **한쪽을 고른다.** 이 그림은 이미 `ease`로 알파가
+     * 걸려 있어서, 겹쳐 그리려면 알파를 곱해 넣어야 하는데 그러면 뭉쳐지는 연출과
+     * 조명 전환이 한 값에 엉킨다. 뭉치는 시간이 0.85초라 그 사이에 낮과 밤이
+     * 갈리는 일은 사실상 없다.
+     */
     ctx.globalAlpha = ease * ease
-    if (log !== null) {
-      ctx.drawImage(
-        log,
-        LOG_CROP.x,
-        LOG_CROP.y,
-        LOG_CROP.width,
-        LOG_CROP.height,
-        cx - width / 2,
-        cy - height / 2,
-        width,
-        height,
-      )
+    const dust = sprite(artUrl(this.nightfall > 0.5 ? 'ledge-night' : 'ledge-day'))
+    if (dust !== null) {
+      ctx.drawImage(dust, cx - width / 2, cy - height / 2, width, height)
     } else {
       ctx.fillStyle = '#4a5171'
       ctx.fillRect(cx - width / 2, cy - height / 2, width, height)
@@ -582,7 +635,7 @@ class ArenaRenderer {
     const top = this.toScreenY(ARENA.height + this.cameraY)
     // 조준선은 쌓인 것의 꼭대기에서 끝난다 — 실제로 물건이 닿을 자리다
     const trackBottom = this.toScreenY(stackTop)
-    const arrow = sprite(ARENA_ART.arrow)
+    const arrow = sprite(ARROW_ART)
     const arrowWidth = Math.min(44, Math.max(32, this.scale * 0.36))
     const arrowHeight = arrowWidth * (ARROW_CROP.height / ARROW_CROP.width)
     const arrowTop = top + 2
@@ -727,30 +780,45 @@ class ArenaRenderer {
 
     const labelSize = Math.max(16, unit * 0.34)
     const tagSize = Math.max(10, unit * 0.16)
-    const labelY = cy + ghost * 0.62
+    /*
+     * 쪽지는 물건 그림 **아래로 비켜선다.** 0.62로 두었더니 그림의 아랫동이 종이를
+     * 덮어 이름이 반쯤 가려졌다 — 무엇을 얻었는지 알리려고 띄운 것이 그림에 가린다.
+     * 그림은 커지며 흩어지므로(`ghost`) 그 크기에 비례해 내려야 늘 비켜선다.
+     */
+    const labelY = cy + ghost * 0.95
     const tagY = labelY + Math.max(16, unit * 0.32)
 
-    // 낙하 중인 물건이 글자 위를 지나가도 읽히도록 어두운 판을 깔아준다
+    /*
+     * 이름은 **보관소의 메모지 위에** 적힌다.
+     *
+     * 예전에는 어두운 둥근 판을 깔았다. 배경이 단색일 때는 그것이 배경의 일부처럼
+     * 보였는데, 방을 그린 그림 위에서는 **화면에 얹은 UI**로 떠버린다 — 방 안의
+     * 물건들 사이에 검은 상자 하나만 다른 세계에서 온 것처럼 놓인다.
+     *
+     * 메모지는 이 방에 원래 있는 물건이다. 분실물 보관소에서 무엇이 들어왔는지
+     * 적어두는 자리이므로, 히든을 찾은 것을 여기에 적는 것이 방의 이야기와 맞는다.
+     * 낮/밤 그림이 한 쌍이라 조명도 방을 따라간다.
+     */
     ctx.font = `700 ${labelSize}px ${UI_FONT}`
-    const plateWidth = Math.max(ctx.measureText(reveal.label).width, tagSize * 5) + labelSize
-    const plateTop = labelY - labelSize * 0.9
-    ctx.globalAlpha = alpha * 0.72
-    ctx.fillStyle = '#0d0f16'
+    const textWidth = Math.max(ctx.measureText(reveal.label).width, tagSize * 5)
+    const plateWidth = textWidth + labelSize * 1.6
+    const plateTop = labelY - labelSize * 0.95
+    const plateHeight = tagY + tagSize - plateTop + labelSize * 0.5
+    ctx.globalAlpha = alpha * 0.94
+    ctx.fillStyle = TAG_PAPER
+    ctx.strokeStyle = TAG_EDGE
+    ctx.lineWidth = 1.5
     ctx.beginPath()
-    ctx.roundRect(
-      cx - plateWidth / 2,
-      plateTop,
-      plateWidth,
-      tagY + tagSize - plateTop + labelSize * 0.4,
-      labelSize * 0.5,
-    )
+    ctx.roundRect(cx - plateWidth / 2, plateTop, plateWidth, plateHeight, labelSize * 0.35)
     ctx.fill()
+    ctx.stroke()
 
+    // 종이 위에 쓰는 글씨다. 금색은 어두운 판에서나 읽히고 종이 위에서는 번진다
     ctx.globalAlpha = alpha
-    ctx.fillStyle = COLORS.hidden
+    ctx.fillStyle = TAG_INK
     ctx.fillText(reveal.label, cx, labelY)
     ctx.font = `${tagSize}px ${UI_FONT}`
-    ctx.globalAlpha = alpha * 0.75
+    ctx.globalAlpha = alpha * 0.7
     // 어느 길로 얻었는지가 이 한 단어로 갈린다 — 운으로 만난 것과 손으로 만든 것
     ctx.fillText(reveal.from.length > 0 ? '합성' : 'HIDDEN', cx, tagY)
 
@@ -803,6 +871,8 @@ class ArenaRenderer {
   private drawBody(
     body: BodySnapshot,
     ownerColors: ReadonlyMap<OwnerId, string> | null,
+    mark: number | undefined,
+    pulse: number,
   ): void {
     const { ctx } = this
     const { shape } = body.variant
@@ -812,13 +882,31 @@ class ArenaRenderer {
     // 월드는 y가 위로 +, 캔버스는 아래로 + 이므로 회전 방향을 뒤집는다
     ctx.rotate(-body.rotation)
 
+    /*
+     * 짝 표식은 **물건의 실루엣 테두리**로 두른다. 대전에서 주인을 가르는 것과 같은
+     * 장치다(`rimCache`) — 동그라미를 덧그리면 물건 위에 딴 것이 얹힌 것으로 보이는데,
+     * 이것은 그 물건에 대한 이야기이므로 물건의 윤곽을 따라야 한다.
+     *
+     * 둘이 겹칠 일은 없다. 주인 색은 대전에만, 짝 표식은 싱글에만 있다.
+     */
     const ownerColor = ownerColors?.get(body.owner) ?? null
-    const drawn = this.drawSprite(body.variant.sprite, body.variant.artBounds, ownerColor)
+    const rimColor =
+      ownerColor ??
+      (mark === undefined
+        ? null
+        : (PAIR_MARK_COLORS[mark % PAIR_MARK_COLORS.length] ?? null))
+    /*
+     * 짝 표식은 **숨 쉬듯 밝아졌다 어두워진다.** 단어 칩이 같은 주기로 빛나므로,
+     * 둘이 함께 뛰는 것으로 보여 "이 둘이 한 쌍"이 색보다 먼저 읽힌다.
+     * 주인 색은 신원이라 흔들리면 안 되므로 그대로 둔다.
+     */
+    const rimAlpha = ownerColor === null && mark !== undefined ? pulse : 1
+    const drawn = this.drawSprite(body.variant.sprite, body.variant.artBounds, rimColor, rimAlpha)
 
     // 그림이 아직 로드되지 않았으면 충돌 도형만이라도 보여준다
     if (!drawn) {
       ctx.fillStyle = body.variant.color
-      ctx.strokeStyle = ownerColor ?? 'rgba(0, 0, 0, 0.4)'
+      ctx.strokeStyle = rimColor ?? 'rgba(0, 0, 0, 0.4)'
       ctx.lineWidth = 1.5
       ctx.globalAlpha = 0.55
       for (const part of this.partsOf(shape)) {
@@ -827,6 +915,7 @@ class ArenaRenderer {
         ctx.stroke()
       }
     }
+
     ctx.restore()
   }
 
@@ -834,7 +923,12 @@ class ArenaRenderer {
    * 그림을 물건의 원래 크기에 맞춰 그린다 — 보이는 것과 부딪히는 것이 같아야 한다.
    * 주인 색 테두리는 미리 만들어 둔 것을 겹쳐 그린다 (rimCache).
    */
-  private drawSprite(src: string, bounds: Bounds, ownerColor: string | null): boolean {
+  private drawSprite(
+    src: string,
+    bounds: Bounds,
+    ownerColor: string | null,
+    rimAlpha = 1,
+  ): boolean {
     const img = sprite(src)
     if (img === null) {
       return false
@@ -848,11 +942,13 @@ class ArenaRenderer {
     if (ownerColor !== null) {
       const glow = rim(img, ownerColor)
       if (glow !== null) {
+        ctx.globalAlpha = rimAlpha
         // 테두리 그림은 원본보다 여백만큼 크다. 같은 비율로 넓게 그려야 자리가 맞는다
         const pad = padRatio(img)
         const padX = width * pad.x
         const padY = height * pad.y
         ctx.drawImage(glow, left - padX, top - padY, width + padX * 2, height + padY * 2)
+        ctx.globalAlpha = 1
       }
     }
 

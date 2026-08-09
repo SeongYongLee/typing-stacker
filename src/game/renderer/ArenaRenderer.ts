@@ -635,7 +635,14 @@ class ArenaRenderer {
     const fromX = this.toScreenX(0)
     const fromY = this.toScreenY(ARENA.height * 0.74 + this.cameraY)
     const toX = this.toScreenX(forming.x)
-    const toY = this.toScreenY(forming.y)
+    /*
+     * **도착점은 통나무의 가운데다.** `forming.y`는 윗면이고(콜라이더가
+     * `y - halfHeight`에 중심을 둔다), 이 연출은 그림을 `(cx, cy)`를 **중심으로**
+     * 그린다. 윗면을 그대로 도착점으로 쓰면 연출이 반 칸 높은 데서 끝나고, 다 앉는
+     * 순간 통나무가 그림 높이의 절반만큼 **툭 내려앉는다.** 서는 자리는 맞는데
+     * 연출만 어긋난 것이라 눈에만 보이고 물리로는 잡히지 않는다.
+     */
+    const toY = this.toScreenY(forming.y - LEDGE.halfHeight)
     const cx = fromX + (toX - fromX) * ease
     const cy = fromY + (toY - fromY) * ease
 

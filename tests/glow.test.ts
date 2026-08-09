@@ -79,10 +79,26 @@ describe('번지는 색', () => {
     expect(glowColor('#ff0')).toEqual(glowColor('#ffff00'))
   })
 
-  /** 화면 전체를 덮는 색이라 조금만 진해도 눈이 먼저 피로해진다 */
-  it('가장 진할 때도 옅다', () => {
-    expect(GLOW_PEAK_ALPHA).toBeLessThanOrEqual(0.1)
+  /**
+   * 화면 전체를 덮는 색이라 조금만 진해도 눈이 먼저 피로해진다.
+   *
+   * **알파가 아니라 화면이 얼마나 움직이는지를 지킨다.** 합성 방식이 바뀌면 같은
+   * 알파가 다른 결과를 낸다 — 예전에는 빛을 더해서 0.085가 +22%였고, 지금은 곱으로
+   * 덮어서 0.22가 −12%다. 알파에 문턱을 두면 방식을 바꿀 때마다 그 문턱이 거짓말이 된다.
+   *
+   * 곱하기는 `결과 = 배경 x (1 - 알파 x (1 - 밝기))`이므로 변화가 **배경과 무관하게
+   * 비율로** 나온다. 그래서 배경 밝기를 몰라도 이 검사가 성립한다.
+   */
+  it('가장 진해도 화면을 이만큼 넘게 어둡게 하지 않는다', () => {
+    const change = glowAlpha(0, 1) * (1 - GLOW_LIGHTNESS)
+    expect(change, `${(change * 100).toFixed(0)}% 어두워진다`).toBeLessThanOrEqual(0.15)
     expect(glowAlpha(0, 1)).toBeCloseTo(GLOW_PEAK_ALPHA, 5)
+  })
+
+  /** 반대로 너무 옅으면 얹혔는지 알 수 없다. 예전 값은 밝은 배경에서 0%였다 */
+  it('가장 진할 때는 눈에 띌 만큼은 움직인다', () => {
+    const change = glowAlpha(0, 1) * (1 - GLOW_LIGHTNESS)
+    expect(change, `${(change * 100).toFixed(0)}% 어두워진다`).toBeGreaterThanOrEqual(0.08)
   })
 
   it('약하게 얹혀도 아주 조금은 번진다', () => {

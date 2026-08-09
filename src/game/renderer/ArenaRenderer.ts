@@ -1,5 +1,5 @@
 import { glowScale, shakeScale, trailScale } from './displayPrefs.ts'
-import { glowAdditive, glowAlpha, glowColor, glowStyle } from './glow.ts'
+import { glowAlpha, glowColor, glowStyle } from './glow.ts'
 import { trailPaint } from './trailPaint.ts'
 import { traceTrail } from './trailShape.ts'
 import { grownBy } from './trailPaint.ts'
@@ -397,17 +397,18 @@ class ArenaRenderer {
    * 눈에 피로한 사람에게는 그것만으로 이 게임이 오래 못 하는 게임이 된다.
    */
   private drawLandingGlow(landing: LandingGlow): void {
-    const alpha = glowAlpha(landing.progress, landing.strength, this.nightfall) * glowScale()
+    const alpha = glowAlpha(landing.progress, landing.strength) * glowScale()
     if (alpha <= 0) {
       return
     }
     const { ctx } = this
     ctx.save()
     /*
-     * 밤에는 빛을 더하고 낮에는 물감처럼 덮는다. 밝은 벽에 빛을 더해봐야 더할 여지가
-     * 없어 얹힘 색이 통째로 사라진다 — 까닭은 `glow.ts`의 `GLOW_ADDITIVE_NIGHT`에.
+     * **언제나 곱으로 덮는다.** 더하기는 배경이 밝을수록 여지가 줄지만(255가 상한)
+     * 곱하기는 비율로 움직여 배경 밝기와 무관하다 — 어느 배경에서도 같은 만큼
+     * 어두워진다. 그래서 낮과 밤을 가르지 않는다. 까닭은 `glow.ts`에.
      */
-    ctx.globalCompositeOperation = glowAdditive(this.nightfall) ? 'lighter' : 'multiply'
+    ctx.globalCompositeOperation = 'multiply'
     ctx.fillStyle = glowStyle(glowColor(landing.color), alpha)
     ctx.fillRect(0, 0, this.cssWidth, this.cssHeight)
     ctx.restore()
@@ -416,8 +417,9 @@ class ArenaRenderer {
   /**
    * 흘린 부스러기를 그린다.
    *
-   * 갈래마다 다르게 칠한다 — 반짝임은 빛을 더해(`lighter`) 뜨는 것처럼, 나머지는
-   * 그대로 덮어 물감처럼. 흩날리는 잎을 가산 합성으로 그리면 색이 다 하얗게 뜬다.
+   * **전부 그대로 덮는다.** 반짝임만 빛을 더해 그렸는데, 물건이 쌓이는 자리의 배경이
+   * 낮·밤 모두 밝아서(휘도 155) 겹칠 때 하얗게 뜨기만 했다. 대비는 밝기와 테두리가
+   * 만든다 — 까닭은 `trailPaint.ts`에.
    *
    * 시간은 `state.time`의 차이로 낸다. 처음 한 프레임과 판이 새로 시작된 프레임은
    * 차이가 뒤로 가거나 크게 뛰므로 흘리지 않고 기준만 맞춘다.
@@ -441,11 +443,10 @@ class ArenaRenderer {
     const { ctx } = this
     ctx.save()
     for (const particle of this.trails.particles) {
-      const paint = trailPaint(particle, scale, this.nightfall)
+      const paint = trailPaint(particle, scale)
       if (paint.alpha <= 0) {
         continue
       }
-      ctx.globalCompositeOperation = paint.additive ? 'lighter' : 'source-over'
       ctx.fillStyle = paint.style
       traceTrail(ctx, particle.kind, {
         x: this.toScreenX(particle.x),
@@ -467,12 +468,7 @@ class ArenaRenderer {
             : particle.angle,
       })
       ctx.fill()
-      /*
-       * 테두리는 **가산 합성 밖에서** 두른다. 빛을 더하는 상태로 어두운 선을 그으면
-       * 아무것도 더해지지 않아 선이 사라진다 — 어두운 색의 가산은 0을 더하는 것이다.
-       */
       if (paint.outline !== null) {
-        ctx.globalCompositeOperation = 'source-over'
         ctx.lineWidth = paint.outline.width
         ctx.strokeStyle = paint.outline.style
         ctx.stroke()

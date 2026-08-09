@@ -1,4 +1,4 @@
-import { glowColor } from './glow.ts'
+import { sparkleColor } from './glow.ts'
 import { SPECS, type Particle } from '../systems/TrailField.ts'
 import type { Trail } from '../data/trails.ts'
 
@@ -13,8 +13,6 @@ import type { Trail } from '../data/trails.ts'
 interface TrailPaint {
   readonly style: string
   readonly alpha: number
-  /** 빛을 더해 칠하는가. 반짝임만, 그리고 배경이 어두울 때만 그렇다 */
-  readonly additive: boolean
   /**
    * 두를 테두리. 필요 없으면 null이다.
    *
@@ -50,24 +48,25 @@ const PEAK: Readonly<Record<Trail, number>> = {
   steam: 0.22,
 }
 
-/** 반짝임만 빛을 더한다. 흩날리는 잎을 가산으로 그리면 색이 다 하얗게 뜬다 */
-const ADDITIVE: Readonly<Record<Trail, boolean>> = {
-  sparkle: true,
-  droplet: false,
-  petal: false,
-  fluff: false,
-  crumb: false,
-  splash: false,
-  /* 옅게 덮어야 김이다. 빛을 더하면 뜨거운 것이 아니라 빛나는 것이 된다 */
-  steam: false,
-}
+/*
+ * **가산 합성을 걷어냈다.**
+ *
+ * 반짝임만 `lighter`로 그렸는데, 캔버스가 투명해서 그 합성은 **부스러기끼리 겹칠 때만**
+ * 작용한다(배경과는 나중에 일반 알파로 합성된다). 물건이 쌓이는 자리의 배경 휘도가
+ * 낮·밤 모두 **155**라 밝은 반짝임이 겹치면 하얗게 뜨기만 하고, 그것이 "빛"으로
+ * 읽히지도 않는다.
+ *
+ * 대신 **밝기와 테두리**로 대비를 만든다 — `sparkleColor`가 배경보다 62만큼 밝게
+ * 맞추고, 어두운 테두리가 형태를 만든다. 색번짐이 곱으로 바뀐 것과 같은 판단이다.
+ */
 
 /**
  * 밝기를 맞춰 쓰는 갈래.
  *
- * 반짝임은 **빛**이라 짙은 물건이어도 밝게 나가야 한다(색번짐과 같은 이유로 밝기를
- * 맞춘다). 나머지는 물건의 색을 그대로 쓴다 — 흩날리는 단풍잎은 단풍잎 색이어야 하고,
- * 밝기를 맞추면 잎이 죄다 파스텔로 뜬다.
+ * 반짝임은 **빛**이라 짙은 물건이어도 밝게 나가야 한다. 무엇보다 **배경보다 밝아야**
+ * 보인다 — 물건이 쌓이는 자리의 휘도가 155다(`SPARKLE_LIGHTNESS`). 나머지는 물건의
+ * 색을 그대로 쓴다 — 흩날리는 단풍잎은 단풍잎 색이어야 하고, 밝기를 맞추면 잎이
+ * 죄다 파스텔로 뜬다.
  */
 const NORMALIZED: Readonly<Record<Trail, boolean>> = {
   sparkle: true,
@@ -143,24 +142,16 @@ const OUTLINE_ALPHA = 1.15
 /** 테두리 두께(px). 부스러기가 작으므로 이보다 굵으면 선이 속을 다 먹는다 */
 const OUTLINE_WIDTH = 1.1
 
-/**
- * `nightfall`이 이보다 크면 반짝임을 빛으로 더해 칠한다.
- *
- * 가산 합성은 **어두운 곳에서만 뜻이 있다.** 밝은 벽에 빛을 더하면 이미 밝아서
- * 더할 여지가 없고, 그러면 반짝임이 통째로 사라진다 — 낮에는 물감처럼 덮는다.
- */
-const ADDITIVE_NIGHT = 0.55
 
-function trailPaint(particle: Particle, scale: number, nightfall = 1): TrailPaint {
+function trailPaint(particle: Particle, scale: number): TrailPaint {
   const base = NORMALIZED[particle.kind]
-    ? glowColor(particle.color)
+    ? sparkleColor(particle.color)
     : parseHex(particle.color)
   const alpha = PEAK[particle.kind] * fadeOf(particle) * scale
   const to255 = (value: number): number => Math.round(value * 255)
   return {
     style: `rgba(${to255(base.r)}, ${to255(base.g)}, ${to255(base.b)}, ${alpha})`,
     alpha,
-    additive: ADDITIVE[particle.kind] && nightfall >= ADDITIVE_NIGHT,
     outline: NO_OUTLINE.has(particle.kind)
       ? null
       : {
@@ -170,5 +161,5 @@ function trailPaint(particle: Particle, scale: number, nightfall = 1): TrailPain
   }
 }
 
-export { trailPaint, fadeOf, grownBy, PEAK, ADDITIVE, NORMALIZED, ADDITIVE_NIGHT }
+export { trailPaint, fadeOf, grownBy, PEAK, NORMALIZED }
 export type { TrailPaint }

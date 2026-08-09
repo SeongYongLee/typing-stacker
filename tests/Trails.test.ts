@@ -3,7 +3,7 @@ import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
 import { GLOWING_IDS } from '../src/game/data/glowItems.ts'
 import { STEAMING_IDS, TRAILS, trailOf, type Trail } from '../src/game/data/trails.ts'
 import { ALL_VARIANTS, WORDS } from '../src/game/data/words.ts'
-import { ADDITIVE_NIGHT, fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
+import { fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
 import {
   FULL_SPEED,
   MAX_PARTICLES,
@@ -285,21 +285,16 @@ describe('부스러기를 어떻게 칠하는가', () => {
     spin: 1,
   }
 
-  it('반짝임만 빛을 더한다', () => {
-    expect(trailPaint({ ...particle, kind: 'sparkle' }, 1).additive).toBe(true)
-    expect(trailPaint({ ...particle, kind: 'petal' }, 1).additive).toBe(false)
-  })
-
   /**
-   * 가산 합성은 **어두운 곳에서만 뜻이 있다.** 밝은 벽에 빛을 더하면 이미 밝아서
-   * 더할 여지가 없고, 그러면 반짝임이 통째로 사라진다 — 아레나 배경이 단색에서
-   * 밝은 그림으로 바뀌며 실제로 그렇게 됐다.
+   * **가산 합성을 걷어냈다.** 캔버스가 투명해서 `lighter`는 부스러기끼리 겹칠 때만
+   * 작용하는데, 물건이 쌓이는 자리의 배경 휘도가 낮·밤 모두 155라 밝은 반짝임이
+   * 겹치면 하얗게 뜨기만 했다. 대비는 밝기와 테두리가 만든다.
    */
-  it('낮에는 빛을 더하지 않는다', () => {
-    const sparkle = { ...particle, kind: 'sparkle' as Trail }
-    expect(trailPaint(sparkle, 1, 1).additive, '밤').toBe(true)
-    expect(trailPaint(sparkle, 1, ADDITIVE_NIGHT).additive, '문턱').toBe(true)
-    expect(trailPaint(sparkle, 1, 0).additive, '낮').toBe(false)
+  it('반짝임은 배경보다 밝다', async () => {
+    const { SPARKLE_LIGHTNESS } = await import('../src/game/renderer/glow.ts')
+    // 물건이 쌓이는 자리의 배경 휘도를 0~1로 옮긴 값
+    const BACKGROUND = 155 / 255
+    expect(SPARKLE_LIGHTNESS).toBeGreaterThan(BACKGROUND)
   })
 
   /**

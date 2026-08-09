@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
-import {
-  glowColor,
-  glowStyle,
-  glowAlpha,
-  GLOW_ADDITIVE_NIGHT,
-} from '../src/game/renderer/glow.ts'
-import { ADDITIVE_NIGHT } from '../src/game/renderer/trailPaint.ts'
+import { glowColor, glowStyle, glowAlpha } from '../src/game/renderer/glow.ts'
 
 /**
  * 색이 실제로 화면에 깔리는지 본다.
@@ -16,7 +10,7 @@ import { ADDITIVE_NIGHT } from '../src/game/renderer/trailPaint.ts'
  * 부분이기도 하다** — 옅은 색이라 스크린샷으로도 눈에 잘 안 띈다.
  *
  * 그래서 2D 컨텍스트를 흉내 낸 것을 물려 무엇을 칠했는지 받아 적는다. 브라우저가
- * 없어도 되고, 연출을 손볼 때 "화면 전체를 덮는가"와 "가산 합성인가"가 조용히
+ * 없어도 되고, 연출을 손볼 때 "화면 전체를 덮는가"와 "곱으로 덮는가"가 조용히
  * 뒤집히는 것을 잡는다.
  */
 
@@ -146,40 +140,23 @@ describe('얹힘 색이 화면에 깔린다', () => {
   })
 
   /**
-   * 어두운 밤에는 보통 합성으로 덮으면 짙은 색이 배경을 **어둡게** 만들어
-   * "무엇이 얹혔다"가 아니라 "화면이 꺼졌다"로 보인다. 빛을 더하는 쪽이 맞다.
+   * **언제나 곱으로 덮는다.** 예전에는 밤에 빛을 더하고 낮에 곱으로 덮었는데,
+   * 곱하기는 **비율로 움직여 배경 밝기와 무관하다** — 배경이 43이든 155든 같은
+   * 만큼 어두워진다. 그래서 가를 이유가 없다.
+   *
+   * 가를 근거 자체도 사라졌다. 재보니 **물건이 쌓이는 자리는 낮과 밤이 똑같이 155**다
+   * (형광등이 켜져 아래쪽은 안 어두워진다). 어두워지는 것은 벽 위쪽뿐이다.
    */
-  it('밤에는 빛을 더하는 합성으로 칠한다', () => {
-    const { canvas, fills } = makeCanvas()
-    new ArenaRenderer(canvas).draw({
-      ...BASE_STATE,
-      nightfall: 1,
-      landing: { color: '#f2d43c', strength: 1, progress: 0 },
-    })
-    expect(fullScreenFills(fills)[0]?.composite).toBe('lighter')
-  })
-
-  /**
-   * 낮에는 반대다. 배경이 방 그림으로 바뀌며 낮의 벽이 밝기 149가 됐는데(예전
-   * 단색 배경은 15였다) 거기에 빛을 더해봐야 더할 여지가 없어 **얹힘 색이 통째로
-   * 사라진다.** 밝은 벽에서는 빼는 것만 보이므로 곱으로 덮는다.
-   */
-  it('낮에는 물감처럼 덮는다', () => {
-    const { canvas, fills } = makeCanvas()
-    new ArenaRenderer(canvas).draw({
-      ...BASE_STATE,
-      nightfall: 0,
-      landing: { color: '#f2d43c', strength: 1, progress: 0 },
-    })
-    expect(fullScreenFills(fills)[0]?.composite).toBe('multiply')
-  })
-
-  /**
-   * 반짝임(`trailPaint`)과 얹힘 색이 **같은 순간에** 갈려야 한다.
-   * 문턱이 다르면 저물 때 화면이 두 번 바뀌어, 무엇이 규칙인지 읽히지 않는다.
-   */
-  it('부스러기와 같은 문턱에서 갈린다', () => {
-    expect(GLOW_ADDITIVE_NIGHT).toBe(ADDITIVE_NIGHT)
+  it('낮에도 밤에도 곱으로 덮는다', () => {
+    for (const nightfall of [0, 0.5, 1]) {
+      const { canvas, fills } = makeCanvas()
+      new ArenaRenderer(canvas).draw({
+        ...BASE_STATE,
+        nightfall,
+        landing: { color: '#f2d43c', strength: 1, progress: 0 },
+      })
+      expect(fullScreenFills(fills)[0]?.composite, `nightfall ${nightfall}`).toBe('multiply')
+    }
   })
 
   it('물건의 색과 세기가 그대로 칠에 들어간다', () => {
@@ -188,10 +165,7 @@ describe('얹힘 색이 화면에 깔린다', () => {
       ...BASE_STATE,
       landing: { color: '#f2d43c', strength: 1, progress: 0 },
     })
-    const expected = glowStyle(
-      glowColor('#f2d43c'),
-      glowAlpha(0, 1, BASE_STATE.nightfall),
-    )
+    const expected = glowStyle(glowColor('#f2d43c'), glowAlpha(0, 1))
     expect(fullScreenFills(fills)[0]?.style).toBe(expected)
   })
 

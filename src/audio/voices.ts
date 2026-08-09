@@ -640,10 +640,15 @@ function turnCue(voice: Voice): void {
   })
 }
 
-/** 대전: 상대가 단어를 지목했다. 알리되 손을 멈추게 하지는 않는다 */
-function suggested(voice: Voice): void {
-  tone(voice, { type: 'sine', freq: hz(79), gain: 0.03, duration: 0.16 })
-  tone(voice, { type: 'sine', freq: hz(84), gain: 0.018, duration: 0.13, delay: 0.07 })
+/**
+ * 대전: 누가 한마디 했다.
+ *
+ * **짧고 낮은 두 음.** 알리되 손을 멈추게 하면 안 된다 — 판이 도는 중에 오는 소리라,
+ * 뾰족하면 떨어지는 물건에서 눈을 떼게 만든다. 두 음을 올려 붙여 "말"이라는 느낌만 준다.
+ */
+function chat(voice: Voice): void {
+  tone(voice, { type: 'sine', freq: hz(76), gain: 0.026, duration: 0.1 })
+  tone(voice, { type: 'sine', freq: hz(83), gain: 0.02, duration: 0.13, delay: 0.06 })
 }
 
 export {
@@ -667,6 +672,6 @@ export {
   menuMove,
   menuSelect,
   turnCue,
-  suggested,
+  chat,
 }
 export type { Voice }

@@ -6,6 +6,7 @@ import { withSubject } from '../text/particle.ts'
 import { StackArena } from '../components/StackArena.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
 import { LIVES } from '../game/config.ts'
+import { TURN_HURRY_SEC } from '../multi/MatchEngine.ts'
 import type { MatchEngine, MatchViewState } from '../multi/MatchEngine.ts'
 import type { ChatLine } from '../multi/ChatLog.ts'
 import { ownerColorAt } from '../multi/ownerColors.ts'
@@ -126,6 +127,12 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
       style={{
         display: 'flex',
         alignItems: 'center',
+        /*
+         * 사람이 적으면 **가운데로 모은다.** 이름표가 왼쪽 끝에 붙어 있으면 말풍선도
+         * 거기서 뜨는데, 판을 보는 눈은 아레나가 있는 가운데에 있다. 여덟이 붙으면
+         * 어차피 줄이 꽉 차므로 그때만 왼쪽부터 채운다.
+         */
+        justifyContent: crowded ? 'flex-start' : 'center',
         gap: crowded ? 10 : 24,
         padding: crowded ? '8px 14px' : '12px 20px',
         borderBottom: '1px solid #262b3d',
@@ -190,15 +197,29 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               {mine && !crowded && ' (나)'}
             </span>
             <PlayerLives lives={lives} invulnerable={invulnerableOf.get(player.id) ?? 0} />
+            {/*
+              남은 시간은 **차례인 사람 자리에만** 붙인다. 모두에게 띄우면 숫자가
+              여덟 개 흐르는 셈이고, 정작 누구를 기다리는지는 그 숫자가 말해주지 않는다.
+            */}
+            {active && state.phase === 'playing' && state.turnLeft !== null && (
+              <TurnClock left={state.turnLeft} />
+            )}
             {!crowded && <Wins count={winsOf.get(player.id) ?? 0} />}
           </div>
         )
       })}
+      {/*
+        나가기는 줄 바깥에 세운다. `marginLeft: auto`로 밀면 그 버튼이 남는 공간을
+        전부 먹어서, 이름표를 가운데로 모으려는 것이 무력해진다.
+      */}
       <button
         type="button"
         onClick={onLeave}
         style={{
-          marginLeft: 'auto',
+          position: 'absolute',
+          right: 20,
+          top: '50%',
+          transform: 'translateY(-50%)',
           background: 'transparent',
           border: '1px solid #2e3448',
           borderRadius: 8,
@@ -349,6 +370,7 @@ function ActionHint({ state }: { state: MatchViewState }) {
  */
 function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
   const [shown, setShown] = useState<ChatLine | null>(null)
+  const ref = useRef<HTMLSpanElement | null>(null)
 
   useEffect(() => {
     if (line === null) {
@@ -360,11 +382,37 @@ function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
     // seq로만 다시 띄운다 — 같은 말을 매 프레임 되살리지 않는다
   }, [line?.seq])
 
+  /*
+   * 튀어나오는 이펙트.
+   *
+   * 그냥 나타나면 **판이 도는 중에는 눈에 안 들어온다** — 화면에서 이미 여러 가지가
+   * 움직이고 있어서, 가만히 있는 것이 오히려 배경이 된다. 아래에서 살짝 올라오며
+   * 한 번 커졌다 제자리로 오는 것으로 시선을 끈다.
+   *
+   * WAAPI로 돌린다. 엔진이 매 프레임 리렌더를 밀어 CSS transition은 끊긴다 —
+   * 낙하 단어 칩에서 이미 밟은 함정이다.
+   */
+  useEffect(() => {
+    if (shown === null) {
+      return
+    }
+    play(
+      ref.current,
+      [
+        { transform: 'translateY(-6px) scale(0.8)', opacity: 0 },
+        { transform: 'translateY(0) scale(1.08)', opacity: 1, offset: 0.55 },
+        { transform: 'translateY(0) scale(1)', opacity: 1 },
+      ],
+      { duration: 320, easing: 'cubic-bezier(0.22, 1.2, 0.36, 1)' },
+    )
+  }, [shown?.seq])
+
   if (shown === null) {
     return null
   }
   return (
     <span
+      ref={ref}
       data-bubble={shown.text}
       style={{
         position: 'absolute',
@@ -418,6 +466,48 @@ function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
 
 /** 말풍선이 머무는 시간. 읽을 만큼은 남고, 다음 차례를 가릴 만큼은 아니어야 한다 */
 const BUBBLE_MS = 4200
+
+/**
+ * 차례에 남은 시간.
+ *
+ * **평소에는 조용해야 한다.** 20초는 넉넉해서 성실히 치는 사람은 여기에 걸릴 일이
+ * 없는데, 그 숫자가 처음부터 붉게 깜박이면 없던 조급함이 생긴다. 얼마 안 남았을
+ * 때만 색이 바뀐다.
+ */
+function TurnClock({ left }: { left: number }) {
+  const hurry = left <= TURN_HURRY_SEC
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const beat = Math.ceil(left)
+
+  // 다급해진 뒤로는 1초마다 한 번씩 뛴다. 소리 없이 알리는 유일한 길이다
+  useEffect(() => {
+    if (!hurry) {
+      return
+    }
+    play(
+      ref.current,
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }],
+      { duration: 380, easing: 'ease-out' },
+    )
+  }, [hurry, beat])
+
+  return (
+    <span
+      ref={ref}
+      data-turn-left={beat}
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        fontVariantNumeric: 'tabular-nums',
+        color: hurry ? '#ff6b6b' : '#6a7290',
+        minWidth: 18,
+        textAlign: 'right',
+      }}
+    >
+      {beat}
+    </span>
+  )
+}
 
 /** 다음에 떨굴 수 있을 때까지 남은 시간. 숫자보다 줄어드는 막대가 눈에 빨리 들어온다 */
 function CooldownBar({ ratio, color = '#ff9f6b' }: { ratio: number; color?: string }) {

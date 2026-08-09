@@ -49,6 +49,20 @@ import type { ChatLog } from './ChatLog.ts'
  */
 const DROP_INTERVAL_SEC = 0.9
 
+/**
+ * 한 차례에 주어지는 시간(초). 넘기면 방장이 대신 떨궈 차례를 넘긴다.
+ *
+ * **잠수를 막는 것이 목적이다.** 받침대가 하나뿐이라 한 사람이 손을 놓으면 판 전체가
+ * 멎는다 — 나머지는 나가는 것 말고 할 수 있는 일이 없다.
+ *
+ * 넉넉히 잡았다. 단어를 찾아 읽고 한글로 치는 데 드는 시간에 조준까지 얹어야 하고,
+ * 이 시한에 걸리는 것은 자리를 비운 사람이지 느린 사람이 아니어야 한다.
+ */
+const TURN_LIMIT_SEC = 20
+
+/** 남은 시간이 이 아래로 내려가면 화면이 다급하게 알린다 */
+const TURN_HURRY_SEC = 5
+
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
 
@@ -88,6 +102,13 @@ interface MatchViewState {
    * **모두가 같은 값을 본다** — 받침대가 하나이듯 대기도 하나다.
    */
   readonly dropCooldown: number
+  /**
+   * 지금 차례인 사람에게 남은 시간(초). 아무도 차례가 아니면 null.
+   *
+   * 남의 차례일 때도 보인다 — 얼마나 더 기다려야 하는지 알아야 하고,
+   * 자리를 비운 사람이 있는지도 이 숫자가 말해준다.
+   */
+  readonly turnLeft: number | null
   /**
    * 사람별 남은 무적 비율(1 → 0). 목숨을 잃은 직후 잠깐 붙는다.
    *
@@ -242,6 +263,14 @@ class MatchEngine {
    * 방장이 소유한다 — 참가자는 화면에 게이지를 그리는 데만 쓴다.
    */
   private dropCooldown = 0
+  /**
+   * 지금 차례가 시작된 뒤 흐른 시간(초).
+   *
+   * **판정은 방장만 한다.** 양쪽이 각자 재서 각자 떨구면 같은 순간에 다른 물건이
+   * 두 번 떨어진다. 참가자는 화면에 숫자를 그리는 데만 쓴다 — 조금 어긋나도
+   * 보이는 것이 어긋날 뿐이고, 실제로 떨어지는 것은 방장이 보낸 하나다.
+   */
+  private turnElapsed = 0
   private sinceSync = 0
 
   /**
@@ -588,11 +617,48 @@ class MatchEngine {
       return
     }
     this.transport.broadcast({ t: 'chatted', from, text: line.text })
+    this.fire({ kind: 'chat', mine: from === this.transport.selfId })
     this.emit()
   }
 
   private nameOf(id: PlayerId): string {
     return this.match.players.find((player) => player.id === id)?.nickname ?? '이름없음'
+  }
+
+  /**
+   * 시한을 넘긴 사람 대신 떨군다. **방장만 한다.**
+   *
+   * 자리를 비운 사람 하나에 판 전체가 멎는 것을 막는 장치다. 받침대가 하나뿐이라
+   * 나머지는 나가는 것 말고 할 수 있는 일이 없다.
+   *
+   * 화면에 있는 단어 중 **가장 아래까지 내려온 것**을 고른다. 없는 단어를 지어내면
+   * 그 사람만 다른 것을 보게 되고, 무엇보다 "떨어지는 물건은 늘 화면의 단어에서
+   * 나온다"는 이 게임의 규칙이 그 한 번에 깨진다.
+   *
+   * **난수를 쓰지 않는다.** 난수를 끌어 쓰면 그만큼 단어와 물건의 흐름이 밀려
+   * 이 한 번이 그 뒤의 판 전체를 바꾼다. 가장 아래 것은 어차피 곧 놓칠 단어이기도 하다.
+   *
+   * 화살표는 지금 있는 자리를 그대로 쓴다. 가운데로 옮기지 않는 것은, 자리를 비운
+   * 사람에게 좋은 자리를 주는 셈이 되기 때문이다.
+   */
+  private dropForIdlePlayer(): void {
+    const who = this.match.currentPlayer
+    if (who === null) {
+      return
+    }
+    let lowest: FallingWord | null = null
+    for (const word of this.spawner.words) {
+      if (word.state !== 'active') continue
+      if (lowest === null || word.y > lowest.y) {
+        lowest = word
+      }
+    }
+    if (lowest === null) {
+      // 칠 단어가 없으면 곧 다시 본다. 단어는 이내 내려온다
+      this.turnElapsed = TURN_LIMIT_SEC - 0.5
+      return
+    }
+    this.resolveDrop(who, lowest.word, this.aimer.worldX)
   }
 
   /** 내가 떨구려 한다. 방장이면 바로 판정하고, 게스트면 방장에게 청한다 */
@@ -672,6 +738,7 @@ class MatchEngine {
      */
     this.match.nextTurn()
     this.dropCooldown = DROP_INTERVAL_SEC
+    this.turnElapsed = 0
 
     if (by === this.transport.selfId) {
       this.feedbackSeq += 1
@@ -712,6 +779,7 @@ class MatchEngine {
       case 'chatted':
         if (!this.transport.isHost) {
           this.chat.add(message.from, this.nameOf(message.from), message.text, this.chatClock())
+          this.fire({ kind: 'chat', mine: message.from === this.transport.selfId })
           this.emit()
         }
         break
@@ -792,8 +860,13 @@ class MatchEngine {
       }
     }
     this.standingsView = this.match.standings()
-    // 차례인 사람이 방금 탈락했으면 넘긴다 — 안 그러면 죽은 사람 차례에서 판이 멈춘다
+    /*
+     * 차례인 사람이 방금 탈락했으면 넘긴다 — 안 그러면 죽은 사람 차례에서 판이 멈춘다.
+     * 차례가 남에게 넘어갔으니 시한도 처음부터다. 되돌리지 않으면 방금 받은 사람이
+     * 앞사람이 쓰던 시간을 이어받아, 손도 대기 전에 대신 떨궈진다.
+     */
     this.match.ensureTurnAlive()
+    this.turnElapsed = 0
     this.emit()
   }
 
@@ -858,6 +931,17 @@ class MatchEngine {
     // 모두가 함께 쓰는 쿨타임. 0이 되는 순간이 곧 다음 차례 사람의 시작이다
     if (this.dropCooldown > 0) {
       this.dropCooldown = Math.max(0, this.dropCooldown - dt)
+    }
+
+    /*
+     * 차례 시계. 쿨타임이 도는 동안에는 아직 아무도 칠 수 없으므로 세지 않는다 —
+     * 그러지 않으면 실제로 손이 갈 수 있는 시간이 시한보다 짧아진다.
+     */
+    if (this.dropCooldown <= 0 && this.match.currentPlayer !== null) {
+      this.turnElapsed += dt
+      if (this.transport.isHost && this.turnElapsed >= TURN_LIMIT_SEC) {
+        this.dropForIdlePlayer()
+      }
     }
 
     /*
@@ -956,6 +1040,7 @@ class MatchEngine {
       this.standingsView = this.match.standings()
       // 참가자도 같은 순서로 건너뛰도록 양쪽이 똑같이 부른다
       this.match.ensureTurnAlive()
+      this.turnElapsed = 0
       this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
     }
 
@@ -1016,6 +1101,10 @@ class MatchEngine {
       current: this.match.currentPlayer,
       myTurn: this.match.currentPlayer === this.transport.selfId,
       dropCooldown: Math.min(1, Math.max(0, this.waitLeft() / DROP_INTERVAL_SEC)),
+      turnLeft:
+        this.match.currentPlayer === null
+          ? null
+          : Math.max(0, TURN_LIMIT_SEC - this.turnElapsed),
       invulnerable: this.invulnerableRatios(),
       hurt:
         this.lastHurt === null
@@ -1039,5 +1128,5 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, DROP_INTERVAL_SEC, matchIdOf }
+export { MatchEngine, DROP_INTERVAL_SEC, TURN_LIMIT_SEC, TURN_HURRY_SEC, matchIdOf }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

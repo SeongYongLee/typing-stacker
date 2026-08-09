@@ -19,6 +19,9 @@ class SoundBoard {
   private readonly limiter = new SoundLimiter()
   /** 지금 화면이 틀고 싶어 하는 곡. null이면 조용해야 하는 자리다 */
   private wantedTrack: BgmTrackName | null = null
+  /** 첫 제스처 전 스플래시라면 문 열림을 버리지 않고 잠깐 들고 있는다 */
+  private splashOpenPending = false
+  private splashOpenedAt = Number.NEGATIVE_INFINITY
 
   get settings(): AudioSettings {
     return this.bus.current
@@ -32,6 +35,7 @@ class SoundBoard {
   unlock(): void {
     this.bus.unlock()
     this.syncMusic()
+    this.flushSplashOpen()
   }
 
   /**
@@ -57,6 +61,53 @@ class SoundBoard {
   /** 탭이 가려졌다 / 돌아왔다 */
   setSuspended(suspended: boolean): void {
     this.bus.setSuspended(suspended)
+  }
+
+  /**
+   * 스플래시에 들어오거나 나갔다.
+   *
+   * 첫 진입은 브라우저의 자동재생 제한보다 빠르므로 열림 소리 하나만 첫 제스처까지
+   * 들고 있는다. 게임 사건까지 쌓아두면 돌아왔을 때 지난 충돌음이 터지지만, 문 열림은
+   * 지금 보고 있는 화면의 시작이라 예외다.
+   */
+  setSplash(open: boolean): void {
+    if (open) {
+      this.splashOpenPending = true
+      this.flushSplashOpen()
+      return
+    }
+
+    this.splashOpenPending = false
+    const voice = this.effectVoice()
+    if (voice === null) {
+      return
+    }
+    // 첫 클릭으로 문을 열자마자 화면을 나가도 열림과 닫힘이 한 소리로 뭉개지지 않게 한다
+    const at = Math.max(voice.at, this.splashOpenedAt + 0.6)
+    voices.woodenDoorClose({ ...voice, at }, 0.78)
+  }
+
+  private flushSplashOpen(): void {
+    if (!this.splashOpenPending || this.bus.context === null) {
+      return
+    }
+    this.splashOpenPending = false
+    const voice = this.effectVoice()
+    if (voice === null) {
+      return
+    }
+    this.splashOpenedAt = voice.at
+    voices.woodenDoorOpen(voice)
+  }
+
+  private effectVoice(): Voice | null {
+    const ctx = this.bus.context
+    const out = this.bus.sfx
+    const noise = this.bus.noiseBuffer
+    if (ctx === null || out === null || noise === null || this.bus.current.sfxVolume <= 0) {
+      return null
+    }
+    return { ctx, out, noise, at: ctx.currentTime }
   }
 
   /**

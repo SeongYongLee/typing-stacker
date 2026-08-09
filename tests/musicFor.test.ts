@@ -1,39 +1,56 @@
 import { describe, expect, it } from 'vitest'
-import { musicFor } from '../src/screenMusic.ts'
+import { musicFor, type MusicScene } from '../src/screenMusic.ts'
 
-/**
- * 어느 화면에서 무엇이 흐르는지는 `musicFor` 한 곳이 정한다.
- *
- * 화면마다 각자 부르게 두면 어느 쪽이 마지막으로 렌더됐는지에 따라 곡이 갈리고,
- * 화면 구조를 바꿀 때마다 그 순서가 조용히 뒤집힌다. 규칙이 한자리에 있으니
- * 그 규칙을 여기서 지킨다 — 소리는 귀로만 확인할 수 있지만 **어느 곡을 고르는가**는 잴 수 있다.
- */
-describe('판이 끝나도 곡은 이어진다', () => {
-  it('혼자 하기 — 끝난 뒤에도 판 곡이다', () => {
-    /*
-     * 결과를 보고 바로 다시 시작하는 것이 이 게임의 보통 흐름이다. 끝날 때마다 곡이
-     * 물러났다가 다시 시작할 때 처음부터 들어오면 그 사이가 매번 끊김으로 남는다.
-     */
-    expect(musicFor('solo', 'playing', null)).toBe('game')
-    expect(musicFor('solo', 'collapsing', null)).toBe('game')
-    expect(musicFor('solo', 'over', null)).toBe('game')
+/** 어느 화면에서 무엇이 흐르는지는 `musicFor` 한 곳이 정한다. */
+function scene(overrides: Partial<MusicScene>): MusicScene {
+  return {
+    route: 'title',
+    titleTheme: 'day',
+    soloPhase: null,
+    soloTimeOfDay: null,
+    matchPhase: null,
+    ...overrides,
+  }
+}
+
+describe('스플래시 낮·밤 음악', () => {
+  it('그림과 같은 낮·밤 곡을 고른다', () => {
+    expect(musicFor(scene({ route: 'title', titleTheme: 'day' }))).toBe('splashDay')
+    expect(musicFor(scene({ route: 'title', titleTheme: 'night' }))).toBe('splashNight')
   })
 
-  it('함께 하기 — 끝난 뒤에도 판 곡이다', () => {
-    expect(musicFor('lobby', null, 'playing')).toBe('game')
-    expect(musicFor('lobby', null, 'over')).toBe('game')
+  it('옵션과 이름 화면에서도 들어온 스플래시 곡을 이어간다', () => {
+    expect(musicFor(scene({ route: 'options', titleTheme: 'night' }))).toBe('splashNight')
+    expect(musicFor(scene({ route: 'name', titleTheme: 'day' }))).toBe('splashDay')
+  })
+})
+
+describe('플레이 낮·밤 음악', () => {
+  it('첫 밤과 보통 밤은 밤 곡, 낮은 낮 곡이다', () => {
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'firstNight' }))).toBe('gameNight')
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'night' }))).toBe('gameNight')
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'day' }))).toBe('gameDay')
   })
 
-  it('일시정지만 조용하다 — 멈췄다는 것 자체가 알려야 할 것이다', () => {
-    expect(musicFor('solo', 'paused', null)).toBeNull()
+  it('판이 끝나도 마지막 낮·밤 곡은 이어진다', () => {
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'day' }))).toBe('gameDay')
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'night' }))).toBe('gameNight')
   })
 
-  it('판을 떠나면 그 화면의 곡으로 넘어간다', () => {
-    expect(musicFor('title', 'over', null)).toBe('title')
-    expect(musicFor('collection', 'over', null)).toBe('collection')
-    expect(musicFor('options', 'over', null)).toBe('title')
-    expect(musicFor('name', 'over', null)).toBe('title')
-    // 판이 시작되기 전(방 만들기·준비)에는 대기방 곡
-    expect(musicFor('lobby', null, null)).toBe('lobby')
+  it('일시정지만 조용하다', () => {
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'paused', soloTimeOfDay: 'day' }))).toBeNull()
+  })
+
+  it('대전은 낮에 머물고 시작 전에는 대기방 곡이다', () => {
+    expect(musicFor(scene({ route: 'lobby', matchPhase: null }))).toBe('lobby')
+    expect(musicFor(scene({ route: 'lobby', matchPhase: 'playing' }))).toBe('gameDay')
+    expect(musicFor(scene({ route: 'lobby', matchPhase: 'over' }))).toBe('gameDay')
+  })
+})
+
+describe('다른 화면', () => {
+  it('도감은 전용 곡이고 loopback은 조용하다', () => {
+    expect(musicFor(scene({ route: 'collection' }))).toBe('collection')
+    expect(musicFor(scene({ route: 'loopback' }))).toBeNull()
   })
 })

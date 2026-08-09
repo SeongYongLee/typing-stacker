@@ -9,7 +9,7 @@ import { useLeaderboard } from '../hooks/useLeaderboard.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { loadProfile } from '../storage/profile.ts'
 import { TitleSidePanel } from './TitleSidePanel.tsx'
-import { titleThemeForHour, type TitleTheme } from './titleTheme.ts'
+import type { TitleTheme } from './titleTheme.ts'
 import './TitleScreen.css'
 
 interface TitleScreenProps {
@@ -21,6 +21,8 @@ interface TitleScreenProps {
   onMultiplayer: () => void
   onCollection: () => void
   ready: boolean
+  /** 배경 그림과 스플래시 음악이 함께 쓰는 낮·밤 */
+  theme: TitleTheme
 }
 
 const SPLASH_ASSETS: Record<TitleTheme, { background: string; title: string }> = {
@@ -28,10 +30,17 @@ const SPLASH_ASSETS: Record<TitleTheme, { background: string; title: string }> =
   night: { background: backgroundNight, title: titleNight },
 }
 
-function TitleScreen({ onStart, onName, onMultiplayer, onCollection, onOptions, ready, progress }: TitleScreenProps) {
+function TitleScreen({
+  onStart,
+  onName,
+  onMultiplayer,
+  onCollection,
+  onOptions,
+  ready,
+  progress,
+  theme,
+}: TitleScreenProps) {
   const board = useLeaderboard()
-  // 타이틀에 머무는 동안 낮·밤 그림이 갑자기 바뀌지 않도록 진입 시각으로 고정한다
-  const [theme] = useState<TitleTheme>(() => titleThemeForHour(new Date().getHours()))
   const [loadedAssets, setLoadedAssets] = useState(0)
   const assets = SPLASH_ASSETS[theme]
 

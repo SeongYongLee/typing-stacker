@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import type { BgmTrackName } from '../audio/tracks.ts'
 import type { AudioSettings } from '../storage/audioSettings.ts'
@@ -32,6 +32,19 @@ function useAudioBoot(): void {
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
+}
+
+/** 스플래시에 드나들 때 사무실 나무문을 열고 닫는다 */
+function useSplashDoor(open: boolean): void {
+  const previous = useRef<boolean | null>(null)
+  useEffect(() => {
+    // StrictMode가 이펙트를 다시 돌려도 같은 문을 두 번 열지 않는다
+    if (previous.current === open) {
+      return
+    }
+    previous.current = open
+    soundBoard().setSplash(open)
+  }, [open])
 }
 
 /**
@@ -103,4 +116,11 @@ function useAudioSettings(): {
   return { settings, update }
 }
 
-export { useAudioBoot, useAudioGate, useTypingSound, useMusic, useAudioSettings }
+export {
+  useAudioBoot,
+  useAudioGate,
+  useSplashDoor,
+  useTypingSound,
+  useMusic,
+  useAudioSettings,
+}

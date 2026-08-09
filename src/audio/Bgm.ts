@@ -1,5 +1,5 @@
 import { TRACKS, type Bar, type BgmTrack, type BgmTrackName } from './tracks.ts'
-import { hz, tone, type Voice } from './voices.ts'
+import { burst, hz, tone, type Voice } from './voices.ts'
 
 /**
  * 배경음악 재생기. 이것도 파일이 아니라 코드다.
@@ -8,7 +8,7 @@ import { hz, tone, type Voice } from './voices.ts'
  * 어디가 끝이고 어디가 시작인지 들리지 않는다.
  *
  * 무엇을 연주할지는 `tracks.ts`가 정한다. 여기는 연주하는 방법만 안다 —
- * 베이스·화음·아르페지오·멜로디 네 겹을 악보가 시킨 자리에 놓을 뿐이다.
+ * 베이스·화음·아르페지오·짧은 타악·멜로디를 악보가 시킨 자리에 놓을 뿐이다.
  *
  * ## 앞질러 예약하는 이유
  *
@@ -199,6 +199,7 @@ class Bgm {
         attack: 0.03,
       })
     }
+    this.playRhythm(voice, track, beat)
     this.playMelody(voice, track, step, stepSec)
     this.playArp(voice, track, bar, beat, stepSec)
   }
@@ -223,6 +224,24 @@ class Bgm {
       gain: track.arp.gain,
       duration: stepSec * track.arp.length,
       attack: 0.02,
+    })
+  }
+
+  /** 악보의 0~1 세기로 흰 잡음을 짧게 잘라 귀여운 타악 결을 만든다 */
+  private playRhythm(voice: Voice, track: BgmTrack, beat: number): void {
+    const rhythm = track.rhythm
+    const velocity = rhythm?.pattern[beat] ?? 0
+    if (rhythm === null || velocity <= 0) {
+      return
+    }
+    burst(voice, {
+      filter: rhythm.filter,
+      freq: rhythm.freq,
+      toFreq: rhythm.toFreq,
+      q: rhythm.q,
+      gain: rhythm.gain * velocity,
+      duration: rhythm.duration,
+      attack: Math.min(0.006, rhythm.duration * 0.3),
     })
   }
 

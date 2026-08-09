@@ -28,13 +28,15 @@ function trailHitOf(hit: ImpactEvent): TrailHit {
 /**
  * 소리로 바뀔 사건.
  *
- * 크기를 그림의 **큰 변**에서 뽑는 이유는 그것이 몸통 음높이를 정하기 때문이다 —
- * 큰 것이 낮게 울린다. 재질과 개체값(`tone`·`grain`)은 손대지 않고 그대로 넘긴다.
+ * 실제 질량은 박스 반응음의 사뿐·풀썩·척·쿵을 가르고, 그림의 **큰 변**은 몸통
+ * 음높이를 정한다 — 큰 것이 낮게 울린다. 재질과 개체값(`tone`·`grain`)은 손대지 않고
+ * 그대로 넘긴다.
  */
 function impactEventOf(hit: ImpactEvent): GameEvent {
   return {
     kind: 'impact',
     strength: strengthOf(hit),
+    mass: hit.mass,
     size: Math.max(hit.variant.artBounds.hw, hit.variant.artBounds.hh) * 2,
     material: hit.variant.material,
     tone: hit.variant.tone,

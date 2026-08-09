@@ -123,6 +123,8 @@ interface SettleEvent {
  */
 interface ImpactEvent {
   readonly variant: ItemVariant
+  /** 물리 세계에서 콜라이더까지 반영해 잰 실제 질량 */
+  readonly mass: number
   /** 부딪히기 직전 속도 x 질량 */
   readonly impact: number
   /**
@@ -648,9 +650,11 @@ class PhysicsWorld {
         speed < entry.previousSpeed * 0.55
       ) {
         entry.struck = true
+        const mass = entry.body.mass()
         impacts.push({
           variant: entry.variant,
-          impact: entry.previousSpeed * entry.body.mass(),
+          mass,
+          impact: entry.previousSpeed * mass,
           // dislodged는 한 번 켜지면 꺼지지 않는다 — 무너진 물건은 다시 처음이 되지 않는다
           first: !entry.dislodged,
           x,

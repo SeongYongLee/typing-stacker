@@ -33,14 +33,15 @@ type GameEvent =
   /**
    * 물건이 무언가에 부딪혔다.
    *
-   * strength(0~1)는 부딪힌 세기, size는 그린 크기의 큰 변(월드 단위),
-   * material은 무엇으로 만들어졌는가, tone·grain(0~1)은 같은 재질 안에서 이 물건을
-   * 가르는 두 축이다(음높이와 울림). 이것들이 모여야 "무엇이 얼마나 세게 얹혔는지"가
-   * 소리만으로 들린다.
+   * strength(0~1)는 부딪힌 세기, mass는 물리 세계에서 잰 실제 질량, size는 그린 크기의
+   * 큰 변(월드 단위)이다. material은 무엇으로 만들어졌는가, tone·grain(0~1)은 같은
+   * 재질 안에서 이 물건을 가르는 두 축이다(음높이와 울림). 이것들이 모여야
+   * "무엇이 얼마나 세게 얹혔는지"가 소리만으로 들린다.
    */
   | {
       readonly kind: 'impact'
       readonly strength: number
+      readonly mass: number
       readonly size: number
       readonly material: Material
       readonly tone: number

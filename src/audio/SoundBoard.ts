@@ -99,6 +99,7 @@ class SoundBoard {
         voices.impact(
           voice,
           event.strength,
+          event.mass,
           event.size,
           event.material,
           event.tone,

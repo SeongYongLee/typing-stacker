@@ -975,6 +975,31 @@ class PhysicsWorld {
         .setRestitution(0.02),
       body,
     )
+
+    /*
+     * 양끝의 **열린 덮개** — 받침대 밖으로 비스듬히 뻗은 판자.
+     *
+     * 바깥이 높고 안쪽이 낮아서, 받침대 밖으로 밀려난 물건이 여기 닿으면 타고
+     * **되돌아 들어온다.** 벽이 없는 판에서 "살짝 밀린 것만 살린다"를 맡는 자리다.
+     *
+     * 좌표는 `platform-front` 그림에서 잰 것이라 **보이는 판자와 부딪히는 판자가
+     * 같다.** 몸통이 (0, platformTop - platformHalfHeight)에 서 있으므로 그만큼 뺀다.
+     */
+    const flap = ARENA.bowlFlap
+    const baseY = ARENA.platformTop - ARENA.platformHalfHeight
+    for (const side of [-1, 1]) {
+      const points = new Float32Array([
+        side * flap.outerX, flap.outerY - baseY,
+        side * flap.innerX, flap.innerY - baseY,
+        side * flap.innerX, flap.innerY - flap.thickness - baseY,
+        side * flap.outerX, flap.outerY - flap.thickness - baseY,
+      ])
+      const desc = rapier().ColliderDesc.convexHull(points)
+      if (desc === null) {
+        continue
+      }
+      this.world.createCollider(desc.setFriction(0.9).setRestitution(0.02), body)
+    }
   }
 }
 

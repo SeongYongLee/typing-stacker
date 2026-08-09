@@ -93,8 +93,15 @@ const pathLabelStyle: CSSProperties = {
 const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
   name: ['같은 방에 들어온 사람에게 이 이름으로 보입니다.'],
   auto: [
+    /*
+     * **인원을 먼저 말한다.** 친선전에만 "최대 8명"이 적혀 있으면 랭크도 여럿인 줄
+     * 읽힌다 — 둘 다 같은 대전이고 화면에서 나란히 놓여 있기 때문이다.
+     */
     <>
-      <Key>비슷한 티어</Key>의 상대와 붙습니다.
+      <Key>1대1</Key>로 붙습니다. 여럿이 하려면 친선전으로.
+    </>,
+    <>
+      <Key>비슷한 티어</Key>의 상대를 찾아줍니다.
     </>,
     '이긴 만큼 티어 점수가 오릅니다.',
   ],

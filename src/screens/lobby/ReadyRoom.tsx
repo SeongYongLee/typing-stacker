@@ -192,7 +192,7 @@ function ChatBox({
         ) : (
           lines.map((line) => (
             <span key={line.seq} style={{ fontSize: 14, color: '#b6bdd4', lineHeight: 1.5 }}>
-              <b style={{ color: line.from === selfId ? '#ffcf5c' : '#8bd6ff' }}>
+              <b style={{ color: line.from === selfId ? '#e4e68a' : '#8bd6ff' }}>
                 {line.nickname}
               </b>{' '}
               {line.text}

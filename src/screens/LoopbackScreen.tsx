@@ -19,7 +19,7 @@ const bannerStyle: CSSProperties = {
   gap: 16,
   padding: '6px 12px',
   background: '#3a2a12',
-  color: '#ffcf5c',
+  color: '#e4e68a',
   fontSize: 12,
   letterSpacing: '0.06em',
 }
@@ -58,7 +58,7 @@ function LoopbackScreen({ onBack }: LoopbackScreenProps) {
             borderRadius: 6,
             border: '1px solid #6a5320',
             background: 'transparent',
-            color: '#ffcf5c',
+            color: '#e4e68a',
           }}
         >
           나가기

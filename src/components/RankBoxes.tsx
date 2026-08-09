@@ -45,7 +45,7 @@ function SoloRanking({ board }: { board: Leaderboard }) {
                 alignItems: 'center',
                 gap: 8,
                 fontSize: 13,
-                color: index === 0 ? '#ffcf5c' : '#b6bdd4',
+                color: index === 0 ? '#e4e68a' : '#b6bdd4',
               }}
             >
               <span style={{ color: '#6a7290' }}>{index + 1}</span>
@@ -128,7 +128,7 @@ function VersusTier({ board }: { board: Leaderboard }) {
                   alignItems: 'center',
                   gap: 8,
                   fontSize: 13,
-                  color: index === 0 ? '#ffcf5c' : '#b6bdd4',
+                  color: index === 0 ? '#e4e68a' : '#b6bdd4',
                 }}
               >
                 <span style={{ color: '#6a7290' }}>{index + 1}</span>

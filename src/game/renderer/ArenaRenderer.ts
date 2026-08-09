@@ -196,7 +196,7 @@ interface ArenaRenderState {
 const COLORS = {
   aimTrack: 'rgba(255, 207, 92, 0.16)',
   danger: 'rgba(255, 107, 107, 0.5)',
-  hidden: '#ffcf5c',
+  hidden: '#e4e68a',
 } as const
 
 const ARROW_ART = `${import.meta.env.BASE_URL}arena/stack-drop-arrow.png`
@@ -733,7 +733,7 @@ class ArenaRenderer {
     }
 
     ctx.save()
-    ctx.fillStyle = '#ffcf5c'
+    ctx.fillStyle = '#e4e68a'
     ctx.beginPath()
     ctx.moveTo(x, top + 20)
     ctx.lineTo(x - 9, top + 2)

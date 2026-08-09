@@ -97,7 +97,7 @@ function MenuField({
       }}
       style={{
         ...style,
-        borderColor: selected ? '#ffcf5c' : (style?.borderColor ?? '#2e3448'),
+        borderColor: selected ? '#e4e68a' : (style?.borderColor ?? '#2e3448'),
       }}
     />
   )

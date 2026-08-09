@@ -175,7 +175,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               padding: crowded ? '4px 8px' : '6px 12px',
               borderRadius: 999,
               minWidth: 0,
-              border: `1px solid ${active ? '#ffcf5c' : 'transparent'}`,
+              border: `1px solid ${active ? '#e4e68a' : 'transparent'}`,
               background: active ? 'rgba(255, 207, 92, 0.1)' : 'transparent',
             }}
           >
@@ -307,14 +307,14 @@ function InputRow({
             outline: 'none',
             padding: 0,
             textAlign: 'center',
-            caretColor: '#ffcf5c',
+            caretColor: '#e4e68a',
           }}
         />
         <div
           style={{
             height: 2,
             marginTop: 4,
-            background: waiting ? '#2e3448' : '#ffcf5c',
+            background: waiting ? '#2e3448' : '#e4e68a',
             transition: 'background 140ms',
           }}
         />
@@ -357,7 +357,7 @@ function ActionHint({ state }: { state: MatchViewState }) {
       : state.inputMode === 'chat'
         ? '지금 적는 말은 채팅으로 갑니다'
         : '차례를 기다립니다'
-  const color = ready ? '#6bffb0' : soon ? '#ffcf5c' : '#8bd6ff'
+  const color = ready ? '#6bffb0' : soon ? '#e4e68a' : '#8bd6ff'
   return (
     <span
       data-turn-hint={ready ? 'mine' : soon ? 'soon' : 'theirs'}
@@ -590,7 +590,7 @@ function Wins({ count }: { count: number }) {
         textAlign: 'center',
         fontSize: 13,
         fontWeight: 700,
-        color: count > 0 ? '#ffcf5c' : '#3a4160',
+        color: count > 0 ? '#e4e68a' : '#3a4160',
         fontVariantNumeric: 'tabular-nums',
       }}
     >
@@ -786,7 +786,7 @@ function Verdict({
                   gap: 10,
                   alignItems: 'baseline',
                   fontSize: 14,
-                  color: mine ? '#ffcf5c' : '#b6bdd4',
+                  color: mine ? '#e4e68a' : '#b6bdd4',
                   fontWeight: mine ? 700 : 400,
                 }}
               >
@@ -794,7 +794,7 @@ function Verdict({
                   style={{
                     width: 26,
                     textAlign: 'right',
-                    color: row.placement === 1 ? '#ffcf5c' : '#4a5171',
+                    color: row.placement === 1 ? '#e4e68a' : '#4a5171',
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
@@ -811,7 +811,7 @@ function Verdict({
                   {nameOf(row.id)}
                   {mine && ' (나)'}
                 </span>
-                <span style={{ fontSize: 13, color: wins > 0 ? '#ffcf5c' : '#3a4160' }}>
+                <span style={{ fontSize: 13, color: wins > 0 ? '#e4e68a' : '#3a4160' }}>
                   {wins > 0 ? `${wins}승` : '—'}
                 </span>
               </li>

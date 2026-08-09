@@ -18,7 +18,7 @@ import { play } from './animate.ts'
 type SoloStep = 'ready' | 'start'
 
 const WORD: Readonly<Record<SoloStep, string>> = { ready: 'READY', start: 'START' }
-const COLOR: Readonly<Record<SoloStep, string>> = { ready: '#8b93b4', start: '#ffcf5c' }
+const COLOR: Readonly<Record<SoloStep, string>> = { ready: '#8b93b4', start: '#e4e68a' }
 
 const rootStyle: CSSProperties = {
   height: '100%',

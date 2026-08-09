@@ -72,7 +72,7 @@ const inputStyle: CSSProperties = {
   outline: 'none',
   padding: 0,
   textAlign: 'center',
-  caretColor: '#8a6d1f',
+  caretColor: '#e4e68a',
   // 종이보다 앞에 있어야 한다
   position: 'relative',
   zIndex: 1,
@@ -422,7 +422,7 @@ function FeedbackChip({ feedback }: { feedback: SubmitFeedback | null }) {
     >
       {feedback.text || '(빈 입력)'} {feedback.ok ? '✓' : '✗'}
       {showItem && (
-        <span style={{ color: feedback.hidden ? '#ffcf5c' : '#b6bdd4' }}>
+        <span style={{ color: feedback.hidden ? '#e4e68a' : '#b6bdd4' }}>
           {' → '}
           {feedback.itemLabel}
           {feedback.hidden && ' ★'}

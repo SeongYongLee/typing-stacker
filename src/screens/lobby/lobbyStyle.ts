@@ -42,7 +42,7 @@ const buttonStyle: CSSProperties = {
   fontWeight: 600,
   borderRadius: 10,
   border: '1px solid #48507a',
-  background: '#ffcf5c',
+  background: '#e4e68a',
   color: '#1a1405',
 }
 

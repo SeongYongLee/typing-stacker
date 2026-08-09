@@ -10,7 +10,7 @@
 const TIERS = [
   { name: '브론즈', from: 0, color: '#b98a5a' },
   { name: '실버', from: 900, color: '#b6bdd4' },
-  { name: '골드', from: 1100, color: '#ffcf5c' },
+  { name: '골드', from: 1100, color: '#e4e68a' },
   { name: '플래티넘', from: 1300, color: '#6bffd6' },
   { name: '다이아', from: 1500, color: '#8bd6ff' },
 ] as const

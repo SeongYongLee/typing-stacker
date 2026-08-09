@@ -214,7 +214,7 @@ function Score({ score }: { score: number }) {
             fontSize: 26,
             fontWeight: 700,
             lineHeight: 1,
-            color: '#ffcf5c',
+            color: '#e4e68a',
             fontVariantNumeric: 'tabular-nums',
             display: 'inline-block',
           }}

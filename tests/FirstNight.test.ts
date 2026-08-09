@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DAY_SEC, FIRST_NIGHT_MERGES, FIRST_NIGHT_SEC } from '../src/game/config.ts'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
-import { timeOfDay } from '../src/game/systems/DayNight.ts'
+import { cycleOf, timeOfDay } from '../src/game/systems/DayNight.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 import type { GameEvent } from '../src/game/types/events.ts'
 
@@ -38,6 +38,36 @@ describe('첫 밤은 합성으로 끝난다', () => {
     it('안 넘기면 상한을 쓴다', () => {
       expect(timeOfDay(FIRST_NIGHT_SEC - 0.1).phase).toBe('firstNight')
       expect(timeOfDay(FIRST_NIGHT_SEC).phase).toBe('day')
+    })
+
+    /**
+     * **첫 밤에는 벽시계 바늘이 서 있는다.**
+     *
+     * 길이가 사건으로 정해져 판마다 다른 구간이라, 훑으면 바늘 속도가 판마다 달라져
+     * 시계가 시간이 아니라 진행도를 말하는 막대가 된다.
+     */
+    it('첫 밤에는 시계가 돌지 않는다', () => {
+      const at = (elapsed: number) => cycleOf(timeOfDay(elapsed, 20))
+      expect(at(0)).toBe(at(5))
+      expect(at(5)).toBe(at(19.9))
+    })
+
+    /**
+     * 세우는 자리는 밤 구간의 끝(해 뜨기 직전)이다. 눈금판이 원이라 1과 0이 같은
+     * 자리이므로, 낮이 열려도 바늘이 **튀지 않고** 서 있던 자리에서 이어서 돈다.
+     */
+    it('낮이 열려도 바늘이 튀지 않는다', () => {
+      const before = cycleOf(timeOfDay(19.99, 20))
+      const after = cycleOf(timeOfDay(20.01, 20))
+      // 1과 0은 같은 각이다 — 원을 한 바퀴 돈 값
+      expect(before % 1).toBeCloseTo(after % 1, 2)
+    })
+
+    /** 낮과 밤은 시간으로 도므로 그대로 움직인다 */
+    it('첫 밤이 끝나면 다시 돈다', () => {
+      const day1 = cycleOf(timeOfDay(21, 20))
+      const day2 = cycleOf(timeOfDay(26, 20))
+      expect(day2).toBeGreaterThan(day1)
     })
 
     /** 사건으로 정해지는 값이라 이론상 0이 올 수 있다. 나누기가 무너지면 안 된다 */

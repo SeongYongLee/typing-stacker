@@ -106,5 +106,42 @@ function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1)
 }
 
-export { timeOfDay, TWILIGHT_SEC }
+/**
+ * 한 주기 안에서 얼마나 왔는가(0 → 낮의 시작, 1 → 밤의 끝).
+ *
+ * **시계 바늘이 이 값으로 한 바퀴 돈다.** `progress`로 돌리면 안 된다 — 그쪽은
+ * 국면 안의 값이라 낮이 끝나면 0으로 되돌아가서 바늘이 하루에 두 번 튄다.
+ *
+ * 낮이 밤보다 길므로 눈금판에서도 낮이 더 넓은 각을 차지한다(지금 2:1). 등속으로
+ * 도는 것이 맞다 — 구간마다 빠르기를 바꾸면 바늘로 시간을 읽을 수 없게 된다.
+ *
+ * **첫 밤에는 바늘이 서 있는다.** 길이가 판마다 다른 구간이라 훑으면 바늘 속도가
+ * 판마다 달라진다 — 까닭은 아래에.
+ */
+function cycleOf(time: TimeOfDay): number {
+  /*
+   * **첫 밤에는 바늘이 서 있는다.**
+   *
+   * 첫 밤은 길이가 사건으로 정해져 판마다 다르다. 그 구간을 progress로 훑으면
+   * **바늘이 도는 속도가 판마다 달라져서**, 시계가 시간을 말하는 것이 아니라
+   * 진행도를 말하는 막대가 된다 — 벽에 걸린 시계가 그러면 거짓말이 된다.
+   *
+   * 세우는 자리는 **밤 구간의 끝**, 곧 해가 뜨기 직전이다. 낮은 0에서 시작하는데
+   * 눈금판이 원이라 1과 0이 같은 자리다 — 첫 밤이 끝나 낮이 열려도 바늘이 튀지
+   * 않고 서 있던 그 자리에서 이어서 돈다.
+   *
+   * 그래서 판이 열리면 시간이 멈춰 있고, **합성 두 번으로 플레이어가 시간을 흐르게
+   * 한다.** 첫 밤이 사건으로 끝난다는 규칙이 시계에도 한 번 더 나타난다.
+   */
+  if (time.phase === 'firstNight') {
+    return 1
+  }
+  const cycle = DAY_SEC + NIGHT_SEC
+  if (time.phase === 'day') {
+    return clamp01((time.progress * DAY_SEC) / cycle)
+  }
+  return clamp01((DAY_SEC + time.progress * NIGHT_SEC) / cycle)
+}
+
+export { timeOfDay, cycleOf, TWILIGHT_SEC }
 export type { Phase, TimeOfDay }

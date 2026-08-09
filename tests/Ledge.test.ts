@@ -43,15 +43,38 @@ describe('통나무를 놓을 자리', () => {
     expect(spot!.y).toBeLessThan(ARENA.spawnY - 2)
   })
 
-  it('쌓을수록 통나무도 높아진다', () => {
+  /*
+   * 낮은 자리가 먼저 차야 판이 위로가 아니라 **옆으로** 넓어지는 것으로 읽히고,
+   * 손도 닿기 쉽다. 탑이 아무리 높아도 밑이 비어 있으면 거기부터 쓴다.
+   */
+  it('낮은 곳부터 채운다', () => {
     const low = placeLedge([item(0, 1.2)], [], 1.5, createRng(3))
     const high = placeLedge([item(0, 3.0)], [], 3.3, createRng(3))
-    expect(high!.y).toBeGreaterThan(low!.y)
+    expect(high!.y).toBeCloseTo(low!.y, 5)
   })
 
-  it('받침대에 붙지 않는다 — 그 아래로 물건이 들어갈 수 있어야 한다', () => {
-    const spot = placeLedge([], [], EMPTY_TOP, createRng(4))
-    expect(spot!.y).toBeGreaterThanOrEqual(ARENA.platformTop + LEDGE.minClearance)
+  /*
+   * 받침대를 겹침 검사에 넣는 것이 예전의 `minClearance` 바닥값을 대신한다.
+   * 바깥 칸(±2.1)은 반폭이 최대 0.95라 안쪽 끝이 1.15까지 들어와 **가로로는
+   * 받침대와 겹치므로**, 세로로 비켜서는 것을 기하가 판단해야 한다.
+   */
+  it('받침대에 박히지 않는다', () => {
+    const platform: Occupied = {
+      x: 0,
+      y: ARENA.platformTop - ARENA.platformHalfHeight,
+      hw: ARENA.platformHalfWidth,
+      hh: ARENA.platformHalfHeight,
+    }
+    const rng = createRng(4)
+    for (let i = 0; i < 30; i += 1) {
+      const spot = placeLedge([], [], EMPTY_TOP, rng)
+      expect(spot).not.toBeNull()
+      const gapX = Math.abs(spot!.x - platform.x)
+      const gapY = Math.abs(spot!.y - platform.y)
+      expect(
+        gapX >= spot!.halfWidth + platform.hw || gapY >= LEDGE.halfHeight + platform.hh,
+      ).toBe(true)
+    }
   })
 
   /*
@@ -146,15 +169,24 @@ describe('통나무를 놓을 자리', () => {
     expect(placeLedge(wall, [], EMPTY_TOP, createRng(9))).toBeNull()
   })
 
-  it('상한을 넘겨 놓지 않는다', () => {
+  /*
+   * 개수 상한은 없다. 예전에는 3개로 끊었는데 그 상한이 "합성했는데 아무 일도
+   * 안 일어난다"를 만드는 두 원인 중 하나였다 — 보상이 조용히 사라지는 것보다
+   * 공중에 발판이 늘어나는 편이 낫다. 합성 자체가 판당 1.6회로 드물어서 발판이
+   * 즐비해질 만큼 쌓이지 않는다.
+   *
+   * 자리가 없으면 여전히 `null`이므로 무한정 늘지는 않는다. 끊는 것은 개수가
+   * 아니라 **공간**이다.
+   */
+  it('개수 상한이 없다 — 자리가 있으면 계속 선다', () => {
     const rng = createRng(10)
     const ledges: Occupied[] = []
-    for (let i = 0; i < LEDGE.maxCount + 3; i += 1) {
-      const spot = placeLedge([], ledges, EMPTY_TOP, rng)
+    for (let i = 0; i < 12; i += 1) {
+      const spot = placeLedge([], ledges, 3.4, rng)
       if (spot === null) break
       ledges.push(asLedge(spot))
     }
-    expect(ledges.length).toBeLessThanOrEqual(LEDGE.maxCount)
+    expect(ledges.length).toBeGreaterThan(3)
   })
 
   it('이미 선 통나무와도 겹치지 않는다', () => {

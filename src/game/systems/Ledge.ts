@@ -23,6 +23,16 @@ import type { Rng } from './Rng.ts'
  * 함정을 이미 겪었다(`ARENA.spawnY` 주석). 그래서 후보 자리를 훑어 **비어 있는 곳만**
  * 고르고, 다 차 있으면 이번에는 놓지 않는다 — 억지로 끼워 넣느니 거르는 편이 낫다.
  *
+ * **받침대도 그 "차 있는 것"에 넣는다.** 예전에는 바닥 높이를 받침대보다 한 뼘 위로
+ * 못 박아 두는 것으로 대신했는데, 그 한 뼘이 판 앞머리의 후보를 통째로 잘라먹었다 —
+ * 탑이 낮으면 쓸 수 있는 높이가 **하나뿐**이라 바깥 칸 둘이 후보의 전부였고, 첫
+ * 합성이 하나를 쓰면 두 번째 합성은 남은 한 자리가 막히는 순간 그냥 지나갔다.
+ *
+ * 받침대를 상자로 넘겨주면 그 한 뼘이 필요 없다. 겹치지 않는다는 규칙 하나가
+ * 받침대까지 함께 지켜주고, 바닥을 받침대 높이까지 내려도 통나무가 박히지 않는다.
+ * 바깥 칸은 받침대보다 넓게 뻗으므로(중심 ±2.1, 반폭 최대 0.95 → 안쪽 끝 1.15)
+ * **가로로는 받침대와 겹친다** — 세로로 비켜서는 것을 기하가 판단해야 한다.
+ *
  * DOM도 물리도 모른다. 자리만 정하고, 실제로 세우는 것은 `PhysicsWorld`의 일이다.
  */
 
@@ -73,6 +83,23 @@ function candidates(): { outer: number[]; inner: number[]; step: number } {
   }
 }
 
+/**
+ * 받침대도 자리를 차지한다.
+ *
+ * 물리가 세우는 상자와 같은 크기다(`PhysicsWorld.createPlatform`) — 윗면이
+ * `platformTop`이고 거기서 `platformHalfHeight`의 두 배만큼 아래로 내려간다.
+ *
+ * 가장자리 턱은 넣지 않았다. 턱은 받침대 안쪽(±1.74)에만 있고 윗면에서 겨우
+ * 몇 cm 솟는데, 여유(`margin`)가 그보다 두껍다 — 받침대를 비켜선 통나무는 턱도
+ * 자동으로 비켜선다. 턱까지 상자에 넣으면 쓸 수 있는 층 하나가 이유 없이 사라진다.
+ */
+const PLATFORM: Occupied = {
+  x: 0,
+  y: ARENA.platformTop - ARENA.platformHalfHeight,
+  hw: ARENA.platformHalfWidth,
+  hh: ARENA.platformHalfHeight,
+}
+
 /** 같은 시드면 같은 순서. 난수를 쓰는 곳은 여기 하나뿐이다 */
 function shuffled(list: number[], rng: Rng): number[] {
   const order = [...list]
@@ -94,12 +121,10 @@ function overlaps(a: Occupied, b: Occupied): boolean {
 /**
  * 통나무를 놓을 자리. 놓을 곳이 없으면 `null`.
  *
- * 높이는 **지금 쌓인 것들의 평균**이다. 꼭대기에 두면 탑을 한 칸 더 올려주는 것과
- * 다를 바 없고, 바닥에 두면 받침대와 겹쳐 아무것도 아니다. 중간에 두어야 옆으로
- * 새 기둥이 서고 판이 넓어진다.
- *
- * 다만 받침대에 너무 붙으면 그 아래로 물건이 못 들어가 오히려 자리를 빼앗는다.
- * `minClearance`만큼은 띄운다.
+ * **낮은 곳부터 채운다.** 받침대에 가까운 자리가 먼저 서면 판이 위로가 아니라 옆으로
+ * 넓어지는 것으로 읽히고, 손이 닿기도 쉽다. 예전에는 쌓인 것들의 평균 높이에서
+ * 시작해 위아래로 퍼져나갔는데, 훑는 **범위**는 그때도 지금도 바닥부터 천장까지
+ * 전부라 자리를 찾을 확률은 달라지지 않는다 — 순서만 바뀐다.
  */
 function placeLedge(
   items: readonly Occupied[],
@@ -107,11 +132,7 @@ function placeLedge(
   stackTop: number,
   rng: Rng,
 ): { x: number; y: number; halfWidth: number } | null {
-  if (ledges.length >= LEDGE.maxCount) {
-    return null
-  }
-
-  const floor = ARENA.platformTop + LEDGE.minClearance
+  const floor = ARENA.platformTop
   /*
    * **쌓아 올린 것보다 위로는 가지 않는다.**
    *
@@ -125,37 +146,30 @@ function placeLedge(
   /*
    * 천장은 **쌓은 것보다 한 뼘 위**까지다.
    *
-   * 딱 `stackTop`으로 끊었더니 탑이 낮을 때 쓸 수 있는 높이가 바닥값 하나뿐이었고,
-   * 그 층은 하필 얹힌 물건들과 같은 높이라 바깥 칸이 양쪽 다 막혔다 — 그래서
-   * 가운데로 물러났다(실기에서 잡혔다). 한 뼘을 열어주면 물건 위로 비켜설 수 있다.
+   * 여기가 통나무를 허공에 세우지 않는 유일한 안전장치다. 예전에 물건들의 평균
+   * 높이를 그대로 쓰다가, 판 앞머리에 공중의 물건 하나뿐일 때 평균이 곧 스폰
+   * 높이(4.6)가 되어 통나무가 화살표 자리에 선 적이 있다 — 조준선을 가로막는 데다
+   * 아무것도 없는 허공에 떠 있었다. 쌓인 것에 매어두면 그 일이 구조적으로 막힌다.
    *
-   * 그래도 화살표 자리까지 오르지는 못한다. 쌓은 것에 매여 있으므로 빈 받침대에서는
-   * 여전히 바닥값과 같고, 탑이 자라야 함께 오른다.
+   * 한 뼘을 얹는 것은 물건 **위로** 비켜설 자리를 주기 위해서다. 딱 `stackTop`으로
+   * 끊으면 마지막 층이 얹힌 물건들과 같은 높이라 바깥 칸이 양쪽 다 막힌다.
    */
   const ceiling = Math.max(floor, stackTop + LEDGE.minClearance)
-  const tops = items.map((item) => item.y + item.hh)
-  const average =
-    tops.length === 0 ? ARENA.platformTop : tops.reduce((sum, y) => sum + y, 0) / tops.length
-  const base = Math.min(Math.max(average, floor), ceiling)
 
   /*
-   * 높이를 하나만 보면 판 중반부터 자리를 못 찾는다.
+   * 바닥부터 천장까지 한 뼘씩 훑는다.
    *
-   * 실측으로 합성 35회 중 29회만 통나무가 섰고, 못 선 여섯은 전부 **두 번째 이후
-   * 합성**이었다. 탑이 자라면 평균 높이가 곧 탑의 허리인데, 그 높이에서는 통나무를
-   * 밖에 세워도 안쪽 끝이 탑에 닿는다 — 통나무가 최대 1.9m라 ±2.1에 세워도 안쪽이
-   * 1.15까지 들어온다.
+   * 높이를 하나만 보면 판 중반부터 자리를 못 찾는다. 실측으로 합성 35회 중 29회만
+   * 통나무가 섰고, 못 선 여섯은 전부 **두 번째 이후 합성**이었다 — 탑이 자라면
+   * 통나무를 밖에 세워도 안쪽 끝이 탑에 닿는다(최대 반폭 0.95라 ±2.1에 세워도
+   * 안쪽이 1.15까지 들어온다).
    *
-   * 그래서 몇 뼘 위아래도 함께 본다. 겹침 규칙을 느슨하게 푸는 것이 아니라 **빈 층을
-   * 찾는 것**이다 — 규칙을 풀면 통나무가 탑에 박히고, 그건 보상이 아니라 사고다.
+   * 겹침 규칙을 느슨하게 푸는 것이 아니라 **빈 층을 찾는 것**이다. 규칙을 풀면
+   * 통나무가 탑에 박히고, 그건 보상이 아니라 사고다.
    */
   const rise = 0.35
   const heights: number[] = []
-  for (let h = base; h <= ceiling + 1e-9; h += rise) {
-    heights.push(h)
-  }
-  // 낮은 쪽부터 본다. 손이 닿기 쉬운 자리가 먼저다
-  for (let h = base - rise; h >= floor - 1e-9; h -= rise) {
+  for (let h = floor; h <= ceiling + 1e-9; h += rise) {
     heights.push(h)
   }
 
@@ -163,7 +177,7 @@ function placeLedge(
   const halfWidth =
     LEDGE.minHalfWidth + (LEDGE.maxHalfWidth - LEDGE.minHalfWidth) * rng.next()
 
-  const taken = [...items, ...ledges]
+  const taken = [PLATFORM, ...items, ...ledges]
   const { outer, inner, step: slotStep } = candidates()
 
   /*

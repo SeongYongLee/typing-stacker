@@ -103,7 +103,9 @@ describe('권위 키프레임', () => {
     host.reset()
     guest.reset()
     guest.applyFrames(
-      [{ itemId: 1, variantId: '없는물건', owner: 'plum', x: 0, y: 1, rotation: 0 }],
+      [{
+        itemId: 1, variantId: '없는물건', owner: 'plum', x: 0, y: 1, rotation: 0,
+      }],
       lookup,
     )
     expect(guest.itemCount).toBe(0)

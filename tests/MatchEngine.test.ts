@@ -170,6 +170,20 @@ describe('MatchEngine — 대전', () => {
     expect(identify(pair.guestState())).toEqual(identify(pair.hostState()))
   })
 
+  it('방장이 계산한 생성 높이를 참가자가 그대로 쓴다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    dropSomething(pair)
+    await pair.clock.flush()
+
+    const dropped = pair.hostLink.sent.find((message) => message.t === 'dropped')
+    expect(dropped?.t).toBe('dropped')
+    if (dropped?.t !== 'dropped') return
+    expect(dropped.spawnY).toBeTypeOf('number')
+    expect(pair.host.debugBodies()[0]?.y).toBeCloseTo(dropped.spawnY!, 5)
+    expect(pair.guest.debugBodies()[0]?.y).toBeCloseTo(dropped.spawnY!, 5)
+  })
+
   it('방장이 떨구면 참가자 쪽에도 같은 물건이 생긴다', async () => {
     pair = await makePair()
     await pair.clock.advance(1)
@@ -253,17 +267,60 @@ describe('MatchEngine — 대전', () => {
      * 나가기는 사고(연결 끊김)와 구분해야 한다. 남은 사람에게 다시 시도할 것이
      * 없으므로 계속하기를 열어두면 누르고 영영 기다리게 된다.
      */
+    it('계속하기를 여러 번 눌러도 재시작 신호는 한 번만 보낸다', async () => {
+      pair = await makePair()
+      await pair.clock.advance(1)
+      await finish(pair, 'guest-peer')
+
+      pair.host.requestRematch()
+      pair.guest.requestRematch()
+      await pair.clock.advance(0.1)
+      pair.host.requestRematch()
+      pair.host.requestRematch()
+      await pair.clock.advance(0.1)
+
+      expect(pair.hostLink.sent.filter((message) => message.t === 'restart')).toHaveLength(1)
+    })
+
     it('상대가 나가면 남은 사람이 그 사실을 안다', async () => {
       pair = await makePair()
       await pair.clock.advance(1)
       await finish(pair, 'guest-peer')
 
       pair.guest.announceLeave()
-      await pair.clock.advance(0.3)
+      await pair.clock.advance(0.1)
+      pair.guestLink.close()
+      await pair.clock.advance(0.2)
 
       expect(pair.hostState().opponentLeft).toBe(true)
       expect(pair.hostState().connectionLost).toBe(false)
     })
+  })
+
+  it('판이 끝나기 전에 온 구형 계속하기는 다음 판 동의로 쌓지 않는다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(0.5)
+    pair.guestLink.broadcast({ t: 'rematch' })
+    await pair.clock.flush()
+    expect(pair.hostState().wantRematch).toHaveLength(0)
+  })
+
+  it('방장이 아닌 발신자와 다른 판의 권위 메시지는 무시한다', async () => {
+    pair = await makePair()
+    await pair.clock.advance(1)
+    dropSomething(pair)
+    await pair.clock.flush()
+    expect(pair.guest.debugBodies()).toHaveLength(1)
+
+    pair.guest.handleTransportEvent({
+      kind: 'message', from: 'spoofed-peer',
+      message: { t: 'sync', bodies: [], welds: [], matchId: pair.guestState().matchId },
+    })
+    expect(pair.guest.debugBodies()).toHaveLength(1)
+
+    pair.hostLink.broadcast({ t: 'sync', bodies: [], welds: [], matchId: 'wrong-round' })
+    await pair.clock.flush()
+    expect(pair.guest.debugBodies()).toHaveLength(1)
   })
 
   it('키프레임을 받은 참가자가 방장과 같은 자리를 본다', async () => {

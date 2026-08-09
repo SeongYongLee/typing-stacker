@@ -20,6 +20,7 @@ import type { Transport, TransportEvent } from './Transport.ts'
 class LoopbackTransport implements Transport {
   readonly selfId: PlayerId
   readonly isHost: boolean
+  readonly hostId: PlayerId
   readonly roomCode: string | null
   private peer: LoopbackTransport | null = null
   private onEvent: ((event: TransportEvent) => void) | null = null
@@ -27,9 +28,10 @@ class LoopbackTransport implements Transport {
   /** 오간 메시지 기록. 무엇이 실제로 전송됐는지 검사할 때 쓴다 */
   readonly sent: Message[] = []
 
-  private constructor(selfId: PlayerId, isHost: boolean, roomCode: string | null) {
+  private constructor(selfId: PlayerId, hostId: PlayerId, isHost: boolean, roomCode: string | null) {
     this.selfId = selfId
     this.isHost = isHost
+    this.hostId = hostId
     this.roomCode = roomCode
   }
 
@@ -37,8 +39,8 @@ class LoopbackTransport implements Transport {
     hostId = 'host-peer',
     guestId = 'guest-peer',
   ): [LoopbackTransport, LoopbackTransport] {
-    const host = new LoopbackTransport(hostId, true, 'abcd2345')
-    const guest = new LoopbackTransport(guestId, false, 'abcd2345')
+    const host = new LoopbackTransport(hostId, hostId, true, 'abcd2345')
+    const guest = new LoopbackTransport(guestId, hostId, false, 'abcd2345')
     host.peer = guest
     guest.peer = host
     return [host, guest]

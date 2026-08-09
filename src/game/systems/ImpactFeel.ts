@@ -17,6 +17,7 @@ import type { TrailHit } from './TrailField.ts'
 /** 부스러기가 튈 자리와 세기. 화면이 이것만 보고 뿌린다 */
 function trailHitOf(hit: ImpactEvent): TrailHit {
   return {
+    handle: hit.handle,
     id: hit.variant.id,
     color: hit.variant.color,
     x: hit.x,

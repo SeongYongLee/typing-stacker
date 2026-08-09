@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMessage } from '../src/multi/protocol.ts'
-
-/**
- * 권위 키프레임 규약.
- *
- * 자리만 실어 보내면 부족하다 — 끈적함이 만드는 관절은 **구조**라서, 한쪽에만
- * 생기면 자리를 아무리 맞춰도 다음 스텝부터 탑이 다르게 움직인다. 그래서
- * 붙어 있는 짝도 함께 나른다.
- */
+import { MAX_BODIES, parseMessage } from '../src/multi/protocol.ts'
 
 const BODY = {
   itemId: 1,
@@ -18,56 +10,80 @@ const BODY = {
   rotation: 0.1,
 }
 
+const CURRENT = {
+  ...BODY,
+  stateVersion: 1,
+  vx: 0.3,
+  vy: -0.4,
+  angularVelocity: 0.2,
+  sleeping: false,
+  settled: true,
+  anchored: true,
+  lost: false,
+  settleTimer: 0.35,
+  restX: 0.5,
+  restY: 1.2,
+  previousSpeed: 0.5,
+  dislodged: false,
+  impacted: true,
+  struck: true,
+}
+
+const body = (itemId: number) => ({ ...BODY, itemId })
+const currentBody = (itemId: number) => ({ ...CURRENT, itemId })
+
 describe('sync 키프레임', () => {
-  it('붙어 있는 짝을 함께 나른다', () => {
+  it('붙어 있는 짝과 운동 상태를 함께 나른다', () => {
     const parsed = parseMessage({
       t: 'sync',
-      bodies: [BODY],
-      welds: [
-        [1, 2],
-        [2, 3],
-      ],
+      bodies: [currentBody(1), currentBody(2), currentBody(3)],
+      welds: [[1, 2], [2, 3]],
+      matchId: 'round-1',
     })
     expect(parsed).toMatchObject({
-      t: 'sync',
-      welds: [
-        [1, 2],
-        [2, 3],
-      ],
+      t: 'sync', matchId: 'round-1', welds: [[1, 2], [2, 3]],
+    })
+    expect(parsed?.t === 'sync' && parsed.bodies[0]).toMatchObject({
+      stateVersion: 1,
+      vx: CURRENT.vx,
+      vy: CURRENT.vy,
+      angularVelocity: CURRENT.angularVelocity,
+      sleeping: false,
+      settled: true,
+      anchored: true,
     })
   })
 
-  /*
-   * 관절이 빠진 키프레임도 받아들인다. 한쪽만 새 버전일 때 판이 아예 안 도는 것보다,
-   * 자리만 맞고 구조는 갈린 채로라도 도는 편이 낫다.
-   */
-  it('관절이 없는 옛 키프레임도 통과시킨다', () => {
+  it('새 필드와 관절이 없는 옛 키프레임은 로컬 상태를 보존할 수 있게 그대로 통과시킨다', () => {
     const parsed = parseMessage({ t: 'sync', bodies: [BODY] })
-    expect(parsed).toMatchObject({ t: 'sync', welds: [] })
+    expect(parsed).toMatchObject({ t: 'sync', welds: [], bodies: [BODY] })
+    expect(parsed?.t === 'sync' && 'stateVersion' in parsed.bodies[0]!).toBe(false)
   })
 
-  it('짝이 아닌 것과 숫자가 아닌 것은 버린다', () => {
-    const parsed = parseMessage({
-      t: 'sync',
-      bodies: [BODY],
-      welds: [[1, 2], [3], ['a', 'b'], [4, 5], 7],
-    })
-    expect(parsed).toMatchObject({
-      welds: [
-        [1, 2],
-        [4, 5],
-      ],
-    })
+  it('현재 상태 필드가 일부만 온 프레임은 통째로 거부한다', () => {
+    expect(parseMessage({
+      t: 'sync', bodies: [{ ...BODY, vx: 1 }], welds: [],
+    })).toBeNull()
+    const { struck: _missing, ...partial } = CURRENT
+    expect(parseMessage({ t: 'sync', bodies: [partial], welds: [] })).toBeNull()
   })
 
-  it('관절을 무한히 받지는 않는다', () => {
-    const many = Array.from({ length: 400 }, (_, i) => [i, i + 1])
-    const parsed = parseMessage({ t: 'sync', bodies: [BODY], welds: many })
-    expect(parsed?.t).toBe('sync')
-    if (parsed?.t !== 'sync') {
-      return
-    }
-    expect(parsed.welds.length).toBeLessThanOrEqual(256)
-    expect(parsed.welds.length).toBeGreaterThan(0)
+  it.each([
+    { bodies: [body(1), body(1)], welds: [] },
+    { bodies: [body(1), body(2)], welds: [[1, 1]] },
+    { bodies: [body(1)], welds: [[1, 2]] },
+    { bodies: [body(1), body(2)], welds: [[1, 2], [2, 1]] },
+    { bodies: [body(1), body(2)], welds: [[1, 'x']] },
+  ])('파괴적 키프레임은 일부가 잘못돼도 통째로 버린다', (value) => {
+    expect(parseMessage({ t: 'sync', ...value })).toBeNull()
+  })
+
+  it('물건과 관절을 상한보다 많이 받지 않는다', () => {
+    const bodies = Array.from({ length: MAX_BODIES + 1 }, (_, index) => body(index + 1))
+    expect(parseMessage({ t: 'sync', bodies, welds: [] })).toBeNull()
+
+    const validBodies = Array.from({ length: MAX_BODIES }, (_, index) => body(index + 1))
+    const welds = Array.from({ length: 257 }, (_, index) => [1, (index % (MAX_BODIES - 1)) + 2])
+    expect(parseMessage({ t: 'sync', bodies: validBodies, welds })).toBeNull()
   })
 })

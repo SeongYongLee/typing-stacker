@@ -153,6 +153,42 @@ interface BodySnapshot {
   readonly settled: boolean
 }
 
+/** 네트워크 등 외부 권위 상태로 물리 세계를 복구하기 위한 공통 좌표. */
+interface AuthorityBodyBase {
+  readonly itemId: number
+  readonly variantId: string
+  readonly owner: OwnerId
+  readonly x: number
+  readonly y: number
+  readonly rotation: number
+}
+
+/** 구형 클라이언트가 보내던 위치 전용 프레임. 기존 로컬 파생 상태는 보존한다. */
+interface LegacyAuthorityBodyFrame extends AuthorityBodyBase {
+  readonly stateVersion?: undefined
+}
+
+/** 물리의 다음 스텝과 사건 판정까지 복원하는 현재 권위 프레임. */
+interface CompleteAuthorityBodyFrame extends AuthorityBodyBase {
+  readonly stateVersion: 1
+  readonly vx: number
+  readonly vy: number
+  readonly angularVelocity: number
+  readonly sleeping: boolean
+  readonly settled: boolean
+  readonly anchored: boolean
+  readonly lost: boolean
+  readonly settleTimer: number
+  readonly restX: number
+  readonly restY: number
+  readonly previousSpeed: number
+  readonly dislodged: boolean
+  readonly impacted: boolean
+  readonly struck: boolean
+}
+
+type AuthorityBodyFrame = LegacyAuthorityBodyFrame | CompleteAuthorityBodyFrame
+
 /** collapsing은 무너지는 장면을 잠깐 보여주는 구간 — 결과 화면이 그 위를 덮기 전에 */
 type GamePhase = 'title' | 'playing' | 'paused' | 'collapsing' | 'over'
 
@@ -195,6 +231,7 @@ export type {
   JudgeResult,
   OwnerId,
   BodySnapshot,
+  AuthorityBodyFrame,
   GamePhase,
   RunStats,
 }

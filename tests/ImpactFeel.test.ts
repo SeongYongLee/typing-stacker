@@ -19,7 +19,7 @@ import { ALL_VARIANTS } from '../src/game/data/words.ts'
 const variant = ALL_VARIANTS[0]!
 
 function hitOf(impact: number) {
-  return { variant, x: 0.5, y: 1.2, mass: 0.24, impact, first: true }
+  return { handle: 1, variant, x: 0.5, y: 1.2, mass: 0.24, impact, first: true }
 }
 
 describe('부딪힘의 값', () => {

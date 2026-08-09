@@ -95,16 +95,15 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     ])
   })
 
-  it('sync는 망가진 바디를 골라 버린다', () => {
+  it('sync는 망가진 바디가 하나라도 있으면 통째로 버린다', () => {
     const parsed = parseMessage({
       t: 'sync',
       bodies: [
         { itemId: 1, variantId: 'octopus', owner: 'a', x: 0, y: 1, rotation: 0 },
         { itemId: 2, variantId: 'octopus', owner: 'a', x: 'nope', y: 1, rotation: 0 },
-        null,
       ],
     })
-    expect(parsed?.t === 'sync' && parsed.bodies).toHaveLength(1)
+    expect(parsed).toBeNull()
   })
 
   it('dropped는 itemId까지 있어야 통과한다 — 양쪽이 같은 물건으로 취급하는 기준이다', () => {

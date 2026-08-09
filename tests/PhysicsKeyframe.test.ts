@@ -50,6 +50,93 @@ describe('권위 키프레임', () => {
     expect(guest.frames().map((f) => f.itemId)).toEqual([1])
   })
 
+  it('위치뿐 아니라 속도·잠듦·정착·앵커·이탈 상태를 복원한다', () => {
+    const variant = anyVariant()
+    const frame = {
+      itemId: 9,
+      variantId: variant.id,
+      owner: 'p1',
+      x: 0.2,
+      y: ARENA.platformTop + 2,
+      rotation: 0.3,
+      stateVersion: 1 as const,
+      vx: 1.25,
+      vy: -0.5,
+      angularVelocity: 0.75,
+      sleeping: false,
+      settled: true,
+      anchored: true,
+      lost: true,
+      settleTimer: 0.31,
+      restX: 0.18,
+      restY: ARENA.platformTop + 1.9,
+      previousSpeed: 1.4,
+      dislodged: true,
+      impacted: false,
+      struck: true,
+    }
+    guest.applyFrames([frame], (id) => VARIANT_BY_ID.get(id))
+    const restored = guest.frames()[0]!
+    expect(restored.stateVersion).toBe(1)
+    if (restored.stateVersion !== 1) throw new Error('현재 권위 상태가 아니다')
+    expect(restored).toMatchObject({
+      itemId: frame.itemId, variantId: frame.variantId, owner: frame.owner,
+      vx: frame.vx, vy: frame.vy, angularVelocity: frame.angularVelocity,
+      sleeping: false, settled: true, anchored: true, lost: true,
+      settleTimer: frame.settleTimer,
+      restX: frame.restX,
+      restY: frame.restY,
+      previousSpeed: frame.previousSpeed,
+      dislodged: true,
+      impacted: false,
+      struck: true,
+    })
+    expect(restored.x).toBeCloseTo(frame.x, 5)
+    expect(restored.y).toBeCloseTo(frame.y, 5)
+    expect(restored.rotation).toBeCloseTo(frame.rotation, 5)
+    expect(guest.snapshots()[0]?.settled).toBe(true)
+
+    const sleeping = { ...frame, sleeping: true, vx: 0, vy: 0, angularVelocity: 0 }
+    guest.applyFrames([sleeping], (id) => VARIANT_BY_ID.get(id))
+    const asleep = guest.frames()[0]
+    expect(asleep?.stateVersion).toBe(1)
+    expect(asleep?.stateVersion === 1 && asleep.sleeping).toBe(true)
+  })
+
+  it('구형 위치 프레임은 기존 정착·앵커·잠듦 상태를 지우지 않는다', () => {
+    const variant = anyVariant()
+    host.spawnItemAt(variant, 0, ARENA.platformTop + 0.2, 'p1', 1)
+    for (let i = 0; i < 300; i += 1) host.step(1 / 60)
+    guest.applyFrames(host.frames(), (id) => VARIANT_BY_ID.get(id))
+    const before = guest.frames()[0]!
+
+    guest.applyFrames([{
+      itemId: before.itemId,
+      variantId: before.variantId,
+      owner: before.owner,
+      x: before.x + 0.01,
+      y: before.y,
+      rotation: before.rotation,
+    }], (id) => VARIANT_BY_ID.get(id))
+
+    const after = guest.frames()[0]!
+    expect(after.stateVersion).toBe(1)
+    if (before.stateVersion !== 1 || after.stateVersion !== 1) {
+      throw new Error('현재 권위 상태가 아니다')
+    }
+    expect(after.settled).toBe(before.settled)
+    expect(after.anchored).toBe(before.anchored)
+    expect(after.sleeping).toBe(before.sleeping)
+  })
+
+  it('권위 교정 직후 한 스텝은 가짜 impact를 만들지 않는다', () => {
+    const variant = anyVariant()
+    guest.spawnItemAt(variant, 0, ARENA.platformTop + 3, 'p1', 1)
+    const frame = { ...guest.frames()[0]!, vx: 5, vy: 0, sleeping: false }
+    guest.applyFrames([frame], (id) => VARIANT_BY_ID.get(id))
+    expect(guest.step(1 / 60).impacts).toHaveLength(0)
+  })
+
   it('방장에게만 있는 물건은 참가자 쪽에 생긴다', () => {
     const variant = anyVariant()
     host.spawnItemAt(variant, 0.3, ARENA.platformTop + 1, 'p1', 7)

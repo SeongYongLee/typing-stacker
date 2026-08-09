@@ -11,6 +11,8 @@ import { VersusTier } from '../components/RankBoxes.tsx'
 import { useAutoMatch } from '../hooks/useAutoMatch.ts'
 import { useLeaderboard } from '../hooks/useLeaderboard.ts'
 import { useQueueSize } from '../hooks/useQueueSize.ts'
+import { useRosterTiers } from '../hooks/useRosterTiers.ts'
+import { tierOf } from '../rank/tiers.ts'
 import {
   isUsableName,
   loadManualIcon,
@@ -375,6 +377,11 @@ function ReadyRoom({
 }) {
   const ready = new Set(phase.ready)
   const iAmReady = ready.has(phase.selfId)
+  /*
+   * 누구와 붙는지 **시작 전에** 알아야 한다. 판이 끝나고서야 상대가 어느 티어였는지
+   * 아는 것은 늦다 — 그때는 이길지 질지가 이미 정해진 뒤다.
+   */
+  const ratings = useRosterTiers(phase.players)
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
 
   useMenuKeys({
@@ -431,6 +438,7 @@ function ReadyRoom({
                   {player.nickname}
                   {mine && ' (나)'}
                 </span>
+                <TierBadge rating={ratings.get(player.device)} />
                 <span style={{ fontSize: 14, color: isReady ? '#6bffb0' : '#6a7290' }}>
                   {isReady ? '준비됨' : '기다리는 중…'}
                 </span>
@@ -735,6 +743,36 @@ function ManualMatch({
         </MenuButton>
       </div>
     </div>
+  )
+}
+
+/**
+ * 그 사람의 티어.
+ *
+ * **아직 못 받았으면 아무것도 두지 않는다.** "브론즈"를 미리 깔아두면 서버에 닿기
+ * 전까지 모두가 브론즈로 보이고, 그 짧은 순간이 곧 잘못된 정보다. 자리만 비워두면
+ * 값이 들어올 때 조용히 채워진다.
+ */
+function TierBadge({ rating }: { rating: number | undefined }) {
+  if (rating === undefined) {
+    return null
+  }
+  const tier = tierOf(rating)
+  return (
+    <span
+      data-tier-badge={tier.name}
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: tier.color,
+        border: `1px solid ${tier.color}`,
+        borderRadius: 999,
+        padding: '2px 8px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {tier.name} {Math.round(rating)}
+    </span>
   )
 }
 

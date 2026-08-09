@@ -19,5 +19,23 @@ export default defineConfig(({ command, isPreview }) => ({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    /*
+     * **재는 것은 기본 실행에서 뺀다.**
+     *
+     * `zz-*.measure`는 고장을 잡는 검사가 아니라 밸런스를 재는 도구다. 봇으로 수십 판을
+     * 돌려 표를 찍는 것이라, 단언이라고는 "봇이 아예 못 논다" 수준의 헐거운 것뿐이다.
+     * 그런데 그 둘이 **전체 시간의 86%**(157초 중 136초)를 먹었다.
+     *
+     * 그 대가는 시간만이 아니다. 파일 하나를 고치고 `pnpm test`를 돌릴 때마다 CPU 두
+     * 개가 2분씩 붙잡히는데, 이 저장소는 여러 세션이 한 머신을 나눠 쓴다 — 한 사람의
+     * 검사가 모두를 느리게 만든다.
+     *
+     * 재야 할 때는 `pnpm test:measure`로 돌린다. 아트 묶음이 오거나 밸런스 상수를
+     * 건드린 뒤가 그때다(까닭은 각 파일 머리말에).
+     */
+    exclude:
+      process.env.MEASURE === '1'
+        ? ['node_modules/**']
+        : ['node_modules/**', 'tests/**/*.measure.test.ts'],
   },
 }))

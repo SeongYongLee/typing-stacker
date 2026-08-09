@@ -14,6 +14,7 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:measure": "MEASURE=1 vitest run tests/*.measure.test.ts",
     "preview": "vite preview",
     "relay:dev": "pnpm dlx wrangler dev --config worker/wrangler.toml --port 8787",
     "relay:deploy": "pnpm dlx wrangler deploy --config worker/wrangler.toml",

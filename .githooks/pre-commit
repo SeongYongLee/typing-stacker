@@ -37,6 +37,14 @@ git archive "$tree" \
 
 ln -s "$root/node_modules" "$tmp/node_modules"
 
+# `--changed`가 무엇이 바뀌었는지 알려면 git 이 있어야 한다.
+# archive 로 푼 트리에는 없으므로 원래 저장소의 것을 이어준다 — 읽기만 한다
+ln -s "$root/.git" "$tmp/.git"
+
+# **`cd` 전에 잡는다.** 임시 폴더는 저장소가 아니라 그 안에서는 `git diff --cached`가
+# `--no-index`로 떨어져 터진다 — 이 순서가 뒤집혀 한동안 모든 커밋이 막혔다.
+changed=$(git diff --cached --name-only)
+
 cd "$tmp"
 echo "pre-commit: 커밋될 내용으로 검사한다"
 
@@ -53,7 +61,24 @@ if ! ./node_modules/.bin/oxlint src tests; then
   exit 1
 fi
 
-if ! ./node_modules/.bin/vitest run; then
+# 바뀐 파일에 걸린 시험만 돌린다.
+#
+# 전체를 돌리면 커밋마다 2분이 걸린다. 이 저장소는 여러 세션이 한 머신을 나눠 쓰므로
+# **한 사람의 커밋이 모두를 느리게 만든다** — 실제로 부하가 코어 수를 넘겨 모든 세션이
+# 함께 느려진 적이 있다. 느린 훅은 곧 --no-verify로 꺼지고, 꺼진 훅은 없는 것과 같다.
+#
+# vitest가 모듈 그래프를 따라가므로 "이 파일을 고치면 어느 시험이 걸리는지"는 그쪽이
+# 안다. 다만 그래프에 안 잡히는 것이 있다 — 설정·훅·package.json이 바뀌면 무엇이
+# 영향받는지 알 수 없으므로 그때는 전부 돌린다.
+if echo "$changed" | grep -qE '^(vite\.config\.ts|package\.json|tsconfig|\.githooks/)'; then
+  echo "pre-commit: 설정이 바뀌었다 — 전부 돌린다"
+  scope=""
+else
+  # HEAD와의 차이를 기준으로 잡는다. 스테이징된 것만 풀어놓은 트리라 HEAD가 곧 "이전"이다
+  scope="--changed HEAD"
+fi
+
+if ! ./node_modules/.bin/vitest run $scope; then
   echo ""
   echo "pre-commit: 테스트 실패."
   exit 1

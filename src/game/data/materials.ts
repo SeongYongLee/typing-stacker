@@ -34,6 +34,9 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'sketchbook-open': 'paper',
   'toilet-paper': 'paper',
   'tissue-box': 'paper',
+  'travel-passport': 'paper',
+  'space-poster': 'paper',
+  'magic-book': 'paper',
 
   /* 살아 있는 것과 물컹한 것 */
   snail: 'squish',
@@ -79,6 +82,10 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'glass-shards': 'glass',
   snowflake: 'glass',
   crystal: 'glass',
+  'dessert-tower': 'glass',
+  terrarium: 'glass',
+  'snow-globe': 'glass',
+  'mirror-door': 'glass',
 
   /* 금속 — 배음이 어긋나게 남는다 */
   tumbler: 'metal',
@@ -113,6 +120,8 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'gooseneck-lamp': 'metal',
   /* 팬에 담긴 채로 나온다 — 닿는 것은 계란이 아니라 무쇠다 */
   'fried-egg': 'metal',
+  'explorer-badge': 'metal',
+  'sports-trophy': 'metal',
 
   /* 나무 — 짧고 둔한 "톡" */
   'pine-tree': 'wood',
@@ -136,6 +145,11 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'pencil-set': 'wood',
   /* 마른 과자는 부러지는 소리라 물컹한 쪽이 아니다 */
   biscuit: 'wood',
+  /* 등나무와 나무 접시 — 담긴 것이 아니라 그릇이 닿는다 */
+  'picnic-basket': 'wood',
+  'pub-platter': 'wood',
+  /* 건물이라 나무판이 부딪히는 소리다 */
+  'repair-shop': 'wood',
 
   /* 천과 솜 — 거의 소리가 없다 */
   scarf: 'cloth',
@@ -155,6 +169,8 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'graduation-cap': 'cloth',
   /* 냄새에는 실체가 없다. 발자국과 같은 자리 */
   'fart-cloud': 'cloth',
+  'art-bag': 'cloth',
+  'survival-kit': 'cloth',
 
   /* 고무 — 튄다 */
   'soccer-ball': 'rubber',
@@ -193,6 +209,9 @@ const MATERIALS: Readonly<Record<string, Material>> = {
   'bubble-bottle': 'plastic',
   'hand-fan': 'plastic',
   'kids-bottle': 'plastic',
+  'speed-course': 'plastic',
+  'lucky-flowerpot': 'plastic',
+  'cleaning-set': 'plastic',
 
   /* 기계 — 무겁게 내려앉고 끝에 금속이 한 번 */
   laptop: 'tech',

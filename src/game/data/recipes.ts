@@ -101,6 +101,41 @@ const RECIPES: readonly Recipe[] = [
   /* 말장난 — 거울 달린 지구본이 미러볼이고, 지구를 잇는 거미줄이 공유기다 */
   recipe(['hand-mirror', 'desk-globe'], 'mirror-ball'),
   recipe(['desk-globe', 'spider-web'], 'internet-router'),
+
+  /*
+   * 재료 셋 이상 — 한 장면을 이루는 물건들이 모여 그 장면이 된다.
+   *
+   * **여덟은 재료에 다른 합성 결과물이 들어간다**(여행가방·레이싱 깃발·우주선·
+   * 계란 프라이·구멍 난 셔츠·햇빛·금메달·마법봉). 그것부터 만들어야 하므로 사슬이
+   * 두 단이고, 도감에서 읽으면 그 층이 보인다.
+   *
+   * **지금 이것들은 사실상 도달 불가능하다.** 재료가 받침대에 동시에 살아 있어야
+   * 하는데 단어가 107개라 특정 단어 하나가 한 판에 나올 확률이 15% 남짓이다 —
+   * 넷을 모을 확률이 0.06%이고 여섯은 0.0014%다. 그 위에 "서로 닿아야 한다"가
+   * 또 걸린다(둘이 닿는 것도 30%다).
+   *
+   * 그럼에도 지금 넣는 이유는 **레시피가 있어야 도달률을 잴 수 있기 때문**이다.
+   * 없는 것은 재지 못하고, 재지 못하면 어떤 장치가 얼마나 필요한지도 모른다.
+   * 푸는 순서는 `04_Backlog`에 있다 — 재료를 화면에 알리고, 짝 옆을 노리는 봇으로
+   * 접촉률을 다시 재고, 그다음 밭을 좁힌다. 확률을 만져서 메울 간격이 아니다.
+   */
+  recipe(['airplane', 'travel-suitcase', 'treasure-map', 'camera'], 'travel-passport'),
+  recipe(['racing-flag', 'toy-car', 'toy-train'], 'speed-course'),
+  recipe(['spaceship', 'telescope', 'shooting-star', 'desk-globe'], 'space-poster'),
+  recipe(['footprints', 'compass', 'binoculars', 'flashlight'], 'explorer-badge'),
+  recipe(['bento', 'triangle-gimbap', 'octopus', 'fried-egg'], 'picnic-basket'),
+  recipe(['pizza-slice', 'french-fries', 'beer', 'iced-drink'], 'pub-platter'),
+  recipe(['macaron', 'chocolate-donut', 'ice-cream-cone', 'biscuit'], 'dessert-tower'),
+  recipe(['clover', 'sunflower-seed', 'sunflower', 'watering-can'], 'lucky-flowerpot'),
+  recipe(['mushroom', 'snail', 'leaf', 'butterfly', 'crystal', 'ladybug'], 'terrarium'),
+  recipe(['snowflake', 'christmas-tree', 'gold-star', 'candle'], 'snow-globe'),
+  recipe(['burnt-hole-shirt', 'iron', 'washing-machine', 'clothes-hanger'], 'repair-shop'),
+  recipe(['school-backpack', 'sketchbook', 'pencil-set', 'crank-sharpener'], 'art-bag'),
+  recipe(['rubber-gloves', 'shampoo-bottle', 'toilet-paper', 'bubble-bottle'], 'cleaning-set'),
+  recipe(['hand-fan', 'kids-bottle', 'cactus', 'sunlight'], 'survival-kit'),
+  recipe(['soccer-ball', 'badminton-racket', 'gold-medal'], 'sports-trophy'),
+  recipe(['padlock', 'study-book', 'stardust', 'quill-feather'], 'magic-book'),
+  recipe(['hand-mirror', 'stardust', 'wooden-door', 'magic-wand', 'crescent-moon'], 'mirror-door'),
 ]
 
 /** 합성으로 만들 수 있는 물건들. 도감이 "아직 못 만든 것"을 세는 데 쓴다 */

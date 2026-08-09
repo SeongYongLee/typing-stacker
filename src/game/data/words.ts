@@ -2432,6 +2432,222 @@ const CRAFTED: readonly ItemVariant[] = [
     angularDamping: 4,
     scoreBonus: 250,
   }),
+  /*
+   * 재료 셋에서 여섯을 모으는 결과물 열일곱.
+   *
+   * 앞의 것들과 달리 재료가 둘이 아니다. 보너스를 재료 수에 비례해 준 이유는
+   * 모으는 어려움이 재료 수에 따라 자릿수로 갈리기 때문이다 — 특정 단어 하나가
+   * 한 판에 나올 확률이 15% 남짓이라, 넷을 모으는 것은 셋을 모으는 것보다
+   * 여섯 배 어렵고 여섯을 모으는 것은 백 배 어렵다.
+   *
+   * **여덟은 재료에 다른 합성 결과물이 들어간다**(여행가방·레이싱 깃발·우주선·
+   * 계란 프라이·구멍 난 셔츠·햇빛·금메달·마법봉). 그것부터 만들어야 하므로
+   * 사슬이 두 단이다. 아트가 그렇게 설계해 왔고, 도감에서 읽으면 그 층이 보인다.
+   */
+  hiddenVariant({
+    // 여러 나라 도장이 찍힌 여권. 얇고 작아 틈에 끼워 넣기 좋다
+    id: 'travel-passport',
+    label: '세계여행 여권',
+    sprite: 'travel-passport',
+    size: { height: 0.64 },
+    color: '#146721',
+    density: 0.6,
+    friction: 0.85,
+    angularDamping: 3.4,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 넓고 납작한 트랙 판. 이 판에서 가장 좋은 받침 축에 든다
+    id: 'speed-course',
+    label: '스피드 코스',
+    sprite: 'speed-course',
+    size: { width: 0.89 },
+    color: '#8db41d',
+    density: 0.9,
+    friction: 0.8,
+    angularDamping: 4,
+    scoreBonus: 300,
+  }),
+  hiddenVariant({
+    // 말려 올라간 종이 포스터. 가볍고 넓어 위에 무거운 것이 얹히면 눌린다
+    id: 'space-poster',
+    label: '우주여행 포스터',
+    sprite: 'space-poster',
+    size: { height: 0.78 },
+    color: '#f6e7a8',
+    density: 0.35,
+    friction: 0.8,
+    angularDamping: 3.2,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 이 판에서 가장 작은 결과물. 자리를 거의 먹지 않는다
+    id: 'explorer-badge',
+    label: '탐험가 배지',
+    sprite: 'explorer-badge',
+    size: { height: 0.47 },
+    color: '#36561c',
+    density: 1.2,
+    friction: 0.75,
+    angularDamping: 3,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 뚜껑이 덮인 등나무 바구니. 위가 둥글어 그 위로는 잘 얹히지 않는다
+    id: 'picnic-basket',
+    label: '피크닉 바구니',
+    sprite: 'picnic-basket',
+    size: { height: 0.78 },
+    color: '#ca7b23',
+    density: 1,
+    friction: 0.85,
+    angularDamping: 3.6,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 넓은 나무 접시. 낮고 평평해서 밑에 깔기 좋다
+    id: 'pub-platter',
+    label: '펍 플래터',
+    sprite: 'pub-platter',
+    size: { width: 0.78 },
+    color: '#ae5717',
+    density: 1.2,
+    friction: 0.85,
+    angularDamping: 3.8,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 층층이 쌓아 올린 유리 스탠드. 높고 위가 좁아 그 자체로 위태롭다
+    id: 'dessert-tower',
+    label: '디저트 타워',
+    sprite: 'dessert-tower',
+    size: { height: 0.89 },
+    color: '#f8e9cf',
+    density: 0.8,
+    friction: 0.7,
+    angularDamping: 2.6,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 네잎클로버가 심긴 화분. 위로 잎이 솟아 있다
+    id: 'lucky-flowerpot',
+    label: '행운의 화분',
+    sprite: 'lucky-flowerpot',
+    size: { height: 0.78 },
+    color: '#6dba0d',
+    density: 1.1,
+    friction: 0.8,
+    angularDamping: 3.2,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 재료 여섯을 모아야 하는 유일한 물건. 이 게임에서 가장 만들기 어렵다
+    id: 'terrarium',
+    label: '테라리움',
+    sprite: 'terrarium',
+    size: { height: 0.78 },
+    color: '#fbcc04',
+    density: 1.2,
+    friction: 0.8,
+    angularDamping: 3.4,
+    scoreBonus: 600,
+  }),
+  hiddenVariant({
+    // 둥근 유리구가 받침 위에 얹혔다. 위가 둥글어 받침으로는 못 쓴다
+    id: 'snow-globe',
+    label: '스노우볼',
+    sprite: 'snow-globe',
+    size: { height: 0.78 },
+    color: '#713714',
+    density: 1.4,
+    friction: 0.7,
+    angularDamping: 2.8,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 이 게임에서 가장 넓은 물건. 조준 범위를 꽉 채운다
+    id: 'repair-shop',
+    label: '옷 수선소',
+    sprite: 'repair-shop',
+    size: { width: 0.99 },
+    color: '#1564a7',
+    density: 1.3,
+    friction: 0.85,
+    angularDamping: 4,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 천 가방이라 닿아도 거의 소리가 없다. 어디에 얹혀도 미끄러지지 않는다
+    id: 'art-bag',
+    label: '미술학원 가방',
+    sprite: 'art-bag',
+    size: { height: 0.78 },
+    color: '#f7ba02',
+    density: 0.7,
+    friction: 0.95,
+    angularDamping: 3.6,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 통에 담긴 청소 도구 한 벌. 손잡이가 위로 삐죽 솟아 있다
+    id: 'cleaning-set',
+    label: '욕실 청소 세트',
+    sprite: 'cleaning-set',
+    size: { height: 0.78 },
+    color: '#70afd3',
+    density: 0.9,
+    friction: 0.8,
+    angularDamping: 3.2,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 사막용 배낭. 물병이 매달려 있어 무게가 한쪽으로 쏠린다
+    id: 'survival-kit',
+    label: '사막 생존 키트',
+    sprite: 'survival-kit',
+    size: { height: 0.78 },
+    color: '#dbbc86',
+    density: 0.85,
+    friction: 0.95,
+    angularDamping: 3,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 받침이 좁고 위가 넓은 금속 잔. 무게중심이 높아 잘 넘어진다
+    id: 'sports-trophy',
+    label: '운동회 트로피',
+    sprite: 'sports-trophy',
+    size: { height: 0.78 },
+    color: '#fcc603',
+    density: 1.3,
+    friction: 0.7,
+    angularDamping: 2.4,
+    scoreBonus: 300,
+  }),
+  hiddenVariant({
+    // 자물쇠가 채워진 두꺼운 책. 네모나고 무거워 밑에 깔기 좋다
+    id: 'magic-book',
+    label: '마법 비밀책',
+    sprite: 'magic-book',
+    size: { height: 0.64 },
+    color: '#7848a7',
+    density: 1.4,
+    friction: 0.85,
+    angularDamping: 3.8,
+    scoreBonus: 400,
+  }),
+  hiddenVariant({
+    // 거울 안으로 문이 열려 있다. 크고 평평한 판이라 받침이 된다
+    id: 'mirror-door',
+    label: '거울 속 마법문',
+    sprite: 'mirror-door',
+    size: { height: 0.89 },
+    color: '#6e3a16',
+    density: 1.2,
+    friction: 0.8,
+    angularDamping: 3.6,
+    scoreBonus: 500,
+  }),
 ]
 
 /**

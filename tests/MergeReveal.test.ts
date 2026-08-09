@@ -28,8 +28,12 @@ describe('합성 연출이 재료를 찾을 수 있다', () => {
   })
 
   it('재료가 출발 방향보다 많지 않다', () => {
-    // 방향이 모자라면 재료 둘이 같은 자리에서 출발해 하나로 보인다
-    const GATHER_DIRECTIONS = 5
+    /*
+     * 방향이 모자라면 재료 둘이 같은 자리에서 출발해 하나로 보인다.
+     * `ArenaRenderer`의 `GATHER_FROM` 길이와 같아야 한다 — 그쪽을 여기서 읽지 않는
+     * 이유는 렌더러가 canvas를 아는 모듈이고 이 검사는 node에서 도는 자리이기 때문이다.
+     */
+    const GATHER_DIRECTIONS = 6
     for (const recipe of RECIPES) {
       expect(recipe.inputs.length, recipe.id).toBeLessThanOrEqual(GATHER_DIRECTIONS)
     }

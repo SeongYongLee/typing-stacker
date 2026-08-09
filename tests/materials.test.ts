@@ -114,8 +114,14 @@ describe('개체값(tone)', () => {
       for (let i = 1; i < levels.length; i += 1) {
         closest = Math.min(closest, (levels[i] ?? 0) - (levels[i - 1] ?? 0))
       }
+      /*
+       * 간격은 `폭 ÷ 칸 수`라 딱 떨어지는 값이 나온다(천은 3 ÷ 5 = 0.6). 그런데
+       * 개체값이 0~1을 거쳐 오므로 그 나눗셈이 부동소수로 0.5999999999999999가 되어
+       * 문턱과 같은 값인데도 걸린다. 문턱은 귀로 정한 값이고 1조분의 1을 가릴 만큼
+       * 정밀하지 않으니, 자릿수를 맞춰 비교한다.
+       */
       expect(
-        closest * spread,
+        Number((closest * spread).toFixed(6)),
         `${material} ${items.length}종의 이웃 음높이 간격(반음)`,
       ).toBeGreaterThanOrEqual(MIN_SEMITONES)
     }

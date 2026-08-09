@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
@@ -47,11 +47,17 @@ function ArenaBackdrop({ time }: ArenaBackdropProps) {
  * 배경은 `cover`라 화면비가 그림비와 다르면 잘려 나간다. 그래서 화면의 80%와
  * 그림의 80%가 서로 다른 자리다 — 시계를 화면 기준으로 놓으면 창이 좁아질 때
  * 벽에서 미끄러진다. 같은 `cover` 계산을 다시 해서 그림의 자리를 되찾는다.
+ *
+ * **`useLayoutEffect`여야 한다.** `useEffect`는 그려진 **뒤**에 도므로 이 층이 새로
+ * 붙는 첫 프레임에는 `box`가 아직 null이고, 그러면 **화이트보드와 벽시계가 통째로
+ * 빠진 채** 한 번 그려진다. 방에서 가장 밝은 둘이라 화면이 눈에 띄게 어두워졌다가
+ * 돌아온다 — 판이 열리는 순간 "잠깐 더 어두워진다"로 잡힌 것이 이것이었다
+ * (실측 밝기 49 → 42). 그리기 전에 재면 첫 프레임부터 제자리에 걸려 있다.
  */
 function useWallBox(ref: React.RefObject<HTMLDivElement | null>): CSSProperties | null {
   const [box, setBox] = useState<CSSProperties | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = ref.current
     if (node === null) {
       return

@@ -34,8 +34,15 @@ function ArenaClock({ time }: ArenaClockProps) {
         <div style={layer('timer-hand-day', 1)} />
         <div style={layer('timer-hand-night', time.nightfall)} />
       </div>
+      {/*
+        아이콘만 **겹쳐 쌓지 않고 갈아탄다.**
+
+        눈금판과 바늘은 낮/밤 그림이 같은 구도라 밤을 위에 얹는 것으로 충분하다
+        (`ArenaBackdrop`과 같은 어법). 아이콘은 해와 초승달로 **모양이 아예 다르다** —
+        달을 얹어도 해의 광선이 달 밖으로 삐져나와 둘이 함께 보인다.
+      */}
       <div style={iconStyle}>
-        <div style={layer('timer-icon-day', 1)} />
+        <div style={layer('timer-icon-day', 1 - time.nightfall)} />
         <div style={layer('timer-icon-night', time.nightfall)} />
       </div>
     </div>

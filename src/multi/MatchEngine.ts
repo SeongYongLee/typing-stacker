@@ -150,6 +150,8 @@ interface MatchViewState {
    * 다시 시도해볼 것이 없으므로 남은 사람에게는 나가는 길만 열어준다.
    */
   readonly opponentLeft: boolean
+  /** 판 도중에 사라진 사람들. 무너져 탈락한 것과 다르게 보여준다 */
+  readonly left: readonly PlayerId[]
   /**
    * 이 판을 가리키는 이름. 양쪽이 같은 값을 만든다.
    *
@@ -228,6 +230,8 @@ class MatchEngine {
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
   private recorded = false
   private opponentLeft = false
+  /** 판 도중에 사라진 사람들. 매 프레임 새로 만들지 않게 바뀔 때만 갈아치운다 */
+  private left: readonly PlayerId[] = []
   /*
    * 화면에 넘길 사본. emit()은 매 프레임 도는데 이 둘은 판이 끝날 때만 바뀐다 —
    * 프레임마다 새로 만들면 그것만으로 쓰레기가 쌓인다. 바뀐 순간에만 다시 만든다.
@@ -442,6 +446,73 @@ class MatchEngine {
   }
 
   /**
+   * 누가 사라졌다. 나갔든 끊겼든 이 층에서는 같다.
+   *
+   * **한 사람이 사라졌다고 판을 접지 않는다.** 여덟까지 붙는데 그렇게 두면 한 사람의
+   * 네트워크 끊김이 나머지 일곱의 판을 죽인다. 그 사람만 빼고 이어간다.
+   *
+   * 다만 **방장이 사라지면 이어갈 수 없다.** 물리와 판정을 방장이 쥐고 있고 스타
+   * 토폴로지라 참가자끼리는 서로 닿지도 못한다.
+   *
+   * 판정은 방장만 한다. 참가자는 자기 전송로가 알려준 것으로 움직이지 않고 방장이
+   * 보내주는 `left`를 따른다 — 각자 판단하면 사람마다 다른 명단을 갖게 된다.
+   */
+  private noticeGone(who: PlayerId): void {
+    /*
+     * **둘로 시작한 판은 예전 그대로 끝낸다.** 남는 사람이 하나뿐이라 이어갈 판이
+     * 없는데, 그때 "이겼습니다"를 띄우면 상대의 회선이 끊긴 것을 이긴 것으로 말하는
+     * 셈이다 — "연결이 끊겼습니다"가 실제로 일어난 일이다.
+     */
+    if (this.match.players.length <= 2) {
+      this.connectionLost = true
+      this.loop.stop()
+      this.emit()
+      return
+    }
+    if (this.hostId !== null && who === this.hostId) {
+      this.connectionLost = true
+      this.loop.stop()
+      this.emit()
+      return
+    }
+    if (!this.transport.isHost) {
+      // 방장이 정리해 알려줄 것이다
+      return
+    }
+    this.transport.broadcast({ t: 'left', who })
+    this.applyLeft(who)
+  }
+
+  /** 사라진 사람을 판에서 뺀다. 양쪽이 똑같이 실행한다 */
+  private applyLeft(who: PlayerId): void {
+    if (!this.match.isAlive(who)) {
+      return
+    }
+    this.left = [...this.left, who]
+    // 그 사람만의 회차다 — 함께 무너진 것이 아니므로 등수를 같이 매기면 안 된다
+    this.match.startDeathBatch()
+    this.match.setLives(who, 0)
+    this.standingsView = this.match.standings()
+    this.match.ensureTurnAlive()
+    // 사라진 사람 차례에서 시계가 이어지면 안 된다
+    this.turnElapsed = 0
+    if (this.transport.isHost) {
+      this.transport.broadcast({ t: 'lives', lives: this.match.snapshot().lives })
+      if (this.match.over) {
+        this.loop.stop()
+        this.recordWin(this.match.winner)
+        this.transport.broadcast({ t: 'over', winner: this.match.winner })
+      }
+    }
+    this.emit()
+  }
+
+  /** 명단 맨 앞이 방장이다. 세션이 그 순서로 만들어 양쪽에 나눠준다 */
+  private get hostId(): PlayerId | null {
+    return this.match.players[0]?.id ?? null
+  }
+
+  /**
    * 지금 Enter가 무엇을 하는가.
    *
    * 떨굴 수 있으면 물건이고, 아니면 한마디다. 코드로 모인 방이 아니면 할 말이 없어
@@ -460,10 +531,7 @@ class MatchEngine {
         this.handleMessage(event.from, event.message)
         break
       case 'peerLeft':
-        // 스타 토폴로지라 상대가 사라지면 판을 이어갈 수 없다
-        this.connectionLost = true
-        this.loop.stop()
-        this.emit()
+        this.noticeGone(event.peer)
         break
       case 'error':
         this.onFailure?.(event.failure)
@@ -831,10 +899,23 @@ class MatchEngine {
         }
         break
       case 'bye':
-        // 사고가 아니라 상대의 선택이다. 남은 사람에게는 나가는 길만 열어준다
-        this.opponentLeft = true
-        this.loop.stop()
-        this.emit()
+        /*
+         * 사고가 아니라 그 사람의 선택이다. 둘일 때는 남은 사람에게 나가는 길만
+         * 열어주면 되지만, 여럿이면 나머지는 계속한다 — 처리는 끊긴 것과 같다.
+         */
+        if (this.match.players.length <= 2) {
+          this.opponentLeft = true
+          this.loop.stop()
+          this.emit()
+          break
+        }
+        this.noticeGone(from)
+        break
+      case 'left':
+        // 판정은 방장이 한다. 참가자는 결과만 따른다
+        if (!this.transport.isHost) {
+          this.applyLeft(message.who)
+        }
         break
       default:
         break
@@ -1126,6 +1207,7 @@ class MatchEngine {
       wins: this.winsView,
       wantRematch: this.rematchView,
       opponentLeft: this.opponentLeft,
+      left: this.left,
     })
   }
 }

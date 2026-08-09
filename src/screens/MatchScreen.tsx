@@ -114,6 +114,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
    * 사람마다 **마지막 한마디만** 남긴다. 여러 줄을 띄우면 이름표가 밀려 아레나가
    * 내려가는데, 조준 중에 화면이 움직이면 안 된다.
    */
+  const gone = useMemo(() => new Set(state.left), [state.left])
   const lastSaid = useMemo(() => {
     const latest = new Map<string, ChatLine>()
     for (const line of state.chat) {
@@ -203,6 +204,16 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
             */}
             {active && state.phase === 'playing' && state.turnLeft !== null && (
               <TurnClock left={state.turnLeft} />
+            )}
+            {/*
+              나간 사람은 **무너져 탈락한 사람과 다르게** 보여준다. 하트만 비어 있으면
+              둘이 같아 보이는데, 남은 사람에게는 다른 소식이다 — 실력으로 떨어진 것이
+              아니라 상대가 하나 줄어든 것이다.
+            */}
+            {gone.has(player.id) && (
+              <span style={{ fontSize: 11, color: '#6a7290' }} data-gone>
+                나감
+              </span>
             )}
             {!crowded && <Wins count={winsOf.get(player.id) ?? 0} />}
           </div>

@@ -120,6 +120,14 @@ type ToGuest =
    */
   | { readonly t: 'chatted'; readonly from: PlayerId; readonly text: string }
   /**
+   * 누가 판에서 빠졌다. 나갔거나 연결이 끊겼거나.
+   *
+   * 목숨을 0으로 만드는 것은 `lives`로도 되지만 **그것만으로는 이유를 알 수 없다.**
+   * 무너져서 탈락한 것과 나가버린 것은 남은 사람에게 다른 소식이고, 화면도 다르게
+   * 말해야 한다. 판정은 방장이 하고 참가자는 따른다.
+   */
+  | { readonly t: 'left'; readonly who: PlayerId }
+  /**
    * 지금 내려오는 단어 밭. 방장이 소유한다.
    *
    * 같은 시드로 양쪽이 각자 굴리는 방법은 쓸 수 없었다 — 난이도가 쌓은 높이를 따라가는데
@@ -267,6 +275,9 @@ function parseMessage(raw: unknown): Message | null {
     case 'chatted':
       if (!isShortString(raw['from'], 64) || !isShortString(raw['text'], CHAT_MAX)) return null
       return { t: 'chatted', from: raw['from'], text: raw['text'] }
+    case 'left':
+      if (!isShortString(raw['who'], 64)) return null
+      return { t: 'left', who: raw['who'] }
     case 'words': {
       if (!Array.isArray(raw['words'])) return null
       const words: FallingWord[] = []

@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "relay:dev": "pnpm dlx wrangler dev --config worker/wrangler.toml --port 8787",
-    "relay:deploy": "pnpm dlx wrangler deploy --config worker/wrangler.toml"
+    "relay:deploy": "pnpm dlx wrangler deploy --config worker/wrangler.toml",
+    "push": "bash scripts/push.sh"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.19.3",

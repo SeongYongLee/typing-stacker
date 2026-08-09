@@ -81,6 +81,12 @@ const SOURCES = [
   { name: 'timer-hand-night', file: 'timer-hand-night.png', maxWidth: 320, trim: true, group: 'timer' },
   { name: 'timer-icon-day', file: 'timer-icon-day.png', maxWidth: 160, trim: true },
   { name: 'timer-icon-night', file: 'timer-icon-night.png', maxWidth: 160, trim: true },
+  /*
+   * 벽에 걸린 화이트보드. v1에서는 배경에 그려져 있었는데 v2에서 떨어져 나왔다 —
+   * 무언가를 적는 자리로 쓰라는 뜻이다. 적는 일은 다른 데서 정한다.
+   */
+  { name: 'whiteboard-day', file: 'whiteboard-day.png', maxWidth: 1200, trim: true, group: 'whiteboard' },
+  { name: 'whiteboard-night', file: 'whiteboard-night.png', maxWidth: 1200, trim: true, group: 'whiteboard' },
   // 타이틀 화면
   { name: 'title-day', file: 'suspicious-lost-and-found-title-day-final.png', maxWidth: 1600, trim: true },
   { name: 'title-night', file: 'suspicious-lost-and-found-title-night-final.png', maxWidth: 1600, trim: true },

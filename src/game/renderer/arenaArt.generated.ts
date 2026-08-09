@@ -31,6 +31,8 @@ const ARENA_ART = {
   'timer-hand-night': { file: 'timer-hand-night.webp', width: 320, height: 319 },
   'timer-icon-day': { file: 'timer-icon-day.webp', width: 160, height: 161 },
   'timer-icon-night': { file: 'timer-icon-night.webp', width: 160, height: 173 },
+  'whiteboard-day': { file: 'whiteboard-day.webp', width: 1200, height: 610 },
+  'whiteboard-night': { file: 'whiteboard-night.webp', width: 1200, height: 610 },
   'title-day': { file: 'title-day.webp', width: 1597, height: 510 },
   'title-night': { file: 'title-night.webp', width: 1574, height: 508 },
 } as const satisfies Record<string, ArenaArt>

@@ -196,7 +196,7 @@ interface ArenaRenderState {
 const COLORS = {
   aimTrack: 'rgba(255, 207, 92, 0.16)',
   danger: 'rgba(255, 107, 107, 0.5)',
-  hidden: '#e4e68a',
+  hidden: '#ffcf5c',
 } as const
 
 const ARROW_ART = `${import.meta.env.BASE_URL}arena/stack-drop-arrow.png`
@@ -263,7 +263,7 @@ const UI_FONT = "system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
  * 선을 넘어가는 장면은 화면 밖에서 일어나 보이지 않았다.
  * 여백을 두면 넘어가는 순간이 보이고 두 선이 서로 떨어진다.
  */
-const KILL_LINE_MARGIN = 0.55
+const KILL_LINE_MARGIN = 0.35
 
 const WORLD_HEIGHT = ARENA.height - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
@@ -729,7 +729,7 @@ class ArenaRenderer {
     }
 
     ctx.save()
-    ctx.fillStyle = '#e4e68a'
+    ctx.fillStyle = '#ffcf5c'
     ctx.beginPath()
     ctx.moveTo(x, top + 20)
     ctx.lineTo(x - 9, top + 2)

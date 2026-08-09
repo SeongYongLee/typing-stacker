@@ -133,7 +133,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
        * 방이 끊겨, 배경이 아니라 판에 붙은 그림처럼 보였다. 위아래 띠를 반투명으로
        * 두고 그 뒤로 같은 방이 이어지게 하면 판이 방 안에 놓인 것으로 읽힌다.
        */}
-      <ArenaBackdrop nightfall={state.timeOfDay.nightfall} />
+      <ArenaBackdrop time={state.timeOfDay} />
       <Hud stats={state.stats} />
 
       <div style={fieldLayerStyle}>

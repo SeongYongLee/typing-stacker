@@ -144,8 +144,12 @@ class SoundBoard {
       case 'turn':
         voices.turnCue(voice)
         break
-      case 'suggested':
-        voices.suggested(voice)
+      case 'chat':
+        // 내가 친 것은 이미 안다. 알림은 남의 말에만 필요하다
+        if (event.mine) {
+          return
+        }
+        voices.chat(voice)
         break
       default:
         break

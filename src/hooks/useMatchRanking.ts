@@ -12,6 +12,13 @@ type MatchRankingStatus =
   | 'disputed'
   /** 서버에 닿지 못했거나 묶을 기기 id가 없다 */
   | 'offline'
+  /**
+   * 사다리에 올리지 않는 판. 코드로 모인 방이 그렇다.
+   *
+   * 'offline'과 갈라야 한다 — 그쪽은 올리려다 못 올린 것이라 다시 해보면 되지만,
+   * 이쪽은 처음부터 올리지 않기로 한 것이다. 같은 말을 하면 고장으로 읽힌다.
+   */
+  | 'casual'
 
 /** 먼저 보고한 쪽이 결과를 다시 물어보는 시점(ms) */
 const RETRY_MS = [1500, 4000]
@@ -42,7 +49,7 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
   const [view, setView] = useState<RankView | null>(null)
 
   const over = state.phase === 'over'
-  const { matchId } = state
+  const { matchId, ranked } = state
   /*
    * 기기 id와 등수로 옮긴다. 전송로 id는 이 판에서만 쓰는 값이라 레이팅을 묶을 수 없다.
    * 기기 id가 빈 사람이 있으면(옛 버전과 붙었거나 저장소가 막힘) 그 판은 보고하지 않는다.
@@ -61,6 +68,14 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
    */
   useEffect(() => {
     if (!over) {
+      return
+    }
+    /*
+     * 코드로 모인 방은 상대를 고를 수 있어 사다리에 올리지 않는다. 보고 자체를
+     * 보내지 않는다 — 서버가 걸러주기를 기다리면 그 판정을 클라이언트 말에 맡기게 된다.
+     */
+    if (!ranked) {
+      setStatus('casual')
       return
     }
     // 묶을 곳이 없으면 보고하지 않는다 — 옛 버전과 붙었거나 저장소가 막힌 경우다
@@ -121,7 +136,7 @@ function useMatchRanking(state: MatchViewState): MatchRanking {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [over, matchId, key, reportable])
+  }, [over, matchId, key, reportable, ranked])
 
   return {
     status,

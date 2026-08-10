@@ -32,7 +32,7 @@ function MenuButton({
     display: 'block',
     width: '100%',
     padding: '13px 30px',
-    fontSize: primary ? 17 : 15,
+    fontSize: 15,
     fontWeight: 600,
     borderRadius: 10,
     cursor: disabled ? 'default' : 'pointer',

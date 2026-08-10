@@ -106,6 +106,24 @@ describe('MatchSession — 준비하고 시작한다', () => {
     }
   })
 
+  it('방장이 모드를 바꾸면 모두에게 보이고 준비가 풀린다', async () => {
+    open = pair()
+    await tick()
+    open.host.session.setReady()
+    open.host.session.setMatchModeChoice('duel')
+    await tick()
+    await tick()
+
+    for (const side of [open.host, open.guest]) {
+      const phase = side.phase()
+      expect(phase?.kind).toBe('ready')
+      if (phase?.kind !== 'ready') return
+      expect(phase.ready).toHaveLength(0)
+      expect(phase.matchModeChoice).toBe('duel')
+      expect(phase.chat.some((line) => line.text.includes('모드가 대결로 바뀌었습니다'))).toBe(true)
+    }
+  })
+
   it('둘 다 준비하면 판이 열린다', async () => {
     open = pair()
     await tick()

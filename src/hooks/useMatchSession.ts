@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import type { MatchViewState } from '../multi/MatchEngine.ts'
 import { MatchSession, type OpenMode, type SessionPhase } from '../multi/MatchSession.ts'
+import type { MatchModeChoice } from '../multi/matchModes.ts'
 import { loadProfile } from '../storage/profile.ts'
 
 interface JoinRequest {
@@ -25,6 +26,8 @@ interface UseMatchSession {
   readonly setReady: () => void
   /** 준비 화면에서 한마디 한다. 판이 열린 뒤에는 엔진이 같은 일을 맡는다 */
   readonly sendChat: (text: string) => void
+  /** 친선전 방장이 대기/준비 화면에서 모드를 바꾼다 */
+  readonly setMatchModeChoice: (choice: MatchModeChoice) => void
 }
 
 /**
@@ -89,7 +92,11 @@ function useMatchSession(): UseMatchSession {
     sessionRef.current?.sendChat(text)
   }, [])
 
-  return { phase, state, open, leave, setReady, sendChat }
+  const setMatchModeChoice = useCallback((choice: MatchModeChoice) => {
+    sessionRef.current?.setMatchModeChoice(choice)
+  }, [])
+
+  return { phase, state, open, leave, setReady, sendChat, setMatchModeChoice }
 }
 
 export { useMatchSession }

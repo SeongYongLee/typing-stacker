@@ -15,9 +15,9 @@ import { tierOf } from '../../rank/tiers.ts'
 import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
 import { LIVES } from '../../game/config.ts'
 import {
-  MATCH_MODE_CHOICE_LABELS,
   type MatchModeChoice,
 } from '../../multi/matchModes.ts'
+import { MODE_BLURBS, modeLabel, nextModeChoice } from './modeRules.tsx'
 
 /**
  * 붙은 뒤 시작 전 — 명단·티어·채팅·준비.
@@ -31,46 +31,10 @@ import {
  * 상대가 들어오자마자 판이 열리면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
  * 없다 — 첫 단어가 이미 내려오고 있다. 양쪽이 준비를 눌러야 시작한다.
  */
-const SHARED_RULES: readonly ReactNode[] = [
-  <>
-    한 받침대 위에 <Key>한 탑을 함께</Key> 쌓습니다.
-  </>,
-  <>
-    차례대로 단어를 치고 <Key>한 번씩</Key> 물건을 떨어뜨립니다.
-  </>,
-  <>
-    물건이 받침대를 벗어나면 <Key>그 물건 주인</Key>의 하트가 줄어듭니다.
-  </>,
-  <>
-    하트 {LIVES}개를 잃으면 탈락하고, <Key>마지막 생존자</Key>가 이깁니다.
-  </>,
-]
-
-const DUEL_RULES: readonly ReactNode[] = [
-  <>
-    각자 자기 받침대와 <Key>자기 탑</Key>을 가집니다.
-  </>,
-  '같은 단어가 같은 순서로 나오고, 동시에 진행합니다.',
-  '자기 탑에서 물건이 벗어나면 자기 하트가 줄어듭니다.',
-  '먼저 목표 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.',
-]
-
-const ROULETTE_RULES: readonly ReactNode[] = [
-  <>
-    시작할 때 <Key>함께 쌓기</Key>와 <Key>대결</Key> 중 하나를 자동으로 고릅니다.
-  </>,
-  '선택된 모드의 규칙으로 바로 시작합니다.',
-]
-
 function readyRules(kind: 'auto' | 'manual', choice: MatchModeChoice): readonly ReactNode[] {
-  const modeRules = choice === 'roulette'
-    ? ROULETTE_RULES
-    : choice === 'duel'
-      ? DUEL_RULES
-      : SHARED_RULES
   const modeTitle = (
     <>
-      모드: <Key>{MATCH_MODE_CHOICE_LABELS[choice]}</Key>
+      모드: <Key>{modeLabel(choice)}</Key>
     </>
   )
   const tail = kind === 'auto'
@@ -93,7 +57,10 @@ function readyRules(kind: 'auto' | 'manual', choice: MatchModeChoice): readonly 
       ]
   return [
     modeTitle,
-    ...modeRules,
+    ...MODE_BLURBS[choice],
+    <>
+      하트 {LIVES}개를 잃으면 탈락합니다.
+    </>,
     ...tail,
   ]
 }
@@ -112,11 +79,13 @@ function ReadyRoom({
   phase,
   onReady,
   onChat,
+  onMatchMode,
   onBack,
 }: {
   phase: Extract<SessionPhase, { kind: 'ready' }>
   onReady: () => void
   onChat: (text: string) => void
+  onMatchMode: (choice: MatchModeChoice) => void
   onBack: () => void
 }) {
   const ready = new Set(phase.ready)
@@ -129,6 +98,7 @@ function ReadyRoom({
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
   const rulesKind = phase.chatEnabled ? 'manual' : 'auto'
   const rules = readyRules(rulesKind, phase.matchModeChoice)
+  const changeMode = (): void => onMatchMode(nextModeChoice(phase.matchModeChoice))
 
   useMenuKeys({
     count: 1,
@@ -208,6 +178,16 @@ function ReadyRoom({
           >
             {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
           </MenuButton>
+
+          {phase.canChangeMatchMode && (
+            <MenuButton
+              selected={false}
+              onClick={changeMode}
+              style={{ fontSize: READY_TEXT_SIZE }}
+            >
+              모드 · {modeLabel(phase.matchModeChoice)}
+            </MenuButton>
+          )}
 
           <MenuButton selected={false} onClick={onBack} style={{ fontSize: READY_TEXT_SIZE }}>
             나가기 (Esc)

@@ -193,11 +193,6 @@ function App() {
     openTitle()
   }, [match, openTitle])
 
-  const backToLobbyMenu = useCallback(() => {
-    match.leave()
-    setSoloStage(null)
-  }, [match])
-
   if (route === 'loopback') {
     return <LoopbackScreen onBack={openTitle} />
   }
@@ -227,15 +222,14 @@ function App() {
       )
     }
     return (
-      <SplashBackdrop theme={titleTheme} animated={false}>
+      <SplashBackdrop>
         <LobbyScreen
           phase={phase}
           onOpen={match.open}
           onReady={match.setReady}
           onChat={match.sendChat}
           onMatchMode={match.setMatchModeChoice}
-          onBack={phase === null ? backToTitle : backToLobbyMenu}
-          theme={titleTheme}
+          onBack={backToTitle}
         />
       </SplashBackdrop>
     )

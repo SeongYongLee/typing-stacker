@@ -84,6 +84,8 @@ type ToHost =
     }
   /** 준비를 눌렀다. 모두가 누르면 방장이 판을 연다 */
   | { readonly t: 'ready' }
+  /** 방장에게 모드 변경을 요청한다. 지금은 방장 UI만 쓰지만 메시지는 검증해 둔다 */
+  | { readonly t: 'mode'; readonly matchModeChoice: MatchModeChoice }
   /** 판이 끝난 뒤 계속하기를 눌렀다 */
   | { readonly t: 'rematch'; readonly matchId?: string }
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
@@ -113,6 +115,8 @@ type ToGuest =
     }
   /** 지금까지 준비를 누른 사람들. 방장이 정하고 알린다 */
   | { readonly t: 'readyList'; readonly ready: readonly PlayerId[] }
+  /** 방장이 모드를 바꿨다. 준비 상태는 함께 풀린다 */
+  | { readonly t: 'mode'; readonly matchModeChoice: MatchModeChoice }
   | {
       readonly t: 'start'
       readonly seed: number
@@ -258,6 +262,10 @@ function parseMessage(raw: unknown): Message | null {
       return { t: 'full' }
     case 'ready':
       return { t: 'ready' }
+    case 'mode':
+      return isMatchModeChoice(raw['matchModeChoice'])
+        ? { t: 'mode', matchModeChoice: raw['matchModeChoice'] }
+        : null
     case 'rematch': {
       const matchId = optionalShortString(raw['matchId'], 96)
       return matchId === null ? null : { t: 'rematch', ...matchId }

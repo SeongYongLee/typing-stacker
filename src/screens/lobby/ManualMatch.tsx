@@ -103,104 +103,91 @@ function ManualMatch({
 
   return (
     <div style={rootStyle}>
-      <div
-        data-manual-match={named ? 'named' : 'unnamed'}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 20,
-          alignItems: 'start',
-          width: 'min(900px, 96vw)',
-        }}
-      >
-        <div style={{ ...panelStyle, width: '100%', gap: 12 }}>
-          <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-            친선전
-          </h2>
+      <div style={{ ...panelStyle, gap: 12 }} data-manual-match={named ? 'named' : 'unnamed'}>
+        <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
+          친선전
+        </h2>
 
-          <span style={pathLabelStyle}>이름</span>
-          <MenuField
-            label="이름"
-            style={fieldStyle}
-            value={name}
-            onChange={setName}
-            placeholder="같이 할 사람들에게 보일 이름"
-            maxLength={NICKNAME_MAX}
-            index={0}
-            selected={menu.index === 0}
-            onMove={moveTo}
-          />
+        <span style={pathLabelStyle}>이름</span>
+        <MenuField
+          label="이름"
+          style={fieldStyle}
+          value={name}
+          onChange={setName}
+          placeholder="같이 할 사람들에게 보일 이름"
+          maxLength={NICKNAME_MAX}
+          index={0}
+          selected={menu.index === 0}
+          onMove={moveTo}
+        />
 
-          <span style={pathLabelStyle}>아이콘</span>
-          <IconPicker
-            icon={icon}
-            onChange={setIcon}
-            selected={menu.index === 1}
-            onHover={() => menu.select(1)}
-          />
+        <span style={pathLabelStyle}>아이콘</span>
+        <IconPicker
+          icon={icon}
+          onChange={setIcon}
+          selected={menu.index === 1}
+          onHover={() => menu.select(1)}
+        />
 
-          {/*
-            왜 잠겼는지를 말해준다. 버튼만 회색이면 무엇을 해야 열리는지 알 수 없고,
-            이 화면에서 할 일이 이름을 적는 것 하나뿐이라 더 그렇다.
+        {/*
+          왜 잠겼는지를 말해준다. 버튼만 회색이면 무엇을 해야 열리는지 알 수 없고,
+          이 화면에서 할 일이 이름을 적는 것 하나뿐이라 더 그렇다.
 
-            "아래가 열린다"가 아니라 **무엇이 되는지**를 적는다 — 아래를 이미 보고 있는
-            사람에게 아래를 가리키는 말은 아무것도 알려주지 않는다.
-          */}
-          {!named && (
-            <span style={{ ...pathLabelStyle, color: '#e4e68a' }} data-name-hint>
-              이름을 적으면 방을 만들거나 참가할 수 있습니다
-            </span>
-          )}
-        </div>
+          "아래가 열린다"가 아니라 **무엇이 되는지**를 적는다 — 아래를 이미 보고 있는
+          사람에게 아래를 가리키는 말은 아무것도 알려주지 않는다.
+        */}
+        {!named && (
+          <span style={{ ...pathLabelStyle, color: '#e4e68a' }} data-name-hint>
+            이름을 적으면 방을 만들거나 참가할 수 있습니다
+          </span>
+        )}
 
-        <div style={{ ...panelStyle, width: '100%', gap: 12 }}>
-          <span style={pathLabelStyle}>방 생성</span>
-          <MenuButton
-            selected={menu.index === 2}
-            onClick={host}
-            onHover={() => menu.select(2)}
-            disabled={!named}
-            primary
-          >
-            방 생성하기
-          </MenuButton>
+        <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 생성</span>
+        <MenuButton
+          selected={menu.index === 2}
+          onClick={host}
+          onHover={() => menu.select(2)}
+          disabled={!named}
+          primary
+        >
+          방 생성하기
+        </MenuButton>
 
-          {/*
-            코드 칸은 참가 버튼 바로 위에 둔다. 떼어놓으면 코드를 받은 사람이
-            어디에 넣어야 할지 헤맨다 — 한 길의 처음과 끝이어야 한다.
-          */}
-          <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 참여</span>
-          <MenuField
-            label="방 코드"
-            style={fieldStyle}
-            value={code}
-            onChange={setCode}
-            placeholder="방 참가 코드"
-            maxLength={ROOM_CODE_LENGTH}
-            autoCapitalize="off"
-            index={3}
-            selected={menu.index === 3}
-            onMove={moveTo}
-            onSubmit={join}
-          />
-          <MenuButton
-            selected={menu.index === 4}
-            onClick={join}
-            onHover={() => menu.select(4)}
-            disabled={!codeReady}
-          >
-            방 참가하기
-          </MenuButton>
+        {/*
+          코드 칸은 참가 버튼 바로 위에 둔다. 떼어놓으면 코드를 받은 사람이
+          어디에 넣어야 할지 헤맨다 — 한 길의 처음과 끝이어야 한다.
+        */}
+        <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 참여</span>
+        <MenuField
+          label="방 코드"
+          style={fieldStyle}
+          value={code}
+          onChange={setCode}
+          placeholder="방 참가 코드"
+          maxLength={ROOM_CODE_LENGTH}
+          autoCapitalize="off"
+          index={3}
+          selected={menu.index === 3}
+          onMove={moveTo}
+          onSubmit={join}
+        />
+        <MenuButton
+          selected={menu.index === 4}
+          onClick={join}
+          onHover={() => menu.select(4)}
+          disabled={!codeReady}
+        >
+          방 참가하기
+        </MenuButton>
 
-          <MenuButton
-            selected={menu.index === 5}
-            onClick={onBack}
-            onHover={() => menu.select(5)}
-            style={{ marginTop: 6 }}
-          >
-            돌아가기 (Esc)
-          </MenuButton>
-        </div>
+        <MenuButton
+          selected={menu.index === 5}
+          onClick={onBack}
+          onHover={() => menu.select(5)}
+          style={{ marginTop: 6 }}
+        >
+          돌아가기 (Esc)
+        </MenuButton>
       </div>
     </div>
   )

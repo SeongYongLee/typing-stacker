@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { SOLO_LIVES } from '../game/config.ts'
 import { play } from './animate.ts'
 
@@ -9,6 +10,31 @@ import { play } from './animate.ts'
  */
 const KEPT = '#ff6b6b'
 const LOST = '#2e3448'
+const SCORE_BACKGROUND = '#e4e68a'
+const COMBO_BACKGROUND = '#6bffb0'
+const CHIP_TEXT = '#0d0f16'
+const VITAL_LABEL_SIZE = 22
+const VITAL_VALUE_SIZE = 52
+const VITAL_GAP = 16
+
+const vitalLabelStyle: CSSProperties = {
+  color: '#a7afc9',
+  fontSize: VITAL_LABEL_SIZE,
+  letterSpacing: '0.08em',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+}
+
+const valueChipStyle: CSSProperties = {
+  padding: '6px 10px 8px',
+  borderRadius: 10,
+  color: CHIP_TEXT,
+  fontSize: VITAL_VALUE_SIZE,
+  fontWeight: 700,
+  lineHeight: 1,
+  fontVariantNumeric: 'tabular-nums',
+  display: 'inline-block',
+}
 
 /**
  * 플레이 중 계속 확인해야 하는 두 값.
@@ -35,11 +61,11 @@ function Barrier({ ratio }: { ratio: number }) {
       aria-hidden
       style={{
         position: 'absolute',
-        inset: '-5px -7px',
+        inset: '-10px -14px',
         borderRadius: 999,
-        border: `1px solid ${BARRIER}`,
+        border: `2px solid ${BARRIER}`,
         background: `radial-gradient(circle, rgba(139, 214, 255, 0.18), rgba(139, 214, 255, 0.04))`,
-        boxShadow: `0 0 ${6 + strength * 8}px rgba(139, 214, 255, ${0.25 + strength * 0.4})`,
+        boxShadow: `0 0 ${12 + strength * 16}px rgba(139, 214, 255, ${0.25 + strength * 0.4})`,
         opacity: 0.25 + strength * 0.75,
         pointerEvents: 'none',
       }}
@@ -99,15 +125,15 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
   }, [lives])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#a7afc9', letterSpacing: '0.08em' }}>목숨</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
+      <span style={vitalLabelStyle}>목숨</span>
       <span
         ref={rowRef}
         style={{
           position: 'relative',
           display: 'inline-flex',
-          gap: 3,
-          fontSize: 22,
+          gap: 6,
+          fontSize: 44,
           lineHeight: 1,
         }}
       >
@@ -134,15 +160,12 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
 function Combo({ combo }: { combo: number }) {
   const active = combo > 0
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#a7afc9', letterSpacing: '0.08em' }}>콤보</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
+      <span style={vitalLabelStyle}>콤보</span>
       <span
         style={{
-          fontSize: 26,
-          fontWeight: 700,
-          lineHeight: 1,
-          color: active ? '#6bffb0' : '#2e3448',
-          fontVariantNumeric: 'tabular-nums',
+          ...valueChipStyle,
+          background: COMBO_BACKGROUND,
         }}
       >
         {active ? `x${combo}` : '-'}
@@ -203,20 +226,16 @@ function Score({ score }: { score: number }) {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#a7afc9', letterSpacing: '0.08em' }}>점수</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
+      <span style={vitalLabelStyle}>점수</span>
       {/* 기준을 숫자로 잡는다. 바깥 상자에 붙이면 "점수" 라벨 위에 뜬다 */}
       <span style={{ position: 'relative', display: 'inline-block' }}>
         <span
           ref={valueRef}
           data-score={score}
           style={{
-            fontSize: 26,
-            fontWeight: 700,
-            lineHeight: 1,
-            color: '#e4e68a',
-            fontVariantNumeric: 'tabular-nums',
-            display: 'inline-block',
+            ...valueChipStyle,
+            background: SCORE_BACKGROUND,
           }}
         >
           {score.toLocaleString('ko-KR')}
@@ -236,11 +255,9 @@ function Delta({ amount }: { amount: number }) {
 
   useEffect(() => {
     /*
-     * 내려갈 때를 더 크게 알린다.
-     *
-     * 오르는 것은 기대한 결과라 곁눈으로 봐도 되지만, 깎이는 것은 **놓쳤다는 사실을
-     * 방금 알아야** 다음 판단이 달라진다. 그런데 시선은 떨어지는 물건에 가 있어서
-     * 같은 크기로는 지나간다. 그래서 커졌다 제자리로 돌아오는 동작을 얹는다.
+     * 오르는 값은 현재 점수와 같은 크기로 보여 입력 보상을 바로 읽게 한다.
+     * 깎이는 값은 놓쳤다는 사실을 방금 알아야 다음 판단이 달라지므로, 글자 크기와
+     * 별개로 커졌다 제자리로 돌아오는 동작을 얹는다.
      */
     play(
       ref.current,
@@ -276,8 +293,8 @@ function Delta({ amount }: { amount: number }) {
         left: 0,
         marginBottom: 2,
         whiteSpace: 'nowrap',
-        // 깎일 때는 글자 자체도 크다. 커지는 동작만으로는 스치듯 지나간다
-        fontSize: up ? 14 : 19,
+        // 오르는 값은 현재 점수와 같은 크기다. 깎이는 값도 기존 비율대로 두 배로 키운다
+        fontSize: up ? VITAL_VALUE_SIZE : 38,
         fontWeight: 700,
         color: up ? '#6bffb0' : '#ff6b6b',
         /*

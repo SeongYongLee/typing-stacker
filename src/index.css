@@ -1,4 +1,12 @@
 @font-face {
+  font-family: 'GriunXHangeul A Foreign Hand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/griun-x-hangeul-a-foreign-hand-regular.woff2') format('woff2');
+}
+
+@font-face {
   font-family: 'Rubik Mono One';
   font-style: normal;
   font-weight: 400;

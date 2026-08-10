@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import type { RunStats } from '../game/types/game.ts'
 import { RunChase } from './RunChase.tsx'
 
@@ -24,48 +23,8 @@ interface HudProps {
  * 전부 결과 화면에서 볼 값이다. 남은 하나는 다르다 — 쫓는 것이 없으면 점수는
  * 그냥 늘어나는 숫자다.
  */
-const wrapStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '12px 20px',
-  /*
-   * 내용이 없어도 띠 높이가 흔들리지 않게 한다.
-   * 순위는 서버에서 받아오므로 판이 열리고 조금 뒤에 들어오는데, 그때 띠가
-   * 늘어나면 아레나가 통째로 밀린다. 서버가 죽어 끝내 비어 있어도 마찬가지다.
-   *
-   * **`box-sizing`을 여기서만 되돌리는 이유가 이것이다.** 전역이 `border-box`인데
-   * (`index.css`) 그대로 두면 위아래 padding 24px이 이미 이 값보다 커서 최소값이
-   * **한 번도 구속하지 않는다** — 예약해둔 셈이었지만 실제로는 빈 띠가 24px이었고
-   * 순위가 들어오는 순간 48.6px로 자라 아래가 통째로 24.6px 밀렸다. `content-box`로
-   * 두면 이 숫자가 주석이 말하는 그대로 **내용 높이**를 뜻한다.
-   *
-   * 25는 실측이다(1440×900에서 채워진 내용이 24.64px). 글자 크기가 고정이라
-   * 화면 크기를 따라 변하지 않는다 — `RunChase`의 글자 크기를 키우면 여기도 봐야 한다.
-   */
-  boxSizing: 'content-box',
-  minHeight: 25,
-  /*
-   * **바탕을 비운다.** 뒤에 보관소 그림이 그대로 이어져야 방 안에 판이 놓인 것으로
-   * 읽힌다 — 띠를 세우면 거기서 방이 잘려 판만 창처럼 뚫린 모양이 된다.
-   *
-   * 대신 대비는 **글자 쪽에서** 만든다. 바탕을 어둡게 하면 그림을 죽여서 대비를
-   * 얻는 것이고, 그림자는 글자 뒤에만 드리워 그림을 건드리지 않는다.
-   */
-  background:
-    'linear-gradient(to top, rgba(13, 15, 22, 0) 0%, rgba(13, 15, 22, 0.5) 55%, rgba(13, 15, 22, 0.8) 100%)',
-  textShadow: '0 1px 3px rgba(8, 10, 16, 0.9), 0 0 10px rgba(8, 10, 16, 0.7)',
-  // 배경 층이 뒤로 가려면 이쪽이 쌓임 순서를 가져야 한다
-  position: 'relative',
-  zIndex: 1,
-}
-
 function Hud({ stats }: HudProps) {
-  return (
-    <div style={wrapStyle}>
-      <RunChase score={stats.score} />
-    </div>
-  )
+  return <RunChase score={stats.score} />
 }
 
 export { Hud }

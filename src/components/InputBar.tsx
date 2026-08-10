@@ -4,6 +4,7 @@ import type { SubmitFeedback } from '../game/core/GameEngine.ts'
 import type { RunStats } from '../game/types/game.ts'
 import type { HangulInput } from '../hooks/useHangulInput.ts'
 import { play } from './animate.ts'
+import { RunChase } from './RunChase.tsx'
 import { Combo, Lives, Score } from './Vitals.tsx'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 
@@ -59,7 +60,7 @@ const wrapStyle: CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   gap: 6,
-  padding: '14px 20px',
+  padding: '8px 20px 14px',
   /*
    * 아래로 갈수록 짙어지는 **그러데이션**이다. 띠를 세우면 거기서 방이 잘리고,
    * 아예 비우면 글자가 묻힌다 — 하필 이 자리 뒤가 방에서 가장 밝은 바닥이라
@@ -293,17 +294,19 @@ const labelStyle: CSSProperties = {
   flexShrink: 0,
 }
 
-/**
- * 목숨 · 입력칸 · 점수/콤보 묶음을 세 칸에 둔다.
- * 양옆을 같은 `minmax(0, 1fr)`로 잡아서 커진 묶음의 내용 폭과 무관하게 입력칸은
- * 정확히 화면 중앙에 온다.
- */
 const rowStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
   alignItems: 'center',
-  gap: 28,
+  columnGap: 18,
   width: '100%',
+}
+
+const sideClusterStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 18,
+  minWidth: 0,
 }
 
 function MemoInput({
@@ -399,30 +402,37 @@ function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: In
   return (
     <div style={wrapStyle}>
       <div style={rowStyle}>
-        <div style={{ justifySelf: 'end' }}>
-          <Lives lives={stats.lives} invulnerable={invulnerable} fever={fever} />
+        <div style={{ ...sideClusterStyle, justifyContent: 'flex-end' }}>
+          <Lives lives={stats.lives} invulnerable={invulnerable} fever={fever} size="bar" />
         </div>
         <MemoInput
           input={input}
           nightfall={nightfall}
           ariaLabel="단어 입력"
+          width="min(520px, 46vw)"
           invalidSeq={feedback !== null && !feedback.ok ? feedback.seq : null}
         />
-        {/* 두 배로 커진 점수와 콤보를 쌓아 입력칸의 화면 중앙 자리를 지킨다 */}
-        <div
-          style={{
-            justifySelf: 'start',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 8,
-          }}
-        >
-          <Score score={stats.score} fever={fever} />
-          <Combo combo={stats.combo} />
+        <div style={{ ...sideClusterStyle, justifyContent: 'flex-start' }}>
+          <Score score={stats.score} fever={fever} size="bar" />
+          <Combo combo={stats.combo} size="bar" />
         </div>
       </div>
-      <FeedbackChip feedback={feedback} />
+      <div
+        style={{
+          position: 'relative',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+          alignItems: 'center',
+          width: '100%',
+          minHeight: 22,
+        }}
+      >
+        <span />
+        <FeedbackChip feedback={feedback} />
+        <div style={{ justifySelf: 'end' }}>
+          <RunChase score={stats.score} />
+        </div>
+      </div>
     </div>
   )
 }

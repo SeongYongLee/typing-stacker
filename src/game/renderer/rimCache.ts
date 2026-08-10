@@ -10,10 +10,15 @@
  */
 
 /** 번짐이 잘리지 않게 둘 여백 (원본 픽셀 기준) */
-const PAD = 22
-const BLUR = 12
+const NORMAL_PAD = 22
+const PAIR_PAD = 38
+const NORMAL_BLUR = 12
+const PAIR_BLUR = 20
 /** 겹칠수록 진해진다. 미리 만들어 두므로 몇 번을 겹쳐도 프레임 비용은 같다 */
-const PASSES = 6
+const NORMAL_PASSES = 6
+const PAIR_PASSES = 12
+
+type RimWeight = 'normal' | 'pair'
 
 const cache = new Map<string, HTMLCanvasElement | null>()
 
@@ -23,42 +28,47 @@ const cache = new Map<string, HTMLCanvasElement | null>()
  * 반환한 canvas는 원본보다 상하좌우로 `padRatio` 만큼 크다 — 그리는 쪽이
  * 그만큼 넓게 그려야 위치가 맞는다.
  */
-function rim(image: HTMLImageElement, color: string): HTMLCanvasElement | null {
-  const key = `${image.src}|${color}`
+function rim(image: HTMLImageElement, color: string, weight: RimWeight = 'normal'): HTMLCanvasElement | null {
+  const key = `${image.src}|${color}|${weight}`
   const found = cache.get(key)
   if (found !== undefined) {
     return found
   }
 
-  const made = build(image, color)
+  const made = build(image, color, weight)
   cache.set(key, made)
   return made
 }
 
 /** 테두리 canvas가 원본보다 얼마나 큰지 (한쪽 기준 비율) */
-function padRatio(image: HTMLImageElement): { x: number; y: number } {
-  return { x: PAD / image.naturalWidth, y: PAD / image.naturalHeight }
+function padRatio(image: HTMLImageElement, weight: RimWeight = 'normal'): { x: number; y: number } {
+  const pad = weight === 'pair' ? PAIR_PAD : NORMAL_PAD
+  return { x: pad / image.naturalWidth, y: pad / image.naturalHeight }
 }
 
-function build(image: HTMLImageElement, color: string): HTMLCanvasElement | null {
+function build(image: HTMLImageElement, color: string, weight: RimWeight): HTMLCanvasElement | null {
   const width = image.naturalWidth
   const height = image.naturalHeight
   if (width === 0 || height === 0) {
     return null
   }
 
+  const pad = weight === 'pair' ? PAIR_PAD : NORMAL_PAD
+  const blur = weight === 'pair' ? PAIR_BLUR : NORMAL_BLUR
+  const passes = weight === 'pair' ? PAIR_PASSES : NORMAL_PASSES
+
   const canvas = document.createElement('canvas')
-  canvas.width = width + PAD * 2
-  canvas.height = height + PAD * 2
+  canvas.width = width + pad * 2
+  canvas.height = height + pad * 2
   const ctx = canvas.getContext('2d')
   if (ctx === null) {
     return null
   }
 
   ctx.shadowColor = color
-  ctx.shadowBlur = BLUR
-  for (let pass = 0; pass < PASSES; pass += 1) {
-    ctx.drawImage(image, PAD, PAD, width, height)
+  ctx.shadowBlur = blur
+  for (let pass = 0; pass < passes; pass += 1) {
+    ctx.drawImage(image, pad, pad, width, height)
   }
 
   /*
@@ -67,7 +77,7 @@ function build(image: HTMLImageElement, color: string): HTMLCanvasElement | null
    */
   ctx.shadowColor = 'transparent'
   ctx.globalCompositeOperation = 'destination-out'
-  ctx.drawImage(image, PAD, PAD, width, height)
+  ctx.drawImage(image, pad, pad, width, height)
 
   return canvas
 }

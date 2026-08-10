@@ -1,38 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ARENA,
-  CAMERA_FOLLOW,
-  CAMERA_HEADROOM,
-  CAMERA_START_VIEW_DROP,
-} from '../src/game/config.ts'
-import {
-  followCameraY,
-  renderCameraYFor,
-  spawnYFor,
-  targetCameraY,
-} from '../src/game/systems/Camera.ts'
+import { ARENA, CAMERA_FOLLOW, CAMERA_START_TOP } from '../src/game/config.ts'
+import { followCameraY, spawnYFor, targetCameraY } from '../src/game/systems/Camera.ts'
 
 describe('targetCameraY', () => {
   it('낮은 탑에서는 움직이지 않는다', () => {
     expect(targetCameraY(ARENA.platformTop)).toBe(0)
-    expect(targetCameraY(ARENA.spawnY - CAMERA_HEADROOM - 0.5)).toBe(0)
+    expect(targetCameraY(CAMERA_START_TOP - 0.5)).toBe(0)
   })
 
-  it('여유가 좁아지는 만큼 올라간다', () => {
-    const tight = ARENA.spawnY - CAMERA_HEADROOM + 1
-    expect(targetCameraY(tight)).toBeCloseTo(1)
+  it('화면의 2/3 정도가 찬 뒤 넘친 만큼 올라간다', () => {
+    expect(CAMERA_START_TOP).toBeCloseTo(
+      ARENA.platformTop + (ARENA.height - ARENA.platformTop) * (2 / 3),
+    )
+    expect(targetCameraY(CAMERA_START_TOP)).toBe(0)
+    expect(targetCameraY(CAMERA_START_TOP + 1)).toBeCloseTo(1)
   })
 
-  it('탑이 자라는 만큼 함께 자란다 — 여유는 그대로 유지된다', () => {
+  it('카메라가 오른 뒤에는 스폰 높이와 탑 사이의 여유가 일정하다', () => {
+    const expectedGap = ARENA.spawnY - CAMERA_START_TOP
     for (const top of [5, 8, 20, 100]) {
       // 카메라가 저기 있을 때 물건이 생기는 높이
       const spawn = spawnYFor(targetCameraY(top))
-      expect(spawn - top).toBeCloseTo(CAMERA_HEADROOM)
+      expect(spawn - top).toBeCloseTo(expectedGap)
     }
   })
 
   it('아무리 높아도 물건은 탑 위에서 생긴다 — 탑 속에 생기면 서로를 밀어낸다', () => {
-    for (const top of [4.6, 5, 12, 50]) {
+    for (const top of [CAMERA_START_TOP, 5, 12, 50]) {
       expect(spawnYFor(targetCameraY(top))).toBeGreaterThan(top)
     }
   })
@@ -80,16 +74,5 @@ describe('followCameraY', () => {
     const stackTop = 6
     const camera = followCameraY(0, stackTop, 10)
     expect(camera).toBeCloseTo(targetCameraY(stackTop), 5)
-  })
-})
-
-describe('renderCameraYFor', () => {
-  it('시작 화면에서는 물리 카메라보다 낮은 구도로 그린다', () => {
-    expect(renderCameraYFor(0)).toBeCloseTo(CAMERA_START_VIEW_DROP)
-  })
-
-  it('카메라가 올라가면 시작 구도 보정은 사라진다', () => {
-    const cameraY = 1.2
-    expect(renderCameraYFor(cameraY)).toBeCloseTo(cameraY)
   })
 })

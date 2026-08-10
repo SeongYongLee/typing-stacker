@@ -43,7 +43,6 @@ function markup(index: number): string {
     onChat: () => {},
     onMatchMode: () => {},
     onBack: () => {},
-    theme: 'day',
   }))
 }
 

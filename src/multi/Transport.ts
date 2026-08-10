@@ -9,7 +9,7 @@ import type { Message, PlayerId } from './protocol.ts'
  * 토폴로지는 스타다 — 방장이 허브가 되어 모든 참가자와 개별 연결을 맺는다.
  * 그래서 방장을 거치면 메시지 순서가 하나로 정해지고, 인원이 늘어도 구조가 같다.
  */
-interface Transport<TMessage = Message> {
+interface Transport {
   /** 나에게 배정된 식별자 */
   readonly selfId: PlayerId
   /** 참가자가 들어올 때 쓸 방 코드. 방장만 값을 가진다 */
@@ -20,13 +20,13 @@ interface Transport<TMessage = Message> {
   /** 지금 붙어 있는 상대들 */
   peers(): readonly PlayerId[]
   /** 특정 상대에게. 방장이 개별 응답할 때 쓴다 */
-  sendTo(peer: PlayerId, message: TMessage): void
+  sendTo(peer: PlayerId, message: Message): void
   /** 붙어 있는 모두에게 */
-  broadcast(message: TMessage): void
+  broadcast(message: Message): void
   close(): void
 }
 
-type TransportEvent<TMessage = Message> =
+type TransportEvent =
   | { readonly kind: 'peerJoined'; readonly peer: PlayerId }
   /**
    * 끊겼고 다시 붙는 중이다. **실패가 아니다** — 화면은 판을 접지 말고 기다린다고 말한다.
@@ -38,11 +38,11 @@ type TransportEvent<TMessage = Message> =
   /** 다시 붙었고 쓰던 이름표를 되찾았다. 받는 쪽은 여기서 상태를 다시 맞춘다 */
   | { readonly kind: 'resumed' }
   | { readonly kind: 'peerLeft'; readonly peer: PlayerId }
-  | { readonly kind: 'message'; readonly from: PlayerId; readonly message: TMessage }
+  | { readonly kind: 'message'; readonly from: PlayerId; readonly message: Message }
   | { readonly kind: 'error'; readonly failure: TransportFailure }
 
-interface TransportHandlers<TMessage = Message> {
-  onEvent(event: TransportEvent<TMessage>): void
+interface TransportHandlers {
+  onEvent(event: TransportEvent): void
 }
 
 /**

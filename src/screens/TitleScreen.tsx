@@ -18,7 +18,6 @@ interface TitleScreenProps {
   /** 그림을 받은 비율(0~1). 기다리는 동안 얼마나 남았는지 보여준다 */
   progress: number
   onMultiplayer: () => void
-  onCompetition: () => void
   onCollection: () => void
   ready: boolean
   /** 배경 그림과 스플래시 음악이 함께 쓰는 낮·밤 */
@@ -34,7 +33,6 @@ function TitleScreen({
   onStart,
   onName,
   onMultiplayer,
-  onCompetition,
   onCollection,
   onOptions,
   ready,
@@ -51,7 +49,7 @@ function TitleScreen({
     run: () => void
     primary: boolean
     disabled: boolean
-    panel: 'name' | 'solo' | 'versus' | 'competition' | 'collection' | 'options'
+    panel: 'name' | 'solo' | 'versus' | 'collection' | 'options'
   }[] = [
     { label: '프로필 바꾸기', run: onName, primary: false, disabled: false, panel: 'name' },
     {
@@ -63,7 +61,6 @@ function TitleScreen({
     },
     // 여덟까지 붙는다. "1대1"은 정원을 늘린 뒤로 사실이 아니다
     { label: '함께 하기', run: onMultiplayer, primary: false, disabled: !ready, panel: 'versus' },
-    { label: '경쟁 모드', run: onCompetition, primary: false, disabled: !ready, panel: 'competition' },
     { label: '도감', run: onCollection, primary: false, disabled: false, panel: 'collection' },
     // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
     { label: '옵션', run: onOptions, primary: false, disabled: false, panel: 'options' },

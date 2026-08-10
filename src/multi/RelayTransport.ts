@@ -24,11 +24,9 @@ type ServerFrame =
   | { t: 'peerLeft'; peer: string }
   | { t: 'msg'; from: string; data: unknown }
 
-interface RelayOptions<TMessage = Message> {
-  readonly onEvent: (event: TransportEvent<TMessage>) => void
+interface RelayOptions {
+  readonly onEvent: (event: TransportEvent) => void
 }
-
-type MessageParser<TMessage> = (raw: unknown) => TMessage | null
 
 /** 방이 없다·찼다를 닫는 코드로 알려준다 (worker/src/index.ts와 짝이다) */
 const CLOSE_NO_ROOM = 4404
@@ -98,10 +96,9 @@ function openSocket(url: string, wanted: PlayerId): Promise<WebSocket> {
   })
 }
 
-class RelayTransport<TMessage = Message> implements Transport<TMessage> {
+class RelayTransport implements Transport {
   private socket: WebSocket
-  private readonly onEvent: (event: TransportEvent<TMessage>) => void
-  private readonly parse: MessageParser<TMessage>
+  private readonly onEvent: (event: TransportEvent) => void
   private readonly members = new Set<PlayerId>()
   private closed = false
   /** 다시 붙는 데 필요한 것들. 처음 붙을 때 받아 들고 있는다 */
@@ -120,9 +117,8 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
     hostId: PlayerId,
     roomCode: string,
     peers: readonly PlayerId[],
-    onEvent: (event: TransportEvent<TMessage>) => void,
+    onEvent: (event: TransportEvent) => void,
     baseUrl: string,
-    parse: MessageParser<TMessage>,
   ) {
     this.socket = socket
     this.selfId = selfId
@@ -131,7 +127,6 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
     this.roomCode = roomCode
     this.onEvent = onEvent
     this.baseUrl = baseUrl
-    this.parse = parse
     for (const peer of peers) {
       this.members.add(peer)
     }
@@ -201,40 +196,22 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
   }
 
   static host(baseUrl: string, code: string, options: RelayOptions): Promise<RelayTransport> {
-    return RelayTransport.open(baseUrl, code, true, options, parseMessage)
+    return RelayTransport.open(baseUrl, code, true, options)
   }
 
   static join(baseUrl: string, code: string, options: RelayOptions): Promise<RelayTransport> {
-    return RelayTransport.open(baseUrl, code, false, options, parseMessage)
-  }
-
-  static hostWithParser<T>(
-    baseUrl: string,
-    code: string,
-    options: RelayOptions<T>,
-    parse: MessageParser<T>,
-  ): Promise<RelayTransport<T>> {
-    return RelayTransport.open(baseUrl, code, true, options, parse)
-  }
-
-  static joinWithParser<T>(
-    baseUrl: string,
-    code: string,
-    options: RelayOptions<T>,
-    parse: MessageParser<T>,
-  ): Promise<RelayTransport<T>> {
-    return RelayTransport.open(baseUrl, code, false, options, parse)
+    return RelayTransport.open(baseUrl, code, false, options)
   }
 
   peers(): readonly PlayerId[] {
     return [...this.members]
   }
 
-  sendTo(peer: PlayerId, message: TMessage): void {
+  sendTo(peer: PlayerId, message: Message): void {
     this.send({ to: peer, data: message })
   }
 
-  broadcast(message: TMessage): void {
+  broadcast(message: Message): void {
     this.send({ data: message })
   }
 
@@ -248,13 +225,12 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
     this.socket.close()
   }
 
-  private static open<T>(
+  private static open(
     baseUrl: string,
     code: string,
     create: boolean,
-    options: RelayOptions<T>,
-    parse: MessageParser<T>,
-  ): Promise<RelayTransport<T>> {
+    options: RelayOptions,
+  ): Promise<RelayTransport> {
     const url = `${secure(baseUrl).replace(/\/$/, '')}/room/${code}${create ? '?create=1' : ''}`
     const socket = new WebSocket(url)
 
@@ -279,7 +255,7 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
         }
         cleanup()
         resolve(
-          new RelayTransport<T>(
+          new RelayTransport(
             socket,
             frame.self,
             frame.host,
@@ -288,7 +264,6 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
             frame.peers,
             options.onEvent,
             baseUrl,
-            parse,
           ),
         )
       }
@@ -318,7 +293,7 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
     })
   }
 
-  private send(payload: { to?: PlayerId; data: TMessage }): void {
+  private send(payload: { to?: PlayerId; data: Message }): void {
     if (this.closed || this.socket.readyState !== WebSocket.OPEN) {
       return
     }
@@ -341,7 +316,7 @@ class RelayTransport<TMessage = Message> implements Transport<TMessage> {
         return
       case 'msg': {
         // 상대가 보낸 것은 전부 거짓일 수 있다. 통과하지 못한 것은 조용히 버린다
-        const message = this.parse(frame.data)
+        const message = parseMessage(frame.data)
         if (message !== null) {
           this.onEvent({ kind: 'message', from: frame.from, message })
         }

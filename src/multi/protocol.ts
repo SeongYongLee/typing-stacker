@@ -556,7 +556,5 @@ export {
   sanitizeNickname,
   createRoomCode,
   isRoomCode,
-  parseBodyFrame,
-  parseFallingWord,
 }
 export type { PlayerId, PlayerInfo, ToHost, ToGuest, Message, BodyFrame }

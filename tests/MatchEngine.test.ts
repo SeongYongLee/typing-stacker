@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import {
   DROP_INTERVAL_SEC,
+  DUEL_WORD_INTERVAL_MULTIPLIER,
   MatchEngine,
+  difficultyForMatch,
   type MatchViewState,
 } from '../src/multi/MatchEngine.ts'
+import { OPENING } from '../src/game/systems/Difficulty.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 import type { MatchMode } from '../src/multi/matchModes.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
@@ -123,6 +126,30 @@ function dropSomething(current: Pair): string | null {
 }
 
 describe('MatchEngine — 대전', () => {
+  it('대결 모드는 인원 보정 뒤에도 단어 생성 간격을 3배로 둔다', () => {
+    const shared = difficultyForMatch(OPENING, 4, 'shared')
+    const duel = difficultyForMatch(OPENING, 4, 'duel')
+
+    expect(duel.spawnInterval).toBe(shared.spawnInterval * DUEL_WORD_INTERVAL_MULTIPLIER)
+    expect(duel.maxConcurrent).toBe(shared.maxConcurrent)
+    expect(duel.fallDuration).toBe(shared.fallDuration)
+  })
+
+  it('대결 모드는 첫 단어 뒤 3배 간격이 지나야 다음 단어를 낸다', async () => {
+    pair = await makePair(778, true, 'duel')
+    await pair.clock.advance(0.1)
+
+    const firstId = pair.hostState().words[0]?.id
+    expect(firstId).toBeDefined()
+
+    const interval = OPENING.spawnInterval * DUEL_WORD_INTERVAL_MULTIPLIER
+    await pair.clock.advance(interval - 0.3)
+    expect(pair.hostState().words.every((word) => word.id === firstId)).toBe(true)
+
+    await pair.clock.advance(0.4)
+    expect(pair.hostState().words.some((word) => word.id !== firstId)).toBe(true)
+  })
+
   it('양쪽에 같은 단어가 나온다', async () => {
     pair = await makePair(777)
     await pair.clock.advance(2)

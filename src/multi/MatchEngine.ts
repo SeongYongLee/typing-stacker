@@ -20,7 +20,7 @@ import type { TrailHit } from '../game/systems/TrailField.ts'
 import { impactEventOf, quakeEventOf, trailHitOf } from '../game/systems/ImpactFeel.ts'
 import { WordSpawner } from '../game/systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../game/types/events.ts'
-import type { FallingWord, OwnerId } from '../game/types/game.ts'
+import type { DifficultyLevel, FallingWord, OwnerId } from '../game/types/game.ts'
 import { MatchState } from './MatchState.ts'
 import { buildOwnerColors } from './ownerColors.ts'
 import type { Message, PlayerId, PlayerInfo } from './protocol.ts'
@@ -52,6 +52,23 @@ import { visibleDuelTowerIds } from './duelTowers.ts'
  * 싱글의 DROP_COOLDOWN_MS와 같은 장치이고, 사람마다 따로 돈다.
  */
 const DROP_INTERVAL_SEC = 0.5
+/** 동시 진행에서는 모두가 단어를 칠 수 있으므로 단어 공급 간격을 넉넉히 둔다. */
+const DUEL_WORD_INTERVAL_MULTIPLIER = 3
+
+function difficultyForMatch(
+  level: DifficultyLevel,
+  players: number,
+  matchMode: MatchMode,
+): DifficultyLevel {
+  const scaled = forPlayers(level, players)
+  if (matchMode !== 'duel') {
+    return scaled
+  }
+  return {
+    ...scaled,
+    spawnInterval: scaled.spawnInterval * DUEL_WORD_INTERVAL_MULTIPLIER,
+  }
+}
 
 /**
  * 한 차례에 주어지는 시간(초). 넘기면 방장이 대신 떨궈 차례를 넘긴다.
@@ -1366,7 +1383,11 @@ class MatchEngine {
      * 사람이 많을수록 단어를 더 많이, 더 자주 내보낸다. 차례를 기다리는 사람들이
      * 덫을 걸 단어가 있어야 손이 멈추지 않는다 — 그것이 이 게임에서 가장 큰 대가다.
      */
-    const difficulty = forPlayers(difficultyAt(this.difficultyPeak), this.match.players.length)
+    const difficulty = difficultyForMatch(
+      difficultyAt(this.difficultyPeak),
+      this.match.players.length,
+      this.matchMode,
+    )
     this.tickInvulnerable(dt)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
@@ -1583,6 +1604,7 @@ class MatchEngine {
             ? this.cameraY
             : followCameraY(0, stackTop, 1),
           stackTop,
+          goalY: DUEL_TARGET_STACK_TOP,
           ownerColors: this.ownerColors,
         }
       })
@@ -1677,10 +1699,12 @@ class MatchEngine {
 export {
   MatchEngine,
   DROP_INTERVAL_SEC,
+  DUEL_WORD_INTERVAL_MULTIPLIER,
   TURN_LIMIT_SEC,
   TURN_HURRY_SEC,
   DUEL_TARGET_STACK_TOP,
   matchIdOf,
+  difficultyForMatch,
   starterOf,
 }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

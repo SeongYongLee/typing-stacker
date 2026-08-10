@@ -216,6 +216,8 @@ interface DuelTowerRenderState {
   readonly showAim: boolean
   readonly cameraY: number
   readonly stackTop: number
+  /** 이 월드 높이에 닿으면 승리한다. 카메라가 움직여도 선은 같은 곳을 가리킨다. */
+  readonly goalY: number
   readonly ownerColors: ReadonlyMap<OwnerId, string> | null
 }
 
@@ -241,6 +243,33 @@ const KILL_LINE_MARGIN = -0.18
 const WORLD_TOP = Math.max(ARENA.height, ARENA.spawnY + 0.8)
 const WORLD_HEIGHT = WORLD_TOP - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
+
+function drawDuelGoal(view: ArenaView, left: number, width: number, goalY: number): void {
+  const { ctx } = view
+  const y = view.toScreenY(goalY)
+  if (y < 0 || y > view.cssHeight) {
+    return
+  }
+
+  const inset = Math.min(14, width * 0.08)
+  ctx.save()
+  ctx.strokeStyle = 'rgba(228, 230, 138, 0.92)'
+  ctx.lineWidth = 2
+  ctx.setLineDash([8, 6])
+  ctx.beginPath()
+  ctx.moveTo(left + inset, y)
+  ctx.lineTo(left + width - inset, y)
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.fillStyle = '#e4e68a'
+  ctx.font = '700 12px sans-serif'
+  ctx.textAlign = 'right'
+  ctx.textBaseline = 'bottom'
+  ctx.shadowColor = 'rgba(5, 9, 17, 0.82)'
+  ctx.shadowBlur = 4
+  ctx.fillText('목표', left + width - inset, y - 5)
+  ctx.restore()
+}
 
 class ArenaRenderer {
   private readonly canvas: HTMLCanvasElement
@@ -411,6 +440,7 @@ class ArenaRenderer {
       ctx.rect(left, 0, width, this.cssHeight)
       ctx.clip()
       drawPlatformBack(view)
+      drawDuelGoal(view, left, width, tower.goalY)
       if (tower.showAim) {
         drawAim(view, tower.aimX, tower.stackTop)
       }

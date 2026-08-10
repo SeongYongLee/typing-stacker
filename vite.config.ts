@@ -16,6 +16,25 @@ const PAGES_BASE = '/typing-stacker/'
 export default defineConfig(({ command, isPreview }) => ({
   base: command === 'build' || isPreview === true ? PAGES_BASE : '/',
   plugins: [react()],
+  build: {
+    /*
+     * Rapier -compat는 WASM을 JS 청크에 담아 1.6MB 정도가 된다. 게임 시작에는
+     * 필요하지만 앱 본체와 분리해 타이틀 렌더와 브라우저 캐시 경계를 지킨다.
+     * 스프라이트 실루엣 좌표도 생성 데이터라 별도 청크로 둔다.
+     */
+    chunkSizeWarningLimit: 1800,
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/rapier2d-compat')) return 'rapier'
+          if (id.includes('/src/game/data/sprites.generated.ts')) return 'sprite-meta'
+          if (id.includes('/node_modules/react') || id.includes('/node_modules/react-dom')) {
+            return 'react'
+          }
+        },
+      },
+    },
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

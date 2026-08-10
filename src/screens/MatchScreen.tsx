@@ -388,17 +388,23 @@ function ActionHint({ state }: { state: MatchViewState }) {
  */
 function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
   const [shown, setShown] = useState<ChatLine | null>(null)
+  const lineSeq = line?.seq
+  const shownSeq = shown?.seq
+  const lineRef = useRef<ChatLine | null>(line)
   const ref = useRef<HTMLSpanElement | null>(null)
 
+  lineRef.current = line
+
   useEffect(() => {
-    if (line === null) {
+    const next = lineRef.current
+    if (next === null) {
       return
     }
-    setShown(line)
+    setShown(next)
     const timer = setTimeout(() => setShown(null), BUBBLE_MS)
     return () => clearTimeout(timer)
     // seq로만 다시 띄운다 — 같은 말을 매 프레임 되살리지 않는다
-  }, [line?.seq])
+  }, [lineSeq])
 
   /*
    * 튀어나오는 이펙트.
@@ -411,7 +417,7 @@ function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
    * 낙하 단어 칩에서 이미 밟은 함정이다.
    */
   useEffect(() => {
-    if (shown === null) {
+    if (shownSeq === undefined) {
       return
     }
     play(
@@ -423,7 +429,7 @@ function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
       ],
       { duration: 320, easing: 'cubic-bezier(0.22, 1.2, 0.36, 1)' },
     )
-  }, [shown?.seq])
+  }, [shownSeq])
 
   if (shown === null) {
     return null

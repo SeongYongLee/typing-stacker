@@ -116,9 +116,11 @@ function handStyle(angle: number): CSSProperties {
  */
 const iconStyle: CSSProperties = {
   position: 'absolute',
-  left: '25%',
-  bottom: '96%',
-  width: '50%',
+  // 원래 크기의 절반으로 줄인 뒤 중심은 시계 축에 그대로 맞춘다
+  left: '37.5%',
+  // 눈금판에 붙어 보이지 않도록 시계 지름의 8%만큼 띄운다
+  bottom: '108%',
+  width: '25%',
   aspectRatio: '1',
 }
 

@@ -282,10 +282,22 @@ function Combo({ combo, size = 'regular' }: { combo: number; size?: VitalSize })
  *
  * 눈은 입력칸에 붙어 있으므로 연출도 그 옆에서 일어난다.
  */
-function Score({ score, size = 'regular' }: { score: number; size?: VitalSize }) {
+function Score({
+  score,
+  fever = false,
+  size = 'regular',
+}: {
+  score: number
+  fever?: boolean
+  size?: VitalSize
+}) {
   const valueRef = useRef<HTMLSpanElement | null>(null)
   const previous = useRef(score)
-  const [delta, setDelta] = useState<{ seq: number; amount: number } | null>(null)
+  const [delta, setDelta] = useState<{
+    seq: number
+    amount: number
+    fever: boolean
+  } | null>(null)
   const seq = useRef(0)
   const timer = useRef(0)
 
@@ -316,11 +328,11 @@ function Score({ score, size = 'regular' }: { score: number; size?: VitalSize })
     )
 
     seq.current += 1
-    setDelta({ seq: seq.current, amount })
+    setDelta({ seq: seq.current, amount, fever: fever && up })
     // 타이머의 주인은 이 표시 자신이다 — 값 변화에 매달면 연달아 바뀔 때 지워져 남는다
     clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setDelta(null), DELTA_MS)
-  }, [score])
+  }, [score, fever])
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
@@ -341,7 +353,9 @@ function Score({ score, size = 'regular' }: { score: number; size?: VitalSize })
         >
           {score.toLocaleString('ko-KR')}
         </span>
-        {delta !== null && <Delta key={delta.seq} amount={delta.amount} size={size} />}
+        {delta !== null && (
+          <Delta key={delta.seq} amount={delta.amount} fever={delta.fever} size={size} />
+        )}
       </span>
     </div>
   )
@@ -350,9 +364,18 @@ function Score({ score, size = 'regular' }: { score: number; size?: VitalSize })
 const DELTA_MS = 900
 
 /** 얼마나 오르내렸는지 한 번 띄우고 사라진다 */
-function Delta({ amount, size }: { amount: number; size: VitalSize }) {
+function Delta({
+  amount,
+  fever = false,
+  size = 'regular',
+}: {
+  amount: number
+  fever?: boolean
+  size?: VitalSize
+}) {
   const ref = useRef<HTMLSpanElement | null>(null)
   const up = amount > 0
+  const feverGain = up && fever
 
   useEffect(() => {
     /*
@@ -384,6 +407,7 @@ function Delta({ amount, size }: { amount: number; size: VitalSize }) {
     <span
       ref={ref}
       data-score-delta={amount}
+      data-fever-score={feverGain || undefined}
       style={{
         /*
          * 점수 **위쪽**에 띄운다. 오른쪽에 두면 바로 옆 콤보 글자를 덮는다.
@@ -407,12 +431,16 @@ function Delta({ amount, size }: { amount: number; size: VitalSize }) {
               ? 30
               : 38,
         fontWeight: 700,
-        color: up ? '#6bffb0' : '#ff6b6b',
+        color: feverGain ? FEVER : up ? '#6bffb0' : '#ff6b6b',
         /*
-         * 커진 글자는 위로 뻗어 레인 바닥선과 겹친다. 그 선도 같은 순간에 붉게
-         * 번지므로 그대로 두면 붉은 것 둘이 포개져 숫자가 읽히지 않는다.
+         * Night Fever의 가산은 하트·별똥별과 같은 연보라 빛으로 묶는다. 내려가는 값은
+         * 밤에도 위험 신호인 빨강을 유지하고, 레인 바닥선과 겹칠 때만 먹빛으로 받친다.
          */
-        textShadow: up ? undefined : '0 2px 8px #0d0f16, 0 0 3px #0d0f16',
+        textShadow: feverGain
+          ? '0 0 10px rgba(222, 199, 255, 0.92)'
+          : up
+            ? undefined
+            : '0 2px 8px #0d0f16, 0 0 3px #0d0f16',
         // 커진 글자가 왼쪽 끝에 매달리면 숫자에서 멀어져 어디서 나온 값인지 흐려진다
         transformOrigin: 'left bottom',
         pointerEvents: 'none',
@@ -424,4 +452,4 @@ function Delta({ amount, size }: { amount: number; size: VitalSize }) {
   )
 }
 
-export { Lives, Combo, Score, Barrier, KEPT, FEVER, LOST, BARRIER }
+export { Lives, Combo, Score, Delta, Barrier, KEPT, FEVER, LOST, BARRIER }

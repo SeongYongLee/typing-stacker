@@ -413,7 +413,7 @@ function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: In
           invalidSeq={feedback !== null && !feedback.ok ? feedback.seq : null}
         />
         <div style={{ ...sideClusterStyle, justifyContent: 'flex-start' }}>
-          <Score score={stats.score} size="bar" />
+          <Score score={stats.score} fever={fever} size="bar" />
           <Combo combo={stats.combo} size="bar" />
         </div>
       </div>

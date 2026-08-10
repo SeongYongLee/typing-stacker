@@ -196,6 +196,8 @@ class GameEngine {
   private feedbackSeq = 0
 
   private sinceLastDrop = Number.POSITIVE_INFINITY
+  /** Night Fever 중 놓친 단어 수. 이 구간에는 정확도 점수 패널티를 매기지 않는다. */
+  private feverForgivenMisses = 0
   private collapseTimer = 0
   /**
    * 지금 알리는 중인 물건.
@@ -323,6 +325,7 @@ class GameEngine {
     this.elapsed = 0
     this.feedback = null
     this.sinceLastDrop = Number.POSITIVE_INFINITY
+    this.feverForgivenMisses = 0
     this.collapseTimer = 0
     this.lives = SOLO_LIVES
     this.invulnerableLeft = 0
@@ -650,13 +653,18 @@ class GameEngine {
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
-     * 놓친 단어는 판을 방해하지 않고 사라진다. 대가는 **콤보와 점수**다 —
-     * 콤보가 타자와 무관해지면 손을 멈추고 쌓기만 봐도 배수가 유지된다.
+     * 놓친 단어는 판을 방해하지 않고 사라진다. 낮의 대가는 **콤보와 점수**다.
+     * Night Fever에는 자동 낙하를 지켜보는 동안 점수가 되감기지 않도록 정확도 패널티를
+     * 면제하되, 타자 콤보는 놓친 순간 그대로 끊는다.
      */
     this.observeRecipeFlow()
     this.syncWhiteboardWithRecipe()
-    if (this.spawner.update(dt, difficulty).length > 0) {
+    const missedWords = this.spawner.update(dt, difficulty)
+    if (missedWords.length > 0) {
       this.score.onWordMissed()
+      if (this.phaseNow === 'night') {
+        this.feverForgivenMisses += missedWords.length
+      }
     }
 
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
@@ -1162,7 +1170,11 @@ class GameEngine {
       pairPulse: pairPulse(this.elapsed),
       timeOfDay: timeOfDay(this.elapsed),
       aimNormalized: this.aimer.normalized,
-      stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
+      stats: this.score.stats(
+        Math.max(this.spawner.missedCount - this.feverForgivenMisses, 0),
+        this.lives,
+        this.elapsed,
+      ),
       feedback: this.feedback,
       runSeq: this.runSeq,
       invulnerable: this.invulnerableLeft / INVULNERABLE_SEC,

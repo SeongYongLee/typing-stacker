@@ -162,10 +162,29 @@ describe('GameEngine Night Fever 통합', () => {
   it('첫 20초에는 자동 낙하가 없고 밤에는 두 묶음 12개를 내린다', async () => {
     const engine = await GameEngine.create(20260810)
     const events: GameEvent[] = []
+    const nightScores: number[] = []
     let state: GameState | null = null
-    engine.onEvent((event) => events.push(event))
+    let latestScore = 0
+    let scoreBeforeFirstMerge: number | null = null
+    let scoreAfterFirstMerge: number | null = null
+    let waitingForMergedState = false
+    engine.onEvent((event) => {
+      events.push(event)
+      if (event.kind === 'merge' && scoreBeforeFirstMerge === null) {
+        scoreBeforeFirstMerge = latestScore
+        waitingForMergedState = true
+      }
+    })
     engine.onStateChange((next) => {
       state = next
+      if (next.timeOfDay.phase === 'night') {
+        nightScores.push(next.stats.score)
+      }
+      if (waitingForMergedState) {
+        scoreAfterFirstMerge = next.stats.score
+        waitingForMergedState = false
+      }
+      latestScore = next.stats.score
     })
     engine.startRun()
 
@@ -179,6 +198,12 @@ describe('GameEngine Night Fever 통합', () => {
     expect((state as GameState | null)?.timeOfDay.phase).toBe('night')
     expect((state as GameState | null)?.stats.lives).toBe(SOLO_LIVES)
     expect(events.some((event) => event.kind === 'merge')).toBe(true)
+    expect(scoreBeforeFirstMerge).not.toBeNull()
+    expect(scoreAfterFirstMerge).toBeGreaterThan(scoreBeforeFirstMerge!)
+    expect(
+      nightScores.every((score, index) => index === 0 || score >= nightScores[index - 1]!),
+      'Fever 중 이탈이나 놓침으로 화면 점수가 내려가면 안 된다',
+    ).toBe(true)
     expect(engine.debugLedges(), 'Fever 합성은 방어용 먼지구름을 만들지 않는다').toHaveLength(0)
 
     await clock.advance(0.3)

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioBus } from '../src/audio/AudioBus.ts'
+import { FINAL_OUTPUT_GAIN, HIDDEN_REVEAL_PRE_GAIN } from '../src/audio/outputLevels.ts'
 
 /**
  * 소리가 **깨어 있을 때만** 예약되는가.
@@ -146,5 +147,25 @@ describe('소리는 깨어 있을 때만 예약된다', () => {
     const opened = new AudioBus()
     opened.unlock()
     expect(opened.running).toBe(true)
+  })
+
+  it('배경음과 효과음을 체감 두 배에 가까운 +10dB로 버스에 건다', () => {
+    const { Ctx } = fakeAudioContext(true)
+    globals['AudioContext'] = Ctx
+    const bus = new AudioBus()
+    bus.tryOpen(() => {})
+
+    expect(bus.sfx?.gain.value).toBeCloseTo(bus.current.sfxVolume * 3.2)
+    expect(bus.bgm?.gain.value).toBeCloseTo(bus.current.bgmVolume * 0.38 * 3.2)
+  })
+
+  it('컴프레서 뒤에서 실제 출력을 1.3배 올리고 히든 띵은 이를 상쇄한다', () => {
+    const { Ctx } = fakeAudioContext(true)
+    globals['AudioContext'] = Ctx
+    const bus = new AudioBus()
+    bus.tryOpen(() => {})
+    expect(bus.output?.gain.value).toBe(FINAL_OUTPUT_GAIN)
+    expect(FINAL_OUTPUT_GAIN).toBe(1.3)
+    expect(HIDDEN_REVEAL_PRE_GAIN * FINAL_OUTPUT_GAIN).toBeCloseTo(1)
   })
 })

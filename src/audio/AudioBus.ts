@@ -1,4 +1,5 @@
 import { createRng } from '../game/systems/Rng.ts'
+import { FINAL_OUTPUT_GAIN } from './outputLevels.ts'
 import {
   DEFAULT_SETTINGS,
   loadAudioSettings,
@@ -13,7 +14,13 @@ import {
  * 지키는 자리라, 효과음 전체를 손볼 때는 여기도 함께 봐야 한다 — 한쪽만 내리면
  * 균형이 뒤집혀 음악이 앞으로 나온다.
  */
-const BGM_HEADROOM = 0.38
+/*
+ * 진폭 2배(+6dB)는 수치만 두 배일 뿐 귀에는 두 배로 안 들린다. 체감 음량 두 배에
+ * 가까운 +10dB(진폭 약 3.16배)를 반올림해 쓴다. 큰 피크는 뒤의 컴프레서가 잡는다.
+ */
+const PERCEIVED_LOUDNESS_BOOST = 3.2
+const BGM_HEADROOM = 0.38 * PERCEIVED_LOUDNESS_BOOST
+const SFX_OUTPUT_GAIN = PERCEIVED_LOUDNESS_BOOST
 
 /**
  * 소리가 나가는 길.
@@ -48,6 +55,7 @@ class AudioBus {
   private master: GainNode | null = null
   private sfxGain: GainNode | null = null
   private bgmGain: GainNode | null = null
+  private outputGain: GainNode | null = null
   private noise: AudioBuffer | null = null
   private settings: AudioSettings = DEFAULT_SETTINGS
   private listeners = new Set<(settings: AudioSettings) => void>()
@@ -114,6 +122,11 @@ class AudioBus {
     return this.bgmGain
   }
 
+  /** 컴프레서 뒤에서 실제 스피커로 나가는 최종 출력 */
+  get output(): GainNode | null {
+    return this.outputGain
+  }
+
   /** 잡음 한 통. 부딪힘·바람 소리가 매번 새로 만들지 않고 이것을 잘라 쓴다 */
   get noiseBuffer(): AudioBuffer | null {
     return this.noise
@@ -157,6 +170,8 @@ class AudioBus {
     const master = ctx.createGain()
     const sfx = ctx.createGain()
     const bgm = ctx.createGain()
+    const output = ctx.createGain()
+    output.gain.value = FINAL_OUTPUT_GAIN
 
     /*
      * 효과음의 고역을 깎는다.
@@ -185,12 +200,15 @@ class AudioBus {
     ceiling.connect(master)
     bgm.connect(master)
     master.connect(limiter)
-    limiter.connect(ctx.destination)
+    // 컴프레서 앞을 키우면 큰 소리는 다시 눌린다. 뒤에서 올려야 실제 출력이 1.3배다
+    limiter.connect(output)
+    output.connect(ctx.destination)
 
     this.ctx = ctx
     this.master = master
     this.sfxGain = sfx
     this.bgmGain = bgm
+    this.outputGain = output
     this.noise = buildNoise(ctx)
     this.applyGains()
   }
@@ -240,7 +258,7 @@ class AudioBus {
     const { sfxVolume, bgmVolume } = this.settings
     // 마스터는 이제 통로일 뿐이다. 음량은 효과음과 배경음악이 각자 정한다
     this.master.gain.value = 1
-    this.sfxGain.gain.value = sfxVolume
+    this.sfxGain.gain.value = sfxVolume * SFX_OUTPUT_GAIN
     /*
      * 배경음악은 효과음과 같은 1로 두지 않는다. 이 게임에서 귀가 실제로 쓰는 정보는
      * 얹혔는지·놓쳤는지이고, 음악은 그 뒤에 깔려 있기만 하면 된다. 사용자가 고르는
@@ -256,6 +274,7 @@ class AudioBus {
     this.master = null
     this.sfxGain = null
     this.bgmGain = null
+    this.outputGain = null
     this.noise = null
   }
 }

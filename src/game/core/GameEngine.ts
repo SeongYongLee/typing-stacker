@@ -585,7 +585,7 @@ class GameEngine {
     this.fire({
       kind: 'drop',
       source,
-      hidden: variant.hidden,
+      hidden: false,
       material: variant.material,
       tone: variant.tone,
     })

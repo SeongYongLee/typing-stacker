@@ -14,4 +14,17 @@ describe('ManualMatch', () => {
     expect(html).not.toContain('최대 8명')
     expect(html).not.toContain('티어 점수는 바뀌지 않습니다')
   })
+
+  it('내 정보 설정과 방 액션을 두 영역으로 나눈다', () => {
+    const html = renderToStaticMarkup(createElement(ManualMatch, {
+      onOpen: () => {},
+      onBack: () => {},
+    }))
+
+    expect(html).toContain('grid-template-columns:repeat(auto-fit, minmax(300px, 1fr))')
+    expect(html).toContain('이름')
+    expect(html).toContain('아이콘')
+    expect(html).toContain('방 생성하기')
+    expect(html).toContain('방 참가하기')
+  })
 })

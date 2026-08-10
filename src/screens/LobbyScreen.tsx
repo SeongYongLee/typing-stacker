@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import titleDay from '../assets/splash/title-day.png'
+import titleNight from '../assets/splash/title-night.png'
 import { MenuButton } from '../components/MenuButton.tsx'
-import { MenuLayout } from '../components/MenuLayout.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'
 import { Blurb, Key, SidePanel } from '../components/SidePanel.tsx'
 import { VersusTier } from '../components/RankBoxes.tsx'
@@ -15,6 +16,7 @@ import { MAX_PLAYERS, ROOM_CODE_LENGTH } from '../multi/protocol.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
 import type { MatchModeChoice } from '../multi/matchModes.ts'
+import type { TitleTheme } from './titleTheme.ts'
 
 import { ManualMatch } from './lobby/ManualMatch.tsx'
 import { MatchCountdown } from './lobby/MatchCountdown.tsx'
@@ -32,6 +34,12 @@ interface LobbyScreenProps {
   onChat: (text: string) => void
   onMatchMode: (choice: MatchModeChoice) => void
   onBack: () => void
+  theme: TitleTheme
+}
+
+const SPLASH_TITLES: Record<TitleTheme, string> = {
+  day: titleDay,
+  night: titleNight,
 }
 
 /**
@@ -73,7 +81,15 @@ const LOBBY_BLURBS: Partial<Record<string, readonly ReactNode[]>> = {
   back: ['시작 화면으로 나갑니다.'],
 }
 
-function LobbyScreen({ phase, onOpen, onReady, onChat, onMatchMode, onBack }: LobbyScreenProps) {
+function LobbyScreen({
+  phase,
+  onOpen,
+  onReady,
+  onChat,
+  onMatchMode,
+  onBack,
+  theme,
+}: LobbyScreenProps) {
   /*
    * 이름은 이 화면의 것이 아니라 **기기의 것**이다.
    *
@@ -229,20 +245,22 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onMatchMode, onBack }: Lo
 
   const blurbKey = items[menu.index]?.blurb ?? 'host'
   const blurbLines = LOBBY_BLURBS[blurbKey]
+  const title = SPLASH_TITLES[theme]
 
   /*
-   * 시작 화면과 같은 뼈대를 쓴다 — 제목 / 왼쪽 인사와 버튼 / 오른쪽 티어와 설명.
+   * 시작 화면과 같은 뼈대를 쓴다 — 로고 / 왼쪽 인사와 버튼 / 오른쪽 티어와 설명.
    *
    * 예전에는 이 화면만 세로로 긴 한 덩어리였다. 같은 게임 안에서 화면마다 짜임이
    * 다르면 어디를 봐야 하는지를 화면마다 다시 배워야 하고, 무엇보다 들어왔다 나갈 때
    * 제목과 인사가 다른 자리로 뛴다.
    */
   return (
-    <MenuLayout
-      title="함께 하기"
-      hint="↑↓로 고르고 Enter로 들어갑니다"
-      menu={
-        <>
+    <main className="title-splash__stage">
+      <h1 className="sr-only">함께 하기</h1>
+      <img className="title-splash__logo" src={title} alt="" aria-hidden="true" />
+
+      <div className="title-splash__content">
+        <div className="title-splash__menu">
           <NameGreeting
             name={nickname}
             icon={loadProfile().icon}
@@ -294,9 +312,8 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onMatchMode, onBack }: Lo
           >
             돌아가기 (Esc)
           </MenuButton>
-        </>
-      }
-      panel={
+        </div>
+
         <SidePanel
           kind={blurbKey}
           /*
@@ -309,8 +326,10 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onMatchMode, onBack }: Lo
           record={blurbKey === 'auto' ? <VersusTier board={board} /> : null}
           blurb={blurbLines === undefined ? null : <Blurb kind={blurbKey} lines={blurbLines} />}
         />
-      }
-    />
+      </div>
+
+      <p className="title-splash__hint">↑↓로 고르고 Enter로 들어갑니다</p>
+    </main>
   )
 }
 

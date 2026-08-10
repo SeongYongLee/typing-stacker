@@ -32,6 +32,9 @@ class MatchState {
    */
   private readonly deaths = new Map<PlayerId, number>()
   private deathBatch = 0
+  /** 하트가 아니라 별도 승리 조건으로 끝난 판의 승자 */
+  private decidedWinner: PlayerId | null = null
+  private decided = false
 
   constructor(players: readonly PlayerInfo[], livesPerPlayer: number, firstTurn: PlayerId | null = null) {
     if (players.length === 0) {
@@ -59,7 +62,7 @@ class MatchState {
 
   /** 생존자가 한 명 이하로 줄면 끝이다 */
   get over(): boolean {
-    return this.aliveCount <= 1
+    return this.decided || this.aliveCount <= 1
   }
 
   /**
@@ -67,10 +70,22 @@ class MatchState {
    * 한 번의 붕괴로 모두가 동시에 탈락하면 무승부라 null이다.
    */
   get winner(): PlayerId | null {
+    if (this.decided) {
+      return this.decidedWinner
+    }
     if (!this.over) {
       return null
     }
     return this.order.find((player) => this.isAlive(player.id))?.id ?? null
+  }
+
+  /** 하트 소진 말고 다른 승리 조건으로 판을 끝낸다. */
+  finishWithWinner(winner: PlayerId | null): void {
+    if (winner !== null && !this.lives.has(winner)) {
+      return
+    }
+    this.decided = true
+    this.decidedWinner = winner
   }
 
   /** 지금 떨굴 차례인 사람. 판이 끝났으면 null */
@@ -173,6 +188,16 @@ class MatchState {
    * 같은 등수를 나눠 갖고, 그만큼 다음 등수가 밀린다(1,2,2,4).
    */
   standings(): { id: PlayerId; placement: number }[] {
+    if (this.decided) {
+      if (this.decidedWinner === null) {
+        return this.order.map((player) => ({ id: player.id, placement: 1 }))
+      }
+      return this.order.map((player) => ({
+        id: player.id,
+        placement: player.id === this.decidedWinner ? 1 : 2,
+      }))
+    }
+
     const alive = this.order.filter((player) => this.isAlive(player.id)).map((p) => p.id)
     const batches = [...new Set(this.order
       .filter((player) => !this.isAlive(player.id))

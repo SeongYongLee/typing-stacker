@@ -6,6 +6,7 @@ import {
   type MatchViewState,
 } from '../src/multi/MatchEngine.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
+import type { MatchMode } from '../src/multi/matchModes.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 import { ChatLog } from '../src/multi/ChatLog.ts'
@@ -33,7 +34,7 @@ interface Pair {
   clock: FrameClock
 }
 
-async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
+async function makePair(seed = 1234, chatEnabled = true, matchMode: MatchMode = 'shared'): Promise<Pair> {
   const clock = new FrameClock()
   clock.install()
 
@@ -46,6 +47,7 @@ async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
     transport: hostLink,
     players: PLAYERS,
     seed,
+    matchMode,
     wins: new Map(),
     chat: new ChatLog(),
     chatEnabled,
@@ -56,6 +58,7 @@ async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
     transport: guestLink,
     players: PLAYERS,
     seed,
+    matchMode,
     wins: new Map(),
     chat: new ChatLog(),
     chatEnabled,
@@ -177,6 +180,36 @@ describe('MatchEngine — 대전', () => {
     expect(guestItem).toBeDefined()
     expect(guestItem?.variantId).toBe(hostItem?.variantId)
     expect(guestItem?.owner).toBe('host-peer')
+  })
+
+  it('대결 모드는 턴 없이 양쪽이 동시에 자기 쿨타임으로 떨군다', async () => {
+    pair = await makePair(1515, true, 'duel')
+    await pair.clock.advance(1)
+
+    expect(pair.hostState().matchMode).toBe('duel')
+    expect(pair.hostState().current).toBeNull()
+    expect(pair.hostState().myTurn).toBe(true)
+    expect(pair.guestState().myTurn).toBe(true)
+    expect(pair.guestState().canDrop).toBe(true)
+    expect(pair.guestState().turnLeft).toBeNull()
+
+    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
+    expect(word).toBeDefined()
+    if (word === undefined) return
+    pair.guest.submit(word)
+    await pair.clock.advance(0.5)
+
+    expect(pair.host.debugBodies()[0]?.owner).toBe('guest-peer')
+    expect(pair.guest.debugBodies()[0]?.owner).toBe('guest-peer')
+    expect(pair.hostState().canDrop).toBe(true)
+    expect(pair.guestState().canDrop).toBe(false)
+
+    pair.host.debugEscape('guest-peer', 1)
+    await pair.clock.advance(0.1)
+
+    const lives = new Map(pair.hostState().lives)
+    expect(lives.get('host-peer')).toBe(LIVES)
+    expect(lives.get('guest-peer')).toBe(LIVES - 1)
   })
 
   /*

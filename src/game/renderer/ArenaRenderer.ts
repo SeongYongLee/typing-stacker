@@ -205,6 +205,17 @@ interface ArenaRenderState {
   readonly cat?: CatView | null
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
+  readonly duelTowers?: readonly DuelTowerRenderState[]
+}
+
+interface DuelTowerRenderState {
+  readonly id: OwnerId
+  readonly bodies: readonly BodySnapshot[]
+  readonly aimX: number
+  readonly showAim: boolean
+  readonly cameraY: number
+  readonly stackTop: number
+  readonly ownerColors: ReadonlyMap<OwnerId, string> | null
 }
 
 /**
@@ -273,6 +284,10 @@ class ArenaRenderer {
     this.nightfall = state.nightfall
     const view = this.view()
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
+    if (state.duelTowers !== undefined && state.duelTowers.length > 0) {
+      this.drawDuel(state.duelTowers)
+      return
+    }
 
     /*
      * 얹힌 색은 **흔들림 밖에서** 화면 전체에 깐다.
@@ -364,6 +379,48 @@ class ArenaRenderer {
     ctx.restore()
   }
 
+  private drawDuel(towers: readonly DuelTowerRenderState[]): void {
+    const { ctx } = this
+    const count = Math.max(1, towers.length)
+    const gap = 12
+    const width = (this.cssWidth - gap * (count - 1)) / count
+    for (let index = 0; index < towers.length; index += 1) {
+      const tower = towers[index]
+      if (tower === undefined) {
+        continue
+      }
+      const left = index * (width + gap)
+      const scale = Math.min(width / WORLD_WIDTH, this.cssHeight / WORLD_HEIGHT)
+      const view: ArenaView = {
+        ctx,
+        scale,
+        cssWidth: width,
+        cssHeight: this.cssHeight,
+        cameraY: tower.cameraY,
+        nightfall: this.nightfall,
+        toScreenX: (worldX) => left + width / 2 + worldX * scale,
+        toScreenY: (worldY) => (
+          this.cssHeight -
+          KILL_LINE_MARGIN * scale -
+          (worldY - ARENA.killY - tower.cameraY) * scale
+        ),
+      }
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(left, 0, width, this.cssHeight)
+      ctx.clip()
+      drawPlatformBack(view)
+      if (tower.showAim) {
+        drawAim(view, tower.aimX, tower.stackTop)
+      }
+      for (const body of tower.bodies) {
+        drawBody(view, body, tower.ownerColors, undefined, 0, 1)
+      }
+      drawPlatformFront(view)
+      ctx.restore()
+    }
+  }
+
 
   private toScreenX(worldX: number): number {
     return this.cssWidth / 2 + worldX * this.scale
@@ -395,4 +452,4 @@ class ArenaRenderer {
 }
 
 export { ArenaRenderer, ARENA_ART_SOURCES }
-export type { ArenaRenderState, HiddenReveal, LandingGlow, WhiteboardRecall }
+export type { ArenaRenderState, HiddenReveal, LandingGlow, WhiteboardRecall, DuelTowerRenderState }

@@ -29,6 +29,8 @@ import type { ChatLine } from './ChatLog.ts'
 import type { ChatLog } from './ChatLog.ts'
 import { BodyCorrection } from './BodyCorrection.ts'
 import { Presence } from './Presence.ts'
+import type { MatchMode } from './matchModes.ts'
+import { visibleDuelTowerIds } from './duelTowers.ts'
 
 /**
  * 대전 한 판.
@@ -49,7 +51,7 @@ import { Presence } from './Presence.ts'
  * 가장 큰 대가다. 이제 둘 다 언제든 치되, 한 사람이 물건을 쏟아붓지는 못한다.
  * 싱글의 DROP_COOLDOWN_MS와 같은 장치이고, 사람마다 따로 돈다.
  */
-const DROP_INTERVAL_SEC = 0.9
+const DROP_INTERVAL_SEC = 0.5
 
 /**
  * 한 차례에 주어지는 시간(초). 넘기면 방장이 대신 떨궈 차례를 넘긴다.
@@ -60,13 +62,15 @@ const DROP_INTERVAL_SEC = 0.9
  * 넉넉히 잡았다. 단어를 찾아 읽고 한글로 치는 데 드는 시간에 조준까지 얹어야 하고,
  * 이 시한에 걸리는 것은 자리를 비운 사람이지 느린 사람이 아니어야 한다.
  */
-const TURN_LIMIT_SEC = 20
+const TURN_LIMIT_SEC = 10
 
 /** 남은 시간이 이 아래로 내려가면 화면이 다급하게 알린다 */
 const TURN_HURRY_SEC = 5
 
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
+/** 대결 모드에서 이 높이까지 자기 탑을 올리면 즉시 이긴다. */
+const DUEL_TARGET_STACK_TOP = ARENA.platformTop + 3.2
 /** 판 전환 직후에는 구형 판 ID 없는 지연 명령을 잠깐 버린다. */
 const LEGACY_COMMAND_GRACE_SEC = 1
 /** 대전 물리는 브라우저 프레임 간격 대신 이 간격으로만 전진한다. */
@@ -105,6 +109,10 @@ function starterOf(seed: number, players: readonly PlayerInfo[]): PlayerId | nul
   }
   const index = Math.floor(createRng(seed).next() * players.length) % players.length
   return players[index]?.id ?? players[0]!.id
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }
 
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
@@ -160,6 +168,8 @@ interface MatchViewState {
   readonly inputMode: 'drop' | 'chat' | 'idle'
   /** 이 판이 티어에 반영되는가. 랭크 게임만 그렇다 */
   readonly ranked: boolean
+  /** 실제로 열린 모드. UI와 입력 규칙이 이 값을 따른다 */
+  readonly matchMode: MatchMode
   /**
    * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
    * 같은 붕괴로 함께 탈락하면 공동 등수다.
@@ -207,6 +217,7 @@ interface MatchEngineOptions {
   readonly transport: Transport
   readonly players: readonly PlayerInfo[]
   readonly seed: number
+  readonly matchMode?: MatchMode
   /** 이 판을 여는 첫 차례. 없으면 seed와 명단으로 계산한다 */
   readonly starter?: PlayerId | null
   /**
@@ -270,7 +281,10 @@ class MatchEngine {
   private readonly chat: ChatLog
   private readonly chatEnabled: boolean
   private readonly ranked: boolean
+  private readonly matchMode: MatchMode
+  private readonly seed: number
   private readonly chatClock: () => number
+  private readonly duelWorlds: ReadonlyMap<PlayerId, PhysicsWorld> | null
   private readonly wantRematch = new Set<PlayerId>()
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
   private recorded = false
@@ -311,6 +325,8 @@ class MatchEngine {
    * 방장이 소유한다 — 참가자는 화면에 게이지를 그리는 데만 쓴다.
    */
   private dropCooldown = 0
+  /** 대결 모드에서 사람마다 따로 도는 드롭 쿨타임 */
+  private readonly duelCooldowns = new Map<PlayerId, number>()
   /**
    * 지금 차례가 시작된 뒤 흐른 시간(초).
    *
@@ -379,8 +395,13 @@ class MatchEngine {
    */
   private announcedCanDrop = false
 
-  private constructor(physics: PhysicsWorld, options: MatchEngineOptions) {
+  private constructor(
+    physics: PhysicsWorld,
+    options: MatchEngineOptions,
+    duelWorlds: ReadonlyMap<PlayerId, PhysicsWorld> | null,
+  ) {
     this.physics = physics
+    this.duelWorlds = duelWorlds
     /*
      * 판 이름은 시작할 때 한 번 만든다. 기기 id를 정렬해 넣으므로 방장과 참가자가
      * 각자 만들어도 같은 값이 나온다 — 따로 주고받을 필요가 없다.
@@ -401,6 +422,8 @@ class MatchEngine {
     this.chat = options.chat
     this.chatEnabled = options.chatEnabled
     this.ranked = options.ranked
+    this.matchMode = options.matchMode ?? 'shared'
+    this.seed = options.seed
     this.chatClock = options.chatClock
     this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES, options.starter ?? starterOf(options.seed, options.players))
@@ -417,7 +440,14 @@ class MatchEngine {
 
   static async create(options: MatchEngineOptions): Promise<MatchEngine> {
     const physics = await PhysicsWorld.create()
-    return new MatchEngine(physics, options)
+    const matchMode = options.matchMode ?? 'shared'
+    const duelWorlds = matchMode === 'duel'
+      ? new Map(await Promise.all(options.players.map(async (player) => [
+          player.id,
+          await PhysicsWorld.create(),
+        ] as const)))
+      : null
+    return new MatchEngine(physics, options, duelWorlds)
   }
 
   /**
@@ -600,8 +630,8 @@ class MatchEngine {
     })
     this.transport.sendTo(peer, {
       t: 'sync',
-      bodies: this.physics.frames(),
-      welds: this.physics.weldPairs(),
+      bodies: this.allFrames(),
+      welds: this.allWeldPairs(),
       tick: this.physicsTick,
       matchId: this.matchId,
     })
@@ -695,7 +725,7 @@ class MatchEngine {
    * 대전은 두 쪽의 상태가 어긋나면 승패가 갈리므로, 자동 검증이 양쪽을 대조할 통로가 필요하다.
    */
   debugBodies(): { itemId: number; variantId: string; owner: string; x: number; y: number }[] {
-    return this.physics.frames().map((frame) => ({
+    return this.allFrames().map((frame) => ({
       itemId: frame.itemId,
       variantId: frame.variantId,
       owner: frame.owner,
@@ -720,8 +750,9 @@ class MatchEngine {
     if (variant === undefined) {
       return
     }
+    const world = this.worldFor(owner)
     for (let i = 0; i < count; i += 1) {
-      this.physics.spawnItemAt(
+      world.spawnItemAt(
         variant,
         ARENA.halfWidth + 2 + i,
         ARENA.platformTop + 1,
@@ -730,6 +761,22 @@ class MatchEngine {
       )
       this.nextItemId += 1
     }
+  }
+
+  private allWorlds(): readonly PhysicsWorld[] {
+    return this.duelWorlds === null ? [this.physics] : [...this.duelWorlds.values()]
+  }
+
+  private worldFor(owner: PlayerId): PhysicsWorld {
+    return this.duelWorlds?.get(owner) ?? this.physics
+  }
+
+  private allFrames(): ReturnType<PhysicsWorld['frames']> {
+    return this.allWorlds().flatMap((world) => [...world.frames()])
+  }
+
+  private allWeldPairs(): ReturnType<PhysicsWorld['weldPairs']> {
+    return this.allWorlds().flatMap((world) => [...world.weldPairs()])
   }
 
   /** 이긴 사람에게 1점. 무승부(둘 다 같은 붕괴로 탈락)면 아무도 못 얻는다 */
@@ -798,16 +845,38 @@ class MatchEngine {
     this.listener = null
     this.events = null
     this.physics.dispose()
+    for (const world of this.duelWorlds?.values() ?? []) {
+      world.dispose()
+    }
   }
 
   /** 지금 떨굴 수 있는지. 화면에 보여주는 값과 같은 기준이어야 한다 */
   private canDropNow(): boolean {
+    if (this.matchMode === 'duel') {
+      return !this.match.over
+        && this.match.isAlive(this.transport.selfId)
+        && this.cooldownOf(this.transport.selfId) <= 0
+    }
     return this.match.canDrop(this.transport.selfId) && this.dropCooldown <= 0
+  }
+
+  private canPlayerDrop(id: PlayerId): boolean {
+    if (this.matchMode === 'duel') {
+      return !this.match.over && this.match.isAlive(id) && this.cooldownOf(id) <= 0
+    }
+    return this.match.canDrop(id) && this.dropCooldown <= 0
   }
 
   /** 남은 공유 쿨타임(초). 누구에게나 같은 값이다 */
   private waitLeft(): number {
+    if (this.matchMode === 'duel') {
+      return this.cooldownOf(this.transport.selfId)
+    }
     return this.dropCooldown
+  }
+
+  private cooldownOf(id: PlayerId): number {
+    return this.duelCooldowns.get(id) ?? 0
   }
 
   /**
@@ -898,7 +967,7 @@ class MatchEngine {
    * 자기 턴인지, 실제로 화면에 있던 단어인지, 조준이 범위 안인지 전부 확인한다.
    */
   private resolveDrop(by: PlayerId, word: string, rawAimX: number): void {
-    if (!this.match.canDrop(by) || this.dropCooldown > 0) {
+    if (!this.canPlayerDrop(by)) {
       return
     }
     const target = this.spawner.words.find(
@@ -907,7 +976,7 @@ class MatchEngine {
     if (target === undefined) {
       return
     }
-    const aimX = Math.min(Math.max(rawAimX, -AIM_HALF_RANGE), AIM_HALF_RANGE)
+    const aimX = clamp(rawAimX, -AIM_HALF_RANGE, AIM_HALF_RANGE)
     const variant = resolveItem(word)
     const itemId = this.nextItemId
     this.nextItemId += 1
@@ -964,8 +1033,12 @@ class MatchEngine {
      * 앞사람의 물건이 **자리를 잡기를 기다리지는 않는다.** 기다리게 하면 구르는
      * 물건 하나에 판 전체가 몇 초씩 멈춘다. 쿨타임이 끝나는 순간 다음 사람이 친다.
      */
-    this.match.nextTurn()
-    this.dropCooldown = DROP_INTERVAL_SEC
+    if (this.matchMode !== 'duel') {
+      this.match.nextTurn()
+      this.dropCooldown = DROP_INTERVAL_SEC
+    } else {
+      this.duelCooldowns.set(by, DROP_INTERVAL_SEC)
+    }
     this.turnElapsed = 0
 
     if (by === this.transport.selfId) {
@@ -1006,10 +1079,11 @@ class MatchEngine {
     if (variant === undefined) {
       return
     }
-    if (this.physics.frames().some((frame) => frame.itemId === drop.itemId)) {
+    const world = this.worldFor(drop.by)
+    if (world.frames().some((frame) => frame.itemId === drop.itemId)) {
       return
     }
-    this.physics.spawnItemAt(variant, drop.aimX, drop.spawnY, drop.by, drop.itemId)
+    world.spawnItemAt(variant, drop.aimX, drop.spawnY, drop.by, drop.itemId)
     if (this.isHost) {
       this.pendingSettledSync.add(drop.itemId)
     }
@@ -1072,18 +1146,31 @@ class MatchEngine {
             this.physicsTick = message.tick
             this.pendingDrops.sort((a, b) => (a.applyAtTick ?? 0) - (b.applyAtTick ?? 0))
           }
-          const corrections = this.physics.applyFrames(
-            message.bodies,
-            (id) => VARIANT_BY_ID.get(id),
-            message.welds,
-          )
-          this.bodyCorrection.note(corrections)
+          if (this.duelWorlds === null) {
+            const corrections = this.physics.applyFrames(
+              message.bodies,
+              (id) => VARIANT_BY_ID.get(id),
+              message.welds,
+            )
+            this.bodyCorrection.note(corrections)
+          } else {
+            for (const [owner, world] of this.duelWorlds) {
+              const bodies = message.bodies.filter((frame) => frame.owner === owner)
+              const bodyIds = new Set(bodies.map((frame) => frame.itemId))
+              const welds = message.welds.filter(([a, b]) => bodyIds.has(a) && bodyIds.has(b))
+              world.applyFrames(bodies, (id) => VARIANT_BY_ID.get(id), welds)
+            }
+          }
           this.emit()
         }
         break
       case 'over':
         if (!this.isHost) {
           this.loop.stop()
+          if (!this.match.over) {
+            this.match.finishWithWinner(message.winner)
+          }
+          this.standingsView = this.match.standings()
           this.recordWin(message.winner)
           this.emit()
         }
@@ -1211,7 +1298,10 @@ class MatchEngine {
 
   private readonly update = (dt: number): void => {
     this.bodyCorrection.advance(dt)
-    this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
+    const cameraTop = this.matchMode === 'duel'
+      ? this.worldFor(this.transport.selfId).stackTop()
+      : this.physics.stackTop()
+    this.cameraY = followCameraY(this.cameraY, cameraTop, dt)
     // 판이 끝난 뒤에도 색은 계속 사라져야 한다 — 그리기가 매 프레임 이어지므로
     this.landing.advance(dt)
     // 지난 프레임의 부딪힘은 이미 그려졌다
@@ -1242,6 +1332,14 @@ class MatchEngine {
     if (this.dropCooldown > 0) {
       this.dropCooldown = Math.max(0, this.dropCooldown - dt)
     }
+    for (const [id, left] of this.duelCooldowns) {
+      const next = left - dt
+      if (next <= 0) {
+        this.duelCooldowns.delete(id)
+      } else {
+        this.duelCooldowns.set(id, next)
+      }
+    }
 
     /*
      * 차례 시계. 쿨타임이 도는 동안에는 아직 아무도 칠 수 없으므로 세지 않는다 —
@@ -1251,7 +1349,7 @@ class MatchEngine {
       this.sweepGone()
     }
 
-    if (this.dropCooldown <= 0 && this.match.currentPlayer !== null) {
+    if (this.matchMode !== 'duel' && this.dropCooldown <= 0 && this.match.currentPlayer !== null) {
       this.turnElapsed += dt
       if (this.isHost && this.turnElapsed >= TURN_LIMIT_SEC) {
         this.dropForIdlePlayer()
@@ -1262,10 +1360,8 @@ class MatchEngine {
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
      * 탑이 무너질 때마다 단어가 뜸해졌다 몰아쳤다 하면 무엇이 기준인지 알 수 없다.
      */
-    this.difficultyPeak = Math.max(
-      this.difficultyPeak,
-      difficultyProgress(this.physics.stackTop()),
-    )
+    const top = Math.max(...this.allWorlds().map((world) => world.stackTop()))
+    this.difficultyPeak = Math.max(this.difficultyPeak, difficultyProgress(top))
     /*
      * 사람이 많을수록 단어를 더 많이, 더 자주 내보낸다. 차례를 기다리는 사람들이
      * 덫을 걸 단어가 있어야 손이 멈추지 않는다 — 그것이 이 게임에서 가장 큰 대가다.
@@ -1281,12 +1377,17 @@ class MatchEngine {
     this.spawner.update(dt, difficulty)
 
     this.spawnScheduledDrops()
-    const { impacts, escaped, quake } = this.physics.step(dt)
+    const stepped = this.allWorlds().map((world) => world.step(dt))
     this.physicsTick += 1
-    this.landing.note(impacts)
-    for (const hit of impacts) {
-      this.frameImpacts.push(trailHitOf(hit))
-      this.fire(impactEventOf(hit))
+    const escaped = stepped.flatMap((result) => [...result.escaped])
+    let quake = 0
+    for (const result of stepped) {
+      quake = Math.max(quake, result.quake)
+      this.landing.note(result.impacts)
+      for (const hit of result.impacts) {
+        this.frameImpacts.push(trailHitOf(hit))
+        this.fire(impactEventOf(hit))
+      }
     }
     const shake = quakeEventOf(quake)
     if (shake !== null) {
@@ -1306,6 +1407,10 @@ class MatchEngine {
    * 시작되는데, 그때 눈은 내려오는 단어를 쫓고 있다. 소리가 없으면 몇 초를 그냥 흘린다.
    */
   private noticeTurn(): void {
+    if (this.matchMode === 'duel') {
+      this.announcedCanDrop = this.canDropNow()
+      return
+    }
     const canDrop = this.canDropNow()
     if (canDrop !== this.announcedCanDrop) {
       this.announcedCanDrop = canDrop
@@ -1330,8 +1435,8 @@ class MatchEngine {
   private broadcastAuthoritySync(): void {
     this.transport.broadcast({
       t: 'sync',
-      bodies: this.physics.frames(),
-      welds: this.physics.weldPairs(),
+      bodies: this.allFrames(),
+      welds: this.allWeldPairs(),
       tick: this.physicsTick,
       matchId: this.matchId,
     })
@@ -1360,7 +1465,7 @@ class MatchEngine {
     if (this.pendingSettledSync.size === 0) {
       return false
     }
-    const byItem = new Map(this.physics.frames().map((frame) => [frame.itemId, frame]))
+    const byItem = new Map(this.allFrames().map((frame) => [frame.itemId, frame]))
     let shouldSync = false
     for (const itemId of [...this.pendingSettledSync]) {
       const frame = byItem.get(itemId)
@@ -1380,6 +1485,18 @@ class MatchEngine {
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
   private hostJudge(dt: number, escaped: readonly EscapeEvent[]): void {
+    const heightWinner = this.matchMode === 'duel' ? this.duelHeightWinner() : null
+    if (heightWinner !== null) {
+      this.match.finishWithWinner(heightWinner)
+      this.standingsView = this.match.standings()
+      this.loop.stop()
+      this.recordWin(heightWinner)
+      this.transport.broadcast({
+        t: 'over', winner: heightWinner, matchId: this.matchId,
+      })
+      return
+    }
+
     let anyLost = false
     // 이번 판정에 함께 죽는 사람들은 공동 등수다
     this.match.startDeathBatch()
@@ -1427,7 +1544,64 @@ class MatchEngine {
     }
   }
 
+  private duelHeightWinner(): PlayerId | null {
+    for (const player of this.match.players) {
+      if (!this.match.isAlive(player.id)) {
+        continue
+      }
+      if (this.worldFor(player.id).stackTop() >= DUEL_TARGET_STACK_TOP) {
+        return player.id
+      }
+    }
+    return null
+  }
+
   private readonly render = (): void => {
+    if (this.matchMode === 'duel') {
+      const alive = new Set(
+        this.match.players
+          .filter((player) => this.match.isAlive(player.id))
+          .map((player) => player.id),
+      )
+      const visible = visibleDuelTowerIds({
+        players: this.match.players,
+        selfId: this.transport.selfId,
+        alive,
+        seed: this.seed,
+      })
+      const towers = visible.map((id) => {
+        const world = this.worldFor(id)
+        const stackTop = world.stackTop()
+        return {
+          id,
+          bodies: world.snapshots(),
+          aimX: this.aimer.worldX,
+          showAim: id === this.transport.selfId
+            && !this.match.over
+            && this.match.isAlive(this.transport.selfId),
+          cameraY: id === this.transport.selfId
+            ? this.cameraY
+            : followCameraY(0, stackTop, 1),
+          stackTop,
+          ownerColors: this.ownerColors,
+        }
+      })
+      this.renderer?.draw({
+        bodies: [],
+        aimX: 0,
+        showAim: false,
+        landing: this.landing.view,
+        nightfall: this.nightfall,
+        cameraY: this.cameraY,
+        stackTop: this.worldFor(this.transport.selfId).stackTop(),
+        time: this.elapsed,
+        impacts: this.frameImpacts,
+        ownerColors: this.ownerColors,
+        duelTowers: towers,
+      })
+      return
+    }
+
     const bodies = this.isHost
       ? this.physics.snapshots()
       : this.bodyCorrection.apply(this.physics.snapshots())
@@ -1465,11 +1639,13 @@ class MatchEngine {
       players: this.match.players,
       lives: snapshot.lives,
       canDrop: this.canDropNow(),
-      current: this.match.currentPlayer,
-      myTurn: this.match.currentPlayer === this.transport.selfId,
+      current: this.matchMode === 'duel' ? null : this.match.currentPlayer,
+      myTurn: this.matchMode === 'duel'
+        ? this.match.isAlive(this.transport.selfId) && !snapshot.over
+        : this.match.currentPlayer === this.transport.selfId,
       dropCooldown: Math.min(1, Math.max(0, this.waitLeft() / DROP_INTERVAL_SEC)),
       turnLeft:
-        this.match.currentPlayer === null
+        this.matchMode === 'duel' || this.match.currentPlayer === null
           ? null
           : Math.max(0, TURN_LIMIT_SEC - this.turnElapsed),
       invulnerable: this.invulnerableRatios(),
@@ -1483,6 +1659,7 @@ class MatchEngine {
       chat: this.chat.view,
       inputMode: this.inputMode(),
       ranked: this.ranked,
+      matchMode: this.matchMode,
       standings: this.standingsView,
       feedback: this.feedback,
       winner: snapshot.winner,
@@ -1497,5 +1674,13 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, DROP_INTERVAL_SEC, TURN_LIMIT_SEC, TURN_HURRY_SEC, matchIdOf, starterOf }
+export {
+  MatchEngine,
+  DROP_INTERVAL_SEC,
+  TURN_LIMIT_SEC,
+  TURN_HURRY_SEC,
+  DUEL_TARGET_STACK_TOP,
+  matchIdOf,
+  starterOf,
+}
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

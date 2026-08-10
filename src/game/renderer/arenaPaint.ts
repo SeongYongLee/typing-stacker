@@ -242,9 +242,19 @@ function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
   const trackTop = spawnY
 
   ctx.save()
+  ctx.strokeStyle = 'rgba(58, 24, 20, 0.24)'
+  ctx.lineWidth = 4
+  ctx.setLineDash([6, 9])
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(x, trackTop)
+  ctx.lineTo(x, trackBottom)
+  ctx.stroke()
+
   ctx.strokeStyle = COLORS.aimTrack
-  ctx.lineWidth = 2
-  ctx.setLineDash([4, 10])
+  ctx.lineWidth = 2.25
+  ctx.setLineDash([6, 9])
+  ctx.lineCap = 'round'
   ctx.beginPath()
   ctx.moveTo(x, trackTop)
   ctx.lineTo(x, trackBottom)

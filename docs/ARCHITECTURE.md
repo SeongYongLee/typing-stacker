@@ -11,9 +11,8 @@ src/
                   ItemResolver 단어 → 물건 + 히든 롤
                   Merger       접촉 그래프에서 레시피 찾기
                   DayNight     흐른 시간 → 국면(첫 밤·낮·밤)과 어둠 정도
-                  Opening      첫 밤에 내보낼 단어 고르기
-                  NightWords   밤에 내보낼 단어 고르기 (재료만)
-                  Whiteboard   벽에 적히는 회수 목록
+                  RecipeFlow   현재 집중 레시피 → 부족한 재료 단어
+                  Whiteboard   집중 재료를 제외한 회수 목록
                   PairMarks    지금 서로 합칠 수 있는 것들에 표식 붙이기
                   Ledge        합성 보상으로 설 통나무 자리 고르기
                   Collection   도감 진행
@@ -57,6 +56,10 @@ tests/            순수 시스템 + 물리 + 엔진 단위 테스트
 ## `game/systems/`와 `game/data/`는 의존성이 0이다
 
 node 환경에서 캔버스 없이 테스트가 전부 돌아간다. 난수는 전부 `Rng`를 주입받아서 같은 시드면 단어 순서·히든 결과·통나무 자리가 재현된다. 시간도 루프가 주입하는 delta로만 흐른다. 이 셋은 서버가 같은 로직을 돌려 검증할 수 있게 하려는 경계다.
+
+## 레시피와 화이트보드는 선택 순서가 계약이다
+
+싱글 스폰은 현재 물건을 센 뒤 RecipeFlow가 집중 레시피를 먼저 확정하고, Whiteboard가 그 재료 단어를 제외해 회수 목록을 채운다. WordSpawner는 화이트보드 추가 가중치를 먼저 시도하고, 미당첨일 때 RecipeFlow의 선택을 쓴다. 상세 동작과 변경 계약은 [`RECIPE_FLOW.md`](RECIPE_FLOW.md)에 있다.
 
 ## 기술 선택은 근거를 요구해서 골랐다
 

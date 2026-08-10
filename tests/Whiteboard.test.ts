@@ -120,18 +120,37 @@ describe('화이트보드 — 밭이 바뀔 때', () => {
       expect(board.words, `${gone}은 밭 밖이라 남으면 안 된다`).not.toContain(gone)
     }
   })
+
+  it('현재 집중 레시피의 단어는 기존 보드에서도 갈아낸다', () => {
+    const board = new Whiteboard(createRng(12))
+    board.refill(WORDS)
+    const before = [...board.words]
+    const focused = before[0]
+    expect(focused).toBeDefined()
+
+    board.refill(WORDS, focused === undefined ? [] : [focused])
+
+    expect(board.words).not.toContain(focused)
+    expect(board.words).toHaveLength(WHITEBOARD_SIZE)
+    for (const kept of before.slice(1)) {
+      expect(board.words).toContain(kept)
+    }
+  })
 })
 
 describe('화이트보드 — 회수', () => {
-  it('회수하면 그 자리가 새 단어로 채워진다', () => {
+  it('회수하면 그 자리만 새 단어로 채워진다', () => {
     const board = new Whiteboard(createRng(13))
     board.refill(WORDS)
-    const target = board.words[0]
+    const before = [...board.words]
+    const target = before[1]
     expect(target).toBeDefined()
 
     expect(board.claim(target ?? '', WORDS)).toBe(true)
     expect(board.has(target ?? '')).toBe(false)
     expect(board.words).toHaveLength(WHITEBOARD_SIZE)
+    expect(board.words[0]).toBe(before[0])
+    expect(board.words[2]).toBe(before[2])
   })
 
   /** 부르는 쪽이 이 반환값으로 "회수인가 평범한 드롭인가"를 가른다 */

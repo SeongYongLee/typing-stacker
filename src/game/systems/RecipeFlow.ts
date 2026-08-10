@@ -104,12 +104,35 @@ class RecipeFlow {
     this.available = available
   }
 
+  /**
+   * 다음 스폰보다 먼저 집중 레시피를 확정하고, 그 레시피에서 단어로 낼 수 있는 재료를 돌려준다.
+   *
+   * 화이트보드는 이 목록을 후보에서 뺀 뒤 자기 단어를 고른다. `pick()` 안에서 처음
+   * 레시피를 정하면 보드가 먼저 뽑혀 같은 재료를 회수 대상으로 잡을 수 있으므로,
+   * 선택 순서를 공개 계약으로 둔다.
+   */
+  prepareFocusWords(): readonly string[] {
+    const focus = this.ensureFocus()
+    if (focus === null) {
+      return []
+    }
+    const words = new Set<string>()
+    for (const id of focus.inputs) {
+      const entry = this.groups.baseEntryById.get(id)
+      if (entry !== undefined) {
+        words.add(entry.word)
+      }
+    }
+    return [...words]
+  }
+
   /** WordSpawner가 실제로 새 단어를 만들 때 한 번 부른다. */
   pick(candidates: readonly WordEntry[]): WordEntry {
     if (candidates.length === 0) {
       throw new Error('빈 단어 목록에서 뽑을 수 없다')
     }
 
+    const focus = this.ensureFocus()
     const quota = RECIPE_PICKS_BEFORE_AMBIENT[this.phase]
     if (this.recipePicksSinceAmbient >= quota) {
       const ambient = this.pickAmbient(candidates)
@@ -118,21 +141,8 @@ class RecipeFlow {
       }
     }
 
-    for (let turn = 0; turn < 3; turn += 1) {
-      const focus = this.focus ?? this.nextFocus()
-      if (focus === null) {
-        break
-      }
-      this.focus = focus
-
+    if (focus !== null) {
       const missing = this.missingEntries(focus)
-      const limit = this.spawnableInputCount(focus) + EXTRA_RECIPE_OFFERS
-      if (missing.length === 0 || this.focusOffers >= limit) {
-        this.focus = null
-        this.focusOffers = 0
-        continue
-      }
-
       const allowed = new Set(candidates.map((entry) => entry.word))
       const possible = missing.filter((entry) => allowed.has(entry.word))
       if (possible.length === 0) {
@@ -140,18 +150,17 @@ class RecipeFlow {
         if (ambient !== null) {
           return this.rememberAmbient(ambient)
         }
-        break
-      }
-
-      const chosen = this.rng.pick(possible)
-      /* 같은 것 둘 레시피도 `클로버 → 일반 물건 → 클로버`로 보이게 한다. */
-      if (chosen.word === this.lastWord) {
-        const ambient = this.pickAmbient(candidates)
-        if (ambient !== null) {
-          return this.rememberAmbient(ambient)
+      } else {
+        const chosen = this.rng.pick(possible)
+        /* 같은 것 둘 레시피도 `클로버 → 일반 물건 → 클로버`로 보이게 한다. */
+        if (chosen.word === this.lastWord) {
+          const ambient = this.pickAmbient(candidates)
+          if (ambient !== null) {
+            return this.rememberAmbient(ambient)
+          }
         }
+        return this.rememberRecipe(chosen)
       }
-      return this.rememberRecipe(chosen)
     }
 
     const fallback = this.rng.pick(candidates)
@@ -165,6 +174,25 @@ class RecipeFlow {
       this.focus = null
       this.focusOffers = 0
     }
+  }
+
+  private ensureFocus(): Recipe | null {
+    for (let turn = 0; turn < 3; turn += 1) {
+      const focus = this.focus ?? this.nextFocus()
+      if (focus === null) {
+        return null
+      }
+      this.focus = focus
+
+      const missing = this.missingEntries(focus)
+      const limit = this.spawnableInputCount(focus) + EXTRA_RECIPE_OFFERS
+      if (missing.length > 0 && this.focusOffers < limit) {
+        return focus
+      }
+      this.focus = null
+      this.focusOffers = 0
+    }
+    return null
   }
 
   private nextFocus(): Recipe | null {

@@ -43,6 +43,22 @@ describe('레시피별 단어 무리', () => {
 })
 
 describe('레시피 흐름', () => {
+  it('스폰 전에 집중 레시피를 확정하고 그 재료 단어를 공개한다', () => {
+    const recipe = RECIPES.find((entry) => entry.result.id === 'sunflower')
+    expect(recipe).toBeDefined()
+    const flow = new RecipeFlow(createRng(3), WORDS, [recipe!])
+    flow.setPhase('day')
+
+    const focusedWords = flow.prepareFocusWords()
+    const focusedIds = focusedWords.map((word) => {
+      const entry = WORDS.find((candidate) => candidate.word === word)
+      return entry === undefined ? '' : baseId(entry)
+    })
+
+    expect(new Set(focusedIds)).toEqual(new Set(recipe!.inputs))
+    expect(flow.prepareFocusWords()).toEqual(focusedWords)
+  })
+
   it('같은 재료 둘도 사이에 다른 단어를 끼운다', () => {
     const cloverRecipe = RECIPES.find((recipe) => recipe.result.id === 'clover-lucky')
     expect(cloverRecipe).toBeDefined()

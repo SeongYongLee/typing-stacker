@@ -157,6 +157,8 @@ class GameEngine {
   private rng: Rng
   private recipeFlow: RecipeFlow
   private spawner: WordSpawner
+  /** 화이트보드보다 먼저 확정한 현재 집중 레시피의 단어들 */
+  private focusedRecipeWords: readonly string[] = []
   /** RecipeFlow에 넘길 개수표. 매 프레임 새 Map을 만들지 않고 비워 쓴다. */
   private readonly recipeCounts = new Map<string, number>()
   private aimer = new Aimer(AIM_HALF_RANGE)
@@ -318,6 +320,7 @@ class GameEngine {
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
     )
+    this.focusedRecipeWords = []
     /*
      * 판은 첫 밤에서 시작하지만 더는 단어 둘로 밭을 잠그지 않는다. 2재료 레시피
      * 전체를 차례로 집중하고 그 사이에 다른 물건을 넣는다(`RecipeFlow`).
@@ -395,7 +398,11 @@ class GameEngine {
      * 레인이 정하는데 떨구는 자리를 조준이 정하면 판이 아레나를 가로지른다.
      * 까닭과 실측은 `CATCH.dropX`에.
      */
-    const recalled = this.whiteboard.claim(result.word.word, WORDS)
+    const recalled = this.whiteboard.claim(
+      result.word.word,
+      WORDS,
+      this.focusedRecipeWords,
+    )
     this.spawner.prefer(this.whiteboard.words)
     if (recalled) {
       const side = result.word.side
@@ -614,6 +621,7 @@ class GameEngine {
      * 콤보가 타자와 무관해지면 손을 멈추고 쌓기만 봐도 배수가 유지된다.
      */
     this.observeRecipeFlow()
+    this.syncWhiteboardWithRecipe()
     if (this.spawner.update(dt, difficulty).length > 0) {
       this.score.onWordMissed()
     }
@@ -708,6 +716,19 @@ class GameEngine {
     this.recipeFlow.observe(this.recipeCounts)
   }
 
+  /** 레시피를 먼저 정한 뒤 그 재료를 제외한 목록으로 회수 보드를 맞춘다. */
+  private syncWhiteboardWithRecipe(): void {
+    if (this.phaseNow === 'firstNight') {
+      this.focusedRecipeWords = []
+      this.whiteboard.clear()
+      this.spawner.prefer(this.whiteboard.words)
+      return
+    }
+    this.focusedRecipeWords = this.recipeFlow.prepareFocusWords()
+    this.whiteboard.refill(WORDS, this.focusedRecipeWords)
+    this.spawner.prefer(this.whiteboard.words)
+  }
+
   /**
    * 닿아 있는 재료가 레시피를 이루면 합친다.
    *
@@ -792,10 +813,8 @@ class GameEngine {
     if (next === 'firstNight') {
       this.whiteboard.clear()
       this.spawner.prefer(this.whiteboard.words)
-      return
     }
-    this.whiteboard.refill(WORDS)
-    this.spawner.prefer(this.whiteboard.words)
+    /* 낮·밤 보드는 같은 프레임의 `syncWhiteboardWithRecipe`가 레시피 확정 뒤 채운다. */
   }
 
   /**
@@ -807,6 +826,11 @@ class GameEngine {
    */
   debugLedges(): readonly { x: number; y: number; halfWidth: number }[] {
     return this.physics.ledges()
+  }
+
+  /** 현재 화이트보드보다 먼저 확정된 집중 레시피 단어. 엔진 통합 검증용이다. */
+  debugFocusedRecipeWords(): readonly string[] {
+    return this.focusedRecipeWords
   }
 
   /**

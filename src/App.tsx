@@ -268,6 +268,7 @@ function App() {
       {state.phase === 'over' && (
         <ResultScreen
           stats={state.stats}
+          freshlyCollected={state.freshlyCollected}
           onRestart={startSolo}
           onHome={openTitle}
         />

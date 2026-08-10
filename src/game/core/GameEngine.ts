@@ -29,7 +29,7 @@ import { openingEntries } from '../systems/Opening.ts'
 import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
 import { nightEntries } from '../systems/NightWords.ts'
 import { Whiteboard } from '../systems/Whiteboard.ts'
-import { catchSpot, plankOf, recallDropX } from '../systems/Catcher.ts'
+import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
@@ -229,6 +229,8 @@ class GameEngine {
   private readonly whiteboard = new Whiteboard(createRng(0x5eed))
   /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
   private catcherLeft = 0
+  /** 렌더러가 물리 회수 판과 같은 자리에 손 그림을 그리기 위한 값 */
+  private catcherView: CatchPlank | null = null
   private firstNightPool: readonly WordEntry[] = []
   /** 밤에 내보낼 단어 — 재료만. 판 내내 같으므로 한 번만 만든다 */
   private readonly nightPool: readonly WordEntry[] = nightEntries(WORDS)
@@ -315,7 +317,9 @@ class GameEngine {
     this.firstNightPool = openingEntries(this.rng, WORDS)
     this.phaseNow = 'firstNight'
     this.whiteboard.clear()
+    this.spawner.prefer(this.whiteboard.words)
     this.catcherLeft = 0
+    this.catcherView = null
     this.mergeCount = 0
     this.firstNightEnd = FIRST_NIGHT_SEC
     this.spawner.restrict(this.firstNightPool)
@@ -396,10 +400,13 @@ class GameEngine {
     const pool =
       this.phaseNow === 'night' ? this.nightPool : this.phaseNow === 'day' ? WORDS : this.firstNightPool
     const recalled = this.whiteboard.claim(result.word.word, pool)
+    this.spawner.prefer(this.whiteboard.words)
     if (recalled) {
       const side = result.word.side
       const dropX = recallDropX(side)
-      this.physics.setCatcher(plankOf(catchSpot(dropX, side, this.physics.stackTop())))
+      const catcher = plankOf(catchSpot(dropX, side, this.physics.stackTop()))
+      this.physics.setCatcher(catcher)
+      this.catcherView = catcher
       this.catcherLeft = CATCH.holdSec
       this.queueDrop(variant, dropX, true)
     } else {
@@ -748,16 +755,19 @@ class GameEngine {
      */
     if (next === 'firstNight') {
       this.whiteboard.clear()
+      this.spawner.prefer(this.whiteboard.words)
     }
     if (next === 'day') {
       this.spawner.release()
       this.whiteboard.refill(WORDS)
+      this.spawner.prefer(this.whiteboard.words)
       return
     }
     // 밤에는 재료만. 첫 밤으로 되돌아가는 일은 없다(`DayNight.ts`)
     this.spawner.restrict(next === 'night' ? this.nightPool : this.firstNightPool)
     if (next === 'night') {
       this.whiteboard.refill(this.nightPool)
+      this.spawner.prefer(this.whiteboard.words)
     }
   }
 
@@ -850,6 +860,7 @@ class GameEngine {
     this.catcherLeft -= dt
     if (this.catcherLeft <= 0) {
       this.catcherLeft = 0
+      this.catcherView = null
       this.physics.clearCatcher()
     }
   }
@@ -950,6 +961,13 @@ class GameEngine {
               y: this.formingLedge.y,
               halfWidth: this.formingLedge.halfWidth,
               progress: Math.min(this.formingLedge.elapsed / LEDGE.formSec, 1),
+            },
+      catcher:
+        this.catcherView === null
+          ? null
+          : {
+              ...this.catcherView,
+              progress: 1 - this.catcherLeft / CATCH.holdSec,
             },
       /*
        * 꼬리 부스러기가 이 값의 차이로 시간을 흘린다. `elapsed`가 아니라 `quakePhase`를

@@ -125,6 +125,9 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   }, [state.runSeq, clear, focus])
 
   const collapsing = state.phase === 'collapsing'
+  const activeWhiteboard = state.whiteboard.filter((word) =>
+    state.words.some((falling) => falling.state === 'active' && falling.word === word),
+  )
 
   return (
     <div style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
@@ -133,7 +136,12 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
        * 방이 끊겨, 배경이 아니라 판에 붙은 그림처럼 보였다. 위아래 띠를 반투명으로
        * 두고 그 뒤로 같은 방이 이어지게 하면 판이 방 안에 놓인 것으로 읽힌다.
        */}
-      <ArenaBackdrop mode="solo" time={state.timeOfDay} />
+      <ArenaBackdrop
+        mode="solo"
+        time={state.timeOfDay}
+        whiteboard={state.whiteboard}
+        activeWhiteboard={activeWhiteboard}
+      />
       <Hud stats={state.stats} />
 
       <div style={fieldLayerStyle}>
@@ -145,6 +153,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             missSeq={state.stats.missedWords}
             wordMarks={state.wordMarks}
             pairPulse={state.pairPulse}
+            recallWords={state.whiteboard}
           />
           {/* data-aim은 화살표 위치(-1~1). 자동화 테스트가 조준을 읽는 유일한 통로다 */}
           <div
@@ -159,6 +168,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             missSeq={state.stats.missedWords}
             wordMarks={state.wordMarks}
             pairPulse={state.pairPulse}
+            recallWords={state.whiteboard}
           />
         </div>
       </div>

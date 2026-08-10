@@ -8,6 +8,10 @@ type ArenaBackdropProps =
       mode: 'solo'
       /** 판의 국면. 조명과 벽시계가 이것을 따라간다. */
       time: TimeOfDay
+      /** 지금 회수할 수 있는 단어. 없으면 보드 그림만 건다. */
+      whiteboard?: readonly string[]
+      /** 회수 목록 중 지금 레인에 내려와 있는 단어. 이때만 보드에 작은 표시를 남긴다. */
+      activeWhiteboard?: readonly string[]
     }
   | {
       mode: 'match'
@@ -31,7 +35,13 @@ function ArenaBackdrop(props: ArenaBackdropProps) {
   if (props.mode === 'match') {
     return <BackdropLayers nightfall={props.nightfall} />
   }
-  return <SoloArenaBackdrop time={props.time} />
+  return (
+    <SoloArenaBackdrop
+      time={props.time}
+      whiteboard={props.whiteboard ?? []}
+      activeWhiteboard={props.activeWhiteboard ?? []}
+    />
+  )
 }
 
 /** 대전은 방만 쓴다. 판의 규칙이 없는 화이트보드와 국면 시계는 그리지 않는다. */
@@ -44,20 +54,28 @@ function BackdropLayers({ nightfall }: { nightfall: number }) {
   )
 }
 
-function SoloArenaBackdrop({ time }: { time: TimeOfDay }) {
+function SoloArenaBackdrop({
+  time,
+  whiteboard,
+  activeWhiteboard,
+}: {
+  time: TimeOfDay
+  whiteboard: readonly string[]
+  activeWhiteboard: readonly string[]
+}) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wall = useWallBox(rootRef)
   return (
-    <div ref={rootRef} aria-hidden style={rootStyle}>
-      <div style={layerStyle('background-day', 1)} />
-      <div style={layerStyle('background-night', time.nightfall)} />
+    <div ref={rootRef} style={rootStyle}>
+      <div aria-hidden style={layerStyle('background-day', 1)} />
+      <div aria-hidden style={layerStyle('background-night', time.nightfall)} />
       {/*
         벽에 거는 것들은 **그림에 붙어야** 한다. 화면이 아니라 방의 좌표다 —
         창문 옆 그 자리에 걸린 것이지 화면 오른쪽 위에 떠 있는 것이 아니다.
       */}
       {wall !== null && (
         <div style={wall}>
-          <Whiteboard nightfall={time.nightfall} />
+          <Whiteboard words={whiteboard} activeWords={activeWhiteboard} nightfall={time.nightfall} />
           <ArenaClock time={time} />
         </div>
       )}
@@ -132,11 +150,38 @@ function useWallBox(ref: React.RefObject<HTMLDivElement | null>): CSSProperties 
  * 문제라, 보드를 비켜 세우는 것으로는 그때 다시 막힌다. 그래서 판 쪽을 내렸다
  * (`CAMERA_HEADROOM`).
  */
-function Whiteboard({ nightfall }: { nightfall: number }) {
+function Whiteboard({
+  words,
+  activeWords,
+  nightfall,
+}: {
+  words: readonly string[]
+  activeWords: readonly string[]
+  nightfall: number
+}) {
+  const active = new Set(activeWords)
   return (
-    <div aria-hidden style={boardStyle}>
-      <div style={fill('whiteboard-day', 1)} />
-      <div style={fill('whiteboard-night', nightfall)} />
+    <div aria-label={words.length === 0 ? '회수 목록 없음' : `회수 목록: ${words.join(', ')}`} style={boardStyle}>
+      <div aria-hidden style={fill('whiteboard-day', 1)} />
+      <div aria-hidden style={fill('whiteboard-night', nightfall)} />
+      {words.length > 0 && (
+        <div style={wordListStyle}>
+          {words.map((word) => (
+            <span
+              key={word}
+              data-whiteboard-word={word}
+              data-whiteboard-active={active.has(word) ? 'true' : undefined}
+              style={{
+                ...wordStyle,
+                opacity: active.has(word) ? 0.64 : 0.34,
+                borderBottom: active.has(word) ? '1px solid rgba(43, 57, 51, 0.28)' : '1px solid transparent',
+              }}
+            >
+              {word}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -152,6 +197,31 @@ const boardStyle: CSSProperties = {
   aspectRatio: `${ARENA_ART['whiteboard-day'].width / ARENA_ART['whiteboard-day'].height}`,
   top: `${BOARD_CENTER_Y}%`,
   transform: 'translateY(-50%)',
+}
+
+const wordListStyle: CSSProperties = {
+  position: 'absolute',
+  left: '14%',
+  right: '14%',
+  top: '28%',
+  bottom: '16%',
+  display: 'grid',
+  gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+  alignItems: 'center',
+  transform: 'rotate(-1.6deg)',
+}
+
+const wordStyle: CSSProperties = {
+  position: 'relative',
+  display: 'block',
+  color: '#2b3933',
+  fontSize: 'clamp(12px, 1.15vw, 21px)',
+  fontWeight: 600,
+  lineHeight: 1,
+  letterSpacing: '0.01em',
+  textAlign: 'center',
+  textShadow: '0 0 1px rgba(255, 255, 255, 0.28)',
+  filter: 'blur(0.15px)',
 }
 
 function fill(name: 'whiteboard-day' | 'whiteboard-night', alpha: number): CSSProperties {

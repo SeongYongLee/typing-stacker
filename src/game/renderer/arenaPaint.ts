@@ -1,4 +1,4 @@
-import { ARENA, LEDGE } from '../config.ts'
+import { ARENA, CATCH, LEDGE } from '../config.ts'
 import type { Bounds } from '../shapes.ts'
 import type {
   BodySnapshot,
@@ -132,6 +132,56 @@ function drawLedges(
       ctx.fillRect(left, top, width, height)
     }
   }
+}
+
+function drawCatcher(
+  view: ArenaView,
+  catcher: {
+    readonly x: number
+    readonly y: number
+    readonly halfLength: number
+    readonly angle: number
+    readonly progress: number
+  },
+): void {
+  const { ctx } = view
+  const width = catcher.halfLength * 2.25 * view.scale
+  const art = GENERATED_ART['catch-day']
+  const height = width * (art.height / art.width)
+  const x = view.toScreenX(catcher.x)
+  const y = view.toScreenY(catcher.y)
+  const side = catcher.x < 0 ? 'left' : 'right'
+  const fadeIn = Math.min(catcher.progress / 0.18, 1)
+  const fadeOut = Math.min((1 - catcher.progress) / 0.22, 1)
+  const alpha = Math.max(0, Math.min(fadeIn, fadeOut))
+  const slide = (1 - fadeIn) * 34
+  /*
+   * 손 그림은 원본부터 왼쪽 아래 → 오른쪽 위로 45도쯤 뻗어 있다. 물리 각도를 그대로
+   * 더하면 그림이 두 번 기울어져 뒤집히므로, 원본 기울기에서 회수 판 기울기만큼만 보정한다.
+   */
+  const angleFix = Math.PI / 4 - Math.atan(CATCH.slope)
+  const screenAngle = side === 'left' ? angleFix : -angleFix
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.translate(x + (side === 'left' ? -slide : slide), y + slide * 0.25)
+  ctx.rotate(screenAngle)
+  if (side === 'right') {
+    ctx.scale(-1, 1)
+  }
+  const drawn = drawDayNight(view, 'catch-day', 'catch-night', (image) => {
+    ctx.drawImage(image, -width / 2, -height * 0.53, width, height)
+  })
+  if (!drawn) {
+    ctx.fillStyle = 'rgba(65, 183, 152, 0.65)'
+    ctx.fillRect(
+      -catcher.halfLength * view.scale,
+      -CATCH.halfThickness * view.scale,
+      catcher.halfLength * 2 * view.scale,
+      CATCH.halfThickness * 2 * view.scale,
+    )
+  }
+  ctx.restore()
 }
 
 function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
@@ -395,4 +445,4 @@ function traceShape(view: ArenaView, shape: PrimitiveShape, ox: number, oy: numb
   }
 }
 
-export { drawAim, drawBody, drawCat, drawLedges, drawPlatformBack, drawPlatformFront }
+export { drawAim, drawBody, drawCat, drawCatcher, drawLedges, drawPlatformBack, drawPlatformFront }

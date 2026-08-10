@@ -5,9 +5,11 @@ import { LIVES } from '../game/config.ts'
 import type { RunStats } from '../game/types/game.ts'
 import { useRunRanking, type RunRanking } from '../hooks/useRunRanking.ts'
 import { loadProfile } from '../storage/profile.ts'
+import { VARIANT_BY_ID } from '../game/data/words.ts'
 
 interface ResultScreenProps {
   stats: RunStats
+  freshlyCollected: readonly string[]
   onRestart: () => void
   onHome: () => void
 }
@@ -74,7 +76,7 @@ function verdictOf(stats: RunStats, ranking: RunRanking): string | null {
   return parts.length === 0 ? null : parts.join(' · ')
 }
 
-function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
+function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScreenProps) {
   const items = [
     { label: '다시 하기', run: onRestart, primary: true },
     { label: '처음으로', run: onHome, primary: false },
@@ -161,6 +163,10 @@ function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
             </div>
           )}
 
+          {freshlyCollected.length > 0 && (
+            <NewCollection items={freshlyCollected} />
+          )}
+
           <RankBoard ranking={ranking} />
         </div>
 
@@ -181,6 +187,67 @@ function ResultScreen({ stats, onRestart, onHome }: ResultScreenProps) {
       </div>
     </div>
   )
+}
+
+function NewCollection({ items }: { items: readonly string[] }) {
+  const variants = items
+    .map((id) => VARIANT_BY_ID.get(id))
+    .filter((item) => item !== undefined)
+
+  if (variants.length === 0) {
+    return null
+  }
+
+  return (
+    <div style={newCollectionStyle} data-new-collection>
+      <p style={{ fontSize: 12, color: '#6a7290', letterSpacing: '0.08em', margin: 0 }}>
+        도감에 새로 추가
+      </p>
+      <div style={newItemsStyle}>
+        {variants.slice(0, 4).map((item) => (
+          <div key={item.id} style={newItemStyle} data-new-item={item.id}>
+            <img
+              src={item.sprite}
+              alt={item.label}
+              style={{ width: 48, height: 48, objectFit: 'contain' }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 700, color: item.hidden ? '#e4e68a' : '#d9deef' }}>
+              {item.label}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: '#8b93b0', margin: '8px 0 0' }}>
+        프로필에서 사진으로 쓸 수 있습니다
+      </p>
+    </div>
+  )
+}
+
+const newCollectionStyle: CSSProperties = {
+  marginTop: 18,
+  padding: '12px 12px 10px',
+  border: '1px solid #2f3650',
+  borderRadius: 10,
+  background: '#11151f',
+}
+
+const newItemsStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))',
+  gap: 8,
+  marginTop: 10,
+}
+
+const newItemStyle: CSSProperties = {
+  minWidth: 0,
+  display: 'grid',
+  justifyItems: 'center',
+  gap: 4,
+  padding: '8px 6px',
+  border: '1px solid #2a3046',
+  borderRadius: 8,
+  background: '#181d2b',
 }
 
 const rowStyle: CSSProperties = {

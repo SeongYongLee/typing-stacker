@@ -8,6 +8,7 @@ import {
   drawAim,
   drawBody,
   drawCat,
+  drawCatcher,
   drawLedges,
   drawPlatformBack,
   drawPlatformFront,
@@ -55,6 +56,7 @@ type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
   'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'>> & {
   readonly hiddenReveal: HiddenReveal | null
   readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
+  readonly catcher: NonNullable<ArenaRenderState['catcher']> | null
   readonly cat: CatView | null
 }
 
@@ -68,6 +70,7 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
     nightfall: state.nightfall ?? 0,
     ledges: state.ledges ?? NO_LEDGES,
     formingLedge: state.formingLedge ?? null,
+    catcher: state.catcher ?? null,
     pairMarks: state.pairMarks ?? NO_PAIR_MARKS,
     pairPulse: state.pairPulse ?? 0,
     cat: state.cat ?? null,
@@ -149,6 +152,20 @@ interface ArenaRenderState {
     readonly y: number
     readonly halfWidth: number
     /** 0(히든 자리에서 출발) → 1(다 앉음) */
+    readonly progress: number
+  } | null
+  /**
+   * 화이트보드 단어를 쳤을 때 잠깐 나오는 회수 손/판.
+   *
+   * 물리 콜라이더와 같은 중심·길이·기울기를 받는다. 보이는 판과 부딪히는 판이
+   * 어긋나면 회수 규칙이 연출 때문에 불공정하게 보인다.
+   */
+  readonly catcher?: {
+    readonly x: number
+    readonly y: number
+    readonly halfLength: number
+    readonly angle: number
+    /** 0(나옴) → 1(사라짐) */
     readonly progress: number
   } | null
   /**
@@ -282,6 +299,9 @@ class ArenaRenderer {
         state.pairMarks.get(body.variant.id),
         state.pairPulse,
       )
+    }
+    if (state.catcher !== null) {
+      drawCatcher(view, state.catcher)
     }
     /*
      * 앞벽은 **물건 뒤에** 온다. 이 한 줄이 "상자 위에 쌓였다"를 "상자에 담겼다"로

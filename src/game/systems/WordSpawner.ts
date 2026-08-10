@@ -4,6 +4,7 @@ import type { Rng } from './Rng.ts'
 
 const FADE_SECONDS = 0.6
 const SIDES: readonly Side[] = ['left', 'right']
+const PREFERRED_WEIGHT = 4
 
 class WordSpawner {
   private readonly rng: Rng
@@ -16,6 +17,7 @@ class WordSpawner {
    * 화면을 갈아엎는 일이 아니다.
    */
   private pool: readonly WordEntry[]
+  private preferred = new Set<string>()
   private list: FallingWord[] = []
   private timer = 0
   private nextId = 1
@@ -82,6 +84,11 @@ class WordSpawner {
   /** 밭을 전체로 되돌린다. 이미 내려오는 단어는 그대로 둔다 */
   release(): void {
     this.pool = this.entries
+  }
+
+  /** 이 단어들은 다음 스폰에서 조금 더 자주 뽑힌다. 목록 밖 단어는 무시된다. */
+  prefer(words: readonly string[]): void {
+    this.preferred = new Set(words)
   }
 
   /** 지금 밭이 좁혀져 있는가. 화면이 알려줄 일이 생기면 이것을 본다 */
@@ -186,13 +193,28 @@ class WordSpawner {
     this.revision += 1
     this.list.push({
       id: this.nextId++,
-      word: this.rng.pick(candidates).word,
+      word: this.pickWord(candidates),
       side,
       slot,
       y: 0,
       state: 'active',
       fade: 1,
     })
+  }
+
+  private pickWord(candidates: readonly WordEntry[]): string {
+    let total = 0
+    for (const entry of candidates) {
+      total += this.preferred.has(entry.word) ? PREFERRED_WEIGHT : 1
+    }
+    let roll = this.rng.next() * total
+    for (const entry of candidates) {
+      roll -= this.preferred.has(entry.word) ? PREFERRED_WEIGHT : 1
+      if (roll < 0) {
+        return entry.word
+      }
+    }
+    return candidates[candidates.length - 1]?.word ?? this.rng.pick(candidates).word
   }
 
   /** 한쪽에만 몰리지 않게 적은 쪽을 우선한다 */

@@ -58,7 +58,7 @@ function collected(): string[] {
 function labelOfIcon(icon: string, count: number): string {
   if (icon === '') {
     // 아직 아무것도 못 만난 사람에게는 고를 것이 없다는 사실 자체를 알려야 한다
-    return count > 1 ? '없음' : '아직 모은 물건이 없다'
+    return count > 1 ? '기본 사진' : '아직 모은 물건이 없다'
   }
   return VARIANT_BY_ID.get(icon)?.label ?? icon
 }
@@ -136,7 +136,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
     { kind: 'pick' as const, label: '물건', value: nounList[noun] ?? '' },
     {
       kind: 'pick' as const,
-      label: '아이콘',
+      label: '프로필 사진',
       value: labelOfIcon(pickedIcon, icons.length),
       icon: pickedIcon,
     },
@@ -235,6 +235,9 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
         {/* 무엇을 잃고 무엇을 얻는지 — 나가는 문이 둘이므로 이 줄이 있어야 고를 수 있다 */}
         <p style={{ fontSize: 12, color: '#6a7290', margin: '8px 0 0' }}>
           {changed ? `돌아가면 ${before.name} 그대로` : '쓰던 이름 그대로'}
+        </p>
+        <p style={{ fontSize: 12, color: '#7c85a8', margin: '8px 0 0' }}>
+          도감에 모은 물건을 프로필 사진으로 쓸 수 있습니다
         </p>
         <p style={{ marginTop: 16, fontSize: 12, color: '#4a5171' }}>
           ↑↓로 고르고 ←→로 값을 바꿉니다

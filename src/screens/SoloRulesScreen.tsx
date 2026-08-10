@@ -24,9 +24,16 @@ const RULES: readonly ReactNode[] = [
 const rootStyle: CSSProperties = {
   height: '100%',
   display: 'grid',
-  gridTemplateRows: 'auto minmax(0, 1fr) auto',
+  gridTemplateRows: 'auto minmax(0, 1fr)',
   gap: 24,
   padding: 'clamp(28px, 4vh, 48px) 48px',
+}
+
+const contentStyle: CSSProperties = {
+  minHeight: 0,
+  display: 'grid',
+  alignContent: 'center',
+  gap: 96,
 }
 
 const titleStyle: CSSProperties = {
@@ -68,23 +75,25 @@ function SoloRulesScreen({ onStart }: SoloRulesScreenProps) {
     <main style={rootStyle} data-solo-rules>
       <h1 style={titleStyle}>GAME RULES</h1>
 
-      <section style={panelStyle} aria-label="게임 규칙">
-        <ul style={listStyle} data-blurb="solo">
-          {RULES.map((rule, index) => (
-            <li key={index}>{rule}</li>
-          ))}
-        </ul>
-      </section>
+      <div style={contentStyle}>
+        <section style={panelStyle} aria-label="게임 규칙">
+          <ul style={listStyle} data-blurb="solo">
+            {RULES.map((rule, index) => (
+              <li key={index}>{rule}</li>
+            ))}
+          </ul>
+        </section>
 
-      <div style={{ width: 360, maxWidth: '100%', justifySelf: 'center' }}>
-        <MenuButton
-          selected={menu.index === 0}
-          onClick={onStart}
-          onHover={() => menu.select(0)}
-          primary
-        >
-          게임 시작
-        </MenuButton>
+        <div style={{ width: 360, maxWidth: '100%', justifySelf: 'center' }}>
+          <MenuButton
+            selected={menu.index === 0}
+            onClick={onStart}
+            onHover={() => menu.select(0)}
+            primary
+          >
+            게임 시작
+          </MenuButton>
+        </div>
       </div>
     </main>
   )

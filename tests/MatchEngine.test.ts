@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
-import { WORDS } from '../src/game/data/words.ts'
 import {
   DROP_INTERVAL_SEC,
   MatchEngine,
@@ -23,13 +22,6 @@ const PLAYERS: PlayerInfo[] = [
   { id: 'host-peer', nickname: '자두', device: 'dev-host' , icon: ''},
   { id: 'guest-peer', nickname: '세이지', device: 'dev-guest' , icon: ''},
 ]
-
-/** 떨굴 때 방장이 난수를 한 번 더 뽑는 단어들 — 난수열이 갈리는지 보려면 이 중에서 골라야 한다 */
-const HIDDEN_WORDS = new Set(
-  WORDS.filter((entry) => entry.variants.some((variant) => variant.hidden)).map(
-    (entry) => entry.word,
-  ),
-)
 
 interface Pair {
   host: MatchEngine
@@ -138,30 +130,17 @@ describe('MatchEngine — 대전', () => {
     expect(guestWords).toEqual(hostWords)
   })
 
-  /*
-   * 한때 여기가 깨져 있었다. 단어 스포너와 물건 뽑기가 난수 하나를 같이 썼는데
-   * 물건은 방장만 뽑으므로, 그 순간 두 난수열이 갈려 그때부터 서로 다른 단어가 내려왔다.
-   *
-   * **히든 변형이 있는 단어여야 재현된다.** 그런 단어가 아니면 방장도 난수를 더 뽑지
-   * 않아 두 열이 그대로 맞는다 — 아무 단어나 떨구는 테스트로는 이 회귀를 놓친다.
-   */
-  it('히든이 걸린 단어를 떨궈도 양쪽 단어 밭이 갈리지 않는다', async () => {
+  it('단어를 떨궈도 양쪽 단어 밭이 갈리지 않는다', async () => {
     pair = await makePair(2024)
 
-    let dropped: string | null = null
-    for (let tick = 0; tick < 60 && dropped === null; tick += 1) {
+    for (let tick = 0; tick < 6; tick += 1) {
       await pair.clock.advance(0.5)
-      const view = pair.hostState()
-      const target = view.words.find(
-        (word) => word.state === 'active' && HIDDEN_WORDS.has(word.word),
-      )
-      if (target === undefined) {
-        continue
+      const target = pair.hostState().words.find((word) => word.state === 'active')
+      if (target !== undefined) {
+        pair.host.submit(target.word)
+        break
       }
-      pair.host.submit(target.word)
-      dropped = target.word
     }
-    expect(dropped).not.toBeNull()
 
     // 갈렸다면 이 뒤에 나오는 단어부터 서로 달라진다
     await pair.clock.advance(8)

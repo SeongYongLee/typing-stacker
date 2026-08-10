@@ -27,10 +27,7 @@ interface HiddenReveal {
   readonly label: string
   readonly sprite: string
   /**
-   * 무엇으로 만들었는지. 합성으로 얻었을 때만 채워진다.
-   *
-   * 비어 있으면 운으로 만난 히든이라 모이는 장면 없이 결과물만 나타난다 —
-   * 없던 것을 지어내면 "재료가 있었나" 하고 다음 판에 헛것을 찾게 된다.
+   * 무엇으로 만들었는지. 히든은 합성 결과로만 나타나므로 재료를 함께 보여준다.
    */
   readonly from: readonly string[]
   /** 0 → 1 */

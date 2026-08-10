@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
-import { HIDDEN_CHANCE } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 import type { GameEvent } from '../src/game/types/events.ts'
@@ -8,13 +7,9 @@ import type { GameEvent } from '../src/game/types/events.ts'
 /**
  * 한 판에 **특별한 것을 몇 번 만나는가**를 잰다.
  *
- * 이 게임의 재미는 "무엇이 나올까"이고, 그것을 실어 나르는 것이 히든과 합성이다.
- * 그런데 그 빈도는 상수 하나가 정하는 것이 아니라 **`히든 보유 단어 ÷ 전체 단어`**가
- * 정한다 — 아트 묶음이 올 때마다 분모가 움직이므로 `HIDDEN_CHANCE`만 보고는 알 수 없다.
- *
- * 실제로 그렇게 어긋난 적이 있다. 합성 세트가 들어오며 재료 30종이 전부 단어가 되어
- * 분모가 48 → 78로 뛰었고, 히든은 9 → 11로 둘만 늘어 **비율이 19% → 14%로 오히려
- * 내려갔다.** 반대로 2026-08-09 재작화 묶음은 히든을 많이 데려와 35%가 됐다.
+ * 이 게임의 재미는 "무엇이 만들어질까"이고, 그것을 실어 나르는 것이 조합과 히든
+ * 대체 결과다. 단어 입력은 더 이상 히든을 직접 내놓지 않으므로, 여기서 보는 히든은
+ * 합성 결과로 만난 것만이다.
  *
  * 그래서 **아트 묶음마다 다시 돌리는 자리**로 남긴다. 값을 고치는 검사가 아니라
  * 숫자를 뽑는 검사다 — 통과 조건은 "판이 굴러가는가"까지만 두고, 나온 숫자는
@@ -112,7 +107,6 @@ describe('특별한 것을 만나는 빈도', () => {
       runs.filter((run) => pick(run) === 0).length / runs.length
 
     const special = (run: RunResult): number => run.hidden + run.merges
-    const withHidden = WORDS.filter((entry) => entry.variants.some((v) => v.hidden)).length
     const rows: [string, string][] = [
       ['판 길이', `${mean((r) => r.seconds).toFixed(1)}초`],
       ['떨군 횟수', mean((r) => r.drops).toFixed(1)],
@@ -132,7 +126,7 @@ describe('특별한 것을 만나는 빈도', () => {
       ],
     ]
     console.log(
-      `\n[밸런스 실측] 봇 ${RUNS}판 · 단어 ${WORDS.length}개 · 히든 보유 ${withHidden}개(${Math.round((withHidden / WORDS.length) * 100)}%) · HIDDEN_CHANCE ${HIDDEN_CHANCE}\n` +
+      `\n[밸런스 실측] 봇 ${RUNS}판 · 단어 ${WORDS.length}개\n` +
         rows.map(([key, value]) => `  | ${key} | ${value} |`).join('\n'),
     )
 

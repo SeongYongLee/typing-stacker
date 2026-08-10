@@ -289,15 +289,7 @@ class MatchEngine {
   private rematchView: readonly PlayerId[] = []
   private readonly matchId: string
 
-  /**
-   * 단어 밭을 굴리는 난수와 물건을 뽑는 난수를 나눠 둔다.
-   *
-   * 하나로 쓰면 방장만 물건을 뽑으므로(참가자는 방장이 정한 id를 받는다) 첫 드롭에서
-   * 두 난수열이 갈린다. 지금은 단어 밭도 방장이 소유해 이 갈림이 겉으로 드러나지
-   * 않지만, 하나를 나눠 쓰는 구조 자체를 남겨두면 같은 함정에 다시 빠진다.
-   */
   private rng: Rng
-  private itemRng: Rng
   private spawner: WordSpawner
   private aimer = new Aimer(AIM_HALF_RANGE)
   /** 빛나는 물건이 얹힐 때 번지는 색. 싱글과 같은 것을 쓴다 */
@@ -416,7 +408,6 @@ class MatchEngine {
     this.ownerColors = buildOwnerColors(options.players)
     this.presence = new Presence(options.players, options.transport.selfId)
     this.rng = createRng(options.seed)
-    this.itemRng = createRng((options.seed ^ 0x9e3779b9) >>> 0)
     this.spawner = new WordSpawner(this.rng, WORDS)
     if (!this.isHost) {
       this.spawner.follow()
@@ -917,7 +908,7 @@ class MatchEngine {
       return
     }
     const aimX = Math.min(Math.max(rawAimX, -AIM_HALF_RANGE), AIM_HALF_RANGE)
-    const variant = resolveItem(word, this.itemRng)
+    const variant = resolveItem(word)
     const itemId = this.nextItemId
     this.nextItemId += 1
 
@@ -962,13 +953,10 @@ class MatchEngine {
     // 양쪽이 다 지나는 자리다 — 상대가 떨군 것도 소리로 들린다
     this.fire({
       kind: 'drop',
-      hidden: variant.hidden,
+      hidden: false,
       material: variant.material,
       tone: variant.tone,
     })
-    if (variant.hidden) {
-      this.fire({ kind: 'reveal' })
-    }
     /*
      * 차례를 넘기고 모두가 함께 쓰는 쿨타임을 건다.
      *
@@ -986,7 +974,7 @@ class MatchEngine {
         text: word,
         kind: 'dropped',
         itemLabel: variant.label,
-        hidden: variant.hidden,
+        hidden: false,
       }
     }
     this.emit()

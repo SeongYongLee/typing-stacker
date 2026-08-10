@@ -145,15 +145,14 @@ describe('히든 쪽지의 여백', () => {
    * 크기의 절반씩이다. 판은 그 칸에서 사방 같은 거리에 있어야 한다.
    */
   for (const [name, label, from] of [
-    ['운으로 만난 히든', '피자 한 판', []],
     ['합성으로 얻은 것', '곰돌이 오므라이스', ['pizza', 'egg']],
-    ['짧은 이름', '달', []],
+    ['짧은 이름', '달', ['moon', 'glass']],
   ] as const) {
     it(`${name} — 네 변이 같다`, () => {
       const { plate, labelText, tagText } = drawTag(label, from)
       expect(plate, '판이 그려져야 한다').toBeDefined()
       expect(labelText, '이름이 적혀야 한다').toBeDefined()
-      expect(tagText, '갈래(합성/HIDDEN)가 적혀야 한다').toBeDefined()
+      expect(tagText, '갈래(합성)가 적혀야 한다').toBeDefined()
       if (plate === undefined || labelText === undefined || tagText === undefined) {
         return
       }

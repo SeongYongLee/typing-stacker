@@ -26,7 +26,7 @@ describe('SoundLimiter', () => {
     expect(limiter.allow('wordHit', 0)).toBe(true)
     expect(limiter.allow('wordMiss', 0)).toBe(true)
     expect(limiter.allow('drop', 0)).toBe(true)
-    expect(limiter.allow('reveal', 0)).toBe(true)
+    expect(limiter.allow('merge', 0)).toBe(true)
   })
 
   /**

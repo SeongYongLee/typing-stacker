@@ -288,20 +288,19 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    * 합성이면 앞 3할 동안 재료가 모인다. 그동안 결과물은 아직 없다 —
    * 겹쳐 그리면 결과가 재료보다 먼저 보여서 "합쳐졌다"가 아니라 "셋이 겹쳤다"가 된다.
    */
-  const merging = reveal.from.length > 0
-  const gather = merging ? Math.min(t / MERGE_GATHER, 1) : 1
+  const gather = Math.min(t / MERGE_GATHER, 1)
 
   ctx.save()
   ctx.globalAlpha = alpha
 
-  if (merging && gather < 1) {
+  if (gather < 1) {
     drawGathering(view, reveal.from, cx, cy, unit, gather, alpha)
     ctx.restore()
     return
   }
 
   // 모임이 끝난 **그 순간**에 한 번 번쩍인다. 재료가 결과로 바뀌는 자리를 못 박는다
-  const flash = merging ? Math.max(0, 1 - (t - MERGE_GATHER) / 0.1) : 0
+  const flash = Math.max(0, 1 - (t - MERGE_GATHER) / 0.1)
   if (flash > 0) {
     // 결과물을 덮어버리지 않을 만큼만. 가리면 번쩍임이 아니라 빈칸으로 보인다
     ctx.globalAlpha = alpha * flash * 0.55
@@ -315,7 +314,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    * 링은 결과물이 나온 시점을 0으로 잡는다. 합성일 때 연출 시작을 0으로 두면
    * 재료가 모이는 동안 링이 이미 다 퍼져서, 정작 결과가 나올 때는 아무 일도 없다.
    */
-  const ringBase = merging ? Math.max(0, (t - MERGE_GATHER) / (1 - MERGE_GATHER)) : t
+  const ringBase = Math.max(0, (t - MERGE_GATHER) / (1 - MERGE_GATHER))
   for (let i = 0; i < 2; i += 1) {
     const ringT = Math.min(ringBase * 1.6 - i * 0.18, 1)
     if (ringT <= 0) continue
@@ -328,7 +327,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   }
 
   // 결과물은 튀어나오듯 커진다. 모이던 것이 하나로 뭉쳐 부풀어 오르는 것으로 읽힌다
-  const pop = merging ? Math.min(ringBase / 0.16, 1) : 1
+  const pop = Math.min(ringBase / 0.16, 1)
 
   /*
    * **나온 직후가 가장 또렷하다.**
@@ -339,7 +338,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    *
    * 그렇다고 끝까지 또렷하면 커지는 그림이 아레나를 덮는다. 그래서 **커질수록
    * 흐려지게** 한다 — 터져 나왔다가 흩어지는 것으로 읽힌다. 링이 퍼지는 것과
-   * 같은 시계(`ringBase`)를 쓰므로 합성이든 운이든 결과가 나온 순간이 0이다.
+   * 같은 시계(`ringBase`)를 쓰므로 결과가 나온 순간이 0이다.
    */
   const settle = Math.min(Math.max((ringBase - 0.2) / 0.4, 0), 1)
   ctx.globalAlpha = alpha * pop * (0.75 - settle * 0.5)
@@ -410,8 +409,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   ctx.fillText(reveal.label, cx, labelY)
   ctx.font = `${tagSize}px ${UI_FONT}`
   ctx.globalAlpha = alpha * 0.7
-  // 어느 길로 얻었는지가 이 한 단어로 갈린다 — 운으로 만난 것과 손으로 만든 것
-  ctx.fillText(reveal.from.length > 0 ? '합성' : 'HIDDEN', cx, tagY)
+  ctx.fillText('합성', cx, tagY)
 
   ctx.restore()
 }

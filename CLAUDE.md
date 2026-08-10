@@ -834,6 +834,58 @@ node scripts/prepare-sprites.cjs
 
 여덟까지 붙고, 한 사람이 나가도 남은 사람들은 계속하며, 방장이 사라지면 다음 사람이 이어받고, 끊겼다 돌아오면 하던 판으로 복귀한다. **급한 것이 남아 있지 않다** — 다음에 볼 것은 볼트의 `04_Backlog`.
 
+### ArenaRenderer를 월드와 연출로 가른다 (플랜)
+
+1100줄이고 **하루에 커밋이 아홉 번** 들어간 날이 있었다. 큰 공유 파일은
+`git commit -- <경로>` 규약으로도 안 풀린다 — 같은 파일이면 한쪽이 다른 쪽의
+반쯤 된 편집을 담아 가기 때문이다.
+
+**가르는 선은 "월드에 있는 것 / 그 위에 얹히는 것"이다.**
+
+| | 함수 | 줄 |
+|---|---|---|
+| `arenaPaint` | `drawPlatformBack`·`drawPlatformFront`·`platformRect`·`drawLedges`·`drawAim`·`drawBody`·`drawSprite`·`traceShape`·`tracePart`·`partsOf`·`drawDayNight` | 약 270 |
+| `effectPaint` | `drawTrails`·`drawLandingGlow`·`drawHiddenReveal`·`drawGathering`·`drawFormingLedge` | 약 330 |
+
+**연출만 빼는 것으로는 안 된다.** 한 번 그렇게 해보려다 접었는데, 그날 실제로
+부딪힌 자리가 `drawPlatform`(한쪽)과 `drawTrails`(다른 쪽)이라 연출을 빼내도 둘이
+같은 파일에 남았다. 262줄을 옮기고 모듈을 넷 만들어도 겪던 문제는 하나도 안 풀린다.
+
+## 먼저 그릇을 만든다
+
+거의 모든 그리기 함수가 같은 것을 쓴다 — `this.scale`(17곳)·`this.toScreenY`(10곳)·
+`this.toScreenX`(9곳)·`this.nightfall`. 파일을 나누려면 이것들을 넘겨줄 그릇이
+있어야 한다.
+
+```ts
+interface View {
+  readonly ctx: CanvasRenderingContext2D
+  readonly scale: number
+  readonly cameraY: number
+  readonly nightfall: number
+  toScreenX(worldX: number): number
+  toScreenY(worldY: number): number
+}
+```
+
+**이것부터 만들고 나머지는 기계로 옮긴다.** `this.` 를 `view.` 로 바꾸는 일이라
+사람이 손으로 하면 빠뜨린다.
+
+## 공유되는 것은 셋뿐이다
+
+전수로 갈라보니 `COLORS` · `artUrl` · `sprite()`만 양쪽이 쓴다. 나머지는 한쪽
+전용이다 — `UI_FONT`·`TAG_*`·`MERGE_GATHER`·`GATHER_FROM`은 연출로, `PLATFORM_*`·
+`ARROW_*`·`rim`·`padRatio`·`PAIR_MARK_COLORS`는 월드로 간다.
+
+`sprite()`는 이미 `spriteCache.ts`에 있다. **`artUrl`을 `arenaArt.ts`로 빼고
+`COLORS`를 어디에 둘지만 정하면** 남는 결정이 없다.
+
+## 나눠도 순서는 안 나뉜다
+
+`draw()`가 그리는 차례를 쥐고 있어야 한다 — "뒤 → 부스러기 → 물건 → 앞벽 →
+통나무"처럼 **순서 자체가 뜻을 가지는** 자리가 있고, 그것은 전역 성질이라 파일을
+나눈다고 나뉘지 않는다. `draw()`는 `ArenaRenderer`에 남긴다.
+
 ### 그 외
 
 - ~~단어가 적어 화면이 거의 전체 어휘로 채워진다~~ → **해소됨.** 재작화 묶음에서 단어가 78 → 95개가 됐다. 동시 낙하 상한이 7이므로 이제 한 번에 보이는 것은 어휘의 7%다

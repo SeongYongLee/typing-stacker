@@ -18,7 +18,8 @@ describe('합성하면 통나무가 선다', () => {
   afterEach(() => clock.uninstall())
 
   it('첫 합성에 하나가 서고, 연출이 끝난 뒤에 선다', async () => {
-    const engine = await GameEngine.create(7919)
+    // 이 시드는 첫 합성이 낮에 난다. Fever 합성은 의도적으로 통나무 보상이 없다.
+    const engine = await GameEngine.create(1)
     const events: GameEvent[] = []
     let state: GameState | null = null
     engine.onEvent((event) => events.push(event))

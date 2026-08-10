@@ -43,15 +43,14 @@ export {
   SOLO_READY_MS,
   SOLO_START_MS,
   DIFFICULTY_FULL_HEIGHT,
-  FIRST_NIGHT_MERGES,
-  FIRST_NIGHT_SEC,
   DAY_SEC,
   NIGHT_SEC,
+  NIGHT_FEVER,
   DROP_COOLDOWN_MS,
   WORD,
 } from './config/time.ts'
 
-export { LEDGE, CATCH, HIDDEN_CHANCE, OPENING_HIDDEN_CHANCE } from './config/items.ts'
+export { LEDGE, CATCH, HIDDEN_CHANCE } from './config/items.ts'
 
 export { LIVES, SOLO_LIVES, INVULNERABLE_SEC, SOLO_OWNER, SCORE } from './config/scoring.ts'
 

@@ -13,6 +13,8 @@ interface InputBarProps {
   stats: RunStats
   /** 남은 무적 시간 비율(0~1). 하트에 베리어로 보여준다 */
   invulnerable: number
+  /** 화면이 Night Fever인가. 남은 하트를 연보라색으로 빛낸다 */
+  fever: boolean
   /** 0 → 낮, 1 → 밤. 메모장과 연필의 조명이 방을 따라간다 */
   nightfall: number
 }
@@ -393,12 +395,12 @@ function MemoInput({
   )
 }
 
-function InputBar({ input, feedback, stats, invulnerable, nightfall }: InputBarProps) {
+function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: InputBarProps) {
   return (
     <div style={wrapStyle}>
       <div style={rowStyle}>
         <div style={{ justifySelf: 'end' }}>
-          <Lives lives={stats.lives} invulnerable={invulnerable} />
+          <Lives lives={stats.lives} invulnerable={invulnerable} fever={fever} />
         </div>
         <MemoInput
           input={input}

@@ -152,6 +152,8 @@ interface BodySnapshot {
   readonly rotation: number
   readonly settled: boolean
   readonly recalled?: boolean
+  /** Night Fever가 직접 떨어뜨린 물건. 별똥별 꼬리를 그리는 로컬 연출 표식이다. */
+  readonly fever?: boolean
 }
 
 /** 네트워크 등 외부 권위 상태로 물리 세계를 복구하기 위한 공통 좌표. */

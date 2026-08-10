@@ -9,6 +9,7 @@ import { play } from './animate.ts'
  * 한 단계 밝혀 아래쪽 그러데이션 위에서 읽히게 한다.
  */
 const KEPT = '#ff6b6b'
+const FEVER = '#dec7ff'
 const LOST = '#2e3448'
 const SCORE_BACKGROUND = '#e4e68a'
 const COMBO_BACKGROUND = '#6bffb0'
@@ -73,9 +74,18 @@ function Barrier({ ratio }: { ratio: number }) {
   )
 }
 
-function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: number }) {
+function Lives({
+  lives,
+  invulnerable = 0,
+  fever = false,
+}: {
+  lives: number
+  invulnerable?: number
+  fever?: boolean
+}) {
   const rowRef = useRef<HTMLSpanElement | null>(null)
   const slots = useRef<(HTMLSpanElement | null)[]>([])
+  const pulseSlots = useRef<(HTMLSpanElement | null)[]>([])
   const previous = useRef(lives)
 
   // 목숨이 줄어드는 순간을 놓치지 않게 한다 — 물건이 떨어지는 데 시선이 가 있기 때문이다
@@ -113,7 +123,7 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
       return
     }
     const pulse = play(
-      slots.current[0] ?? null,
+      pulseSlots.current[0] ?? null,
       [
         { opacity: 1, transform: 'scale(1)' },
         { opacity: 0.4, transform: 'scale(1.2)' },
@@ -123,6 +133,37 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
     )
     return () => pulse?.cancel()
   }, [lives])
+
+  /*
+   * Fever는 마지막 하트의 `transform` 맥박과 다른 축인 밝기·그림자만 움직인다.
+   * 각 하트를 따로 재생해야 잃은 빈 하트까지 함께 빛나지 않는다.
+   */
+  useEffect(() => {
+    if (!fever) {
+      return
+    }
+    const sparkles = slots.current.slice(0, lives).map((slot, index) =>
+      play(
+        slot,
+        [
+          { filter: 'brightness(1)', textShadow: '0 0 4px rgba(222, 199, 255, 0.55)' },
+          { filter: 'brightness(1.3)', textShadow: '0 0 14px rgba(239, 226, 255, 0.95)' },
+          { filter: 'brightness(1)', textShadow: '0 0 5px rgba(222, 199, 255, 0.6)' },
+        ],
+        {
+          duration: 900,
+          delay: index * 110,
+          iterations: Number.POSITIVE_INFINITY,
+          easing: 'ease-in-out',
+        },
+      ),
+    )
+    return () => {
+      for (const sparkle of sparkles) {
+        sparkle?.cancel()
+      }
+    }
+  }, [fever, lives])
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
@@ -137,18 +178,31 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
           lineHeight: 1,
         }}
       >
-        {invulnerable > 0 && <Barrier ratio={invulnerable} />}
+        {!fever && invulnerable > 0 && <Barrier ratio={invulnerable} />}
         {Array.from({ length: SOLO_LIVES }, (_, index) => {
           const kept = index < lives
+          const feverHeart = kept && fever
           return (
             <span
               key={index}
               ref={(node) => {
-                slots.current[index] = node
+                pulseSlots.current[index] = node
               }}
-              style={{ display: 'inline-block', color: kept ? KEPT : LOST }}
+              style={{ display: 'inline-block' }}
             >
-              {kept ? '♥' : '♡'}
+              <span
+                ref={(node) => {
+                  slots.current[index] = node
+                }}
+                data-fever-heart={feverHeart || undefined}
+                style={{
+                  display: 'inline-block',
+                  color: feverHeart ? FEVER : kept ? KEPT : LOST,
+                  textShadow: feverHeart ? '0 0 8px rgba(222, 199, 255, 0.72)' : undefined,
+                }}
+              >
+                {kept ? '♥' : '♡'}
+              </span>
             </span>
           )
         })}
@@ -313,4 +367,4 @@ function Delta({ amount }: { amount: number }) {
   )
 }
 
-export { Lives, Combo, Score, Barrier, KEPT, LOST }
+export { Lives, Combo, Score, Barrier, KEPT, FEVER, LOST, BARRIER }

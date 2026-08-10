@@ -2,14 +2,11 @@ import {
   AIM_HALF_RANGE,
   ARENA,
   DROP_COOLDOWN_MS,
-  FIRST_NIGHT_MERGES,
-  FIRST_NIGHT_SEC,
   HIDDEN_CHANCE,
   INVULNERABLE_SEC,
   CATCH,
   LEDGE,
   SOLO_LIVES,
-  OPENING_HIDDEN_CHANCE,
   SOLO_OWNER,
   QUAKE_DURATION,
   QUAKE_IMPACT_SCALE,
@@ -27,6 +24,7 @@ import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
 import { pairMarks, pairPulse } from '../systems/PairMarks.ts'
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
+import { NightFever, isLifeProtected } from '../systems/NightFever.ts'
 import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
 import { Whiteboard } from '../systems/Whiteboard.ts'
 import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
@@ -55,10 +53,6 @@ const WORD_BASE_ID = new Map(
 /** 표에서 못 찾은 재료를 걸러낸다 — 레시피는 id 문자열이라 오타가 조용히 지나갈 수 있다 */
 function isVariant(item: ItemVariant | undefined): item is ItemVariant {
   return item !== undefined
-}
-
-function hiddenChanceForPhase(phase: Phase): number {
-  return phase === 'firstNight' ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE
 }
 
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
@@ -121,8 +115,8 @@ interface GameState {
    * 지금 몇 시인가 — 국면과 그 안의 진행도, 그리고 밤에 얼마나 잠겼는가.
    *
    * **규칙 쪽이 내놓는 값이다.** 그리는 쪽(시계·배경·받침대)은 이것을 받아 쓴다 —
-   * 배경의 낮/밤은 `timeOfDay.nightfall`을 그대로 따라간다. 화면이 어두워졌다는 것은
-   * 레시피 재료가 낮보다 더 촘촘히 이어진다는 뜻이다. 화면이 곧 규칙을 말한다.
+   * 배경의 낮/밤은 `timeOfDay.nightfall`을 그대로 따라간다. 밤 국면에 들면 레시피
+   * 묶음이 직접 떨어지고 하트가 무적이 된다. 화면과 규칙이 같은 시계를 본다.
    */
   readonly timeOfDay: TimeOfDay
   readonly aimNormalized: number
@@ -170,6 +164,7 @@ class GameEngine {
   private rng: Rng
   private recipeFlow: RecipeFlow
   private catRng: Rng
+  private nightFever: NightFever
   private spawner: WordSpawner
   /** 화이트보드보다 먼저 확정한 현재 집중 레시피의 단어들 */
   private focusedRecipeWords: readonly string[] = []
@@ -202,6 +197,8 @@ class GameEngine {
     | null = null
   /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
   private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
+  /** 낮에 합성이 연달아 일어나도 통나무 보상을 덮어쓰지 않도록 기다리는 횟수 */
+  private pendingLedgeRewards = 0
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
   /**
@@ -230,23 +227,8 @@ class GameEngine {
   private invulnerableLeft = 0
   /** 직전에 매긴 짝 표식. 색을 이어 쓰려면 지난 판정을 들고 있어야 한다 */
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
-  /** 지금 국면. 바뀔 때만 밭을 갈아끼우려고 들고 있는다 */
-  private phaseNow: Phase = 'firstNight'
-  /**
-   * 이번 판의 합성 횟수. 첫 밤을 끝내는 조건이라 세어 둔다.
-   *
-   * `ScoreManager`가 아니라 여기서 세는 이유는 **국면이 엔진의 것**이기 때문이다.
-   * 점수는 판이 끝난 뒤에 보는 값이고 이것은 판이 도는 동안 쓰는 값이다.
-   */
-  private mergeCount = 0
-  /**
-   * 첫 밤이 끝나는 시각(초).
-   *
-   * 합성 두 번을 하기 전에는 **상한**(`FIRST_NIGHT_SEC`)이다 — `timeOfDay`는 "첫 밤이
-   * 이만큼 걸린다"만 알면 되고, 그것이 사건으로 정해졌는지 상한에 걸린 것인지는
-   * 알 필요가 없다. 두 번째 합성이 일어나면 그 순간의 시각으로 못 박는다.
-   */
-  private firstNightEnd = FIRST_NIGHT_SEC
+  /** 지금 국면. 바뀔 때만 Fever와 레시피 흐름을 갈아끼우려고 들고 있는다 */
+  private phaseNow: Phase = 'day'
   /** 벽에 적힌 회수 목록. 여기 있는 단어를 치면 쌓지 않고 빼낸다 */
   private readonly whiteboard = new Whiteboard(createRng(0x5eed))
   /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
@@ -276,6 +258,7 @@ class GameEngine {
     this.rng = createRng(seed)
     this.recipeFlow = new RecipeFlow(createRng(seed ^ 0x72656369), WORDS, RECIPES)
     this.catRng = createRng(seed ^ 0xc47f00d)
+    this.nightFever = new NightFever(createRng(seed ^ 0x66657672), RECIPES, VARIANT_BY_ID)
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
     )
@@ -327,6 +310,7 @@ class GameEngine {
     this.lastMarks = NO_MARKS
     this.hiddenReveal = null
     this.formingLedge = null
+    this.pendingLedgeRewards = 0
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
@@ -335,21 +319,20 @@ class GameEngine {
     this.rng = createRng(this.seed)
     this.recipeFlow = new RecipeFlow(createRng(this.seed ^ 0x72656369), WORDS, RECIPES)
     this.catRng = createRng(this.seed ^ 0xc47f00d)
+    this.nightFever = new NightFever(
+      createRng(this.seed ^ 0x66657672),
+      RECIPES,
+      VARIANT_BY_ID,
+    )
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
     )
     this.focusedRecipeWords = []
-    /*
-     * 판은 첫 밤에서 시작하지만 더는 단어 둘로 밭을 잠그지 않는다. 2재료 레시피
-     * 전체를 차례로 집중하고 그 사이에 다른 물건을 넣는다(`RecipeFlow`).
-     */
-    this.phaseNow = 'firstNight'
+    this.phaseNow = 'day'
     this.whiteboard.clear()
     this.spawner.prefer(this.whiteboard.words)
     this.catcherLeft = 0
     this.catcherView = null
-    this.mergeCount = 0
-    this.firstNightEnd = FIRST_NIGHT_SEC
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
@@ -357,6 +340,8 @@ class GameEngine {
     this.cameraY = 0
     this.difficultyPeak = 0
     this.physics.reset()
+    this.observeRecipeFlow()
+    this.syncWhiteboardWithRecipe()
     this.loop.start()
     this.fire({ kind: 'runStart' })
     this.emit()
@@ -403,12 +388,7 @@ class GameEngine {
     this.score.onWordMatched(result.word.word)
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
-    /*
-     * 첫 밤에는 계획한 재료가 히든으로 바뀌어 사라지는 빈도를 낮춘다. 예전에는 밭이
-     * 히든 보유 단어뿐이라 밀도를 누르는 값이었고, 지금은 첫 두 합성을 안정시키는 값이다.
-     * 국면별 결과는 `zz-recipe-flow.measure.test.ts`에서 함께 잰다.
-     */
-    const variant = resolveItem(result.word.word, this.rng, hiddenChanceForPhase(this.phaseNow))
+    const variant = resolveItem(result.word.word, this.rng, HIDDEN_CHANCE)
     /*
      * 보드에 적힌 단어면 **쌓지 않고 빼낸다.**
      *
@@ -557,7 +537,12 @@ class GameEngine {
    * 물건을 실제로 세계에 떨군다.
    * 대기하다 떨어진 것도 여기를 지나므로, 낙하음이 물건이 생기는 순간과 어긋나지 않는다.
    */
-  private dropNow(variant: ItemVariant, x: number, recalled = false): void {
+  private dropNow(
+    variant: ItemVariant,
+    x: number,
+    recalled = false,
+    source: 'input' | 'fever' = 'input',
+  ): void {
     if (recalled) {
       const side = x < 0 ? 'left' : 'right'
       const catcher = plankOf(catchSpot(x, side, this.physics.stackTop()))
@@ -565,10 +550,19 @@ class GameEngine {
       this.catcherView = catcher
       this.catcherLeft = CATCH.holdSec
     }
-    this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER, 0, recalled)
+    this.physics.spawnItemAt(
+      variant,
+      x,
+      spawnYFor(this.cameraY),
+      SOLO_OWNER,
+      0,
+      recalled,
+      source === 'fever',
+    )
     this.sinceLastDrop = 0
     this.fire({
       kind: 'drop',
+      source,
       hidden: variant.hidden,
       material: variant.material,
       tone: variant.tone,
@@ -632,7 +626,7 @@ class GameEngine {
       difficultyProgress(this.physics.stackTop()),
     )
     this.frameSeq += 1
-    this.applyPhase(timeOfDay(this.elapsed, this.firstNightEnd).phase)
+    this.applyPhase(timeOfDay(this.elapsed).phase)
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
@@ -650,6 +644,12 @@ class GameEngine {
       if (next !== undefined) {
         this.dropNow(next.variant, next.x, next.recalled)
       }
+    }
+
+    const feverDrop = this.nightFever.update(dt, this.physics.snapshots())
+    if (feverDrop !== null) {
+      this.dropNow(feverDrop.variant, feverDrop.x, false, 'fever')
+      this.discover(feverDrop.variant)
     }
 
     const { settled, impacts, escaped, quake } = this.physics.step(dt)
@@ -673,8 +673,8 @@ class GameEngine {
      * 배출구가 아니라 방패가 된다.
      */
     const costly = escaped.filter((event) => event.recalled !== true)
-    if (costly.length > 0 && this.invulnerableLeft <= 0) {
-      // 목숨을 깎은 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
+    if (costly.length > 0 && !isLifeProtected(this.phaseNow, this.invulnerableLeft)) {
+      // 목숨을 깎을 뻔한 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
       const taken = costly[0]
       if (taken !== undefined) {
         this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY))
@@ -779,17 +779,15 @@ class GameEngine {
         this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
       }
     }
+    for (const pending of this.nightFever.pending) {
+      const id = pending.variant.id
+      this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
+    }
     this.recipeFlow.observe(this.recipeCounts)
   }
 
   /** 레시피를 먼저 정한 뒤 그 재료를 제외한 목록으로 회수 보드를 맞춘다. */
   private syncWhiteboardWithRecipe(): void {
-    if (this.phaseNow === 'firstNight') {
-      this.focusedRecipeWords = []
-      this.whiteboard.clear()
-      this.spawner.prefer(this.whiteboard.words)
-      return
-    }
     this.focusedRecipeWords = this.recipeFlow.prepareFocusWords()
     this.whiteboard.refill(WORDS, this.focusedRecipeWords)
     this.spawner.prefer(this.whiteboard.words)
@@ -842,45 +840,35 @@ class GameEngine {
       duration: MERGE_REVEAL_SEC,
     }
     this.fire({ kind: 'merge' })
-    this.mergeCount += 1
-    /*
-     * 첫 밤은 시간이 아니라 **이 사건**으로 끝난다. 목적이 "합성이라는 것이 있다"를
-     * 알리는 것이므로 알린 그 순간이 끝나는 지점이다 — 까닭은 `FIRST_NIGHT_MERGES`에.
-     *
-     * 이미 낮으로 넘어간 뒤의 합성은 아무것도 바꾸지 않는다. `elapsed`가 상한보다
-     * 커서 못 박아봐야 이미 지난 시각이 되고, 그러면 주기의 시작점이 뒤로 밀린다.
-     */
-    if (this.mergeCount === FIRST_NIGHT_MERGES && this.phaseNow === 'firstNight') {
-      this.firstNightEnd = this.elapsed
-    }
     this.score.onCrafted(result)
     this.discover(result)
-    this.growLedge()
-    /*
-     * 예전에는 여기서 첫 밤의 밭을 풀었다. 지금은 **시간이 정한다**(`DayNight.ts`) —
-     * 첫 밤·낮·밤이 도는데 합성 하나로 그 시계를 앞당기면 국면과 화면이 어긋난다.
-     */
+    // Night Fever 자체가 방어 구간이므로 합성으로 방어용 먼지구름·통나무를 더 만들지 않는다.
+    if (this.phaseNow !== 'night') {
+      this.growLedge()
+    }
   }
 
   /**
-   * 국면이 바뀌면 레시피 집중 밀도만 바꾼다.
+   * 국면이 바뀌면 레시피 밀도와 Night Fever를 함께 바꾼다.
    *
-   * 첫 밤·낮·밤 모두 107개 단어를 열어 둔다. 낮에는 레시피 재료 둘 뒤에, 밤에는
-   * 셋 뒤에 다른 무리의 단어를 넣는다. 이미 내려오는 단어는 그대로라 손도 끊기지 않는다.
+   * 이미 내려오는 단어는 그대로 둔다. 밤에 들어가면 NightFever의 1.8초 낙하·3초 휴식 시계를 열고,
+   * 새벽에는 밤에 시작된 붕괴가 뒤늦게 목숨을 깎지 않도록 기존 보호막을 이어 붙인다.
    */
   private applyPhase(next: Phase): void {
     if (next === this.phaseNow) {
       return
     }
+    const previous = this.phaseNow
     this.phaseNow = next
     this.recipeFlow.setPhase(next)
 
-    /* 첫 밤에는 합성을 배우는 흐름과 반대인 회수를 닫는다. */
-    if (next === 'firstNight') {
-      this.whiteboard.clear()
-      this.spawner.prefer(this.whiteboard.words)
+    if (next === 'night') {
+      this.nightFever.start()
+    } else if (previous === 'night') {
+      this.nightFever.stop()
+      this.invulnerableLeft = Math.max(this.invulnerableLeft, INVULNERABLE_SEC)
     }
-    /* 낮·밤 보드는 같은 프레임의 `syncWhiteboardWithRecipe`가 레시피 확정 뒤 채운다. */
+    /* 낮·밤 보드는 같은 프레임의 `syncWhiteboardWithRecipe`가 레시피 확정 뒤 맞춘다. */
   }
 
   /**
@@ -938,6 +926,16 @@ class GameEngine {
    * 것이 싸다.
    */
   private growLedge(): void {
+    this.pendingLedgeRewards += 1
+    this.startNextLedge()
+  }
+
+  /** 진행 중인 통나무가 없을 때 대기 중인 합성 보상 하나를 꺼낸다. */
+  private startNextLedge(): void {
+    if (this.formingLedge !== null || this.pendingLedgeRewards <= 0) {
+      return
+    }
+    this.pendingLedgeRewards -= 1
     const items = this.physics.frames().flatMap((frame) => {
       const variant = VARIANT_BY_ID.get(frame.variantId)
       if (variant === undefined) {
@@ -954,6 +952,9 @@ class GameEngine {
     if (spot !== null) {
       // 아직 세우지 않는다. 연출이 뭉쳐 다 앉은 뒤에 실제 통나무가 된다
       this.formingLedge = { ...spot, elapsed: 0 }
+    } else {
+      // 지금 자리가 없으면 기존 규칙처럼 보상을 건너뛴다. 대기열도 같은 세계를 보므로 비운다.
+      this.pendingLedgeRewards = 0
     }
   }
 
@@ -992,6 +993,7 @@ class GameEngine {
     if (forming.elapsed >= LEDGE.formSec) {
       this.physics.addLedge(forming.x, forming.y, forming.halfWidth)
       this.formingLedge = null
+      this.startNextLedge()
     }
   }
 
@@ -1074,7 +1076,7 @@ class GameEngine {
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
-      nightfall: timeOfDay(this.elapsed, this.firstNightEnd).nightfall,
+      nightfall: timeOfDay(this.elapsed).nightfall,
       ledges: this.physics.ledges(),
       formingLedge:
         this.formingLedge === null
@@ -1117,7 +1119,7 @@ class GameEngine {
       wordMarks: this.wordMarks(this.marks()),
       whiteboard: this.whiteboard.words,
       pairPulse: pairPulse(this.elapsed),
-      timeOfDay: timeOfDay(this.elapsed, this.firstNightEnd),
+      timeOfDay: timeOfDay(this.elapsed),
       aimNormalized: this.aimer.normalized,
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,
@@ -1129,5 +1131,5 @@ class GameEngine {
   }
 }
 
-export { GameEngine, hiddenChanceForPhase }
+export { GameEngine }
 export type { GameState, SubmitFeedback }

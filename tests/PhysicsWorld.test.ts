@@ -92,6 +92,12 @@ describe('PhysicsWorld', () => {
     expect(world.itemCount).toBe(0)
   })
 
+  it('Fever 자동 낙하 표식을 렌더 스냅샷까지 보존한다', () => {
+    world.reset()
+    world.spawnItem(stackable(), 0, SOLO_OWNER, 0, false, true)
+    expect(world.snapshots()[0]?.fever).toBe(true)
+  })
+
   it('이탈 기준선을 올리면 높은 카메라에서도 바로 이탈로 잡힌다', () => {
     world.reset()
     const escapeY = ARENA.killY + 5

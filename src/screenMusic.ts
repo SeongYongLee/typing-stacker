@@ -14,9 +14,8 @@ interface MusicScene {
   readonly matchPhase: 'playing' | 'over' | null
 }
 
-/** 화면의 낮·밤을 곡 이름으로 옮긴다. 첫 밤은 시작을 알리는 전용 밤 곡이다. */
+/** 화면의 낮·Night Fever를 곡 이름으로 옮긴다. */
 function soloTrackFor(phase: Phase | null): BgmTrackName {
-  if (phase === 'firstNight') return 'gameFirstNight'
   return phase === 'day' ? 'gameDay' : 'gameNight'
 }
 

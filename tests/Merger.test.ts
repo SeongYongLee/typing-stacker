@@ -90,7 +90,7 @@ describe('findMerge — 닿아 있는 재료만 합쳐진다', () => {
     expect(match?.itemIds).toEqual([1, 2, 3])
   })
 
-  it('같은 조합 속성의 다른 형태도 같은 재료로 본다', () => {
+  it('합성 결과의 히든 형태는 다음 레시피에서 기본 결과물 자리를 대신한다', () => {
     const recipe = RECIPES.find((item) => item.result.id === 'travel-passport')
     expect(recipe).toBeDefined()
     const match = findMerge(
@@ -110,6 +110,35 @@ describe('findMerge — 닿아 있는 재료만 합쳐진다', () => {
       RECIPES,
     )
     expect(match?.recipe.id).toBe(recipe!.id)
+  })
+
+  it('합성 결과물은 다음 레시피에서 재료가 될 수 있다', () => {
+    const recipe = RECIPES.find((item) => item.result.id === 'sports-trophy')
+    expect(recipe).toBeDefined()
+    const match = findMerge(
+      graph(
+        [
+          [1, 'soccer-ball'],
+          [2, 'badminton-racket'],
+          [3, 'gold-medal'],
+        ],
+        [
+          [1, 2],
+          [2, 3],
+        ],
+      ),
+      RECIPES,
+    )
+    expect(match?.recipe.id).toBe(recipe!.id)
+  })
+
+  it('기본형과 그 히든은 같은 재료 둘짜리 레시피로 보지 않는다', () => {
+    const recipe = RECIPES.find(
+      (item) => item.inputs.length === 2 && item.inputs[0] === 'clover' && item.inputs[1] === 'clover',
+    )
+    expect(recipe).toBeDefined()
+    const match = findMerge(graph([[1, 'clover'], [2, 'clover-lucky']], [[1, 2]]), RECIPES)
+    expect(match?.recipe).not.toBe(recipe)
   })
 
   it('셋 중 하나가 떨어져 있으면 합쳐지지 않는다', () => {
@@ -208,14 +237,15 @@ describe('RECIPES — 실제 데이터', () => {
     }
   })
 
-  it('단어 기본형과 히든은 같은 조합 속성이다', () => {
+  it('단어 히든은 기본형 조합 속성으로 접히지 않는다', () => {
     for (const entry of WORDS) {
       const base = entry.variants[0]
       if (base === undefined) {
         continue
       }
-      for (const variant of entry.variants) {
-        expect(craftKeyOf(variant.id), variant.id).toBe(base.id)
+      expect(craftKeyOf(base.id), base.id).toBe(base.id)
+      for (const variant of entry.variants.filter((item) => item.hidden)) {
+        expect(craftKeyOf(variant.id), variant.id).not.toBe(base.id)
       }
     }
   })
@@ -300,8 +330,8 @@ describe('canMergeAnything — 접촉을 보기 전에 거르는 문', () => {
     expect(canMergeAnything([PAIR], counts([['clover', 2]]))).toBe(true)
   })
 
-  it('같은 조합 속성의 다른 형태도 개수에 포함한다', () => {
-    expect(canMergeAnything([PAIR], counts([['clover', 1], ['clover-lucky', 1]]))).toBe(true)
+  it('단어 히든은 기본형 개수에 포함하지 않는다', () => {
+    expect(canMergeAnything([PAIR], counts([['clover', 1], ['clover-lucky', 1]]))).toBe(false)
   })
 
   it('같은 재료가 둘 필요한 레시피는 개수까지 본다', () => {

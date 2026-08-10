@@ -129,6 +129,16 @@ describe('뛰는 모양', () => {
     expect(poseAt(GRAB_AT + 0.1).carry).not.toBeNull()
   })
 
+  it('물건은 양 앞발 손끝 쪽에 붙는다', () => {
+    const left = poseAt(GRAB_AT + 0.1, -1.8)
+    const right = poseAt(GRAB_AT + 0.1, 1.8)
+
+    expect(left.carry!.x).toBeGreaterThan(left.x)
+    expect(left.carry!.y).toBeGreaterThan(left.y + left.width * 0.3)
+    expect(right.carry!.x).toBeLessThan(right.x)
+    expect(right.carry!.y).toBeGreaterThan(right.y + right.width * 0.3)
+  })
+
   /**
    * 무는 자리가 **가장 높다.** 올라가며 무는 것이 아니라 다 올라가서 물어야
    * 뛰어올라 낚아챈 것으로 읽힌다.

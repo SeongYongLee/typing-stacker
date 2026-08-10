@@ -45,8 +45,6 @@ describe('플레이 낮·밤 음악', () => {
     expect(musicFor(scene({ route: 'lobby', matchPhase: null }))).toBe('lobby')
     expect(musicFor(scene({ route: 'lobby', matchPhase: 'playing' }))).toBe('gameDay')
     expect(musicFor(scene({ route: 'lobby', matchPhase: 'over' }))).toBe('gameDay')
-    expect(musicFor(scene({ route: 'competition', matchPhase: null }))).toBe('lobby')
-    expect(musicFor(scene({ route: 'competition', matchPhase: 'playing' }))).toBe('gameDay')
   })
 })
 

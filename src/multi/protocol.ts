@@ -10,6 +10,7 @@
  */
 
 import type { AuthorityBodyFrame, FallingWord } from '../game/types/game.ts'
+import { isMatchMode, isMatchModeChoice, type MatchMode, type MatchModeChoice } from './matchModes.ts'
 
 /**
  * 한 방에 들어올 수 있는 인원.
@@ -105,10 +106,20 @@ type ToGuest =
    * 상대가 들어오자마자 판이 시작되면 누구와 붙는지 볼 겨를도, 손을 올릴 겨를도 없다.
    * 그래서 명단을 먼저 알리고 양쪽이 준비를 누르기를 기다린다.
    */
-  | { readonly t: 'roster'; readonly players: readonly PlayerInfo[] }
+  | {
+      readonly t: 'roster'
+      readonly players: readonly PlayerInfo[]
+      readonly matchModeChoice?: MatchModeChoice
+    }
   /** 지금까지 준비를 누른 사람들. 방장이 정하고 알린다 */
   | { readonly t: 'readyList'; readonly ready: readonly PlayerId[] }
-  | { readonly t: 'start'; readonly seed: number; readonly players: readonly PlayerInfo[] }
+  | {
+      readonly t: 'start'
+      readonly seed: number
+      readonly players: readonly PlayerInfo[]
+      /** 이 판의 모드. 없으면 구형 클라이언트 호환으로 함께 쌓기다 */
+      readonly matchMode: MatchMode
+    }
   /** 누가 무엇을 떨궜는지. 양쪽이 같은 물건을 같은 자리에 만들기 위한 것 */
   | {
       readonly t: 'dropped'
@@ -270,7 +281,11 @@ function parseMessage(raw: unknown): Message | null {
     }
     case 'roster':
       if (!Array.isArray(raw['players'])) return null
-      return { t: 'roster', players: parsePlayers(raw['players']) }
+      return {
+        t: 'roster',
+        players: parsePlayers(raw['players']),
+        matchModeChoice: parseMatchModeChoice(raw['matchModeChoice']),
+      }
     case 'readyList': {
       if (!Array.isArray(raw['ready'])) return null
       const ready: PlayerId[] = []
@@ -282,7 +297,12 @@ function parseMessage(raw: unknown): Message | null {
     }
     case 'start':
       if (!isFiniteNumber(raw['seed']) || !Array.isArray(raw['players'])) return null
-      return { t: 'start', seed: raw['seed'], players: parsePlayers(raw['players']) }
+      return {
+        t: 'start',
+        seed: raw['seed'],
+        players: parsePlayers(raw['players']),
+        matchMode: isMatchMode(raw['matchMode']) ? raw['matchMode'] : 'shared',
+      }
     case 'dropped':
       if (
         !isShortString(raw['by'], 64) ||
@@ -525,6 +545,10 @@ function deviceId(raw: unknown): string {
 /** 물건 id로 쓸 수 있는 모양인가. 표에 있는지는 그리는 쪽이 본다 */
 function iconId(raw: unknown): string {
   return typeof raw === 'string' && /^[a-z0-9-]{1,40}$/.test(raw) ? raw : ''
+}
+
+function parseMatchModeChoice(raw: unknown): MatchModeChoice | undefined {
+  return isMatchModeChoice(raw) ? raw : undefined
 }
 
 /** 방 코드. Rng를 주입받아 테스트에서 재현할 수 있게 한다 */

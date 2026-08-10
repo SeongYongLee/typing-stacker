@@ -1,10 +1,17 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { MenuButton } from '../../components/MenuButton.tsx'
 import { MenuField } from '../../components/MenuField.tsx'
 import { IconPicker } from '../../components/IconPicker.tsx'
+import { Blurb, Key } from '../../components/SidePanel.tsx'
+import { panelBoxStyle } from '../../components/sidePanelStyle.ts'
 import { useMenuKeys } from '../../hooks/useMenuKeys.ts'
 import type { JoinRequest } from '../../hooks/useMatchSession.ts'
 import { NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../../multi/protocol.ts'
+import {
+  MATCH_MODE_CHOICE_LABELS,
+  type MatchModeChoice,
+} from '../../multi/matchModes.ts'
 import {
   isUsableName,
   loadManualIcon,
@@ -13,6 +20,33 @@ import {
   saveManualName,
 } from '../../storage/manualName.ts'
 import { fieldStyle, panelStyle, pathLabelStyle, rootStyle } from './lobbyStyle.ts'
+
+const MODE_CHOICES: readonly MatchModeChoice[] = ['roulette', 'shared', 'duel']
+
+const MODE_BLURBS: Record<MatchModeChoice, readonly ReactNode[]> = {
+  roulette: [
+    <>
+      시작할 때 <Key>함께 쌓기</Key>와 <Key>대결</Key> 중 하나를 자동으로 고릅니다.
+    </>,
+    '같은 방에서 매 판 다른 긴장감을 주는 선택입니다.',
+  ],
+  shared: [
+    <>
+      한 받침대 위에 <Key>한 탑을 함께</Key> 쌓습니다.
+    </>,
+    <>
+      차례대로 단어를 치고 <Key>한 번씩</Key> 물건을 떨어뜨립니다.
+    </>,
+    '상대 물건을 밀어내면 그 물건 주인의 하트가 줄어듭니다.',
+  ],
+  duel: [
+    <>
+      각자 자기 받침대와 <Key>자기 탑</Key>을 가집니다.
+    </>,
+    '같은 단어가 같은 순서로 나오고, 동시에 진행합니다.',
+    '먼저 목표 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.',
+  ],
+}
 
 /**
  * 친선전 — 이름을 적고 방을 열거나 코드로 들어간다.
@@ -43,6 +77,7 @@ function ManualMatch({
    */
   const [icon, setIcon] = useState(() => loadManualIcon())
   const [code, setCode] = useState('')
+  const [matchModeChoice, setMatchModeChoice] = useState<MatchModeChoice>('roulette')
 
   const trimmedCode = code.trim().toLowerCase()
   const named = isUsableName(name)
@@ -57,11 +92,15 @@ function ManualMatch({
     saveManualIcon(icon)
     onOpen({ mode, nickname: name, icon })
   }
-  const host = () => enter({ kind: 'host' })
+  const host = () => enter({ kind: 'host', matchModeChoice })
   const join = () => {
     if (codeReady) {
-      enter({ kind: 'join', code: trimmedCode })
+      enter({ kind: 'join', code: trimmedCode, matchModeChoice })
     }
+  }
+  const cycleMode = (): void => {
+    const index = MODE_CHOICES.indexOf(matchModeChoice)
+    setMatchModeChoice(MODE_CHOICES[(index + 1) % MODE_CHOICES.length] ?? 'roulette')
   }
 
   /*
@@ -74,6 +113,7 @@ function ManualMatch({
   const items = [
     { blurb: 'name', run: () => {}, disabled: false },
     { blurb: 'name', run: () => {}, disabled: false },
+    { blurb: 'mode', run: cycleMode, disabled: false },
     { blurb: 'host', run: host, disabled: !named },
     { blurb: 'join', run: join, disabled: false },
     { blurb: 'join', run: join, disabled: !codeReady },
@@ -98,95 +138,120 @@ function ManualMatch({
     onCancel: onBack,
   })
 
-  /** 끝에서 반대편으로 돌아간다 — 줄이 여섯이라 끝을 만날 일이 잦다 */
+  /** 끝에서 반대편으로 돌아간다 — 줄이 여럿이라 끝을 만날 일이 잦다 */
   const moveTo = (next: number) => menu.select((next + items.length) % items.length)
 
   return (
     <div style={rootStyle}>
-      <div style={{ ...panelStyle, gap: 12 }} data-manual-match={named ? 'named' : 'unnamed'}>
-        <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          친선전
-        </h2>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 440px) minmax(300px, 420px)',
+          gap: 20,
+          alignItems: 'start',
+        }}
+      >
+        <div style={{ ...panelStyle, gap: 12 }} data-manual-match={named ? 'named' : 'unnamed'}>
+          <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
+            친선전
+          </h2>
 
-        <span style={pathLabelStyle}>이름</span>
-        <MenuField
-          label="이름"
-          style={fieldStyle}
-          value={name}
-          onChange={setName}
-          placeholder="같이 할 사람들에게 보일 이름"
-          maxLength={NICKNAME_MAX}
-          index={0}
-          selected={menu.index === 0}
-          onMove={moveTo}
-        />
+          <span style={pathLabelStyle}>이름</span>
+          <MenuField
+            label="이름"
+            style={fieldStyle}
+            value={name}
+            onChange={setName}
+            placeholder="같이 할 사람들에게 보일 이름"
+            maxLength={NICKNAME_MAX}
+            index={0}
+            selected={menu.index === 0}
+            onMove={moveTo}
+          />
 
-        <span style={pathLabelStyle}>아이콘</span>
-        <IconPicker
-          icon={icon}
-          onChange={setIcon}
-          selected={menu.index === 1}
-          onHover={() => menu.select(1)}
-        />
-        {/*
-          왜 잠겼는지를 말해준다. 버튼만 회색이면 무엇을 해야 열리는지 알 수 없고,
-          이 화면에서 할 일이 이름을 적는 것 하나뿐이라 더 그렇다.
+          <span style={pathLabelStyle}>아이콘</span>
+          <IconPicker
+            icon={icon}
+            onChange={setIcon}
+            selected={menu.index === 1}
+            onHover={() => menu.select(1)}
+          />
 
-          "아래가 열린다"가 아니라 **무엇이 되는지**를 적는다 — 아래를 이미 보고 있는
-          사람에게 아래를 가리키는 말은 아무것도 알려주지 않는다.
-        */}
-        {!named && (
-          <span style={{ ...pathLabelStyle, color: '#e4e68a' }} data-name-hint>
-            이름을 적으면 방을 만들거나 참가할 수 있습니다
-          </span>
-        )}
+          <span style={pathLabelStyle}>모드</span>
+          <MenuButton
+            selected={menu.index === 2}
+            onClick={cycleMode}
+            onHover={() => menu.select(2)}
+          >
+            모드 · {MATCH_MODE_CHOICE_LABELS[matchModeChoice]}
+          </MenuButton>
+          {/*
+            왜 잠겼는지를 말해준다. 버튼만 회색이면 무엇을 해야 열리는지 알 수 없고,
+            이 화면에서 할 일이 이름을 적는 것 하나뿐이라 더 그렇다.
 
-        <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 생성</span>
-        <MenuButton
-          selected={menu.index === 2}
-          onClick={host}
-          onHover={() => menu.select(2)}
-          disabled={!named}
-          primary
-        >
-          방 생성하기
-        </MenuButton>
+            "아래가 열린다"가 아니라 **무엇이 되는지**를 적는다 — 아래를 이미 보고 있는
+            사람에게 아래를 가리키는 말은 아무것도 알려주지 않는다.
+          */}
+          {!named && (
+            <span style={{ ...pathLabelStyle, color: '#e4e68a' }} data-name-hint>
+              이름을 적으면 방을 만들거나 참가할 수 있습니다
+            </span>
+          )}
 
-        {/*
-          코드 칸은 참가 버튼 바로 위에 둔다. 떼어놓으면 코드를 받은 사람이
-          어디에 넣어야 할지 헤맨다 — 한 길의 처음과 끝이어야 한다.
-        */}
-        <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 참여</span>
-        <MenuField
-          label="방 코드"
-          style={fieldStyle}
-          value={code}
-          onChange={setCode}
-          placeholder="방 참가 코드"
-          maxLength={ROOM_CODE_LENGTH}
-          autoCapitalize="off"
-          index={3}
-          selected={menu.index === 3}
-          onMove={moveTo}
-          onSubmit={join}
-        />
-        <MenuButton
-          selected={menu.index === 4}
-          onClick={join}
-          onHover={() => menu.select(4)}
-          disabled={!codeReady}
-        >
-          방 참가하기
-        </MenuButton>
+          <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 생성</span>
+          <MenuButton
+            selected={menu.index === 3}
+            onClick={host}
+            onHover={() => menu.select(3)}
+            disabled={!named}
+            primary
+          >
+            방 생성하기
+          </MenuButton>
 
-        <MenuButton
-          selected={menu.index === 5}
-          onClick={onBack}
-          onHover={() => menu.select(5)}
-          style={{ marginTop: 6 }}
-        >
-          돌아가기 (Esc)
-        </MenuButton>
+          {/*
+            코드 칸은 참가 버튼 바로 위에 둔다. 떼어놓으면 코드를 받은 사람이
+            어디에 넣어야 할지 헤맨다 — 한 길의 처음과 끝이어야 한다.
+          */}
+          <span style={{ ...pathLabelStyle, marginTop: 6 }}>방 참여</span>
+          <MenuField
+            label="방 코드"
+            style={fieldStyle}
+            value={code}
+            onChange={setCode}
+            placeholder="방 참가 코드"
+            maxLength={ROOM_CODE_LENGTH}
+            autoCapitalize="off"
+            index={4}
+            selected={menu.index === 4}
+            onMove={moveTo}
+            onSubmit={join}
+          />
+          <MenuButton
+            selected={menu.index === 5}
+            onClick={join}
+            onHover={() => menu.select(5)}
+            disabled={!codeReady}
+          >
+            방 참가하기
+          </MenuButton>
+
+          <MenuButton
+            selected={menu.index === 6}
+            onClick={onBack}
+            onHover={() => menu.select(6)}
+            style={{ marginTop: 6 }}
+          >
+            돌아가기 (Esc)
+          </MenuButton>
+        </div>
+        <aside style={{ ...panelBoxStyle, width: '100%' }} aria-label="모드 설명">
+          <Blurb
+            kind={`manual-${matchModeChoice}`}
+            lines={MODE_BLURBS[matchModeChoice]}
+            fontSize={17}
+          />
+        </aside>
       </div>
     </div>
   )

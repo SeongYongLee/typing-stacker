@@ -9,6 +9,11 @@ import { ChatLog } from './ChatLog.ts'
 import type { ChatLine } from './ChatLog.ts'
 import { failure } from './Transport.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
+import {
+  resolveMatchMode,
+  type MatchMode,
+  type MatchModeChoice,
+} from './matchModes.ts'
 
 /** 붙은 뒤 시작 신호를 이만큼 기다린다. 넘으면 양쪽이 영원히 기다리는 대신 실패로 끊는다 */
 const HANDSHAKE_TIMEOUT_MS = 10000
@@ -68,6 +73,7 @@ type SessionPhase =
       /** 주고받은 말. 코드로 모인 방에서만 오간다 */
       readonly chat: readonly ChatLine[]
       readonly chatEnabled: boolean
+      readonly matchModeChoice: MatchModeChoice
     }
   /**
    * 모두 준비했고 곧 시작한다. 남은 셈을 화면이 크게 보여준다.
@@ -79,6 +85,7 @@ type SessionPhase =
       readonly secondsLeft: number
       /** 판이 열리면 처음 떨굴 사람 */
       readonly starter: PlayerId | null
+      readonly matchMode: MatchMode
     }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
@@ -90,8 +97,8 @@ type SessionPhase =
  * 그 코드는 서버가 정해준 것이라 새로 만들지 않고, 상대도 같은 코드로 방을 열며 들어온다.
  */
 type OpenMode =
-  | { readonly kind: 'host' }
-  | { readonly kind: 'join'; readonly code: string }
+  | { readonly kind: 'host'; readonly matchModeChoice?: MatchModeChoice }
+  | { readonly kind: 'join'; readonly code: string; readonly matchModeChoice?: MatchModeChoice }
   | { readonly kind: 'auto'; readonly code: string }
 
 interface SessionOptions {
@@ -135,6 +142,7 @@ class MatchSession {
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null
   /** 자동매칭으로 붙었는가. 준비 시한을 두는 것도, 코드를 감추는 것도 이 경우뿐이다 */
   private autoMatched = false
+  private matchModeChoice: MatchModeChoice = 'shared'
   /**
    * 말을 걸 수 있는 방인가.
    *
@@ -177,6 +185,9 @@ class MatchSession {
   static open(mode: OpenMode, options: SessionOptions): MatchSession {
     const session = new MatchSession(options)
     session.autoMatched = mode.kind === 'auto'
+    session.matchModeChoice = mode.kind === 'auto'
+      ? 'roulette'
+      : mode.matchModeChoice ?? 'shared'
     session.onPhase({ kind: 'connecting' })
     void session.connect(mode)
     return session
@@ -310,7 +321,11 @@ class MatchSession {
         this.ready.delete(event.peer)
         this.rebuildRoster()
         if (this.joined.size > 0) {
-          transport.broadcast({ t: 'roster', players: this.roster })
+          transport.broadcast({
+            t: 'roster',
+            players: this.roster,
+            matchModeChoice: this.matchModeChoice,
+          })
           this.publishReady()
           return
         }
@@ -342,7 +357,11 @@ class MatchSession {
       })
       this.rebuildRoster()
       this.clearHandshakeTimeout()
-      transport.broadcast({ t: 'roster', players: this.roster })
+      transport.broadcast({
+        t: 'roster',
+        players: this.roster,
+        matchModeChoice: this.matchModeChoice,
+      })
       this.emitReady()
       return
     }
@@ -367,6 +386,9 @@ class MatchSession {
 
     if (!transport.isHost && event.message.t === 'roster') {
       this.roster = event.message.players
+      if (event.message.matchModeChoice !== undefined) {
+        this.matchModeChoice = event.message.matchModeChoice
+      }
       this.clearHandshakeTimeout()
       this.emitReady()
       return
@@ -382,7 +404,7 @@ class MatchSession {
     }
 
     if (!transport.isHost && event.message.t === 'start') {
-      this.countDown(event.message.players, event.message.seed)
+      this.countDown(event.message.players, event.message.seed, event.message.matchMode)
     }
   }
 
@@ -464,8 +486,9 @@ class MatchSession {
       return
     }
     const seed = Date.now() >>> 0
-    transport.broadcast({ t: 'start', seed, players: this.roster })
-    this.countDown(this.roster, seed)
+    const matchMode = resolveMatchMode(this.matchModeChoice, seed)
+    transport.broadcast({ t: 'start', seed, players: this.roster, matchMode })
+    this.countDown(this.roster, seed, matchMode)
   }
 
   private emitReady(): void {
@@ -488,6 +511,7 @@ class MatchSession {
       selfId: transport.selfId,
       chat: this.chat.view,
       chatEnabled: this.chatEnabled,
+      matchModeChoice: this.matchModeChoice,
     })
   }
 
@@ -547,21 +571,21 @@ class MatchSession {
    * 이미 세고 있으면 다시 시작하지 않는다 — start가 두 번 오더라도(재전송, 이중 이펙트)
    * 셈이 되돌아가면 안 된다.
    */
-  private countDown(players: readonly PlayerInfo[], seed: number): void {
+  private countDown(players: readonly PlayerInfo[], seed: number, matchMode: MatchMode): void {
     if (this.started || this.countdownTimer !== null) {
       return
     }
     // 다 준비했으므로 준비 시한은 여기서 끝난다
     this.clearReadyTimeout()
     if (this.countdownSec <= 0) {
-      void this.begin(players, seed)
+      void this.begin(players, seed, matchMode)
       return
     }
 
     this.roster = players
     let left = this.countdownSec
     const starter = starterOf(seed, players)
-    this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter })
+    this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter, matchMode })
 
     const tick = () => {
       left -= 1
@@ -570,17 +594,17 @@ class MatchSession {
       }
       if (left <= 0) {
         this.countdownTimer = null
-        void this.begin(players, seed)
+        void this.begin(players, seed, matchMode)
         return
       }
-      this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter })
+      this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter, matchMode })
       this.countdownTimer = setTimeout(tick, 1000)
     }
     this.countdownTimer = setTimeout(tick, 1000)
   }
 
   /** 양쪽이 같은 명단과 같은 시드로 판을 만든다 */
-  private async begin(players: readonly PlayerInfo[], seed: number): Promise<void> {
+  private async begin(players: readonly PlayerInfo[], seed: number, matchMode: MatchMode): Promise<void> {
     const transport = this.transport
     if (transport === null || this.started) {
       return
@@ -593,6 +617,11 @@ class MatchSession {
 
     let engine: MatchEngine
     try {
+      /*
+       * `duel`은 세션/화면까지 먼저 싣는다. 실제 대결 엔진은 별도 물리 월드와 화면
+       * 배치가 필요하므로 지금 공유 탑 엔진에 끼우지 않는다.
+       */
+      void matchMode
       engine = await MatchEngine.create({
         transport,
         players,
@@ -647,7 +676,7 @@ class MatchSession {
     this.creatingEngine = false
     this.pendingEngineEvents.length = 0
     this.started = false
-    void this.begin(this.roster, seed)
+    void this.begin(this.roster, seed, resolveMatchMode(this.matchModeChoice, seed))
   }
 
   dispose(): void {

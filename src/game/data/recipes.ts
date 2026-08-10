@@ -1,4 +1,4 @@
-import { VARIANT_BY_ID } from './words.ts'
+import { VARIANT_BY_ID, WORDS } from './words.ts'
 import type { ItemVariant } from '../types/game.ts'
 
 /**
@@ -91,15 +91,22 @@ function recipe(
   return { id: `${[...inputs].sort().join('+')}=${resultId}`, inputs, result, hiddenResults }
 }
 
+const WORD_HIDDEN_RECIPES: readonly Recipe[] = WORDS.flatMap((entry) => {
+  const base = entry.variants[0]
+  const hidden = entry.variants.filter((variant) => variant.hidden)
+  if (base === undefined || hidden.length === 0) {
+    return []
+  }
+  const [result, ...alternates] = hidden
+  if (result === undefined) {
+    return []
+  }
+  return [recipe([base.id, base.id], result.id, alternates.map((variant) => variant.id))]
+})
+
 const RECIPES: readonly Recipe[] = [
-  /* 같은 것 둘 — 결과가 그 물건의 히든이다 */
-  recipe(['clover', 'clover'], 'clover-lucky'),
-  recipe(['leaf', 'leaf'], 'leaf-maple'),
-  recipe(['snail', 'snail'], 'snail-curled'),
-  recipe(['iced-drink', 'iced-drink'], 'cocktail'),
-  recipe(['pizza-slice', 'pizza-slice'], 'pizza-box'),
-  recipe(['laptop', 'laptop'], 'laptop-closed'),
-  recipe(['sausage', 'sausage'], 'octopus'),
+  /* 같은 것 둘 — 히든을 가진 모든 단어는 기본형 둘을 합치면 그 히든이 나온다 */
+  ...WORD_HIDDEN_RECIPES,
 
   /* 보이는 대로 — 재료를 보면 결과가 짐작된다 */
   recipe(['sunflower-seed', 'watering-can'], 'sunflower'),
@@ -166,6 +173,45 @@ const RECIPES: readonly Recipe[] = [
   recipe(['hand-mirror', 'stardust', 'wooden-door', 'magic-wand', 'crescent-moon'], 'mirror-door'),
 ]
 
+function buildCraftKeys(): ReadonlyMap<string, string> {
+  const keys = new Map<string, string>()
+  /*
+   * 같은 단어에서 나오는 기본형과 히든은 조합에서 같은 속성이다.
+   * 예를 들어 세잎클로버와 네잎클로버는 둘 다 `clover`로 센다.
+   */
+  for (const entry of WORDS) {
+    const base = entry.variants[0]
+    if (base === undefined) {
+      continue
+    }
+    for (const variant of entry.variants) {
+      keys.set(variant.id, base.id)
+    }
+  }
+
+  /*
+   * 합성 결과물의 다른 형태도 같은 속성이다. `vintage-trunk`는 다음 단계 레시피에서
+   * `travel-suitcase` 자리에 쓸 수 있어야 한다.
+   *
+   * 이미 단어의 기본/히든으로 묶인 것은 건드리지 않는다. `clover-lucky`는
+   * `clover + clover`의 결과물이기도 하지만 조합 속성은 여전히 `clover`여야 한다.
+   */
+  for (const item of RECIPES) {
+    for (const variant of [item.result, ...item.hiddenResults]) {
+      if (!keys.has(variant.id)) {
+        keys.set(variant.id, item.result.id)
+      }
+    }
+  }
+  return keys
+}
+
+const CRAFT_KEY_BY_ID = buildCraftKeys()
+
+function craftKeyOf(id: string): string {
+  return CRAFT_KEY_BY_ID.get(id) ?? id
+}
+
 /** 합성으로 만들 수 있는 물건들. 도감이 "아직 못 만든 것"을 세는 데 쓴다 */
 const CRAFTABLE_IDS: readonly string[] = [
   ...new Set(RECIPES.flatMap((r) => [r.result.id, ...r.hiddenResults.map((v) => v.id)])),
@@ -174,5 +220,5 @@ const CRAFTABLE_IDS: readonly string[] = [
 /** 재료로 쓰이는 물건인지. 화면이 "이건 합칠 수 있다"고 귀띔하는 데 쓴다 */
 const INGREDIENT_IDS: ReadonlySet<string> = new Set(RECIPES.flatMap((r) => r.inputs))
 
-export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS }
+export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS, craftKeyOf }
 export type { Recipe }

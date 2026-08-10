@@ -2,6 +2,7 @@ import { shakeScale } from './displayPrefs.ts'
 import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import type { CatView } from '../systems/CatPickup.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
+import { renderCameraYFor } from '../systems/Camera.ts'
 import type { BodySnapshot, OwnerId } from '../types/game.ts'
 import { ARENA_ART_SOURCES } from './arenaArt.ts'
 import {
@@ -202,8 +203,11 @@ interface ArenaRenderState {
  * 선이 760~762였다 — 레인의 점선 바닥과 뭉개져 굵은 얼룩처럼 보이고, 물건이
  * 선을 넘어가는 장면은 화면 밖에서 일어나 보이지 않았다.
  * 여백을 두면 넘어가는 순간이 보이고 두 선이 서로 떨어진다.
+ *
+ * 너무 크면 시작 상자가 화면 중간으로 떠서 초반부터 고양이와 받침대 사이가 멀어 보인다.
+ * 물리 좌표를 바꾸지 않고 화면 배치만 살짝 낮추려고 여백을 줄인다.
  */
-const KILL_LINE_MARGIN = 0.35
+const KILL_LINE_MARGIN = 0.22
 
 const WORLD_HEIGHT = ARENA.height - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
@@ -247,7 +251,7 @@ class ArenaRenderer {
   draw(given: ArenaRenderState): void {
     const state = withDefaults(given)
     const { ctx } = this
-    this.cameraY = state.cameraY
+    this.cameraY = renderCameraYFor(state.cameraY)
     this.nightfall = state.nightfall
     const view = this.view()
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)

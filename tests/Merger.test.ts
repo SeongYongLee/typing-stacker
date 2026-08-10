@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { RECIPES } from '../src/game/data/recipes.ts'
-import { VARIANT_BY_ID } from '../src/game/data/words.ts'
+import { RECIPES, craftKeyOf } from '../src/game/data/recipes.ts'
+import { VARIANT_BY_ID, WORDS } from '../src/game/data/words.ts'
 import { canMergeAnything, findMerge, type ContactGraph } from '../src/game/systems/Merger.ts'
 import type { Recipe } from '../src/game/data/recipes.ts'
 
@@ -25,8 +25,8 @@ const TRIO: Recipe = {
 }
 const CROSS: Recipe = {
   id: 'cross',
-  inputs: ['octopus', 'sausage'],
-  result: variant('cocktail'),
+  inputs: ['sunflower-seed', 'watering-can'],
+  result: variant('sunflower'),
   hiddenResults: [],
 }
 
@@ -68,7 +68,7 @@ describe('findMerge — 닿아 있는 재료만 합쳐진다', () => {
   })
 
   it('서로 다른 물건 조합도 찾는다', () => {
-    const match = findMerge(graph([[5, 'octopus'], [9, 'sausage']], [[5, 9]]), [CROSS])
+    const match = findMerge(graph([[5, 'sunflower-seed'], [9, 'watering-can']], [[5, 9]]), [CROSS])
     expect(match?.recipe.id).toBe('cross')
     expect(match?.itemIds).toEqual([5, 9])
   })
@@ -88,6 +88,28 @@ describe('findMerge — 닿아 있는 재료만 합쳐진다', () => {
     const match = findMerge(chain, [TRIO])
     expect(match?.recipe.id).toBe('trio')
     expect(match?.itemIds).toEqual([1, 2, 3])
+  })
+
+  it('같은 조합 속성의 다른 형태도 같은 재료로 본다', () => {
+    const recipe = RECIPES.find((item) => item.result.id === 'travel-passport')
+    expect(recipe).toBeDefined()
+    const match = findMerge(
+      graph(
+        [
+          [1, 'airplane'],
+          [2, 'vintage-trunk'],
+          [3, 'treasure-map'],
+          [4, 'camera'],
+        ],
+        [
+          [1, 2],
+          [2, 3],
+          [3, 4],
+        ],
+      ),
+      RECIPES,
+    )
+    expect(match?.recipe.id).toBe(recipe!.id)
   })
 
   it('셋 중 하나가 떨어져 있으면 합쳐지지 않는다', () => {
@@ -170,6 +192,45 @@ describe('RECIPES — 실제 데이터', () => {
     expect(new Set(keys).size).toBe(keys.length)
   })
 
+  it('단어 히든은 그 단어 기본형 둘로 만들 수 있다', () => {
+    for (const entry of WORDS) {
+      const base = entry.variants[0]
+      const hidden = entry.variants.filter((item) => item.hidden)
+      if (base === undefined || hidden.length === 0) {
+        continue
+      }
+      const recipe = RECIPES.find(
+        (item) => item.inputs.length === 2 && item.inputs[0] === base.id && item.inputs[1] === base.id,
+      )
+      expect(recipe, entry.word).toBeDefined()
+      const outputs = new Set([recipe!.result.id, ...recipe!.hiddenResults.map((item) => item.id)])
+      expect(outputs, entry.word).toEqual(new Set(hidden.map((item) => item.id)))
+    }
+  })
+
+  it('단어 기본형과 히든은 같은 조합 속성이다', () => {
+    for (const entry of WORDS) {
+      const base = entry.variants[0]
+      if (base === undefined) {
+        continue
+      }
+      for (const variant of entry.variants) {
+        expect(craftKeyOf(variant.id), variant.id).toBe(base.id)
+      }
+    }
+  })
+
+  it('합성 결과의 다른 형태는 기본 결과와 같은 조합 속성이다', () => {
+    let checked = 0
+    for (const item of RECIPES) {
+      for (const hidden of item.hiddenResults) {
+        expect(craftKeyOf(hidden.id), hidden.id).toBe(craftKeyOf(item.result.id))
+        checked += 1
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
   /*
    * **"결과물은 재료보다 좁다"는 규칙은 없앴다 (2026-08-09).**
    *
@@ -239,6 +300,10 @@ describe('canMergeAnything — 접촉을 보기 전에 거르는 문', () => {
     expect(canMergeAnything([PAIR], counts([['clover', 2]]))).toBe(true)
   })
 
+  it('같은 조합 속성의 다른 형태도 개수에 포함한다', () => {
+    expect(canMergeAnything([PAIR], counts([['clover', 1], ['clover-lucky', 1]]))).toBe(true)
+  })
+
   it('같은 재료가 둘 필요한 레시피는 개수까지 본다', () => {
     // leaf 하나 + snail 하나로는 TRIO(leaf, leaf, snail)를 이룰 수 없다
     expect(canMergeAnything([TRIO], counts([['leaf', 1], ['snail', 1]]))).toBe(false)
@@ -246,8 +311,8 @@ describe('canMergeAnything — 접촉을 보기 전에 거르는 문', () => {
   })
 
   it('서로 다른 재료는 둘 다 있어야 한다', () => {
-    expect(canMergeAnything([CROSS], counts([['octopus', 2]]))).toBe(false)
-    expect(canMergeAnything([CROSS], counts([['octopus', 1], ['sausage', 1]]))).toBe(true)
+    expect(canMergeAnything([CROSS], counts([['sunflower-seed', 2]]))).toBe(false)
+    expect(canMergeAnything([CROSS], counts([['sunflower-seed', 1], ['watering-can', 1]]))).toBe(true)
   })
 
   /**
@@ -258,7 +323,7 @@ describe('canMergeAnything — 접촉을 보기 전에 거르는 문', () => {
     const cases: ContactGraph[] = [
       graph([[1, 'clover'], [2, 'clover']], [[1, 2]]),
       graph([[1, 'leaf'], [2, 'leaf'], [3, 'snail']], [[1, 2], [2, 3]]),
-      graph([[1, 'octopus'], [2, 'sausage']], [[1, 2]]),
+      graph([[1, 'sunflower-seed'], [2, 'watering-can']], [[1, 2]]),
       graph([[1, 'bento'], [2, 'clover'], [3, 'clover']], [[1, 2], [2, 3]]),
     ]
     const recipes = [PAIR, TRIO, CROSS]

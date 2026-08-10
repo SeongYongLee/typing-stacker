@@ -6,6 +6,7 @@ import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 
 interface SoloRulesScreenProps {
   onStart: () => void
+  onHideAndStart: () => void
 }
 
 const RULES: readonly ReactNode[] = [
@@ -84,8 +85,15 @@ const listStyle: CSSProperties = {
   color: '#b6bdd4',
 }
 
-function SoloRulesScreen({ onStart }: SoloRulesScreenProps) {
-  const menu = useMenuKeys({ count: 1, onActivate: onStart })
+function SoloRulesScreen({ onStart, onHideAndStart }: SoloRulesScreenProps) {
+  const actions = [
+    { label: '게임 시작', run: onStart, primary: true },
+    { label: '다시 보지 않기', run: onHideAndStart, primary: false },
+  ]
+  const menu = useMenuKeys({
+    count: actions.length,
+    onActivate: (index) => actions[index]?.run(),
+  })
 
   return (
     <main style={rootStyle} data-solo-rules>
@@ -103,15 +111,18 @@ function SoloRulesScreen({ onStart }: SoloRulesScreenProps) {
           </section>
         </div>
 
-        <div style={{ width: 360, maxWidth: '100%', justifySelf: 'center' }}>
-          <MenuButton
-            selected={menu.index === 0}
-            onClick={onStart}
-            onHover={() => menu.select(0)}
-            primary
-          >
-            게임 시작
-          </MenuButton>
+        <div style={{ width: 360, maxWidth: '100%', justifySelf: 'center', display: 'grid', gap: 10 }}>
+          {actions.map((action, index) => (
+            <MenuButton
+              key={action.label}
+              selected={menu.index === index}
+              onClick={action.run}
+              onHover={() => menu.select(index)}
+              primary={action.primary}
+            >
+              {action.label}
+            </MenuButton>
+          ))}
         </div>
       </div>
     </main>

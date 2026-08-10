@@ -1,4 +1,4 @@
-import type { Recipe } from '../data/recipes.ts'
+import { craftKeyOf, type Recipe } from '../data/recipes.ts'
 
 /**
  * 지금 **서로 합칠 수 있는 것들**에 같은 표식을 붙인다 — 받침대에 놓인 물건과
@@ -87,7 +87,8 @@ function pairMarks(
   recipes: readonly Recipe[],
   previous: ReadonlyMap<string, number> = NONE,
 ): ReadonlyMap<string, number> {
-  const groups = recipes.filter((recipe) => ready(recipe, available))
+  const { counts, rawIds } = normalizeAvailable(available)
+  const groups = recipes.filter((recipe) => ready(recipe, counts))
   const marks = new Map<string, number>()
   const taken = new Set<number>()
 
@@ -97,7 +98,7 @@ function pairMarks(
    */
   const claim = new Map<Recipe, number>()
   for (const recipe of groups) {
-    const ids = new Set(recipe.inputs)
+    const ids = new Set(recipe.inputs.map(craftKeyOf))
     const worn = [...ids].map((id) => previous.get(id)).find((mark) => mark !== undefined)
     if (worn !== undefined && !taken.has(worn)) {
       claim.set(recipe, worn)
@@ -106,7 +107,7 @@ function pairMarks(
   }
 
   for (const recipe of groups) {
-    const ids = new Set(recipe.inputs)
+    const ids = new Set(recipe.inputs.map(craftKeyOf))
     // 이미 표식이 붙은 물건만으로 이루어진 조합은 건너뛴다 — 새 번호를 줘봐야 헷갈리기만 한다
     if ([...ids].every((id) => marks.has(id))) {
       continue
@@ -119,6 +120,11 @@ function pairMarks(
     for (const id of ids) {
       if (!marks.has(id)) {
         marks.set(id, mark)
+      }
+      for (const raw of rawIds.get(id) ?? []) {
+        if (!marks.has(raw)) {
+          marks.set(raw, mark)
+        }
       }
     }
   }
@@ -156,11 +162,27 @@ function free(taken: ReadonlySet<number>): number | null {
 
 const NONE: ReadonlyMap<string, number> = new Map()
 
+function normalizeAvailable(
+  available: ReadonlyMap<string, number>,
+): { counts: ReadonlyMap<string, number>, rawIds: ReadonlyMap<string, readonly string[]> } {
+  const counts = new Map<string, number>()
+  const rawIds = new Map<string, string[]>()
+  for (const [id, count] of available) {
+    const key = craftKeyOf(id)
+    counts.set(key, (counts.get(key) ?? 0) + count)
+    const ids = rawIds.get(key) ?? []
+    ids.push(id)
+    rawIds.set(key, ids)
+  }
+  return { counts, rawIds }
+}
+
 /** 이 레시피의 재료가 지금 다 있는가. 같은 재료 둘짜리는 둘이 있어야 한다 */
 function ready(recipe: Recipe, available: ReadonlyMap<string, number>): boolean {
   const need = new Map<string, number>()
   for (const id of recipe.inputs) {
-    need.set(id, (need.get(id) ?? 0) + 1)
+    const key = craftKeyOf(id)
+    need.set(key, (need.get(key) ?? 0) + 1)
   }
   for (const [id, count] of need) {
     if ((available.get(id) ?? 0) < count) {

@@ -67,6 +67,13 @@ const COLLAPSE_VIEW_SEC = 1.3
 /** 히든 등장 연출 길이 */
 const HIDDEN_REVEAL_SEC = 1.8
 
+/** 목숨을 잃을 상황에서 고양이가 가끔 같은 물건을 다시 던져준다 */
+const CAT_RETHROW_CHANCE = 0.25
+/** 물고 간 뒤 바로 튀어나오면 고양이가 던진 것으로 읽히지 않아서 약간 기다린다 */
+const CAT_RETHROW_DELAY_SEC = 0.28
+/** 받을 곳이 없는 물건은 화면 아래까지 완전히 내려가기 전에 고양이가 낚아챈다 */
+const CAT_EARLY_ESCAPE_MARGIN = 0.35
+
 /**
  * 합성 연출 길이.
  *
@@ -141,6 +148,12 @@ interface PendingDrop {
   readonly recalled: boolean
 }
 
+interface PendingCatThrow {
+  readonly variant: ItemVariant
+  readonly from: 'left' | 'right'
+  readonly delay: number
+}
+
 /**
  * 놓친 단어가 서 있던 자리를 아레나 x로 옮긴다.
  * 왼쪽 레인의 왼쪽 칸일수록 아레나 왼쪽에서 떨어진다 — 어디로 내려올지 미리 보이므로
@@ -156,6 +169,7 @@ class GameEngine {
   private onDiscover: ((ids: readonly string[]) => void) | null = null
   private rng: Rng
   private recipeFlow: RecipeFlow
+  private catRng: Rng
   private spawner: WordSpawner
   /** 화이트보드보다 먼저 확정한 현재 집중 레시피의 단어들 */
   private focusedRecipeWords: readonly string[] = []
@@ -245,6 +259,7 @@ class GameEngine {
   private frameSeq = 0
   private runSeq = 0
   private readonly dropQueue: PendingDrop[] = []
+  private readonly catThrowQueue: PendingCatThrow[] = []
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: GameState) => void) | null = null
@@ -260,6 +275,7 @@ class GameEngine {
     this.collection = new Collection(known)
     this.rng = createRng(seed)
     this.recipeFlow = new RecipeFlow(createRng(seed ^ 0x72656369), WORDS, RECIPES)
+    this.catRng = createRng(seed ^ 0xc47f00d)
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
     )
@@ -314,9 +330,11 @@ class GameEngine {
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
+    this.catThrowQueue.length = 0
     this.runSeq += 1
     this.rng = createRng(this.seed)
     this.recipeFlow = new RecipeFlow(createRng(this.seed ^ 0x72656369), WORDS, RECIPES)
+    this.catRng = createRng(this.seed ^ 0xc47f00d)
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
     )
@@ -562,6 +580,7 @@ class GameEngine {
     // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
     this.landing.advance(dt)
     this.cats.update(dt)
+    this.advanceCatThrows(dt)
     // 지난 프레임의 부딪힘은 이미 그려졌다. 비우지 않으면 물이 계속 퍼진다
     this.frameImpacts.length = 0
 
@@ -655,15 +674,19 @@ class GameEngine {
      */
     const costly = escaped.filter((event) => event.recalled !== true)
     if (costly.length > 0 && this.invulnerableLeft <= 0) {
-      this.lives = Math.max(this.lives - 1, 0)
-      this.invulnerableLeft = INVULNERABLE_SEC
-      // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
-      this.score.onLifeLost()
-      this.fire({ kind: 'lifeLost', livesLeft: this.lives })
       // 목숨을 깎은 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
       const taken = costly[0]
       if (taken !== undefined) {
         this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY))
+      }
+      if (taken !== undefined && this.catRng.next() < CAT_RETHROW_CHANCE) {
+        this.queueCatThrow(taken.variant, taken.x < 0 ? 'left' : 'right')
+      } else {
+        this.lives = Math.max(this.lives - 1, 0)
+        this.invulnerableLeft = INVULNERABLE_SEC
+        // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
+        this.score.onLifeLost()
+        this.fire({ kind: 'lifeLost', livesLeft: this.lives })
       }
       if (this.lives === 0) {
         this.phase = 'collapsing'
@@ -684,7 +707,50 @@ class GameEngine {
      * 낮춰 잡는다.
      */
     const escapeCameraY = Math.min(this.cameraY, targetCameraY(stackTop))
-    this.physics.setEscapeY(escapeCameraY + ARENA.killY)
+    this.physics.setEscapeY(escapeCameraY + ARENA.killY + CAT_EARLY_ESCAPE_MARGIN)
+  }
+
+  private queueCatThrow(variant: ItemVariant, from: 'left' | 'right'): void {
+    this.catThrowQueue.push({ variant, from, delay: CAT_RETHROW_DELAY_SEC })
+  }
+
+  private advanceCatThrows(dt: number): void {
+    if (this.catThrowQueue.length === 0) {
+      return
+    }
+    for (let index = this.catThrowQueue.length - 1; index >= 0; index -= 1) {
+      const pending = this.catThrowQueue[index]
+      if (pending === undefined) {
+        continue
+      }
+      const delay = pending.delay - dt
+      if (delay > 0) {
+        this.catThrowQueue[index] = { ...pending, delay }
+        continue
+      }
+      this.catThrowQueue.splice(index, 1)
+      this.throwBackFromCat(pending.variant, pending.from)
+    }
+  }
+
+  private throwBackFromCat(variant: ItemVariant, from: 'left' | 'right'): void {
+    const sign = from === 'left' ? -1 : 1
+    this.physics.spawnItemMovingAt(
+      variant,
+      sign * (ARENA.platformHalfWidth + 0.7),
+      this.cameraY + ARENA.platformTop + 1.15,
+      SOLO_OWNER,
+      0,
+      false,
+      { x: -sign * 3.5, y: 3.4 },
+      -sign * 1.8,
+    )
+    this.fire({
+      kind: 'drop',
+      hidden: variant.hidden,
+      material: variant.material,
+      tone: variant.tone,
+    })
   }
 
   /**

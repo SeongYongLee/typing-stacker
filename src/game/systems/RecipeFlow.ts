@@ -1,4 +1,4 @@
-import type { Recipe } from '../data/recipes.ts'
+import { craftKeyOf, type Recipe } from '../data/recipes.ts'
 import type { WordEntry } from '../types/game.ts'
 import type { Phase } from './DayNight.ts'
 import type { Rng } from './Rng.ts'
@@ -41,24 +41,24 @@ function groupRecipes(
   for (const entry of entries) {
     const base = entry.variants.find((variant) => !variant.hidden)
     if (base !== undefined) {
-      baseEntryById.set(base.id, entry)
+      baseEntryById.set(craftKeyOf(base.id), entry)
     }
   }
 
   const direct: Recipe[] = []
   const chained: Recipe[] = []
   for (const recipe of recipes) {
-    if (recipe.inputs.every((id) => baseEntryById.has(id))) {
+    if (recipe.inputs.every((id) => baseEntryById.has(craftKeyOf(id)))) {
       direct.push(recipe)
     } else {
       chained.push(recipe)
     }
   }
 
-  const directInputIds = new Set(direct.flatMap((recipe) => recipe.inputs))
+  const directInputIds = new Set(direct.flatMap((recipe) => recipe.inputs.map(craftKeyOf)))
   const ambient = entries.filter((entry) => {
     const base = entry.variants.find((variant) => !variant.hidden)
-    return base === undefined || !directInputIds.has(base.id)
+    return base === undefined || !directInputIds.has(craftKeyOf(base.id))
   })
 
   return { direct, chained, ambient, baseEntryById }
@@ -106,7 +106,7 @@ class RecipeFlow {
 
   /** 지금 판에 존재하거나 곧 떨어질 재료 개수다. 호출부가 매 프레임 갱신한다. */
   observe(available: ReadonlyMap<string, number>): void {
-    this.available = available
+    this.available = normalizeCounts(available)
   }
 
   /**
@@ -123,7 +123,7 @@ class RecipeFlow {
     }
     const words = new Set<string>()
     for (const id of focus.inputs) {
-      const entry = this.groups.baseEntryById.get(id)
+      const entry = this.groups.baseEntryById.get(craftKeyOf(id))
       if (entry !== undefined) {
         words.add(entry.word)
       }
@@ -248,7 +248,7 @@ class RecipeFlow {
 
   private takeDirectRecipe(blockedIds: ReadonlySet<string> = EMPTY_IDS): Recipe | null {
     const recentIds = new Set(this.recentFocuses.map((recipe) => recipe.id))
-    const recentInputs = new Set(this.recentFocuses.flatMap((recipe) => recipe.inputs))
+    const recentInputs = new Set(this.recentFocuses.flatMap((recipe) => recipe.inputs.map(craftKeyOf)))
     const eligible = (recipe: Recipe): boolean =>
       !blockedIds.has(recipe.id) &&
       !recentIds.has(recipe.id) &&
@@ -286,7 +286,7 @@ class RecipeFlow {
       return null
     }
     const recentIds = new Set(this.recentFocuses.map((recipe) => recipe.id))
-    const recentInputs = new Set(this.recentFocuses.flatMap((recipe) => recipe.inputs))
+    const recentInputs = new Set(this.recentFocuses.flatMap((recipe) => recipe.inputs.map(craftKeyOf)))
     const notRecent = candidates.filter((recipe) => !recentIds.has(recipe.id))
     const distinct = notRecent.filter((recipe) =>
       recipe.inputs.every((id) => !recentInputs.has(id)),
@@ -318,12 +318,13 @@ class RecipeFlow {
   private canSupplyChain(recipe: Recipe): boolean {
     const used = new Map<string, number>()
     for (const id of recipe.inputs) {
-      if (this.groups.baseEntryById.has(id)) {
+      const key = craftKeyOf(id)
+      if (this.groups.baseEntryById.has(key)) {
         continue
       }
-      const need = (used.get(id) ?? 0) + 1
-      used.set(id, need)
-      if ((this.available.get(id) ?? 0) < need) {
+      const need = (used.get(key) ?? 0) + 1
+      used.set(key, need)
+      if ((this.available.get(key) ?? 0) < need) {
         return false
       }
     }
@@ -334,13 +335,14 @@ class RecipeFlow {
     const remaining = new Map(this.available)
     const missing: WordEntry[] = []
     for (const id of recipe.inputs) {
-      const entry = this.groups.baseEntryById.get(id)
+      const key = craftKeyOf(id)
+      const entry = this.groups.baseEntryById.get(key)
       if (entry === undefined) {
         continue
       }
-      const count = remaining.get(id) ?? 0
+      const count = remaining.get(key) ?? 0
       if (count > 0) {
-        remaining.set(id, count - 1)
+        remaining.set(key, count - 1)
       } else {
         missing.push(entry)
       }
@@ -349,7 +351,7 @@ class RecipeFlow {
   }
 
   private spawnableInputCount(recipe: Recipe): number {
-    return recipe.inputs.filter((id) => this.groups.baseEntryById.has(id)).length
+    return recipe.inputs.filter((id) => this.groups.baseEntryById.has(craftKeyOf(id))).length
   }
 
   private pickAmbient(candidates: readonly WordEntry[]): WordEntry | null {
@@ -404,6 +406,15 @@ function shuffled<T>(items: readonly T[], rng: Rng): T[] {
 
 const EMPTY_COUNTS: ReadonlyMap<string, number> = new Map()
 const EMPTY_IDS: ReadonlySet<string> = new Set()
+
+function normalizeCounts(counts: ReadonlyMap<string, number>): ReadonlyMap<string, number> {
+  const normalized = new Map<string, number>()
+  for (const [id, count] of counts) {
+    const key = craftKeyOf(id)
+    normalized.set(key, (normalized.get(key) ?? 0) + count)
+  }
+  return normalized
+}
 
 export {
   FRESH_FOCUSES_BETWEEN_COMPLETION,

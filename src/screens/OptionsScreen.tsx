@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useDisplayMenu } from '../hooks/useDisplayMenu.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
+import { useRulesMenu } from '../hooks/useRulesMenu.ts'
 import { useSoundMenu } from '../hooks/useSoundMenu.ts'
 
 interface OptionsScreenProps {
@@ -13,6 +14,15 @@ const rootStyle: CSSProperties = {
   display: 'grid',
   placeItems: 'center',
   padding: 24,
+}
+
+const sectionTitleStyle: CSSProperties = {
+  margin: '8px 0 2px',
+  textAlign: 'left',
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: '0.08em',
+  color: '#8f97b8',
 }
 
 /**
@@ -28,9 +38,15 @@ const rootStyle: CSSProperties = {
 function OptionsScreen({ onBack }: OptionsScreenProps) {
   const sound = useSoundMenu()
   const display = useDisplayMenu()
+  const rules = useRulesMenu()
 
   // 이름은 여기 없다. 설정이 아니라 "내가 누구로 보이는가"라서 시작 화면 맨 위에 있다
-  const items = [...sound, ...display, { label: '돌아가기 (Esc)', run: onBack }]
+  const sections = [
+    { title: '사운드', items: sound },
+    { title: '그래픽', items: display },
+    { title: '게임 규칙 보기', items: rules },
+  ]
+  const items = [...sound, ...display, ...rules, { label: '돌아가기 (Esc)', run: onBack }]
 
   const menu = useMenuKeys({
     count: items.length,
@@ -49,16 +65,31 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
         </p>
 
         <div style={{ display: 'grid', gap: 10 }} data-options>
-          {items.map((item, index) => (
-            <MenuButton
-              key={item.label}
-              selected={menu.index === index}
-              onClick={item.run}
-              onHover={() => menu.select(index)}
-            >
-              {item.label}
-            </MenuButton>
+          {sections.map((section) => (
+            <section key={section.title} style={{ display: 'grid', gap: 8 }}>
+              <h2 style={sectionTitleStyle}>{section.title}</h2>
+              {section.items.map((item) => {
+                const index = items.indexOf(item)
+                return (
+                  <MenuButton
+                    key={item.label}
+                    selected={menu.index === index}
+                    onClick={item.run}
+                    onHover={() => menu.select(index)}
+                  >
+                    {item.label}
+                  </MenuButton>
+                )
+              })}
+            </section>
           ))}
+          <MenuButton
+            selected={menu.index === items.length - 1}
+            onClick={onBack}
+            onHover={() => menu.select(items.length - 1)}
+          >
+            돌아가기 (Esc)
+          </MenuButton>
         </div>
       </div>
     </div>

@@ -132,16 +132,35 @@ const ARENA = {
  * 글자가 적히기 때문이다 — 장식이라면 비켜 세우면 그만이지만, 정보라면 탑이
  * 그 앞을 지나는 것 자체가 문제다.
  *
- * 대가는 카메라가 **더 낮은 탑에서부터** 따라 올라간다는 것이다. 판이 일찍 스크롤되고
- * 같은 화면에 빈 벽이 더 보인다.
+ * 이후 3.0으로 조금 되돌렸다. 화이트보드 텍스트가 보드 안으로 흩어져 들어가며
+ * 직접 충돌이 줄었고, 3.4는 박스가 너무 낮은 탑부터 내려가 게임 초반 카메라가
+ * 조급하게 움직였다. 3.0이면 어느 정도 쌓인 뒤에야 카메라가 조금씩 따라간다.
  */
-const CAMERA_HEADROOM = 3.4
+const CAMERA_HEADROOM = 3.0
 
 /**
  * 카메라가 목표 높이를 따라가는 빠르기(초당 비율).
  * 즉시 옮기면 물건 하나 얹을 때마다 화면이 툭툭 튀어 어디에 떨어지는지 놓친다.
  */
 const CAMERA_FOLLOW = 3.5
+
+/**
+ * 탑이 낮아졌을 때 카메라가 내려오는 빠르기.
+ * 올라갈 때와 같은 속도면 작은 흔들림에도 판이 계속 내려와 고양이 타이밍이 불안정해진다.
+ */
+const CAMERA_DESCEND_FOLLOW = 1.2
+
+/**
+ * 판 시작 시 받침대를 미리 낮춰 보이게 하는 렌더 전용 오프셋.
+ * 실제 물리 카메라와 스폰 높이는 건드리지 않는다.
+ */
+const CAMERA_START_VIEW_DROP = 0.28
+
+/**
+ * 카메라가 이만큼 실제로 올라가면 시작 오프셋은 사라진다.
+ * 높은 탑 구간에서는 기존 카메라 구도를 그대로 쓰려는 것이다.
+ */
+const CAMERA_START_VIEW_DROP_FADE_HEIGHT = 1.0
 
 /** 가장 큰 물건(비행기)의 반폭. tests/shapes.test.ts가 이 값을 지킨다 */
 const MAX_ITEM_HALF_WIDTH = 0.55
@@ -210,4 +229,16 @@ const ARENA_SCREEN_MAX_WIDTH = 570
  */
 const MIN_VIEWPORT_WIDTH = 1200
 
-export { ARENA, CAMERA_HEADROOM, CAMERA_FOLLOW, MAX_ITEM_HALF_WIDTH, AIM_OVERHANG, AIM_HALF_RANGE, ARENA_SCREEN_MAX_WIDTH, MIN_VIEWPORT_WIDTH }
+export {
+  ARENA,
+  CAMERA_HEADROOM,
+  CAMERA_FOLLOW,
+  CAMERA_DESCEND_FOLLOW,
+  CAMERA_START_VIEW_DROP,
+  CAMERA_START_VIEW_DROP_FADE_HEIGHT,
+  MAX_ITEM_HALF_WIDTH,
+  AIM_OVERHANG,
+  AIM_HALF_RANGE,
+  ARENA_SCREEN_MAX_WIDTH,
+  MIN_VIEWPORT_WIDTH,
+}

@@ -26,6 +26,7 @@ import { ResultScreen } from './screens/ResultScreen.tsx'
 import { SoloRulesScreen } from './screens/SoloRulesScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 import { titleThemeForHour, type TitleTheme } from './screens/titleTheme.ts'
+import { displaySettings, updateDisplaySettings } from './game/renderer/displayPrefs.ts'
 
 /**
  * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
@@ -39,6 +40,10 @@ function initialRoute(): Route {
 }
 
 type SoloStage = 'rules' | SoloStep
+
+function openingSoloStage(): SoloStage {
+  return displaySettings().soloRules ? 'rules' : 'ready'
+}
 
 function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
@@ -90,7 +95,7 @@ function App() {
       return
     }
     setRoute('solo')
-    setSoloStage('rules')
+    setSoloStage(openingSoloStage())
   }, [engine, route, splashTransition])
 
   useEffect(() => {
@@ -104,7 +109,7 @@ function App() {
       }
       if (splashTransition === 'covered') {
         setRoute('solo')
-        setSoloStage('rules')
+        setSoloStage(openingSoloStage())
         setSplashTransition('revealing')
         return
       }
@@ -118,6 +123,11 @@ function App() {
   }, [splashTransition])
 
   const beginSolo = useCallback(() => {
+    setSoloStage('ready')
+  }, [])
+
+  const hideRulesAndBeginSolo = useCallback(() => {
+    updateDisplaySettings({ soloRules: false })
     setSoloStage('ready')
   }, [])
 
@@ -256,7 +266,7 @@ function App() {
       <>
         <StartBackdrop>
           {soloStage === 'rules' ? (
-            <SoloRulesScreen onStart={beginSolo} />
+            <SoloRulesScreen onStart={beginSolo} onHideAndStart={hideRulesAndBeginSolo} />
           ) : (
             <SoloStart step={soloStage} />
           )}

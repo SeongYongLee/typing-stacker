@@ -1,4 +1,4 @@
-import type { Recipe } from '../data/recipes.ts'
+import { craftKeyOf, type Recipe } from '../data/recipes.ts'
 
 interface TouchNode {
   readonly itemId: number
@@ -44,7 +44,7 @@ const orderedCache = new WeakMap<readonly Recipe[], readonly Recipe[]>()
 function wantKey(recipe: Recipe): string {
   let key = wantKeys.get(recipe)
   if (key === undefined) {
-    key = sortedKey(recipe.inputs)
+    key = sortedKey(recipe.inputs.map(craftKeyOf))
     wantKeys.set(recipe, key)
   }
   return key
@@ -56,7 +56,8 @@ function needCount(recipe: Recipe): ReadonlyMap<string, number> {
   if (counts === undefined) {
     const built = new Map<string, number>()
     for (const input of recipe.inputs) {
-      built.set(input, (built.get(input) ?? 0) + 1)
+      const key = craftKeyOf(input)
+      built.set(key, (built.get(key) ?? 0) + 1)
     }
     counts = built
     needCounts.set(recipe, counts)
@@ -67,9 +68,19 @@ function needCount(recipe: Recipe): ReadonlyMap<string, number> {
 function countVariants(graph: ContactGraph): Map<string, number> {
   const counts = new Map<string, number>()
   for (const node of graph.nodes) {
-    counts.set(node.variantId, (counts.get(node.variantId) ?? 0) + 1)
+    const key = craftKeyOf(node.variantId)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
   }
   return counts
+}
+
+function normalizeCounts(counts: ReadonlyMap<string, number>): ReadonlyMap<string, number> {
+  const normalized = new Map<string, number>()
+  for (const [id, count] of counts) {
+    const key = craftKeyOf(id)
+    normalized.set(key, (normalized.get(key) ?? 0) + count)
+  }
+  return normalized
 }
 
 /**
@@ -185,7 +196,7 @@ function findMerge(graph: ContactGraph, recipes: readonly Recipe[]): MergeMatch 
     return null
   }
 
-  const variantOf = new Map(graph.nodes.map((node) => [node.itemId, node.variantId]))
+  const variantOf = new Map(graph.nodes.map((node) => [node.itemId, craftKeyOf(node.variantId)]))
   const adjacency = buildAdjacency(graph)
   const nodeIds = graph.nodes.map((node) => node.itemId)
 
@@ -223,7 +234,7 @@ function canMergeAnything(
   recipes: readonly Recipe[],
   counts: ReadonlyMap<string, number>,
 ): boolean {
-  return satisfiable(recipes, counts).length > 0
+  return satisfiable(recipes, normalizeCounts(counts)).length > 0
 }
 
 export { findMerge, canMergeAnything }

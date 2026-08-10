@@ -1,4 +1,11 @@
-import { ARENA, CAMERA_FOLLOW, CAMERA_HEADROOM } from '../config.ts'
+import {
+  ARENA,
+  CAMERA_DESCEND_FOLLOW,
+  CAMERA_FOLLOW,
+  CAMERA_HEADROOM,
+  CAMERA_START_VIEW_DROP,
+  CAMERA_START_VIEW_DROP_FADE_HEIGHT,
+} from '../config.ts'
 
 /**
  * 탑을 따라 올라가는 시야.
@@ -28,13 +35,15 @@ function targetCameraY(stackTop: number): number {
  * 현재 위치에서 목표를 향해 한 프레임만큼 다가간다.
  *
  * 즉시 옮기면 물건 하나 얹을 때마다 화면이 툭 튀어 어디에 떨어지는지 놓친다.
- * 내려올 때도 같은 빠르기로 따라간다 — 탑이 무너져 낮아졌는데 시야가 하늘에
- * 머물러 있으면 남은 것이 안 보인다.
+ * 내려올 때는 더 천천히 따라간다 — 탑이 살짝 흔들릴 때마다 판이 내려오면 고양이
+ * 판정과 화면 타이밍이 같이 출렁인다.
  */
 function followCameraY(current: number, stackTop: number, dt: number): number {
   const target = targetCameraY(stackTop)
-  const step = Math.min(1, CAMERA_FOLLOW * dt)
-  return current + (target - current) * step
+  const follow = target < current ? CAMERA_DESCEND_FOLLOW : CAMERA_FOLLOW
+  const step = Math.min(1, follow * dt)
+  const next = current + (target - current) * step
+  return Math.abs(next - target) < 0.02 ? target : next
 }
 
 /** 물건이 생겨야 할 높이. 시야가 올라간 만큼 함께 올라간다 */
@@ -42,4 +51,14 @@ function spawnYFor(cameraY: number): number {
   return ARENA.spawnY + cameraY
 }
 
-export { CAMERA_START_TOP, targetCameraY, followCameraY, spawnYFor }
+/**
+ * 화면에 그릴 때만 쓰는 카메라 높이.
+ *
+ * 시작부터 받침대를 조금 내려 보이게 하되, 실제 낙하 높이와 이탈 판정은 그대로 둔다.
+ */
+function renderCameraYFor(cameraY: number): number {
+  const fade = Math.max(0, 1 - cameraY / CAMERA_START_VIEW_DROP_FADE_HEIGHT)
+  return cameraY + CAMERA_START_VIEW_DROP * fade
+}
+
+export { CAMERA_START_TOP, targetCameraY, followCameraY, spawnYFor, renderCameraYFor }

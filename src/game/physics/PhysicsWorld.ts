@@ -396,8 +396,23 @@ class PhysicsWorld {
     itemId = 0,
     recalled = false,
   ): number {
+    return this.spawnItemMovingAt(variant, x, y, owner, itemId, recalled)
+  }
+
+  spawnItemMovingAt(
+    variant: ItemVariant,
+    x: number,
+    y: number,
+    owner: OwnerId,
+    itemId = 0,
+    recalled = false,
+    velocity: Vec2 = { x: 0, y: 0 },
+    angularVelocity = 0,
+  ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)
+      .setLinvel(velocity.x, velocity.y)
+      .setAngvel(angularVelocity)
       .setLinearDamping(LINEAR_DAMPING)
       .setAngularDamping(variant.angularDamping)
       // 높은 곳에서 떨어지는 얇은 물건이 받침대를 뚫고 지나가는 것을 막는다

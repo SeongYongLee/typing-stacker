@@ -41,10 +41,29 @@ describe('화면 설정 저장', () => {
     expect(DEFAULT_SETTINGS.shake).toBe(1)
   })
 
+  it('기본은 혼자 하기 규칙을 보여준다', () => {
+    expect(DEFAULT_SETTINGS.soloRules).toBe(true)
+  })
+
   it('저장한 값을 그대로 읽는다', () => {
     withStorage(null, () => {
-      saveDisplaySettings({ shake: 0, glow: 0, trail: 0 })
+      saveDisplaySettings({
+        shake: 0,
+        glow: 0,
+        trail: 0,
+        soloRules: false,
+      })
       expect(loadDisplaySettings().shake).toBe(0)
+      expect(loadDisplaySettings().soloRules).toBe(false)
+    })
+  })
+
+  it('규칙 화면 설정은 boolean만 받는다', () => {
+    withStorage(JSON.stringify({ soloRules: false }), () => {
+      expect(loadDisplaySettings().soloRules).toBe(false)
+    })
+    withStorage(JSON.stringify({ soloRules: 'false' }), () => {
+      expect(loadDisplaySettings().soloRules).toBe(true)
     })
   })
 
@@ -78,7 +97,14 @@ describe('화면 설정 저장', () => {
     }
     try {
       expect(loadDisplaySettings()).toEqual(DEFAULT_SETTINGS)
-      expect(() => saveDisplaySettings({ shake: 0, glow: 0, trail: 0 })).not.toThrow()
+      expect(() =>
+        saveDisplaySettings({
+          shake: 0,
+          glow: 0,
+          trail: 0,
+          soloRules: false,
+        }),
+      ).not.toThrow()
     } finally {
       globals['localStorage'] = previous
     }

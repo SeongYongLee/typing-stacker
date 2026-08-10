@@ -2,7 +2,6 @@ import { shakeScale } from './displayPrefs.ts'
 import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import type { CatView } from '../systems/CatPickup.ts'
 import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
-import { renderCameraYFor } from '../systems/Camera.ts'
 import type { BodySnapshot, OwnerId } from '../types/game.ts'
 import { ARENA_ART_SOURCES } from './arenaArt.ts'
 import {
@@ -21,6 +20,7 @@ import {
   drawHiddenReveal,
   drawLandingGlow,
   drawTrails,
+  drawWhiteboardRecall,
 } from './effectPaint.ts'
 import type { ArenaView } from './arenaView.ts'
 
@@ -31,6 +31,16 @@ interface HiddenReveal {
    * 무엇으로 만들었는지. 히든은 합성 결과로만 나타나므로 재료를 함께 보여준다.
    */
   readonly from: readonly string[]
+  /** 0 → 1 */
+  readonly progress: number
+}
+
+interface WhiteboardRecall {
+  readonly word: string
+  readonly label: string
+  readonly sprite: string
+  readonly side: 'left' | 'right'
+  readonly index: number
   /** 0 → 1 */
   readonly progress: number
 }
@@ -55,6 +65,7 @@ interface LandingGlow {
 type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
   'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'>> & {
   readonly hiddenReveal: HiddenReveal | null
+  readonly whiteboardRecall: WhiteboardRecall | null
   readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
   readonly catcher: NonNullable<ArenaRenderState['catcher']> | null
   readonly cat: CatView | null
@@ -65,6 +76,7 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
   return {
     ...state,
     hiddenReveal: state.hiddenReveal ?? null,
+    whiteboardRecall: state.whiteboardRecall ?? null,
     quake: state.quake ?? 0,
     quakePhase: state.quakePhase ?? 0,
     nightfall: state.nightfall ?? 0,
@@ -98,6 +110,7 @@ interface ArenaRenderState {
   readonly aimX: number
   readonly showAim: boolean
   readonly hiddenReveal?: HiddenReveal | null
+  readonly whiteboardRecall?: WhiteboardRecall | null
   /** 방금 얹힌 물건의 색. 없으면 null */
   readonly landing: LandingGlow | null
   /** 지진 흔들림 진폭 (월드 단위). 0이면 흔들리지 않는다 */
@@ -202,12 +215,19 @@ interface ArenaRenderState {
  * 선을 넘어가는 장면은 화면 밖에서 일어나 보이지 않았다.
  * 여백을 두면 넘어가는 순간이 보이고 두 선이 서로 떨어진다.
  *
- * 너무 크면 시작 상자가 화면 중간으로 떠서 초반부터 고양이와 받침대 사이가 멀어 보인다.
- * 물리 좌표를 바꾸지 않고 화면 배치만 살짝 낮추려고 여백을 줄인다.
+ * 하단 HUD를 한 줄로 압축한 뒤에는 이탈선을 화면 안에 남겨둘 필요보다 판을 넓게 쓰는
+ * 쪽이 더 중요하다. 음수면 이탈선은 살짝 화면 아래로 밀리고, 받침대는 그만큼 내려간다.
+ * 실제 물리 이탈선은 `ARENA.killY` 그대로라 게임 규칙은 바뀌지 않는다.
  */
-const KILL_LINE_MARGIN = 0.22
+const KILL_LINE_MARGIN = -0.18
 
-const WORLD_HEIGHT = ARENA.height - ARENA.killY + KILL_LINE_MARGIN
+/*
+ * 화살표는 실제 스폰 지점(ARENA.spawnY)에 아래 끝을 맞춘다. 그래서 화살표 몸통은
+ * spawnY보다 위로 올라가며, 렌더 높이 계산도 그 여유까지 포함해야 낮은 뷰포트에서
+ * 잘리지 않는다.
+ */
+const WORLD_TOP = Math.max(ARENA.height, ARENA.spawnY + 0.8)
+const WORLD_HEIGHT = WORLD_TOP - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
 
 class ArenaRenderer {
@@ -249,7 +269,7 @@ class ArenaRenderer {
   draw(given: ArenaRenderState): void {
     const state = withDefaults(given)
     const { ctx } = this
-    this.cameraY = renderCameraYFor(state.cameraY)
+    this.cameraY = state.cameraY
     this.nightfall = state.nightfall
     const view = this.view()
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
@@ -300,6 +320,9 @@ class ArenaRenderer {
      */
     if (state.catcher !== null) {
       drawCatcher(view, state.catcher)
+    }
+    if (state.whiteboardRecall !== null && state.catcher !== null) {
+      drawWhiteboardRecall(view, state.whiteboardRecall, state.catcher)
     }
     for (const body of state.bodies) {
       const recalled = body.recalled === true && state.catcher !== null
@@ -372,4 +395,4 @@ class ArenaRenderer {
 }
 
 export { ArenaRenderer, ARENA_ART_SOURCES }
-export type { ArenaRenderState, HiddenReveal, LandingGlow }
+export type { ArenaRenderState, HiddenReveal, LandingGlow, WhiteboardRecall }

@@ -16,6 +16,47 @@ const CHIP_TEXT = '#0d0f16'
 const VITAL_LABEL_SIZE = 22
 const VITAL_VALUE_SIZE = 52
 const VITAL_GAP = 16
+const COMPACT_LABEL_SIZE = 14
+const COMPACT_VALUE_SIZE = 26
+const COMPACT_GAP = 8
+const BAR_LABEL_SIZE = 16
+const BAR_VALUE_SIZE = 38
+const BAR_GAP = 10
+
+type VitalSize = 'regular' | 'compact' | 'bar'
+
+function labelStyleFor(size: VitalSize): CSSProperties {
+  return {
+    ...vitalLabelStyle,
+    fontSize: size === 'compact'
+      ? COMPACT_LABEL_SIZE
+      : size === 'bar'
+        ? BAR_LABEL_SIZE
+        : VITAL_LABEL_SIZE,
+    letterSpacing: size === 'regular' ? vitalLabelStyle.letterSpacing : '0.04em',
+  }
+}
+
+function valueChipStyleFor(size: VitalSize): CSSProperties {
+  return {
+    ...valueChipStyle,
+    padding: size === 'compact'
+      ? '4px 7px 5px'
+      : size === 'bar'
+        ? '5px 9px 7px'
+        : valueChipStyle.padding,
+    borderRadius: size === 'regular' ? valueChipStyle.borderRadius : 8,
+    fontSize: size === 'compact'
+      ? COMPACT_VALUE_SIZE
+      : size === 'bar'
+        ? BAR_VALUE_SIZE
+        : VITAL_VALUE_SIZE,
+  }
+}
+
+function gapFor(size: VitalSize): number {
+  return size === 'compact' ? COMPACT_GAP : size === 'bar' ? BAR_GAP : VITAL_GAP
+}
 
 const vitalLabelStyle: CSSProperties = {
   color: '#a7afc9',
@@ -73,7 +114,15 @@ function Barrier({ ratio }: { ratio: number }) {
   )
 }
 
-function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: number }) {
+function Lives({
+  lives,
+  invulnerable = 0,
+  size = 'regular',
+}: {
+  lives: number
+  invulnerable?: number
+  size?: VitalSize
+}) {
   const rowRef = useRef<HTMLSpanElement | null>(null)
   const slots = useRef<(HTMLSpanElement | null)[]>([])
   const previous = useRef(lives)
@@ -125,15 +174,15 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
   }, [lives])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
-      <span style={vitalLabelStyle}>목숨</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: gapFor(size) }}>
+      <span style={labelStyleFor(size)}>목숨</span>
       <span
         ref={rowRef}
         style={{
           position: 'relative',
           display: 'inline-flex',
-          gap: 6,
-          fontSize: 44,
+          gap: size === 'compact' ? 4 : size === 'bar' ? 5 : 6,
+          fontSize: size === 'compact' ? 26 : size === 'bar' ? 34 : 44,
           lineHeight: 1,
         }}
       >
@@ -157,18 +206,20 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
   )
 }
 
-function Combo({ combo }: { combo: number }) {
+function Combo({ combo, size = 'regular' }: { combo: number; size?: VitalSize }) {
   const active = combo > 0
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
-      <span style={vitalLabelStyle}>콤보</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: gapFor(size) }}>
+      <span style={labelStyleFor(size)}>콤보</span>
       <span
         style={{
-          ...valueChipStyle,
+          ...valueChipStyleFor(size),
+          minWidth: size === 'regular' ? 86 : size === 'bar' ? 64 : 44,
+          textAlign: 'center',
           background: COMBO_BACKGROUND,
         }}
       >
-        {active ? `x${combo}` : '-'}
+        {active ? combo : '-'}
       </span>
     </div>
   )
@@ -183,7 +234,7 @@ function Combo({ combo }: { combo: number }) {
  *
  * 눈은 입력칸에 붙어 있으므로 연출도 그 옆에서 일어난다.
  */
-function Score({ score }: { score: number }) {
+function Score({ score, size = 'regular' }: { score: number; size?: VitalSize }) {
   const valueRef = useRef<HTMLSpanElement | null>(null)
   const previous = useRef(score)
   const [delta, setDelta] = useState<{ seq: number; amount: number } | null>(null)
@@ -226,21 +277,23 @@ function Score({ score }: { score: number }) {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
-      <span style={vitalLabelStyle}>점수</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: gapFor(size) }}>
+      <span style={labelStyleFor(size)}>점수</span>
       {/* 기준을 숫자로 잡는다. 바깥 상자에 붙이면 "점수" 라벨 위에 뜬다 */}
       <span style={{ position: 'relative', display: 'inline-block' }}>
         <span
           ref={valueRef}
           data-score={score}
           style={{
-            ...valueChipStyle,
+            ...valueChipStyleFor(size),
+            minWidth: size === 'regular' ? 190 : size === 'bar' ? 136 : 92,
+            textAlign: 'right',
             background: SCORE_BACKGROUND,
           }}
         >
           {score.toLocaleString('ko-KR')}
         </span>
-        {delta !== null && <Delta key={delta.seq} amount={delta.amount} />}
+        {delta !== null && <Delta key={delta.seq} amount={delta.amount} size={size} />}
       </span>
     </div>
   )
@@ -249,7 +302,7 @@ function Score({ score }: { score: number }) {
 const DELTA_MS = 900
 
 /** 얼마나 오르내렸는지 한 번 띄우고 사라진다 */
-function Delta({ amount }: { amount: number }) {
+function Delta({ amount, size }: { amount: number; size: VitalSize }) {
   const ref = useRef<HTMLSpanElement | null>(null)
   const up = amount > 0
 
@@ -294,7 +347,17 @@ function Delta({ amount }: { amount: number }) {
         marginBottom: 2,
         whiteSpace: 'nowrap',
         // 오르는 값은 현재 점수와 같은 크기다. 깎이는 값도 기존 비율대로 두 배로 키운다
-        fontSize: up ? VITAL_VALUE_SIZE : 38,
+        fontSize: up
+          ? size === 'compact'
+            ? COMPACT_VALUE_SIZE
+            : size === 'bar'
+              ? BAR_VALUE_SIZE
+              : VITAL_VALUE_SIZE
+          : size === 'compact'
+            ? 24
+            : size === 'bar'
+              ? 30
+              : 38,
         fontWeight: 700,
         color: up ? '#6bffb0' : '#ff6b6b',
         /*

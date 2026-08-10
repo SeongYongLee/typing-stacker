@@ -1,16 +1,17 @@
-import { ARENA, LEDGE } from '../config.ts'
+import { LEDGE } from '../config.ts'
 import { TrailField } from '../systems/TrailField.ts'
 import type { TrailHit } from '../systems/TrailField.ts'
 import type { BodySnapshot } from '../types/game.ts'
 import { artUrl } from './arenaArt.ts'
 import { COLORS } from './arenaColors.ts'
+import { catcherAlpha, catcherVisualOffset } from './arenaPaint.ts'
 import { glowScale, trailScale } from './displayPrefs.ts'
 import { glowAlpha, glowColor, glowStyle } from './glow.ts'
 import { grownBy, trailPaint } from './trailPaint.ts'
 import { traceTrail } from './trailShape.ts'
 import { sprite } from './spriteCache.ts'
 import type { ArenaView } from './arenaView.ts'
-import type { HiddenReveal, LandingGlow } from './ArenaRenderer.ts'
+import type { HiddenReveal, LandingGlow, WhiteboardRecall } from './ArenaRenderer.ts'
 
 /**
  * 재료가 모이는 데 쓰는 몫(0~1).
@@ -20,6 +21,13 @@ import type { HiddenReveal, LandingGlow } from './ArenaRenderer.ts'
  * 옮겨오는 데만도 시간이 걸린다. 반대로 더 끌면 결과물을 읽을 시간이 모자란다.
  */
 const MERGE_GATHER = 0.36
+const HIDDEN_REVEAL_Y_RATIO = 0.22
+const HIDDEN_REVEAL_MIN_TOP_PX = 96
+const WHITEBOARD_CENTER_X = 50.5
+const WHITEBOARD_CENTER_Y = 31.7
+const WHITEBOARD_WIDTH = 33.9 * 0.8
+const WHITEBOARD_ASPECT = 610 / 1200
+const WHITEBOARD_WORD_AREA = { left: 0.07, top: 0.16, width: 0.86, height: 0.66 } as const
 
 /**
  * 재료가 출발하는 방향.
@@ -188,7 +196,7 @@ function drawFormingLedge(
   const ease = 1 - (1 - t) * (1 - t) * (1 - t)
 
   const fromX = view.toScreenX(0)
-  const fromY = view.toScreenY(ARENA.height * 0.74 + view.cameraY)
+  const fromY = hiddenRevealScreenY(view)
   const toX = view.toScreenX(forming.x)
   /*
    * **도착점은 통나무의 가운데다.** `forming.y`는 윗면이고(콜라이더가
@@ -275,13 +283,11 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
 
   const cx = view.toScreenX(0)
   /*
-   * 아레나 위쪽에 띄운다. 가운데(0.52)에 두면 쌓인 물건이 정확히 그 자리로 올라와
-   * 이름이 가려진다 — 히든이 나온 순간이 가장 반가운데 그때 이름을 못 읽으면 헛일이다.
-   * 스택은 아래에서 자라고 화살표는 맨 위를 지나므로 그 사이가 유일하게 비어 있는 띠다.
+   * 화이트보드 아래쪽에 붙여 띄운다. 게임 영역과 받침대를 아래로 내린 뒤 월드 좌표를
+   * 따라가면 이 자막도 같이 내려가 버린다. 히든은 판 위 물건의 위치가 아니라
+   * "보관소가 반응했다"는 알림이므로 화면 상단에 고정한다.
    */
-  // 히든 연출은 배경 자막이지 월드에 놓인 물건이 아니다 —
-  // 카메라를 더해 시야에 붙여두지 않으면 탑이 높아졌을 때 화면 밖으로 흘러내린다
-  const cy = view.toScreenY(ARENA.height * 0.74 + view.cameraY)
+  const cy = hiddenRevealScreenY(view)
   const unit = view.scale
 
   /*
@@ -414,6 +420,66 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   ctx.restore()
 }
 
+function drawWhiteboardRecall(
+  view: ArenaView,
+  recall: WhiteboardRecall,
+  catcher: {
+    readonly x: number
+    readonly y: number
+    readonly progress: number
+  },
+): void {
+  const img = sprite(recall.sprite)
+  if (img === null) {
+    return
+  }
+
+  const t = Math.min(Math.max(recall.progress, 0), 1)
+  const eased = t * t * (3 - 2 * t)
+  const start = whiteboardWordScreenPoint(view, recall.word, recall.index)
+  const side = recall.side
+  const sign = side === 'left' ? -1 : 1
+  const end = {
+    x: view.toScreenX(catcher.x) + catcherVisualOffset(side) + sign * view.scale * 0.12,
+    y: view.toScreenY(catcher.y) - view.scale * 0.16,
+  }
+  /*
+   * 화면 좌표는 위가 작다. 중간점을 위로 끌어올려 "보드에서 위로 톡 던져 손에
+   * 들어간다"로 보이게 한다. 물리 바디가 아니므로 기존 판 위 물건과 부딪치지 않는다.
+   */
+  const peakLift = Math.max(92, view.scale * 1.25)
+  const control = {
+    x: (start.x + end.x) / 2 + sign * view.scale * 0.22,
+    y: Math.min(start.y, end.y) - peakLift,
+  }
+  const cx = quadratic(start.x, control.x, end.x, eased)
+  const cy = quadratic(start.y, control.y, end.y, eased)
+  const ratio = img.naturalWidth / img.naturalHeight
+  const base = view.scale * (0.58 + Math.sin(Math.PI * eased) * 0.12)
+  const width = ratio >= 1 ? base : base * ratio
+  const height = ratio >= 1 ? base / ratio : base
+
+  const handAlpha = catcherAlpha(catcher.progress)
+  const appear = t < 0.12 ? t / 0.12 : 1
+  const alpha = handAlpha * appear
+  if (alpha <= 0) {
+    return
+  }
+
+  const rotation = sign * (-0.42 + eased * 1.1)
+  const shadow = Math.sin(Math.PI * eased)
+  const { ctx } = view
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.translate(cx, cy)
+  ctx.rotate(rotation)
+  ctx.shadowColor = 'rgba(31, 45, 41, 0.22)'
+  ctx.shadowBlur = 5 + shadow * 6
+  ctx.shadowOffsetY = 2
+  ctx.drawImage(img, -width / 2, -height / 2, width, height)
+  ctx.restore()
+}
+
 /**
  * 재료가 가운데로 미끄러져 들어온다.
  *
@@ -458,4 +524,54 @@ function drawGathering(
   }
 }
 
-export { GATHER_FROM, drawFormingLedge, drawHiddenReveal, drawLandingGlow, drawTrails }
+function hiddenRevealScreenY(view: ArenaView): number {
+  return Math.max(HIDDEN_REVEAL_MIN_TOP_PX, view.cssHeight * HIDDEN_REVEAL_Y_RATIO)
+}
+
+function whiteboardWordScreenPoint(
+  view: ArenaView,
+  word: string,
+  index: number,
+): { readonly x: number; readonly y: number } {
+  const seed = hashText(word) + index * 101
+  const anchors = [
+    { x: 47, y: 18 },
+    { x: 53, y: 42 },
+    { x: 50, y: 72 },
+  ] as const
+  const anchor = anchors[index % anchors.length]!
+  const wordX = anchor.x + (jitter(seed, 0) - 0.5) * 6
+  const wordY = anchor.y + (jitter(seed, 1) - 0.5) * 16
+
+  const boardWidth = view.cssWidth * (WHITEBOARD_WIDTH / 100)
+  const boardHeight = boardWidth * WHITEBOARD_ASPECT
+  const boardLeft = view.cssWidth * ((WHITEBOARD_CENTER_X - WHITEBOARD_WIDTH / 2) / 100)
+  const boardTop = view.cssHeight * (WHITEBOARD_CENTER_Y / 100) - boardHeight / 2
+  return {
+    x: boardLeft + boardWidth * (WHITEBOARD_WORD_AREA.left + WHITEBOARD_WORD_AREA.width * wordX / 100),
+    y: boardTop + boardHeight * (WHITEBOARD_WORD_AREA.top + WHITEBOARD_WORD_AREA.height * wordY / 100),
+  }
+}
+
+function quadratic(from: number, control: number, to: number, t: number): number {
+  const inv = 1 - t
+  return inv * inv * from + 2 * inv * t * control + t * t * to
+}
+
+function hashText(text: string): number {
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function jitter(seed: number, salt: number): number {
+  let value = (seed + Math.imul(salt + 1, 0x9e3779b9)) >>> 0
+  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b)
+  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35)
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967296
+}
+
+export { GATHER_FROM, drawFormingLedge, drawHiddenReveal, drawLandingGlow, drawTrails, drawWhiteboardRecall }

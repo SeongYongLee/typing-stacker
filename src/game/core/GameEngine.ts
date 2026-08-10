@@ -64,6 +64,8 @@ const CAT_RETHROW_CHANCE = 0.25
 const CAT_RETHROW_DELAY_SEC = 0.28
 /** 받을 곳이 없는 물건은 화면 아래까지 완전히 내려가기 전에 고양이가 낚아챈다 */
 const CAT_EARLY_ESCAPE_MARGIN = 0.35
+/** 보드 단어가 물건으로 바뀌어 손과 함께 사라지는 시간 */
+const WHITEBOARD_RECALL_SEC = CATCH.holdSec
 
 /**
  * 합성 연출 길이.
@@ -102,6 +104,8 @@ interface GameState {
    * 둘이 어긋나면 "보드에는 있는데 쪽지에는 표시가 없다"가 생긴다.
    */
   readonly whiteboard: readonly string[]
+  /** 방금 보드 단어가 물건으로 바뀐 짧은 연출 */
+  readonly whiteboardRecall: WhiteboardRecallView | null
   /**
    * 짝 표식의 밝기(0~1). 받침대의 물건도 **같은 값**으로 빛난다 —
    * 둘이 함께 뛰어야 한 쌍이라는 것이 색보다 먼저 읽힌다.
@@ -136,6 +140,24 @@ interface PendingDrop {
   readonly x: number
   /** 회수로 떨구는 것인가. 쿨다운을 기다리는 동안에도 이 표를 잃으면 안 된다 */
   readonly recalled: boolean
+}
+
+interface WhiteboardRecallView {
+  readonly word: string
+  readonly label: string
+  readonly sprite: string
+  readonly side: 'left' | 'right'
+  readonly index: number
+  readonly progress: number
+}
+
+interface WhiteboardRecall {
+  readonly word: string
+  readonly label: string
+  readonly sprite: string
+  readonly side: 'left' | 'right'
+  readonly index: number
+  elapsed: number
 }
 
 interface PendingCatThrow {
@@ -243,6 +265,8 @@ class GameEngine {
   private catcherLeft = 0
   /** 렌더러가 물리 회수 판과 같은 자리에 손 그림을 그리기 위한 값 */
   private catcherView: CatchPlank | null = null
+  /** 보드 단어가 물건으로 바뀌는 짧은 연결 연출 */
+  private whiteboardRecall: WhiteboardRecall | null = null
   /** 표식을 계산한 프레임. 한 프레임에 두 번 세지 않으려는 것 */
   private markFrame = -1
   /** 프레임 번호. 늘어나기만 하면 되므로 update에서 한 번 올린다 */
@@ -338,6 +362,7 @@ class GameEngine {
     this.spawner.prefer(this.whiteboard.words)
     this.catcherLeft = 0
     this.catcherView = null
+    this.whiteboardRecall = null
     this.mergeCount = 0
     this.firstNightEnd = FIRST_NIGHT_SEC
     this.aimer = new Aimer(AIM_HALF_RANGE)
@@ -401,6 +426,7 @@ class GameEngine {
      * 레인이 정하는데 떨구는 자리를 조준이 정하면 판이 아레나를 가로지른다.
      * 까닭과 실측은 `CATCH.dropX`에.
      */
+    const recallIndex = this.whiteboard.words.indexOf(result.word.word)
     const recalled = this.whiteboard.claim(
       result.word.word,
       WORDS,
@@ -410,7 +436,24 @@ class GameEngine {
     if (recalled) {
       const side = result.word.side
       const dropX = recallDropX(side)
-      this.queueDrop(variant, dropX, true)
+      const catcher = plankOf(catchSpot(dropX, side, this.physics.stackTop()))
+      this.physics.clearCatcher()
+      this.catcherView = catcher
+      this.catcherLeft = CATCH.holdSec
+      this.whiteboardRecall = {
+        word: result.word.word,
+        label: variant.label,
+        sprite: variant.sprite,
+        side,
+        index: Math.max(recallIndex, 0),
+        elapsed: 0,
+      }
+      this.fire({
+        kind: 'drop',
+        hidden: false,
+        material: variant.material,
+        tone: variant.tone,
+      })
     } else {
       this.queueDrop(variant, this.aimer.worldX)
     }
@@ -530,13 +573,6 @@ class GameEngine {
    * 대기하다 떨어진 것도 여기를 지나므로, 낙하음이 물건이 생기는 순간과 어긋나지 않는다.
    */
   private dropNow(variant: ItemVariant, x: number, recalled = false): void {
-    if (recalled) {
-      const side = x < 0 ? 'left' : 'right'
-      const catcher = plankOf(catchSpot(x, side, this.physics.stackTop()))
-      this.physics.setCatcher(catcher)
-      this.catcherView = catcher
-      this.catcherLeft = CATCH.holdSec
-    }
     this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER, 0, recalled)
     this.sinceLastDrop = 0
     this.fire({
@@ -553,6 +589,7 @@ class GameEngine {
     this.landing.advance(dt)
     this.cats.update(dt)
     this.advanceCatThrows(dt)
+    this.advanceWhiteboardRecall(dt)
     // 지난 프레임의 부딪힘은 이미 그려졌다. 비우지 않으면 물이 계속 퍼진다
     this.frameImpacts.length = 0
 
@@ -702,6 +739,16 @@ class GameEngine {
       }
       this.catThrowQueue.splice(index, 1)
       this.throwBackFromCat(pending.variant, pending.from)
+    }
+  }
+
+  private advanceWhiteboardRecall(dt: number): void {
+    if (this.whiteboardRecall === null) {
+      return
+    }
+    this.whiteboardRecall.elapsed += dt
+    if (this.whiteboardRecall.elapsed >= WHITEBOARD_RECALL_SEC) {
+      this.whiteboardRecall = null
     }
   }
 
@@ -1028,6 +1075,17 @@ class GameEngine {
               from: reveal.from.map((item) => item.sprite),
               progress: reveal.elapsed / reveal.duration,
             },
+      whiteboardRecall:
+        this.whiteboardRecall === null
+          ? null
+          : {
+              word: this.whiteboardRecall.word,
+              label: this.whiteboardRecall.label,
+              sprite: this.whiteboardRecall.sprite,
+              side: this.whiteboardRecall.side,
+              index: this.whiteboardRecall.index,
+              progress: Math.min(this.whiteboardRecall.elapsed / WHITEBOARD_RECALL_SEC, 1),
+            },
       landing: this.landing.view,
       cat: this.cats.view,
       quake: this.quakeAmplitude,
@@ -1076,6 +1134,17 @@ class GameEngine {
       words: this.spawner.words,
       wordMarks: this.wordMarks(this.marks()),
       whiteboard: this.whiteboard.words,
+      whiteboardRecall:
+        this.whiteboardRecall === null
+          ? null
+          : {
+              word: this.whiteboardRecall.word,
+              label: this.whiteboardRecall.label,
+              sprite: this.whiteboardRecall.sprite,
+              side: this.whiteboardRecall.side,
+              index: this.whiteboardRecall.index,
+              progress: Math.min(this.whiteboardRecall.elapsed / WHITEBOARD_RECALL_SEC, 1),
+            },
       pairPulse: pairPulse(this.elapsed),
       timeOfDay: timeOfDay(this.elapsed, this.firstNightEnd),
       aimNormalized: this.aimer.normalized,

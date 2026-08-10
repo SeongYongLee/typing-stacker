@@ -84,7 +84,11 @@ function SoloArenaBackdrop({
       {wall !== null && (
         <div style={wall}>
           <WindowLight nightfall={time.nightfall} />
-          <Whiteboard words={whiteboard} activeWords={activeWhiteboard} nightfall={time.nightfall} />
+          <Whiteboard
+            words={whiteboard}
+            activeWords={activeWhiteboard}
+            nightfall={time.nightfall}
+          />
           <ArenaClock time={time} />
         </div>
       )}
@@ -97,7 +101,14 @@ function WindowLight({ nightfall }: { nightfall: number }) {
   const dayAlpha = 1 - nightfall
   return (
     <div aria-hidden style={windowLightRootStyle}>
+      <style>{windowLightAnimationCss}</style>
       <div style={windowBeamStyle('day', dayAlpha)} />
+      <div data-window-wash style={windowWashStyle(dayAlpha)} />
+      <div data-window-ray style={windowRayStyle(0, dayAlpha)} />
+      <div data-window-ray style={windowRayStyle(1, dayAlpha)} />
+      <div data-window-ray style={windowRayStyle(2, dayAlpha)} />
+      <div data-window-motes style={windowMotesStyle(dayAlpha)} />
+      <div data-window-glow style={windowGlowStyle(dayAlpha)} />
       <div style={windowBeamStyle('night', nightfall)} />
       <div style={windowPoolStyle('day', dayAlpha)} />
       <div style={windowPoolStyle('night', nightfall)} />
@@ -201,7 +212,8 @@ function Whiteboard({
                 style={{
                   ...wordStyle,
                   ...scribbleStyle(word, index),
-                  opacity: active.has(word) ? 0.64 : 0.34,
+                  opacity: active.has(word) ? 0.9 : 0.44,
+                  ...(active.has(word) ? activeWordStyle : null),
                 }}
               >
                 {active.has(word) && <span aria-hidden style={circleStyle(word, index)} />}
@@ -327,6 +339,29 @@ const windowLightRootStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
+const windowLightAnimationCss = `
+@keyframes window-sunbeam-drift {
+  0% { transform: rotate(18deg) translate3d(-1.2%, -0.4%, 0); }
+  50% { transform: rotate(18deg) translate3d(1.4%, 0.8%, 0); }
+  100% { transform: rotate(18deg) translate3d(-1.2%, -0.4%, 0); }
+}
+
+@keyframes window-motes-float {
+  0% { background-position: 0% 0%, 35% 70%, 78% 28%; transform: translate3d(-0.6%, 1.2%, 0); }
+  50% { background-position: 28% 36%, 62% 48%, 94% 62%; transform: translate3d(1%, -0.8%, 0); }
+  100% { background-position: 0% 0%, 35% 70%, 78% 28%; transform: translate3d(-0.6%, 1.2%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-window-ray],
+  [data-window-wash],
+  [data-window-motes],
+  [data-window-glow] {
+    animation: none !important;
+  }
+}
+`
+
 function windowBeamStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
   const day = tone === 'day'
   return {
@@ -338,12 +373,88 @@ function windowBeamStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
     transform: 'skewX(-18deg) rotate(7deg)',
     transformOrigin: '0 0',
     background: day
-      ? 'linear-gradient(104deg, rgba(255, 232, 146, 0.54) 0%, rgba(255, 212, 105, 0.28) 34%, rgba(255, 207, 99, 0.08) 72%, rgba(255, 207, 99, 0) 100%)'
+      ? 'radial-gradient(ellipse at 0% 18%, rgba(255, 236, 142, 0.32), rgba(255, 218, 111, 0.12) 38%, rgba(255, 207, 99, 0) 72%)'
       : 'linear-gradient(104deg, rgba(141, 185, 255, 0.28) 0%, rgba(129, 136, 255, 0.16) 42%, rgba(107, 105, 228, 0.05) 76%, rgba(107, 105, 228, 0) 100%)',
-    clipPath: 'polygon(0 0, 100% 37%, 86% 100%, 0 64%)',
-    filter: day ? 'blur(6px)' : 'blur(8px)',
-    opacity: day ? alpha * 0.72 : alpha * 0.58,
-    mixBlendMode: day ? 'soft-light' : 'screen',
+    filter: day ? 'blur(12px)' : 'blur(8px)',
+    opacity: day ? alpha * 0.68 : alpha * 0.58,
+    mixBlendMode: 'screen',
+  }
+}
+
+function windowWashStyle(alpha: number): CSSProperties {
+  return {
+    position: 'absolute',
+    left: '7.5%',
+    top: '22%',
+    width: '48%',
+    height: '55%',
+    background:
+      'radial-gradient(ellipse at 0% 18%, rgba(255, 244, 173, 0.42), rgba(255, 230, 137, 0.2) 34%, rgba(255, 221, 115, 0.08) 58%, rgba(255, 221, 115, 0) 78%)',
+    filter: 'blur(14px)',
+    opacity: alpha * 0.74,
+    mixBlendMode: 'screen',
+    transform: 'rotate(18deg)',
+    transformOrigin: 'left center',
+  }
+}
+
+function windowRayStyle(index: 0 | 1 | 2, alpha: number): CSSProperties {
+  const rays = [
+    { left: '12%', top: '28%', width: '43%', height: '4.6%', rotate: 18, opacity: 0.86, delay: '0s' },
+    { left: '11%', top: '36%', width: '49%', height: '3.8%', rotate: 21, opacity: 0.68, delay: '-2.2s' },
+    { left: '14%', top: '45%', width: '38%', height: '3.1%', rotate: 24, opacity: 0.52, delay: '-4.1s' },
+  ] as const
+  const ray = rays[index]
+  return {
+    position: 'absolute',
+    left: ray.left,
+    top: ray.top,
+    width: ray.width,
+    height: ray.height,
+    transform: `rotate(${ray.rotate}deg)`,
+    transformOrigin: 'left center',
+    background:
+      'linear-gradient(90deg, rgba(255, 252, 210, 0.82), rgba(255, 235, 153, 0.42) 46%, rgba(255, 231, 145, 0.12) 72%, rgba(255, 231, 145, 0))',
+    borderRadius: '999px',
+    filter: 'blur(4px)',
+    opacity: alpha * ray.opacity,
+    mixBlendMode: 'screen',
+    animation: 'window-sunbeam-drift 8.5s ease-in-out infinite',
+    animationDelay: ray.delay,
+  }
+}
+
+function windowGlowStyle(alpha: number): CSSProperties {
+  return {
+    position: 'absolute',
+    left: '5.2%',
+    top: '14.5%',
+    width: '26%',
+    height: '39%',
+    background:
+      'radial-gradient(ellipse at 46% 42%, rgba(255, 251, 197, 0.34), rgba(255, 232, 136, 0.18) 42%, rgba(255, 211, 97, 0.04) 74%, rgba(255, 211, 97, 0) 100%)',
+    filter: 'blur(3px)',
+    opacity: alpha * 0.86,
+    mixBlendMode: 'screen',
+    animation: 'window-sunbeam-drift 10s ease-in-out infinite',
+  }
+}
+
+function windowMotesStyle(alpha: number): CSSProperties {
+  return {
+    position: 'absolute',
+    left: '18%',
+    top: '36%',
+    width: '34%',
+    height: '43%',
+    background:
+      'radial-gradient(circle at 16% 20%, rgba(255, 252, 211, 0.72) 0 1.4px, transparent 2.8px), radial-gradient(circle at 48% 68%, rgba(255, 238, 170, 0.58) 0 1.2px, transparent 2.7px), radial-gradient(circle at 76% 34%, rgba(255, 249, 218, 0.5) 0 1.1px, transparent 2.6px)',
+    backgroundSize: '76px 68px, 104px 88px, 132px 112px',
+    clipPath: 'polygon(0 0, 100% 36%, 84% 100%, 0 66%)',
+    filter: 'blur(0.4px)',
+    opacity: alpha * 0.88,
+    mixBlendMode: 'screen',
+    animation: 'window-motes-float 12s ease-in-out infinite',
   }
 }
 
@@ -360,7 +471,7 @@ function windowPoolStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
       ? 'radial-gradient(ellipse at 36% 50%, rgba(255, 232, 150, 0.46), rgba(255, 201, 92, 0.16) 48%, rgba(255, 201, 92, 0) 76%)'
       : 'radial-gradient(ellipse at 36% 50%, rgba(157, 191, 255, 0.26), rgba(128, 122, 255, 0.1) 50%, rgba(128, 122, 255, 0) 78%)',
     filter: day ? 'blur(5px)' : 'blur(7px)',
-    opacity: day ? alpha * 0.64 : alpha * 0.52,
+    opacity: day ? alpha : alpha * 0.52,
     mixBlendMode: 'screen',
   }
 }
@@ -400,7 +511,7 @@ const ownerStatusStyle: CSSProperties = {
 const wordStyle: CSSProperties = {
   position: 'absolute',
   display: 'block',
-  color: '#2b3933',
+  color: '#1f2d29',
   fontFamily: WHITEBOARD_FONT,
   fontWeight: 400,
   lineHeight: 1,
@@ -408,6 +519,13 @@ const wordStyle: CSSProperties = {
   textAlign: 'center',
   textShadow: '0 0 1px rgba(255, 255, 255, 0.28)',
   filter: 'blur(0.15px)',
+}
+
+const activeWordStyle: CSSProperties = {
+  color: '#172621',
+  textShadow: '0 0 1px rgba(255, 255, 255, 0.34), 0 0 5px rgba(31, 45, 41, 0.18)',
+  filter: 'blur(0.05px)',
+  animation: 'whiteboard-active-breathe 900ms ease-in-out infinite',
 }
 
 const eraseWordStyle: CSSProperties = {
@@ -475,6 +593,11 @@ const whiteboardAnimationCss = `
   }
 }
 
+@keyframes whiteboard-active-breathe {
+  0%, 100% { filter: blur(0.05px); }
+  50% { filter: blur(0) drop-shadow(0 0 2px rgba(31, 45, 41, 0.28)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-whiteboard-writing='true'] { animation: none !important; }
   [data-whiteboard-erasing='true'] { display: none !important; }
@@ -513,9 +636,9 @@ function circleStyle(word: string, index: number): CSSProperties {
     width: 'calc(100% + 22px)',
     height: 'calc(100% + 12px)',
     transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-    border: '2px solid rgba(43, 57, 51, 0.34)',
+    border: '3px solid rgba(31, 45, 41, 0.58)',
     borderRadius: '48% 54% 51% 46% / 56% 44% 52% 48%',
-    boxShadow: 'inset 0 0 0 1px rgba(43, 57, 51, 0.08)',
+    boxShadow: 'inset 0 0 0 1px rgba(43, 57, 51, 0.14), 0 0 4px rgba(31, 45, 41, 0.16)',
     pointerEvents: 'none',
     animation: 'whiteboard-circle-draw 520ms cubic-bezier(0.22, 0.74, 0.24, 1) both',
   } as CSSProperties

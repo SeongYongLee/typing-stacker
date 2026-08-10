@@ -232,14 +232,14 @@ function catcherAlpha(progress: number): number {
 function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
   const { ctx } = view
   const x = view.toScreenX(worldX)
-  const top = view.toScreenY(ARENA.height + view.cameraY)
+  const spawnY = view.toScreenY(ARENA.spawnY + view.cameraY)
   // 조준선은 쌓인 것의 꼭대기에서 끝난다 — 실제로 물건이 닿을 자리다
   const trackBottom = view.toScreenY(stackTop)
   const arrow = sprite(ARROW_ART)
   const arrowWidth = Math.min(44, Math.max(32, view.scale * 0.36))
   const arrowHeight = arrowWidth * (ARROW_CROP.height / ARROW_CROP.width)
-  const arrowTop = top + 2
-  const trackTop = arrow === null ? top + 22 : arrowTop + arrowHeight
+  const arrowTop = arrow === null ? spawnY - 22 : spawnY - arrowHeight
+  const trackTop = spawnY
 
   ctx.save()
   ctx.strokeStyle = COLORS.aimTrack
@@ -269,9 +269,9 @@ function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
   ctx.save()
   ctx.fillStyle = '#ffcf5c'
   ctx.beginPath()
-  ctx.moveTo(x, top + 20)
-  ctx.lineTo(x - 9, top + 2)
-  ctx.lineTo(x + 9, top + 2)
+  ctx.moveTo(x, spawnY)
+  ctx.lineTo(x - 9, spawnY - 18)
+  ctx.lineTo(x + 9, spawnY - 18)
   ctx.closePath()
   ctx.fill()
   ctx.restore()
@@ -379,13 +379,22 @@ function drawBody(
    * 주인 색은 신원이라 흔들리면 안 되므로 그대로 둔다.
    */
   const rimAlpha = ownerColor === null && mark !== undefined ? pulse : 1
-  const drawn = drawSprite(view, body.variant.sprite, body.variant.artBounds, rimColor, rimAlpha, alpha)
+  const rimWeight = ownerColor === null && mark !== undefined ? 'pair' : 'normal'
+  const drawn = drawSprite(
+    view,
+    body.variant.sprite,
+    body.variant.artBounds,
+    rimColor,
+    rimAlpha,
+    alpha,
+    rimWeight,
+  )
 
   // 그림이 아직 로드되지 않았으면 충돌 도형만이라도 보여준다
   if (!drawn) {
     ctx.fillStyle = body.variant.color
     ctx.strokeStyle = rimColor ?? 'rgba(0, 0, 0, 0.4)'
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = mark === undefined ? 1.5 : 5
     ctx.globalAlpha = 0.55 * alpha
     for (const part of partsOf(shape)) {
       tracePart(view, part)
@@ -408,6 +417,7 @@ function drawSprite(
   ownerColor: string | null,
   rimAlpha = 1,
   alpha = 1,
+  rimWeight: 'normal' | 'pair' = 'normal',
 ): boolean {
   const img = sprite(src)
   if (img === null) {
@@ -420,11 +430,11 @@ function drawSprite(
   const top = -height / 2
 
   if (ownerColor !== null) {
-    const glow = rim(img, ownerColor)
+    const glow = rim(img, ownerColor, rimWeight)
     if (glow !== null) {
       ctx.globalAlpha = rimAlpha * alpha
       // 테두리 그림은 원본보다 여백만큼 크다. 같은 비율로 넓게 그려야 자리가 맞는다
-      const pad = padRatio(img)
+      const pad = padRatio(img, rimWeight)
       const padX = width * pad.x
       const padY = height * pad.y
       ctx.drawImage(glow, left - padX, top - padY, width + padX * 2, height + padY * 2)

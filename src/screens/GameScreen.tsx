@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Hud } from '../components/Hud.tsx'
 import { InputBar } from '../components/InputBar.tsx'
 import { StackArena } from '../components/StackArena.tsx'
 import { ArenaBackdrop } from '../components/ArenaBackdrop.tsx'
@@ -31,7 +30,7 @@ const rootStyle: CSSProperties = {
   // 일시정지 화면이 이 안에서 전체를 덮으려면 기준점이 필요하다
   position: 'relative',
   display: 'grid',
-  gridTemplateRows: 'auto 1fr auto',
+  gridTemplateRows: '1fr auto',
   height: '100%',
 }
 
@@ -63,7 +62,7 @@ const fieldStyle: CSSProperties = {
   maxWidth: 1200,
   height: '100%',
   margin: '0 auto',
-  padding: '16px 20px 0',
+  padding: '12px 20px 0',
   minHeight: 0,
 }
 
@@ -142,8 +141,6 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         whiteboard={state.whiteboard}
         activeWhiteboard={activeWhiteboard}
       />
-      <Hud stats={state.stats} />
-
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>

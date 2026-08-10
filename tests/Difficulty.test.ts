@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ARENA, DIFFICULTY_FULL_HEIGHT, WORD } from '../src/game/config.ts'
+import { ARENA, CAMERA_START_TOP, DIFFICULTY_FULL_HEIGHT, WORD } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
-import { CAMERA_START_TOP, targetCameraY } from '../src/game/systems/Camera.ts'
+import { targetCameraY } from '../src/game/systems/Camera.ts'
 import {
   FULL,
   OPENING,
@@ -35,19 +35,16 @@ describe('difficultyProgress — 높이가 기준이다', () => {
   })
 
   /*
-   * 카메라가 움직이기 시작하는 높이를 **넘어서** 최대치에 닿아야 한다.
+   * 카메라는 밀도보다 늦게 움직인다.
    *
-   * 한때 둘이 같은 값이었다. "판이 본격적으로 시작됐다는 것을 눈으로 아는 순간"과
-   * 밀도가 다 오르는 순간을 맞추려던 것이었는데, 재보니 그 지점이 판의 절반이라
-   * 나머지 절반을 내내 최대 밀도로 보내고 있었다.
-   *
-   * 이제는 카메라가 먼저 움직이고 밀도가 뒤따라 오른다. 그 순서가 뒤집히면
-   * 완화한 것이 도로 없던 일이 된다.
+   * 판이 넓어진 뒤에는 카메라가 먼저 올라가면 받침대와 고양이가 너무 일찍 화면에서
+   * 멀어진다. 단어 압박은 기존 높이 곡선을 따르되, 시야는 화면의 2/3 정도가 찬 뒤에야
+   * 움직여 아래쪽 판정이 안정적으로 읽히게 한다.
    */
-  it('카메라가 움직이기 시작한 뒤에도 밀도는 더 오른다', () => {
+  it('밀도가 다 오른 뒤에도 카메라는 더 늦게 움직인다', () => {
     expect(targetCameraY(CAMERA_START_TOP)).toBe(0)
     expect(targetCameraY(CAMERA_START_TOP + 0.1)).toBeGreaterThan(0)
-    expect(difficultyProgress(CAMERA_START_TOP)).toBeLessThan(1)
+    expect(difficultyProgress(CAMERA_START_TOP)).toBe(1)
   })
 
   it('받침대보다 낮아도 음수가 되지 않는다', () => {

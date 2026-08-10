@@ -90,7 +90,7 @@ const ARENA = {
    * 탑이 이 높이에 닿으면 새 물건이 탑 속에 생겨 서로를 밀어내므로,
    * 카메라 없이는 여기가 곧 게임의 천장이었다.
    */
-  spawnY: 4.6,
+  spawnY: 7.85,
   /**
    * 이 높이보다 아래로 내려간 물건은 이탈로 본다.
    *
@@ -139,28 +139,24 @@ const ARENA = {
 const CAMERA_HEADROOM = 3.0
 
 /**
+ * 카메라가 움직이기 시작하는 탑 높이.
+ * 받침대에서 화면 천장까지의 2/3 정도가 찰 때까지는 판을 고정해 고양이와 이탈선이
+ * 같은 구도에서 읽히게 한다.
+ */
+const CAMERA_START_TOP =
+  ARENA.platformTop + (ARENA.height - ARENA.platformTop) * (2 / 3)
+
+/**
  * 카메라가 목표 높이를 따라가는 빠르기(초당 비율).
  * 즉시 옮기면 물건 하나 얹을 때마다 화면이 툭툭 튀어 어디에 떨어지는지 놓친다.
  */
-const CAMERA_FOLLOW = 3.5
+const CAMERA_FOLLOW = 2.0
 
 /**
  * 탑이 낮아졌을 때 카메라가 내려오는 빠르기.
  * 올라갈 때와 같은 속도면 작은 흔들림에도 판이 계속 내려와 고양이 타이밍이 불안정해진다.
  */
 const CAMERA_DESCEND_FOLLOW = 1.2
-
-/**
- * 판 시작 시 받침대를 미리 낮춰 보이게 하는 렌더 전용 오프셋.
- * 실제 물리 카메라와 스폰 높이는 건드리지 않는다.
- */
-const CAMERA_START_VIEW_DROP = 0.28
-
-/**
- * 카메라가 이만큼 실제로 올라가면 시작 오프셋은 사라진다.
- * 높은 탑 구간에서는 기존 카메라 구도를 그대로 쓰려는 것이다.
- */
-const CAMERA_START_VIEW_DROP_FADE_HEIGHT = 1.0
 
 /** 가장 큰 물건(비행기)의 반폭. tests/shapes.test.ts가 이 값을 지킨다 */
 const MAX_ITEM_HALF_WIDTH = 0.55
@@ -232,10 +228,9 @@ const MIN_VIEWPORT_WIDTH = 1200
 export {
   ARENA,
   CAMERA_HEADROOM,
+  CAMERA_START_TOP,
   CAMERA_FOLLOW,
   CAMERA_DESCEND_FOLLOW,
-  CAMERA_START_VIEW_DROP,
-  CAMERA_START_VIEW_DROP_FADE_HEIGHT,
   MAX_ITEM_HALF_WIDTH,
   AIM_OVERHANG,
   AIM_HALF_RANGE,

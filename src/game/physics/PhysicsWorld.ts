@@ -82,6 +82,11 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] }
 const FIXED_STEP = 1 / 60
 /** 탭 전환 등으로 dt가 크게 튀었을 때 시뮬레이션이 폭주하지 않게 */
 const MAX_STEPS_PER_FRAME = 5
+/**
+ * 높은 화살표/스폰 위치에서도 착지 충격이 예전보다 과하게 세지지 않도록 아래 속도를 묶는다.
+ * 시각적으로는 위에서 떨어지지만, 탑을 때리는 힘은 플레이 가능한 범위에 남겨둔다.
+ */
+const MAX_DROP_SPEED = 6.4
 
 const LINEAR_DAMPING = 0.2
 /*
@@ -665,6 +670,7 @@ class PhysicsWorld {
     this.accumulator += dt
     let steps = 0
     while (this.accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
+      this.clampDropSpeeds()
       this.world.step()
       this.accumulator -= FIXED_STEP
       steps += 1
@@ -810,6 +816,19 @@ class PhysicsWorld {
     }
 
     return { settled, impacts, escaped, quake }
+  }
+
+  private clampDropSpeeds(): void {
+    for (const entry of this.tracked.values()) {
+      if (entry.settled || entry.lost) {
+        continue
+      }
+      const velocity = entry.body.linvel()
+      if (velocity.y >= -MAX_DROP_SPEED) {
+        continue
+      }
+      entry.body.setLinvel({ x: velocity.x, y: -MAX_DROP_SPEED }, true)
+    }
   }
 
   /**

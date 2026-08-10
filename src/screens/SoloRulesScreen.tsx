@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { Danger, Key } from '../components/SidePanel.tsx'
-import { LIVES } from '../game/config.ts'
+import { SOLO_LIVES } from '../game/config.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 
 interface SoloRulesScreenProps {
@@ -17,7 +17,7 @@ const RULES: readonly ReactNode[] = [
     물건이 쏠려서 받침대를 벗어나면 <Danger>목숨이 하나</Danger> 줄어듭니다.
   </>,
   <>
-    목숨은 <Danger>{LIVES}개(♥♥♥)</Danger>. 다 잃으면 게임이 끝납니다.
+    목숨은 <Danger>{SOLO_LIVES}개({'♥'.repeat(SOLO_LIVES)})</Danger>. 다 잃으면 게임이 끝납니다.
   </>,
 ]
 
@@ -44,6 +44,22 @@ const titleStyle: CSSProperties = {
   textIndent: '0.12em',
   color: '#f2f4fb',
   textShadow: '0 2px 14px rgba(5, 9, 17, 0.86)',
+}
+
+const rulesGroupStyle: CSSProperties = {
+  display: 'grid',
+  justifyItems: 'center',
+  gap: 28,
+}
+
+const introStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 30,
+  fontWeight: 700,
+  lineHeight: 1.4,
+  color: '#f2f4fb',
+  textAlign: 'center',
+  textShadow: '0 2px 14px rgba(5, 9, 17, 0.78)',
 }
 
 const panelStyle: CSSProperties = {
@@ -76,13 +92,16 @@ function SoloRulesScreen({ onStart }: SoloRulesScreenProps) {
       <h1 style={titleStyle}>GAME RULES</h1>
 
       <div style={contentStyle}>
-        <section style={panelStyle} aria-label="게임 규칙">
-          <ul style={listStyle} data-blurb="solo">
-            {RULES.map((rule, index) => (
-              <li key={index}>{rule}</li>
-            ))}
-          </ul>
-        </section>
+        <div style={rulesGroupStyle}>
+          <p style={introStyle}>타자를 쳐서 물건이 떨어지지 않게 높게 쌓아보세요!</p>
+          <section style={panelStyle} aria-label="게임 규칙">
+            <ul style={listStyle} data-blurb="solo">
+              {RULES.map((rule, index) => (
+                <li key={index}>{rule}</li>
+              ))}
+            </ul>
+          </section>
+        </div>
 
         <div style={{ width: 360, maxWidth: '100%', justifySelf: 'center' }}>
           <MenuButton

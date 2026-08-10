@@ -7,6 +7,7 @@ import type { BodySnapshot, OwnerId } from '../types/game.ts'
 import { ARENA_ART_SOURCES } from './arenaArt.ts'
 import {
   catcherAlpha,
+  catcherVisualOffset,
   drawAim,
   drawBody,
   drawCat,
@@ -293,9 +294,21 @@ class ArenaRenderer {
      * 무엇이 떨어지는지가 오히려 안 보인다 — 꼬리를 붙인 이유와 반대가 된다.
      */
     this.trailTime = drawTrails(view, this.trails, state, this.trailTime)
+    /*
+     * 회수 손은 물건보다 먼저 그린다. 손이 물건을 받는 연출이므로 손바닥이 물건을
+     * 덮으면 들어 올린 것이 아니라 물건 앞을 가로막은 것처럼 보인다.
+     */
+    if (state.catcher !== null) {
+      drawCatcher(view, state.catcher)
+    }
     for (const body of state.bodies) {
-      const bodyAlpha =
-        body.recalled === true && state.catcher !== null ? catcherAlpha(state.catcher.progress) : 1
+      const recalled = body.recalled === true && state.catcher !== null
+      const bodyAlpha = recalled ? catcherAlpha(state.catcher.progress) : 1
+      if (recalled) {
+        const side = state.catcher.x < 0 ? 'left' : 'right'
+        ctx.save()
+        ctx.translate(catcherVisualOffset(side), 0)
+      }
       drawBody(
         view,
         body,
@@ -304,9 +317,9 @@ class ArenaRenderer {
         state.pairPulse,
         bodyAlpha,
       )
-    }
-    if (state.catcher !== null) {
-      drawCatcher(view, state.catcher)
+      if (recalled) {
+        ctx.restore()
+      }
     }
     /*
      * 앞벽은 **물건 뒤에** 온다. 이 한 줄이 "상자 위에 쌓였다"를 "상자에 담겼다"로

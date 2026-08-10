@@ -118,13 +118,13 @@ function Barrier({ ratio }: { ratio: number }) {
 function Lives({
   lives,
   invulnerable = 0,
-  size = 'regular',
   fever = false,
+  size = 'regular',
 }: {
   lives: number
   invulnerable?: number
-  size?: VitalSize
   fever?: boolean
+  size?: VitalSize
 }) {
   const rowRef = useRef<HTMLSpanElement | null>(null)
   const slots = useRef<(HTMLSpanElement | null)[]>([])

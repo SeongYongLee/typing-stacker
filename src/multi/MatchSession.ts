@@ -694,5 +694,5 @@ function asFailure(error: unknown): TransportFailure {
   return failure('unknown')
 }
 
-export { MatchSession }
+export { MatchSession, READY_TIMEOUT_MS }
 export type { SessionPhase, SessionOptions, OpenMode }

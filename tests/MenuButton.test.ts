@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { MenuButton } from '../src/components/MenuButton.tsx'
 
-function markup(primary: boolean): string {
+function markup(primary: boolean, selected: boolean): string {
   const props = {
-    selected: false,
+    selected,
     onClick: () => {},
     primary,
     children: primary ? '혼자 하기' : '함께 하기',
@@ -14,8 +14,12 @@ function markup(primary: boolean): string {
 }
 
 describe('MenuButton 글자 크기', () => {
-  it('Primary와 일반 버튼을 같은 크기로 보여준다', () => {
-    expect(markup(true)).toContain('font-size:15px')
-    expect(markup(false)).toContain('font-size:15px')
+  it.each([
+    { primary: true, selected: true },
+    { primary: true, selected: false },
+    { primary: false, selected: true },
+    { primary: false, selected: false },
+  ])('Primary와 일반 버튼을 선택 상태와 관계없이 같은 크기로 보여준다', ({ primary, selected }) => {
+    expect(markup(primary, selected)).toContain('font-size:15px')
   })
 })

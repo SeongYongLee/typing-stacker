@@ -201,7 +201,6 @@ function ReadyRoom({
         style={{ fontSize: READY_TEXT_SIZE }}
       >
         모드 · {modeLabel(phase.matchModeChoice)}
-        {!phase.canChangeMatchMode && ' (호스트만 변경)'}
       </MenuButton>
     </div>
   )

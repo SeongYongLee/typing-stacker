@@ -20,9 +20,13 @@ function phase(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'shared'
   }
 }
 
-function markup(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'shared'): string {
+function markup(
+  chatEnabled: boolean,
+  matchModeChoice: MatchModeChoice = 'shared',
+  canChangeMatchMode = chatEnabled,
+): string {
   return renderToStaticMarkup(createElement(ReadyRoom, {
-    phase: phase(chatEnabled, matchModeChoice),
+    phase: { ...phase(chatEnabled, matchModeChoice), canChangeMatchMode },
     onReady: () => {},
     onChat: () => {},
     onMatchMode: () => {},
@@ -65,6 +69,13 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).toContain('마지막 생존자')
     expect(html).not.toContain('방 참가 코드')
     expect(html).not.toContain('친선전에서는')
+  })
+
+  it('친선전 참가자에게 호스트 전용 안내 문구를 붙이지 않는다', () => {
+    const html = markup(true, 'duel', false)
+
+    expect(html).toContain('모드 · 대결')
+    expect(html).not.toContain('호스트만 변경')
   })
 
   it('랭크 게임 준비 화면에서 모드 규칙과 준비 버튼을 바로 보여준다', () => {

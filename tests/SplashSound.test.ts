@@ -61,11 +61,16 @@ function installFakeBus(board: SoundBoard) {
   const { ctx, starts } = fakeContext()
   const bus = {
     context: null as AudioContext | null,
+    running: false,
     sfx: {} as AudioNode,
     bgm: null,
     noiseBuffer: { duration: 1 } as AudioBuffer,
     current: { sfxVolume: 1, bgmVolume: 0 },
-    unlock() { this.context = ctx },
+    async unlock() {
+      this.context = ctx
+      await Promise.resolve()
+      this.running = true
+    },
     update() {},
     subscribe() { return () => {} },
     setSuspended() {},
@@ -76,26 +81,26 @@ function installFakeBus(board: SoundBoard) {
 }
 
 describe('스플래시 사무실 문', () => {
-  it('첫 제스처 전의 열림을 보관했다가 unlock에서 한 번만 연다', () => {
+  it('첫 제스처 전의 열림을 보관했다가 unlock에서 한 번만 연다', async () => {
     const board = new SoundBoard()
     const { starts } = installFakeBus(board)
 
     board.setSplash(true)
     expect(starts).toHaveLength(0)
 
-    board.unlock()
+    await board.unlock()
     expect(starts.length).toBeGreaterThan(0)
     const afterFirstUnlock = starts.length
 
-    board.unlock()
+    await board.unlock()
     expect(starts).toHaveLength(afterFirstUnlock)
     board.dispose()
   })
 
-  it('첫 클릭으로 바로 나가도 닫힘은 열림 뒤 0.6초부터 난다', () => {
+  it('첫 클릭으로 바로 나가도 닫힘은 열림 뒤 0.6초부터 난다', async () => {
     const board = new SoundBoard()
     const { bus, ctx, starts } = installFakeBus(board)
-    bus.unlock()
+    await bus.unlock()
 
     board.setSplash(true)
     const openCount = starts.length

@@ -13,7 +13,7 @@ import type { AudioSettings } from '../storage/audioSettings.ts'
 function useAudioBoot(): void {
   useEffect(() => {
     const board = soundBoard()
-    const unlock = () => board.unlock()
+    const unlock = () => { void board.unlock() }
     const onVisibility = () => board.setSuspended(document.hidden)
 
     /*
@@ -34,7 +34,7 @@ function useAudioBoot(): void {
   }, [])
 }
 
-/** 스플래시에 드나들 때 사무실 나무문을 열고 닫는다 */
+/** 스플래시가 검어지는 동안 사무실 문을 열고, 화면을 바꿀 때 닫는다 */
 function useSplashDoor(open: boolean): void {
   const previous = useRef<boolean | null>(null)
   useEffect(() => {

@@ -42,6 +42,36 @@ button {
 }
 
 /*
+ * 스플래시의 사무실 문이 열리는 동안 검게 가린다. 완전히 가린 뒤 화면을 바꾸므로
+ * 타이틀과 READY가 한 프레임 겹치지 않는다. opacity만 움직여 로딩 중에도 끊기지 않는다.
+ */
+.splash-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-transition[data-phase='darkening'] {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 260ms cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.splash-transition[data-phase='covered'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.splash-transition[data-phase='revealing'] {
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/*
  * 키보드로 고른 것은 **한 가지 색**으로 보인다.
  *
  * 이 게임의 메뉴는 자기 하이라이트를 직접 그린다(MenuButton의 노란 테두리). 그런데

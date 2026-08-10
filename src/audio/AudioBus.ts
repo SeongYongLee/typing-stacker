@@ -60,11 +60,6 @@ class AudioBus {
     return this.settings
   }
 
-  /** 소리를 낼 수 있는 상태인가. 첫 제스처 전에는 false다 */
-  get ready(): boolean {
-    return this.ctx !== null && this.ctx.state === 'running'
-  }
-
   get context(): AudioContext | null {
     return this.ctx
   }
@@ -128,13 +123,17 @@ class AudioBus {
    * 사용자 제스처 안에서 부른다.
    * 이미 만들어져 있으면 멈춰 있던 것만 깨운다 — 탭을 떠났다 돌아오는 경로다.
    */
-  unlock(): void {
+  async unlock(): Promise<void> {
     if (this.ctx === null) {
       this.build()
-      return
     }
-    if (this.ctx.state !== 'running') {
-      void this.ctx.resume()
+    const ctx = this.ctx
+    if (ctx !== null && ctx.state !== 'running') {
+      /*
+       * `resume()`이 끝나기 전에 음을 예약하면 실기 브라우저에서 조용히 사라진다.
+       * 호출만 해두고 반환하지 말고, 실제 running이 된 뒤 SoundBoard가 예약하게 한다.
+       */
+      await ctx.resume()
     }
   }
 
@@ -194,10 +193,6 @@ class AudioBus {
     this.bgmGain = bgm
     this.noise = buildNoise(ctx)
     this.applyGains()
-
-    if (ctx.state !== 'running') {
-      void ctx.resume()
-    }
   }
 
   /** 화면이 설정을 바꿨다. 저장까지 여기서 함께 한다 */

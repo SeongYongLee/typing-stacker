@@ -3,6 +3,13 @@ import { SOLO_READY_MS, SOLO_START_MS } from './game/config.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'
 import { StartCurtain } from './components/StartCurtain.tsx'
+import {
+  SplashTransition,
+  SPLASH_COVERED_MS,
+  SPLASH_DARKEN_MS,
+  SPLASH_REVEAL_MS,
+  type SplashTransitionPhase,
+} from './components/SplashTransition.tsx'
 import { useAudioBoot, useMusic, useSplashDoor } from './hooks/useAudio.ts'
 import { musicFor, type Route } from './screenMusic.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
@@ -37,12 +44,14 @@ function App() {
   ))
   /** 혼자 하기가 열리기 전의 박자. null이면 판이 이미 돌고 있거나 다른 화면이다 */
   const [soloStep, setSoloStep] = useState<SoloStep | null>(null)
+  const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
   const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
   useAudioBoot()
-  useSplashDoor(route === 'title')
+  // 검어지는 동안 문을 열고, 완전히 가려 화면을 바꾸는 순간 쿵 닫는다
+  useSplashDoor(splashTransition === 'darkening' || splashTransition === 'covered')
   /*
    * 어느 화면에서 무엇이 흐르는지를 여기 한 곳에 모은다.
    *
@@ -68,12 +77,41 @@ function App() {
    * 단어가 내려오고 시간이 흐른다 — 기다려주는 것이 아니라 눈만 가리는 것이 된다.
    */
   const startSolo = useCallback(() => {
-    if (engine === null) {
+    if (engine === null || splashTransition !== 'idle') {
+      return
+    }
+    if (route === 'title') {
+      // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
+      setSplashTransition('darkening')
       return
     }
     setRoute('solo')
     setSoloStep('ready')
-  }, [engine])
+  }, [engine, route, splashTransition])
+
+  useEffect(() => {
+    if (splashTransition === 'idle') {
+      return
+    }
+    const timer = setTimeout(() => {
+      if (splashTransition === 'darkening') {
+        setSplashTransition('covered')
+        return
+      }
+      if (splashTransition === 'covered') {
+        setRoute('solo')
+        setSoloStep('ready')
+        setSplashTransition('revealing')
+        return
+      }
+      setSplashTransition('idle')
+    }, splashTransition === 'darkening'
+      ? SPLASH_DARKEN_MS
+      : splashTransition === 'covered'
+        ? SPLASH_COVERED_MS
+        : SPLASH_REVEAL_MS)
+    return () => clearTimeout(timer)
+  }, [splashTransition])
 
   useEffect(() => {
     if (soloStep === null || engine === null) {
@@ -126,6 +164,7 @@ function App() {
   const openTitle = useCallback(() => {
     // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
     setTitleTheme(titleThemeForHour(new Date().getHours()))
+    setSplashTransition('idle')
     setRoute('title')
   }, [])
 
@@ -177,16 +216,19 @@ function App() {
 
   if (route === 'title' || engine === null || state === null) {
     return (
-      <TitleScreen
-        onStart={startSolo}
-        onName={() => setRoute('name')}
-        onMultiplayer={() => setRoute('lobby')}
-        onCollection={() => setRoute('collection')}
-        onOptions={() => setRoute('options')}
-        ready={engine !== null && state !== null && assetProgress >= 1}
-        progress={assetProgress}
-        theme={titleTheme}
-      />
+      <>
+        <TitleScreen
+          onStart={startSolo}
+          onName={() => setRoute('name')}
+          onMultiplayer={() => setRoute('lobby')}
+          onCollection={() => setRoute('collection')}
+          onOptions={() => setRoute('options')}
+          ready={engine !== null && state !== null && assetProgress >= 1}
+          progress={assetProgress}
+          theme={titleTheme}
+        />
+        <SplashTransition phase={splashTransition} />
+      </>
     )
   }
 
@@ -201,9 +243,12 @@ function App() {
    */
   if (soloStep !== null) {
     return (
-      <StartBackdrop>
-        <SoloStart step={soloStep} />
-      </StartBackdrop>
+      <>
+        <StartBackdrop>
+          <SoloStart step={soloStep} />
+        </StartBackdrop>
+        <SplashTransition phase={splashTransition} />
+      </>
     )
   }
 

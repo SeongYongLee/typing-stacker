@@ -493,7 +493,7 @@ function boxLanding(voice: Voice, strength: number, mass: number, grain: number)
   })
 }
 
-/** 스플래시 화면용 사무실 나무문이 경첩 소리를 내며 열린다. 아직 재생 위치에는 연결하지 않는다 */
+/** 스플래시 화면용 사무실 나무문이 경첩 소리를 내며 열린다 */
 function woodenDoorOpen(voice: Voice): void {
   // 한 번 매끈하게 훑으면 바람처럼 들린다. 방향이 다른 짧은 마찰을 겹쳐 경첩을 만든다
   burst(voice, {

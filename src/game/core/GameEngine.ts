@@ -26,9 +26,8 @@ import { placeLedge } from '../systems/Ledge.ts'
 import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
 import { pairMarks, pairPulse } from '../systems/PairMarks.ts'
-import { openingEntries } from '../systems/Opening.ts'
+import { RecipeFlow } from '../systems/RecipeFlow.ts'
 import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
-import { nightEntries } from '../systems/NightWords.ts'
 import { Whiteboard } from '../systems/Whiteboard.ts'
 import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
@@ -38,9 +37,8 @@ import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
 import { impactEventOf, quakeEventOf, trailHitOf } from '../systems/ImpactFeel.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
-import { craftPartnerWords } from '../systems/CraftPartners.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
-import type { FallingWord, GamePhase, ItemVariant, RunStats, WordEntry } from '../types/game.ts'
+import type { FallingWord, GamePhase, ItemVariant, RunStats } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
 import { CatPickup, catPickupY } from '../systems/CatPickup.ts'
 import type { TrailHit } from '../systems/TrailField.ts'
@@ -57,6 +55,10 @@ const WORD_BASE_ID = new Map(
 /** 표에서 못 찾은 재료를 걸러낸다 — 레시피는 id 문자열이라 오타가 조용히 지나갈 수 있다 */
 function isVariant(item: ItemVariant | undefined): item is ItemVariant {
   return item !== undefined
+}
+
+function hiddenChanceForPhase(phase: Phase): number {
+  return phase === 'firstNight' ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE
 }
 
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
@@ -112,8 +114,8 @@ interface GameState {
    * 지금 몇 시인가 — 국면과 그 안의 진행도, 그리고 밤에 얼마나 잠겼는가.
    *
    * **규칙 쪽이 내놓는 값이다.** 그리는 쪽(시계·배경·받침대)은 이것을 받아 쓴다 —
-   * 배경의 낮/밤은 `timeOfDay.nightfall`을 그대로 따라가므로, 화면이 어두워졌다는
-   * 것은 지금 재료만 내려온다는 뜻이 된다. 화면이 곧 규칙을 말한다.
+   * 배경의 낮/밤은 `timeOfDay.nightfall`을 그대로 따라간다. 화면이 어두워졌다는 것은
+   * 레시피 재료가 낮보다 더 촘촘히 이어진다는 뜻이다. 화면이 곧 규칙을 말한다.
    */
   readonly timeOfDay: TimeOfDay
   readonly aimNormalized: number
@@ -153,7 +155,10 @@ class GameEngine {
   /** 도감에 새 칸이 채워졌을 때. 바깥이 저장을 맡는다 */
   private onDiscover: ((ids: readonly string[]) => void) | null = null
   private rng: Rng
+  private recipeFlow: RecipeFlow
   private spawner: WordSpawner
+  /** RecipeFlow에 넘길 개수표. 매 프레임 새 Map을 만들지 않고 비워 쓴다. */
+  private readonly recipeCounts = new Map<string, number>()
   private aimer = new Aimer(AIM_HALF_RANGE)
 
   private phase: GamePhase = 'title'
@@ -226,16 +231,12 @@ class GameEngine {
    * 알 필요가 없다. 두 번째 합성이 일어나면 그 순간의 시각으로 못 박는다.
    */
   private firstNightEnd = FIRST_NIGHT_SEC
-  /** 첫 밤에 내보낼 단어. 판마다 다르게 뽑으므로 시작할 때 정해 둔다 */
   /** 벽에 적힌 회수 목록. 여기 있는 단어를 치면 쌓지 않고 빼낸다 */
   private readonly whiteboard = new Whiteboard(createRng(0x5eed))
   /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
   private catcherLeft = 0
   /** 렌더러가 물리 회수 판과 같은 자리에 손 그림을 그리기 위한 값 */
   private catcherView: CatchPlank | null = null
-  private firstNightPool: readonly WordEntry[] = []
-  /** 밤에 내보낼 단어 — 재료만. 판 내내 같으므로 한 번만 만든다 */
-  private readonly nightPool: readonly WordEntry[] = nightEntries(WORDS)
   /** 표식을 계산한 프레임. 한 프레임에 두 번 세지 않으려는 것 */
   private markFrame = -1
   /** 프레임 번호. 늘어나기만 하면 되므로 update에서 한 번 올린다 */
@@ -256,7 +257,10 @@ class GameEngine {
     this.seed = seed
     this.collection = new Collection(known)
     this.rng = createRng(seed)
-    this.spawner = new WordSpawner(this.rng, WORDS)
+    this.recipeFlow = new RecipeFlow(createRng(seed ^ 0x72656369), WORDS, RECIPES)
+    this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
+      this.recipeFlow.pick(candidates),
+    )
     this.loop.setCallbacks(this.update, this.render)
   }
 
@@ -310,21 +314,21 @@ class GameEngine {
     this.dropQueue.length = 0
     this.runSeq += 1
     this.rng = createRng(this.seed)
-    this.spawner = new WordSpawner(this.rng, WORDS)
+    this.recipeFlow = new RecipeFlow(createRng(this.seed ^ 0x72656369), WORDS, RECIPES)
+    this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
+      this.recipeFlow.pick(candidates),
+    )
     /*
-     * 판은 **첫 밤에서 시작한다.** 쉽게 합쳐지는 두 단어만 내보내 치는 족족 짝이
-     * 갖춰지게 한다 — 좁히기 전에는 25번을 떨궈도 40판 중 7판만 첫 합성에 닿았다.
-     * 측정값은 systems/Opening.ts에. 국면이 바뀌면 `applyPhase`가 갈아끼운다.
+     * 판은 첫 밤에서 시작하지만 더는 단어 둘로 밭을 잠그지 않는다. 2재료 레시피
+     * 전체를 차례로 집중하고 그 사이에 다른 물건을 넣는다(`RecipeFlow`).
      */
-    this.firstNightPool = openingEntries(this.rng, WORDS)
     this.phaseNow = 'firstNight'
     this.whiteboard.clear()
-    this.refreshPreferredWords()
+    this.spawner.prefer(this.whiteboard.words)
     this.catcherLeft = 0
     this.catcherView = null
     this.mergeCount = 0
     this.firstNightEnd = FIRST_NIGHT_SEC
-    this.spawner.restrict(this.firstNightPool)
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
@@ -379,19 +383,11 @@ class GameEngine {
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     /*
-     * 첫 밤에는 히든을 눌러둔다. 그 구간의 밭은 히든 보유 단어만으로 이루어져 있어서
-     * 같은 확률이라도 밀도가 몇 배로 뛴다 — 재본 값은 config의 OPENING_HIDDEN_CHANCE에.
-     *
-     * **`spawner.restricted`로 판단하면 안 된다.** 밤에도 밭을 좁히므로(`NightWords.ts`)
-     * 그 플래그는 첫 밤과 밤 둘 다에서 참이고, 그러면 몰아치라고 만든 밤이 오히려
-     * 히든이 가장 마르는 구간이 된다. 눌러야 할 근거는 "좁다"가 아니라 **"밭이 전부
-     * 히든 보유 단어다"**인데, 밤의 밭은 79종 중 26종(33%)으로 낮(35%)과 같다.
+     * 첫 밤에는 계획한 재료가 히든으로 바뀌어 사라지는 빈도를 낮춘다. 예전에는 밭이
+     * 히든 보유 단어뿐이라 밀도를 누르는 값이었고, 지금은 첫 두 합성을 안정시키는 값이다.
+     * 국면별 결과는 `zz-recipe-flow.measure.test.ts`에서 함께 잰다.
      */
-    const variant = resolveItem(
-      result.word.word,
-      this.rng,
-      this.phaseNow === 'firstNight' ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE,
-    )
+    const variant = resolveItem(result.word.word, this.rng, hiddenChanceForPhase(this.phaseNow))
     /*
      * 보드에 적힌 단어면 **쌓지 않고 빼낸다.**
      *
@@ -399,10 +395,8 @@ class GameEngine {
      * 레인이 정하는데 떨구는 자리를 조준이 정하면 판이 아레나를 가로지른다.
      * 까닭과 실측은 `CATCH.dropX`에.
      */
-    const pool =
-      this.phaseNow === 'night' ? this.nightPool : this.phaseNow === 'day' ? WORDS : this.firstNightPool
-    const recalled = this.whiteboard.claim(result.word.word, pool)
-    this.refreshPreferredWords()
+    const recalled = this.whiteboard.claim(result.word.word, WORDS)
+    this.spawner.prefer(this.whiteboard.words)
     if (recalled) {
       const side = result.word.side
       const dropX = recallDropX(side)
@@ -615,11 +609,11 @@ class GameEngine {
     this.applyPhase(timeOfDay(this.elapsed, this.firstNightEnd).phase)
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
-    this.refreshPreferredWords()
     /*
      * 놓친 단어는 판을 방해하지 않고 사라진다. 대가는 **콤보와 점수**다 —
      * 콤보가 타자와 무관해지면 손을 멈추고 쌓기만 봐도 배수가 유지된다.
      */
+    this.observeRecipeFlow()
     if (this.spawner.update(dt, difficulty).length > 0) {
       this.score.onWordMissed()
     }
@@ -686,6 +680,35 @@ class GameEngine {
   }
 
   /**
+   * 레시피 흐름이 다음 단어를 고를 때 보는 현재 재료 수를 만든다.
+   *
+   * 받침대만 보면 늦다. 화면에 내려오는 단어와 드롭 대기열까지 세야 이미 약속한 재료를
+   * 또 내보내지 않는다. 단어는 아직 히든 여부를 모르므로 기본 변형으로 센다.
+   */
+  private observeRecipeFlow(): void {
+    this.recipeCounts.clear()
+    for (const [id, count] of this.physics.countsByVariant()) {
+      this.recipeCounts.set(id, count)
+    }
+    for (const falling of this.spawner.words) {
+      if (falling.state !== 'active') {
+        continue
+      }
+      const id = WORD_BASE_ID.get(falling.word)
+      if (id !== undefined) {
+        this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
+      }
+    }
+    for (const pending of this.dropQueue) {
+      if (!pending.recalled) {
+        const id = pending.variant.id
+        this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
+      }
+    }
+    this.recipeFlow.observe(this.recipeCounts)
+  }
+
+  /**
    * 닿아 있는 재료가 레시피를 이루면 합친다.
    *
    * 한 프레임에 하나만 합치는 이유는 재료가 겹칠 수 있어서다. 하나를 합친 뒤
@@ -719,6 +742,7 @@ class GameEngine {
     if (created === null) {
       return
     }
+    this.recipeFlow.onMerged(match.recipe)
     /*
      * 합성으로 얻은 것도 히든이다 — 운으로 만난 것과 같은 자리에서 알린다.
      * 다만 **무엇으로 만들었는지**를 함께 넘긴다. 결과물만 띄우면 방금 무엇이
@@ -752,43 +776,26 @@ class GameEngine {
   }
 
   /**
-   * 국면이 바뀌면 단어 밭을 갈아끼운다.
+   * 국면이 바뀌면 레시피 집중 밀도만 바꾼다.
    *
-   * 시간이 정하는 것은 **어떤 단어가 내려오는가** 하나뿐이다 — 낙하 속도도 밀도도
-   * 건드리지 않는다(그쪽은 쌓은 높이가 정한다). 압박의 축을 둘로 늘리면 서로 겹쳐서
-   * 어느 쪽이 판을 끝냈는지 알 수 없게 된다.
-   *
-   * **이미 내려오는 단어는 그대로 둔다.** 국면이 바뀌었다고 화면의 단어가 사라지면
-   * 치려던 것이 손 아래에서 없어진다. 밭은 다음에 뽑을 것만 정한다.
+   * 첫 밤·낮·밤 모두 107개 단어를 열어 둔다. 낮에는 레시피 재료 둘 뒤에, 밤에는
+   * 셋 뒤에 다른 무리의 단어를 넣는다. 이미 내려오는 단어는 그대로라 손도 끊기지 않는다.
    */
   private applyPhase(next: Phase): void {
     if (next === this.phaseNow) {
       return
     }
     this.phaseNow = next
-    /*
-     * 보드는 **지금 내려올 수 있는 단어만** 적는다. 밭 밖 단어를 적으면 영영 안
-     * 내려오는 항목이 한 칸을 죽은 채 차지한다.
-     *
-     * 첫 밤에는 닫는다 — 합성을 배우는 구간인데 회수는 "쌓지 않고 버린다"라 정반대다.
-     * 까닭은 `systems/Whiteboard.ts`에.
-     */
+    this.recipeFlow.setPhase(next)
+
+    /* 첫 밤에는 합성을 배우는 흐름과 반대인 회수를 닫는다. */
     if (next === 'firstNight') {
       this.whiteboard.clear()
-      this.refreshPreferredWords()
-    }
-    if (next === 'day') {
-      this.spawner.release()
-      this.whiteboard.refill(WORDS)
-      this.refreshPreferredWords()
+      this.spawner.prefer(this.whiteboard.words)
       return
     }
-    // 밤에는 재료만. 첫 밤으로 되돌아가는 일은 없다(`DayNight.ts`)
-    this.spawner.restrict(next === 'night' ? this.nightPool : this.firstNightPool)
-    if (next === 'night') {
-      this.whiteboard.refill(this.nightPool)
-      this.refreshPreferredWords()
-    }
+    this.whiteboard.refill(WORDS)
+    this.spawner.prefer(this.whiteboard.words)
   }
 
   /**
@@ -940,13 +947,6 @@ class GameEngine {
     return counts
   }
 
-  private refreshPreferredWords(): void {
-    this.spawner.prefer([
-      ...this.whiteboard.words,
-      ...craftPartnerWords(this.availableVariantCounts(), RECIPES, WORDS),
-    ])
-  }
-
   /** 물건 표식을 단어 쪽으로 옮긴다. 화면은 단어만 알고 물건 id는 모른다 */
   private wordMarks(marks: ReadonlyMap<string, number>): ReadonlyMap<string, number> {
     if (marks.size === 0) {
@@ -1039,5 +1039,5 @@ class GameEngine {
   }
 }
 
-export { GameEngine }
+export { GameEngine, hiddenChanceForPhase }
 export type { GameState, SubmitFeedback }

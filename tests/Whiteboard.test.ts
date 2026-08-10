@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { WORDS } from '../src/game/data/words.ts'
-import { nightEntries } from '../src/game/systems/NightWords.ts'
-import { openingEntries } from '../src/game/systems/Opening.ts'
 import { createRng } from '../src/game/systems/Rng.ts'
 import { Whiteboard, WHITEBOARD_SIZE } from '../src/game/systems/Whiteboard.ts'
 import type { WordEntry } from '../src/game/types/game.ts'
@@ -71,10 +69,9 @@ describe('화이트보드 — 밭이 좁을 때', () => {
     }
   })
 
-  /** 첫 밤의 밭은 두 단어다. 거기에 보드를 열면 절반이 회수 대상이 된다 */
-  it('첫 밤의 밭에서는 한 칸을 넘지 않는다', () => {
+  it('두 단어뿐인 밭에서는 한 칸을 넘지 않는다', () => {
     const board = new Whiteboard(createRng(3))
-    board.refill(openingEntries(createRng(3), WORDS))
+    board.refill(poolOf(2))
     expect(board.words.length).toBeLessThanOrEqual(1)
   })
 
@@ -84,9 +81,9 @@ describe('화이트보드 — 밭이 좁을 때', () => {
     expect(board.words).toHaveLength(0)
   })
 
-  it('밤의 밭은 보드를 채우기에 넉넉하다', () => {
+  it('전체 단어 밭은 보드를 채우기에 넉넉하다', () => {
     const board = new Whiteboard(createRng(4))
-    board.refill(nightEntries(WORDS))
+    board.refill(WORDS)
     expect(board.words).toHaveLength(WHITEBOARD_SIZE)
   })
 })

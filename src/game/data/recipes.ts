@@ -139,10 +139,9 @@ const RECIPES: readonly Recipe[] = [
    * 넷을 모을 확률이 0.06%이고 여섯은 0.0014%다. 그 위에 "서로 닿아야 한다"가
    * 또 걸린다(둘이 닿는 것도 30%다).
    *
-   * 그럼에도 지금 넣는 이유는 **레시피가 있어야 도달률을 잴 수 있기 때문**이다.
-   * 없는 것은 재지 못하고, 재지 못하면 어떤 장치가 얼마나 필요한지도 모른다.
-   * 푸는 순서는 `04_Backlog`에 있다 — 재료를 화면에 알리고, 짝 옆을 노리는 봇으로
-   * 접촉률을 다시 재고, 그다음 밭을 좁힌다. 확률을 만져서 메울 간격이 아니다.
+   * 재료 표식과 짝 옆 조준 측정을 먼저 마친 뒤, `RecipeFlow`가 같은 레시피의 재료를
+   * 가까운 시점에 내보낸다. 선행 합성 결과물이 필요한 조합은 그 결과물이 판에 있을 때
+   * 활성화한다. 도달률은 `zz-recipe-flow.measure.test.ts`에서 따로 잰다.
    */
   recipe(['airplane', 'travel-suitcase', 'treasure-map', 'camera'], 'travel-passport'),
   recipe(['racing-flag', 'toy-car', 'toy-train'], 'speed-course'),
@@ -175,22 +174,5 @@ const CRAFTABLE_IDS: readonly string[] = [
 /** 재료로 쓰이는 물건인지. 화면이 "이건 합칠 수 있다"고 귀띔하는 데 쓴다 */
 const INGREDIENT_IDS: ReadonlySet<string> = new Set(RECIPES.flatMap((r) => r.inputs))
 
-/**
- * **같은 물건 둘**로 이루어진 레시피의 재료들.
- *
- * 이것들만 따로 뽑아두는 이유는 **가장 쉽게 합쳐지는 짝**이기 때문이다. 재료가 같으니
- * 한 단어를 두 번 치면 갖춰지고, 도형까지 같아서 위에 얹으면 대체로 닿는다 —
- * 서로 다른 물건을 합치는 쪽은 크기와 모양이 달라 열에 일곱이 미끄러진다.
- *
- * 판이 시작될 때 이 중 몇 개만 내보내 첫 합성을 앞당기는 데 쓴다(`systems/Opening.ts`).
- */
-const PAIR_INGREDIENT_IDS: readonly string[] = [
-  ...new Set(
-    RECIPES.filter(
-      (item) => item.inputs.length === 2 && item.inputs[0] === item.inputs[1],
-    ).map((item) => item.inputs[0] ?? ''),
-  ),
-].filter((id) => id !== '')
-
-export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS, PAIR_INGREDIENT_IDS }
+export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS }
 export type { Recipe }

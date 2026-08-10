@@ -9,15 +9,12 @@ const PREFERRED_WEIGHT = 4
 class WordSpawner {
   private readonly rng: Rng
   private readonly entries: readonly WordEntry[]
-  /**
-   * 지금 실제로 뽑는 밭. 보통은 `entries` 전체지만 첫 밤과 밤에는 좁혀둔다.
-   *
-   * 스포너를 새로 만들어 갈아치우는 방법을 쓰지 않은 이유는, 그러면 **내려오던 단어가
-   * 사라지기** 때문이다. 밭이 넓어지는 것은 다음에 뽑을 때부터 달라지는 일이지
-   * 화면을 갈아엎는 일이 아니다.
-   */
+  /** 테스트와 대전 호환용 후보 밭. 싱글 GameEngine은 더는 좁히지 않는다. */
   private pool: readonly WordEntry[]
+  /** 회수 보드의 단어. 레시피 흐름과 별도로 조금 더 자주 보여준다. */
   private preferred = new Set<string>()
+  /** 단어 선택 규칙. 없으면 대전이 쓰는 기존 전체 랜덤으로 뽑는다. */
+  private readonly pickEntry: ((candidates: readonly WordEntry[]) => WordEntry) | null
   private list: FallingWord[] = []
   private timer = 0
   private nextId = 1
@@ -36,10 +33,15 @@ class WordSpawner {
    */
   private revision = 0
 
-  constructor(rng: Rng, entries: readonly WordEntry[]) {
+  constructor(
+    rng: Rng,
+    entries: readonly WordEntry[],
+    pickEntry: ((candidates: readonly WordEntry[]) => WordEntry) | null = null,
+  ) {
     this.rng = rng
     this.entries = entries
     this.pool = entries
+    this.pickEntry = pickEntry
     // 시작하자마자 첫 단어가 나오도록 타이머를 채워둔다
     this.timer = Number.POSITIVE_INFINITY
   }
@@ -71,29 +73,23 @@ class WordSpawner {
     this.following = false
   }
 
-  /**
-   * 뽑을 단어를 이것들로 좁힌다. 첫 밤에 첫 합성을 앞당기고, 밤에 재료만 여는 데 쓴다.
-   *
-   * 빈 목록이 오면 좁히지 않는다 — 밭이 비면 단어가 하나도 안 나와 판이 멈춘다.
-   * 이유와 측정값은 `systems/Opening.ts`에 있다.
-   */
+  /** 후보 밭을 좁힌다. 싱글 국면은 이 API 대신 RecipeFlow를 쓴다. */
   restrict(pool: readonly WordEntry[]): void {
     this.pool = pool.length > 0 ? pool : this.entries
   }
 
-  /** 밭을 전체로 되돌린다. 이미 내려오는 단어는 그대로 둔다 */
+  /** 후보 밭을 전체로 되돌린다. 이미 내려오는 단어는 그대로 둔다. */
   release(): void {
     this.pool = this.entries
   }
 
-  /** 이 단어들은 다음 스폰에서 조금 더 자주 뽑힌다. 목록 밖 단어는 무시된다. */
-  prefer(words: readonly string[]): void {
-    this.preferred = new Set(words)
-  }
-
-  /** 지금 밭이 좁혀져 있는가. 화면이 알려줄 일이 생기면 이것을 본다 */
   get restricted(): boolean {
     return this.pool !== this.entries
+  }
+
+  /** 회수 보드 단어에 기존과 같은 4배 가중치를 줄 준비를 한다. */
+  prefer(words: readonly string[]): void {
+    this.preferred = new Set(words)
   }
 
   /**
@@ -190,10 +186,12 @@ class WordSpawner {
       return
     }
 
+    const entry =
+      this.pickPreferred(candidates) ?? this.pickEntry?.(candidates) ?? this.rng.pick(candidates)
     this.revision += 1
     this.list.push({
       id: this.nextId++,
-      word: this.pickWord(candidates),
+      word: entry.word,
       side,
       slot,
       y: 0,
@@ -202,19 +200,23 @@ class WordSpawner {
     })
   }
 
-  private pickWord(candidates: readonly WordEntry[]): string {
-    let total = 0
-    for (const entry of candidates) {
-      total += this.preferred.has(entry.word) ? PREFERRED_WEIGHT : 1
+  /**
+   * 커스텀 레시피 흐름을 덮지 않고 회수 보드 가중치의 **추가 몫**만 먼저 뽑는다.
+   *
+   * 선호 단어 수를 P, 전체를 N이라 하면 추가 몫은 `3P / (N + 3P)`다. 이 추첨에
+   * 실패했을 때 기본 선택기가 나머지 한 표씩을 맡으므로, 커스텀 선택기가 없는 대전은
+   * 기존과 정확히 같은 4:1 가중치가 된다. 싱글은 나머지를 RecipeFlow가 고른다.
+   */
+  private pickPreferred(candidates: readonly WordEntry[]): WordEntry | null {
+    const preferred = candidates.filter((entry) => this.preferred.has(entry.word))
+    if (preferred.length === 0) {
+      return null
     }
-    let roll = this.rng.next() * total
-    for (const entry of candidates) {
-      roll -= this.preferred.has(entry.word) ? PREFERRED_WEIGHT : 1
-      if (roll < 0) {
-        return entry.word
-      }
+    const extraWeight = preferred.length * (PREFERRED_WEIGHT - 1)
+    if (this.rng.next() * (candidates.length + extraWeight) >= extraWeight) {
+      return null
     }
-    return candidates[candidates.length - 1]?.word ?? this.rng.pick(candidates).word
+    return this.rng.pick(preferred)
   }
 
   /** 한쪽에만 몰리지 않게 적은 쪽을 우선한다 */

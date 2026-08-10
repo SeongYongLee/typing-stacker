@@ -36,6 +36,7 @@ const INK = '#2f2718'
 const UNDERLINE = 'rgba(90, 74, 46, 0.45)'
 const UNDERLINE_COMPOSING = '#a5762a'
 const DANGER = '#ff6b6b'
+const INPUT_FONT = '400 28px/1.2 "GriunXHangeul A Foreign Hand", "Apple SD Gothic Neo", "Malgun Gothic", cursive'
 
 /** 메모장이 입력칸 둘레로 번져 나가는 몫. 글자가 종이 끝에 닿으면 넘친 것으로 보인다 */
 const MEMO_PAD = 1.06
@@ -74,7 +75,7 @@ const wrapStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   width: '100%',
   minWidth: 0,
-  font: '600 28px/1.2 var(--sans)',
+  font: INPUT_FONT,
   color: INK,
   background: 'transparent',
   border: 'none',
@@ -156,7 +157,7 @@ const rulerStyle: CSSProperties = {
   visibility: 'hidden',
   pointerEvents: 'none',
   whiteSpace: 'pre',
-  font: '600 28px/1.2 var(--sans)',
+  font: INPUT_FONT,
 }
 
 /**

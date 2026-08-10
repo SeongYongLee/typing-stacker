@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import titleDay from '../assets/splash/title-day.png'
+import titleNight from '../assets/splash/title-night.png'
 import { MenuButton } from '../components/MenuButton.tsx'
-import { MenuLayout } from '../components/MenuLayout.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'
 import { Blurb, Key, SidePanel } from '../components/SidePanel.tsx'
 import { VersusTier } from '../components/RankBoxes.tsx'
@@ -11,9 +12,11 @@ import { NameScreen } from './NameScreen.tsx'
 import { loadProfile } from '../storage/profile.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { ReactNode } from 'react'
-import { ROOM_CODE_LENGTH } from '../multi/protocol.ts'
+import { MAX_PLAYERS, ROOM_CODE_LENGTH } from '../multi/protocol.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
+import type { MatchModeChoice } from '../multi/matchModes.ts'
+import type { TitleTheme } from './titleTheme.ts'
 
 import { ManualMatch } from './lobby/ManualMatch.tsx'
 import { MatchCountdown } from './lobby/MatchCountdown.tsx'
@@ -29,18 +32,41 @@ interface LobbyScreenProps {
   onReady: () => void
   /** 준비 화면에서 한마디 한다 */
   onChat: (text: string) => void
+  onMatchMode: (choice: MatchModeChoice) => void
   onBack: () => void
+  theme: TitleTheme
+}
+
+const SPLASH_TITLES: Record<TitleTheme, string> = {
+  day: titleDay,
+  night: titleNight,
 }
 
 /**
  * 항목마다의 설명. 시작 화면과 같은 자리에 같은 모양으로 뜬다.
  *
- * 랭크·친선전의 규칙은 상대가 정해진 뒤 준비 화면에서 보여준다. 선택하기도 전에
- * 길게 읽게 하면 실제로 시작할 때는 잊히고, 친선전 규칙은 방에 들어간 사람 모두가
- * 같은 자리에서 보는 편이 낫다. 여기에는 입력과 이동에 필요한 안내만 남긴다.
+ * 항목별로 눌렀을 때 알 필요가 있는 설명만 둔다. 실제 판 규칙은 준비 화면에서
+ * 모드별로 다시 보여주고, 랭크/친선전의 공통 성격은 여기서 먼저 알려준다.
  */
 const LOBBY_BLURBS: Partial<Record<string, readonly ReactNode[]>> = {
   name: ['같은 방에 들어온 사람에게 이 이름으로 보입니다.'],
+  auto: [
+    <>
+      랭크 게임은 <Key>1대1</Key>로 진행합니다.
+    </>,
+    <>
+      <Key>비슷한 티어</Key>의 상대를 찾아주고, 이긴 만큼 티어 점수가 오릅니다.
+    </>,
+  ],
+  manual: [
+    <>
+      <Key>방 참가 코드</Key>를 주고받아 아는 사람과 모입니다.
+    </>,
+    <>최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.</>,
+    <>
+      친선전에서는 <Key>티어 점수는 바뀌지 않습니다.</Key>
+    </>,
+  ],
   host: [
     <>
       방을 열고 <Key>참가 코드 {ROOM_CODE_LENGTH}자</Key>를 받습니다.
@@ -55,7 +81,15 @@ const LOBBY_BLURBS: Partial<Record<string, readonly ReactNode[]>> = {
   back: ['시작 화면으로 나갑니다.'],
 }
 
-function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProps) {
+function LobbyScreen({
+  phase,
+  onOpen,
+  onReady,
+  onChat,
+  onMatchMode,
+  onBack,
+  theme,
+}: LobbyScreenProps) {
   /*
    * 이름은 이 화면의 것이 아니라 **기기의 것**이다.
    *
@@ -171,7 +205,15 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
   }
 
   if (phase?.kind === 'waiting') {
-    return <WaitingRoom roomCode={phase.roomCode} onBack={onBack} />
+    return (
+      <WaitingRoom
+        roomCode={phase.roomCode}
+        matchModeChoice={phase.matchModeChoice}
+        canChangeMatchMode={phase.canChangeMatchMode}
+        onMatchMode={onMatchMode}
+        onBack={onBack}
+      />
+    )
   }
 
   if (phase?.kind === 'countdown') {
@@ -179,7 +221,15 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
   }
 
   if (phase?.kind === 'ready') {
-    return <ReadyRoom phase={phase} onReady={onReady} onChat={onChat} onBack={onBack} />
+    return (
+      <ReadyRoom
+        phase={phase}
+        onReady={onReady}
+        onChat={onChat}
+        onMatchMode={onMatchMode}
+        onBack={onBack}
+      />
+    )
   }
 
   if (phase?.kind === 'failed') {
@@ -195,20 +245,22 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
 
   const blurbKey = items[menu.index]?.blurb ?? 'host'
   const blurbLines = LOBBY_BLURBS[blurbKey]
+  const title = SPLASH_TITLES[theme]
 
   /*
-   * 시작 화면과 같은 뼈대를 쓴다 — 제목 / 왼쪽 인사와 버튼 / 오른쪽 티어와 설명.
+   * 시작 화면과 같은 뼈대를 쓴다 — 로고 / 왼쪽 인사와 버튼 / 오른쪽 티어와 설명.
    *
    * 예전에는 이 화면만 세로로 긴 한 덩어리였다. 같은 게임 안에서 화면마다 짜임이
    * 다르면 어디를 봐야 하는지를 화면마다 다시 배워야 하고, 무엇보다 들어왔다 나갈 때
    * 제목과 인사가 다른 자리로 뛴다.
    */
   return (
-    <MenuLayout
-      title="함께 하기"
-      hint="↑↓로 고르고 Enter로 들어갑니다"
-      menu={
-        <>
+    <main className="title-splash__stage">
+      <h1 className="sr-only">함께 하기</h1>
+      <img className="title-splash__logo" src={title} alt="" aria-hidden="true" />
+
+      <div className="title-splash__content">
+        <div className="title-splash__menu">
           <NameGreeting
             name={nickname}
             icon={loadProfile().icon}
@@ -260,9 +312,8 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
           >
             돌아가기 (Esc)
           </MenuButton>
-        </>
-      }
-      panel={
+        </div>
+
         <SidePanel
           kind={blurbKey}
           /*
@@ -275,8 +326,10 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
           record={blurbKey === 'auto' ? <VersusTier board={board} /> : null}
           blurb={blurbLines === undefined ? null : <Blurb kind={blurbKey} lines={blurbLines} />}
         />
-      }
-    />
+      </div>
+
+      <p className="title-splash__hint">↑↓로 고르고 Enter로 들어갑니다</p>
+    </main>
   )
 }
 

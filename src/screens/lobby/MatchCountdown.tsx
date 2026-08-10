@@ -17,11 +17,12 @@ function MatchCountdown({ phase }: { phase: Extract<SessionPhase, { kind: 'count
   // 탭을 보고 있지 않으면 소리와 제목으로 부른다 — 첫 차례를 그대로 날리게 된다
   useStartAlert(true)
   const starter = phase.players.find((player) => player.id === phase.starter)?.nickname ?? '누군가'
+  const focus = phase.matchMode === 'duel' ? '동시 시작' : `${starter} 턴으로 시작`
 
   return (
     <Countdown
       secondsLeft={phase.secondsLeft}
-      focus={`${starter} 턴으로 시작`}
+      focus={focus}
     />
   )
 }

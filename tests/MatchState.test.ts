@@ -68,6 +68,20 @@ describe('MatchState — 2명', () => {
     match.loseLife('b')
     expect(match.canDrop('a')).toBe(false)
   })
+
+  it('하트가 남아 있어도 별도 승리 조건으로 끝낼 수 있다', () => {
+    const match = new MatchState(players('a', 'b'), 3)
+    match.finishWithWinner('b')
+
+    expect(match.over).toBe(true)
+    expect(match.winner).toBe('b')
+    expect(match.livesOf('a')).toBe(3)
+    expect(match.livesOf('b')).toBe(3)
+    expect(match.standings()).toEqual([
+      { id: 'a', placement: 2 },
+      { id: 'b', placement: 1 },
+    ])
+  })
 })
 
 describe('MatchState.loseLife — 반 칸씩도 깎인다', () => {

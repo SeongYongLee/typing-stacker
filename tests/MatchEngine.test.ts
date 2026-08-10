@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
-import { WORDS } from '../src/game/data/words.ts'
 import {
   DROP_INTERVAL_SEC,
   MatchEngine,
   type MatchViewState,
 } from '../src/multi/MatchEngine.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
+import type { MatchMode } from '../src/multi/matchModes.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 import { ChatLog } from '../src/multi/ChatLog.ts'
@@ -24,13 +24,6 @@ const PLAYERS: PlayerInfo[] = [
   { id: 'guest-peer', nickname: '세이지', device: 'dev-guest' , icon: ''},
 ]
 
-/** 떨굴 때 방장이 난수를 한 번 더 뽑는 단어들 — 난수열이 갈리는지 보려면 이 중에서 골라야 한다 */
-const HIDDEN_WORDS = new Set(
-  WORDS.filter((entry) => entry.variants.some((variant) => variant.hidden)).map(
-    (entry) => entry.word,
-  ),
-)
-
 interface Pair {
   host: MatchEngine
   guest: MatchEngine
@@ -41,7 +34,7 @@ interface Pair {
   clock: FrameClock
 }
 
-async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
+async function makePair(seed = 1234, chatEnabled = true, matchMode: MatchMode = 'shared'): Promise<Pair> {
   const clock = new FrameClock()
   clock.install()
 
@@ -54,6 +47,7 @@ async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
     transport: hostLink,
     players: PLAYERS,
     seed,
+    matchMode,
     wins: new Map(),
     chat: new ChatLog(),
     chatEnabled,
@@ -64,6 +58,7 @@ async function makePair(seed = 1234, chatEnabled = true): Promise<Pair> {
     transport: guestLink,
     players: PLAYERS,
     seed,
+    matchMode,
     wins: new Map(),
     chat: new ChatLog(),
     chatEnabled,
@@ -138,30 +133,17 @@ describe('MatchEngine — 대전', () => {
     expect(guestWords).toEqual(hostWords)
   })
 
-  /*
-   * 한때 여기가 깨져 있었다. 단어 스포너와 물건 뽑기가 난수 하나를 같이 썼는데
-   * 물건은 방장만 뽑으므로, 그 순간 두 난수열이 갈려 그때부터 서로 다른 단어가 내려왔다.
-   *
-   * **히든 변형이 있는 단어여야 재현된다.** 그런 단어가 아니면 방장도 난수를 더 뽑지
-   * 않아 두 열이 그대로 맞는다 — 아무 단어나 떨구는 테스트로는 이 회귀를 놓친다.
-   */
-  it('히든이 걸린 단어를 떨궈도 양쪽 단어 밭이 갈리지 않는다', async () => {
+  it('단어를 떨궈도 양쪽 단어 밭이 갈리지 않는다', async () => {
     pair = await makePair(2024)
 
-    let dropped: string | null = null
-    for (let tick = 0; tick < 60 && dropped === null; tick += 1) {
+    for (let tick = 0; tick < 6; tick += 1) {
       await pair.clock.advance(0.5)
-      const view = pair.hostState()
-      const target = view.words.find(
-        (word) => word.state === 'active' && HIDDEN_WORDS.has(word.word),
-      )
-      if (target === undefined) {
-        continue
+      const target = pair.hostState().words.find((word) => word.state === 'active')
+      if (target !== undefined) {
+        pair.host.submit(target.word)
+        break
       }
-      pair.host.submit(target.word)
-      dropped = target.word
     }
-    expect(dropped).not.toBeNull()
 
     // 갈렸다면 이 뒤에 나오는 단어부터 서로 달라진다
     await pair.clock.advance(8)
@@ -198,6 +180,36 @@ describe('MatchEngine — 대전', () => {
     expect(guestItem).toBeDefined()
     expect(guestItem?.variantId).toBe(hostItem?.variantId)
     expect(guestItem?.owner).toBe('host-peer')
+  })
+
+  it('대결 모드는 턴 없이 양쪽이 동시에 자기 쿨타임으로 떨군다', async () => {
+    pair = await makePair(1515, true, 'duel')
+    await pair.clock.advance(1)
+
+    expect(pair.hostState().matchMode).toBe('duel')
+    expect(pair.hostState().current).toBeNull()
+    expect(pair.hostState().myTurn).toBe(true)
+    expect(pair.guestState().myTurn).toBe(true)
+    expect(pair.guestState().canDrop).toBe(true)
+    expect(pair.guestState().turnLeft).toBeNull()
+
+    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
+    expect(word).toBeDefined()
+    if (word === undefined) return
+    pair.guest.submit(word)
+    await pair.clock.advance(0.5)
+
+    expect(pair.host.debugBodies()[0]?.owner).toBe('guest-peer')
+    expect(pair.guest.debugBodies()[0]?.owner).toBe('guest-peer')
+    expect(pair.hostState().canDrop).toBe(true)
+    expect(pair.guestState().canDrop).toBe(false)
+
+    pair.host.debugEscape('guest-peer', 1)
+    await pair.clock.advance(0.1)
+
+    const lives = new Map(pair.hostState().lives)
+    expect(lives.get('host-peer')).toBe(LIVES)
+    expect(lives.get('guest-peer')).toBe(LIVES - 1)
   })
 
   /*

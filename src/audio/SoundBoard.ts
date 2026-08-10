@@ -195,9 +195,6 @@ class SoundBoard {
       case 'merge':
         voices.merge(voice)
         break
-      case 'reveal':
-        voices.reveal(voice)
-        break
       case 'lifeLost':
         voices.lifeLost(voice)
         break

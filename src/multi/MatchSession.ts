@@ -617,15 +617,11 @@ class MatchSession {
 
     let engine: MatchEngine
     try {
-      /*
-       * `duel`은 세션/화면까지 먼저 싣는다. 실제 대결 엔진은 별도 물리 월드와 화면
-       * 배치가 필요하므로 지금 공유 탑 엔진에 끼우지 않는다.
-       */
-      void matchMode
       engine = await MatchEngine.create({
         transport,
         players,
         seed,
+        matchMode,
         starter: starterOf(seed, players),
         wins: this.wins,
         chat: this.chat,

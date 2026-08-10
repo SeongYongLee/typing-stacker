@@ -2,7 +2,6 @@ import {
   AIM_HALF_RANGE,
   ARENA,
   DROP_COOLDOWN_MS,
-  HIDDEN_CHANCE,
   INVULNERABLE_SEC,
   CATCH,
   LEDGE,
@@ -58,9 +57,6 @@ function isVariant(item: ItemVariant | undefined): item is ItemVariant {
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
 const COLLAPSE_VIEW_SEC = 1.3
 
-/** 히든 등장 연출 길이 */
-const HIDDEN_REVEAL_SEC = 1.8
-
 /** 목숨을 잃을 상황에서 고양이가 가끔 같은 물건을 다시 던져준다 */
 const CAT_RETHROW_CHANCE = 0.25
 /** 물고 간 뒤 바로 튀어나오면 고양이가 던진 것으로 읽히지 않아서 약간 기다린다 */
@@ -71,10 +67,9 @@ const CAT_EARLY_ESCAPE_MARGIN = 0.35
 /**
  * 합성 연출 길이.
  *
- * 운으로 만난 히든보다 길다. 저쪽은 결과물 하나만 읽으면 되지만 이쪽은 **재료 둘과
- * 결과물 셋**을 읽어야 하고, 그중 재료는 모이는 동안에만 보인다. 같은 1.8초에 밀어
- * 넣으면 재료를 알아보기 전에 겹쳐버려서, 정작 이 연출을 붙인 이유(무엇으로
- * 만들었는지 알리는 것)가 사라진다.
+ * 재료 둘과 결과물을 읽어야 하고, 그중 재료는 모이는 동안에만 보인다. 짧게 밀어 넣으면
+ * 재료를 알아보기 전에 겹쳐버려서, 정작 이 연출을 붙인 이유(무엇으로 만들었는지
+ * 알리는 것)가 사라진다.
  */
 const MERGE_REVEAL_SEC = 3
 
@@ -391,7 +386,7 @@ class GameEngine {
     this.score.onWordMatched(result.word.word)
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
-    const variant = resolveItem(result.word.word, this.rng, HIDDEN_CHANCE)
+    const variant = resolveItem(result.word.word)
     /*
      * 보드에 적힌 단어면 **쌓지 않고 빼낸다.**
      *
@@ -413,26 +408,13 @@ class GameEngine {
       this.queueDrop(variant, this.aimer.worldX)
     }
     this.discover(variant)
-    if (variant.hidden) {
-      this.hiddenReveal = {
-        variant,
-        from: [],
-        elapsed: 0,
-        duration: HIDDEN_REVEAL_SEC,
-      }
-      /*
-       * 운으로 만난 히든에는 통나무를 주지 않는다. 여기 있었다가 뺐다 —
-       * 이유는 `growLedge`에.
-       */
-      this.fire({ kind: 'reveal' })
-    }
 
     this.feedback = {
       seq: this.feedbackSeq,
       text: result.word.word,
       ok: true,
       itemLabel: variant.label,
-      hidden: variant.hidden,
+      hidden: false,
     }
     this.emit()
   }
@@ -566,7 +548,7 @@ class GameEngine {
     this.fire({
       kind: 'drop',
       source,
-      hidden: variant.hidden,
+      hidden: false,
       material: variant.material,
       tone: variant.tone,
     })
@@ -756,7 +738,7 @@ class GameEngine {
     this.fire({
       kind: 'drop',
       source: 'input',
-      hidden: variant.hidden,
+      hidden: false,
       material: variant.material,
       tone: variant.tone,
     })
@@ -766,7 +748,7 @@ class GameEngine {
    * 레시피 흐름이 다음 단어를 고를 때 보는 현재 재료 수를 만든다.
    *
    * 받침대만 보면 늦다. 화면에 내려오는 단어와 드롭 대기열까지 세야 이미 약속한 재료를
-   * 또 내보내지 않는다. 단어는 아직 히든 여부를 모르므로 기본 변형으로 센다.
+   * 또 내보내지 않는다. 단어 입력은 기본 변형을 떨어뜨리므로 그 기준으로 센다.
    */
   private observeRecipeFlow(): void {
     this.recipeCounts.clear()
@@ -913,18 +895,6 @@ class GameEngine {
    * 판을 끝내는 것은 점수가 아니라 얹을 자리가 좁아지는 것이니, 자리를 하나 더 주는
    * 것이 이 게임의 말로 된 보상이다. 자리를 고르는 규칙은 `systems/Ledge.ts`에 있다.
    *
-   * ## 운으로 만난 히든에는 주지 않는다
-   *
-   * 처음에는 둘 다 줬다. 합성 결과물도 코드상 전부 히든이고 도감·연출에서 같게
-   * 다루므로 그게 일관돼 보였다. 그런데 **손으로 만든 것과 운으로 만난 것은 다르다.**
-   *
-   * 합성은 재료 둘을 알아보고, 둘 다 떨구고, 서로 닿게 놓아야 일어난다. 실측으로
-   * 재료가 갖춰져도 열에 일곱은 닿지 않는다 — 그 어려움을 넘은 대가가 새 자리다.
-   * 운으로 나온 히든은 아무것도 하지 않아도 나오므로, 거기에 같은 것을 주면
-   * **판을 여는 자리가 실력이 아니라 운으로 갈린다.**
-   *
-   * 빈도로도 그렇다. 둘 다 주면 판당 두 개꼴이라 보상이 아니라 절차가 된다.
-   *
    * ## 자리가 없으면 그냥 지나간다
    *
    * 억지로 끼워 넣으면 통나무가 탑 속에 박혀 물건을 밀어내고, 보상이 오히려 판을
@@ -1039,7 +1009,7 @@ class GameEngine {
       if (falling.state !== 'active') {
         continue
       }
-      // 단어의 물건은 기본 변형으로 친다 — 히든은 Enter를 친 순간 정해진다
+      // 단어 입력은 기본 변형을 떨어뜨리므로 표식도 기본 변형으로 친다.
       const id = WORD_BASE_ID.get(falling.word)
       if (id !== undefined) {
         counts.set(id, (counts.get(id) ?? 0) + 1)

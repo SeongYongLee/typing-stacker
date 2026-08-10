@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { AIM_HALF_RANGE, HIDDEN_CHANCE, SOLO_OWNER } from '../src/game/config.ts'
+import { AIM_HALF_RANGE, SOLO_OWNER } from '../src/game/config.ts'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import { PhysicsWorld } from '../src/game/physics/PhysicsWorld.ts'
@@ -161,7 +161,7 @@ function runOne(seed: number, aimFor: (bodies: readonly { variantId: string; x: 
 
   for (let drop = 0; drop < DROPS; drop += 1) {
     const entry = rng.pick(WORDS)
-    const variant = resolveItem(entry.word, rng, HIDDEN_CHANCE)
+    const variant = resolveItem(entry.word)
     world.spawnItem(variant, aimFor(world.frames())(variant, rng), SOLO_OWNER)
     for (let t = 0; t < SETTLE_SEC; t += 1 / 60) {
       escaped += world.step(1 / 60).escaped.length

@@ -53,8 +53,6 @@ type GameEvent =
   | { readonly kind: 'quake'; readonly strength: number }
   /** 재료가 합쳐져 새 물건이 됐다 */
   | { readonly kind: 'merge' }
-  /** 히든이 모습을 드러냈다 */
-  | { readonly kind: 'reveal' }
   /** 물건이 받침대를 벗어나 목숨이 깎였다 */
   | { readonly kind: 'lifeLost'; readonly livesLeft: number }
   /** 목숨을 다 잃어 탑이 무너지기 시작했다 */

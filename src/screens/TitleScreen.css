@@ -122,11 +122,22 @@
 }
 
 .title-splash[data-ready='yes'] .title-splash__content {
-  animation: splash-controls-in 520ms 1000ms var(--splash-ease-out) both;
+  animation: splash-controls-in 420ms 420ms var(--splash-ease-out) both;
 }
 
 .title-splash[data-ready='yes'] .title-splash__hint {
-  animation: splash-controls-in 420ms 1130ms var(--splash-ease-out) both;
+  animation: splash-controls-in 360ms 560ms var(--splash-ease-out) both;
+}
+
+.title-splash[data-motion='static'] .title-splash__background,
+.title-splash[data-motion='static'] .title-splash__veil,
+.title-splash[data-motion='static'] .title-splash__logo,
+.title-splash[data-motion='static'] .title-splash__content,
+.title-splash[data-motion='static'] .title-splash__hint {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  animation: none;
 }
 
 .title-splash .menu-button:active:not(:disabled) {

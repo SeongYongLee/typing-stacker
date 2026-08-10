@@ -15,6 +15,8 @@ interface SplashBackdropProps {
   theme?: TitleTheme
   /** false면 배경과 자식의 진입 연출을 아직 시작하지 않는다. */
   ready?: boolean
+  /** false면 배경·로고·메뉴를 바로 제자리에 둔다. */
+  animated?: boolean
   onBackgroundSettled?: () => void
 }
 
@@ -28,13 +30,19 @@ function SplashBackdrop({
   children,
   theme,
   ready = true,
+  animated = true,
   onBackgroundSettled,
 }: SplashBackdropProps) {
   const [entryTheme] = useState<TitleTheme>(() => titleThemeForHour(new Date().getHours()))
   const resolvedTheme = theme ?? entryTheme
 
   return (
-    <div className="title-splash" data-theme={resolvedTheme} data-ready={ready ? 'yes' : 'no'}>
+    <div
+      className="title-splash"
+      data-theme={resolvedTheme}
+      data-ready={ready ? 'yes' : 'no'}
+      data-motion={animated ? 'animated' : 'static'}
+    >
       <img
         className="title-splash__background"
         src={SPLASH_BACKGROUNDS[resolvedTheme]}

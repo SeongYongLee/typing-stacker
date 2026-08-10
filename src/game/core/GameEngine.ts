@@ -38,6 +38,7 @@ import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
 import { impactEventOf, quakeEventOf, trailHitOf } from '../systems/ImpactFeel.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
+import { craftPartnerWords } from '../systems/CraftPartners.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats, WordEntry } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
@@ -318,7 +319,7 @@ class GameEngine {
     this.firstNightPool = openingEntries(this.rng, WORDS)
     this.phaseNow = 'firstNight'
     this.whiteboard.clear()
-    this.spawner.prefer(this.whiteboard.words)
+    this.refreshPreferredWords()
     this.catcherLeft = 0
     this.catcherView = null
     this.mergeCount = 0
@@ -401,7 +402,7 @@ class GameEngine {
     const pool =
       this.phaseNow === 'night' ? this.nightPool : this.phaseNow === 'day' ? WORDS : this.firstNightPool
     const recalled = this.whiteboard.claim(result.word.word, pool)
-    this.spawner.prefer(this.whiteboard.words)
+    this.refreshPreferredWords()
     if (recalled) {
       const side = result.word.side
       const dropX = recallDropX(side)
@@ -614,6 +615,7 @@ class GameEngine {
     this.applyPhase(timeOfDay(this.elapsed, this.firstNightEnd).phase)
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
+    this.refreshPreferredWords()
     /*
      * 놓친 단어는 판을 방해하지 않고 사라진다. 대가는 **콤보와 점수**다 —
      * 콤보가 타자와 무관해지면 손을 멈추고 쌓기만 봐도 배수가 유지된다.
@@ -761,19 +763,19 @@ class GameEngine {
      */
     if (next === 'firstNight') {
       this.whiteboard.clear()
-      this.spawner.prefer(this.whiteboard.words)
+      this.refreshPreferredWords()
     }
     if (next === 'day') {
       this.spawner.release()
       this.whiteboard.refill(WORDS)
-      this.spawner.prefer(this.whiteboard.words)
+      this.refreshPreferredWords()
       return
     }
     // 밤에는 재료만. 첫 밤으로 되돌아가는 일은 없다(`DayNight.ts`)
     this.spawner.restrict(next === 'night' ? this.nightPool : this.firstNightPool)
     if (next === 'night') {
       this.whiteboard.refill(this.nightPool)
-      this.spawner.prefer(this.whiteboard.words)
+      this.refreshPreferredWords()
     }
   }
 
@@ -900,6 +902,17 @@ class GameEngine {
     if (this.markFrame === this.frameSeq) {
       return this.lastMarks
     }
+    const counts = this.availableVariantCounts()
+    /*
+     * 직전 배정을 넘겨 **쓰던 색을 지키게** 한다. 안 그러면 다른 단어가 사라진 것만으로
+     * 내 색이 바뀐다 — 까닭은 `PairMarks.ts`에.
+     */
+    this.lastMarks = pairMarks(counts, RECIPES, this.lastMarks)
+    this.markFrame = this.frameSeq
+    return this.lastMarks
+  }
+
+  private availableVariantCounts(): Map<string, number> {
     const counts = new Map(this.physics.countsByVariant())
     for (const falling of this.spawner.words) {
       if (falling.state !== 'active') {
@@ -911,13 +924,14 @@ class GameEngine {
         counts.set(id, (counts.get(id) ?? 0) + 1)
       }
     }
-    /*
-     * 직전 배정을 넘겨 **쓰던 색을 지키게** 한다. 안 그러면 다른 단어가 사라진 것만으로
-     * 내 색이 바뀐다 — 까닭은 `PairMarks.ts`에.
-     */
-    this.lastMarks = pairMarks(counts, RECIPES, this.lastMarks)
-    this.markFrame = this.frameSeq
-    return this.lastMarks
+    return counts
+  }
+
+  private refreshPreferredWords(): void {
+    this.spawner.prefer([
+      ...this.whiteboard.words,
+      ...craftPartnerWords(this.availableVariantCounts(), RECIPES, WORDS),
+    ])
   }
 
   /** 물건 표식을 단어 쪽으로 옮긴다. 화면은 단어만 알고 물건 id는 모른다 */

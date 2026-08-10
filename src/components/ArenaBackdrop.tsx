@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
-import { whiteboardWordChanges } from './whiteboardTransition.ts'
+import { WHITEBOARD_SCALE, whiteboardWordChanges } from './whiteboardTransition.ts'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
 
 type ArenaBackdropProps =
@@ -295,8 +295,8 @@ function useWhiteboardTransitions(words: readonly string[]): {
 
 const BOARD_CENTER_X = 50.5
 const BOARD_CENTER_Y = 31.7
-/** 원화에서 차지하던 폭의 90%. 글자는 아래의 vw 크기를 유지한다. */
-const BOARD_WIDTH = 33.9 * 0.9
+/** 글자는 아래의 vw 크기를 유지하고 배경 보드만 줄인다. */
+const BOARD_WIDTH = 33.9 * WHITEBOARD_SCALE
 
 const boardStyle: CSSProperties = {
   position: 'absolute',

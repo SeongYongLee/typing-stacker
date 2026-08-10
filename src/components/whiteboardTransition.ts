@@ -1,3 +1,6 @@
+/** 배경 원화에서 화이트보드가 차지하던 폭에 적용하는 배율 */
+const WHITEBOARD_SCALE = 0.9
+
 interface WhiteboardWordChanges {
   readonly removed: readonly { readonly word: string; readonly index: number }[]
   readonly added: readonly { readonly word: string; readonly index: number }[]
@@ -20,5 +23,5 @@ function whiteboardWordChanges(
   }
 }
 
-export { whiteboardWordChanges }
+export { WHITEBOARD_SCALE, whiteboardWordChanges }
 export type { WhiteboardWordChanges }

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
+import { WHITEBOARD_SCALE, whiteboardWordChanges } from './whiteboardTransition.ts'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
 
 type ArenaBackdropProps =
@@ -159,7 +160,7 @@ function Whiteboard({
   activeWords: readonly string[]
   nightfall: number
 }) {
-  const erasedWords = useErasedWords(words)
+  const { erasedWords, writingWords } = useWhiteboardTransitions(words)
   const active = new Set(activeWords)
   return (
     <div aria-label={words.length === 0 ? '회수 목록 없음' : `회수 목록: ${words.join(', ')}`} style={boardStyle}>
@@ -168,25 +169,34 @@ function Whiteboard({
       <style>{whiteboardAnimationCss}</style>
       {(words.length > 0 || erasedWords.length > 0) && (
         <div style={wordListStyle}>
-          {words.map((word, index) => (
-            <span
-              key={word}
-              data-whiteboard-word={word}
-              data-whiteboard-active={active.has(word) ? 'true' : undefined}
-              style={{
-                ...wordStyle,
-                ...scribbleStyle(word, index),
-                opacity: active.has(word) ? 0.64 : 0.34,
-              }}
-            >
-              {active.has(word) && <span aria-hidden style={circleStyle(word, index)} />}
-              {word}
-            </span>
-          ))}
+          {words.map((word, index) => {
+            const writing = writingWords.find((entry) => entry.word === word)
+            return (
+              <span
+                key={word}
+                data-whiteboard-word={word}
+                data-whiteboard-active={active.has(word) ? 'true' : undefined}
+                style={{
+                  ...wordStyle,
+                  ...scribbleStyle(word, index),
+                  opacity: active.has(word) ? 0.64 : 0.34,
+                }}
+              >
+                {active.has(word) && <span aria-hidden style={circleStyle(word, index)} />}
+                <span
+                  data-whiteboard-writing={writing === undefined ? undefined : 'true'}
+                  style={writing === undefined ? undefined : writeWordStyle(writing.delayMs)}
+                >
+                  {word}
+                </span>
+              </span>
+            )
+          })}
           {erasedWords.map((entry) => (
             <span
               key={entry.id}
               aria-hidden
+              data-whiteboard-erasing="true"
               style={{
                 ...wordStyle,
                 ...scribbleStyle(entry.word, entry.index),
@@ -209,36 +219,66 @@ type ErasedWord = {
   readonly index: number
 }
 
-function useErasedWords(words: readonly string[]): readonly ErasedWord[] {
+type WritingWord = {
+  readonly id: string
+  readonly word: string
+  readonly delayMs: number
+}
+
+const ERASE_DURATION_MS = 380
+const WRITE_DURATION_MS = 460
+const WRITE_AFTER_ERASE_MS = 300
+const WRITE_STAGGER_MS = 60
+
+function useWhiteboardTransitions(words: readonly string[]): {
+  readonly erasedWords: readonly ErasedWord[]
+  readonly writingWords: readonly WritingWord[]
+} {
   const previousRef = useRef<readonly string[] | null>(null)
   const nextIdRef = useRef(0)
   const timersRef = useRef<number[]>([])
-  const [erased, setErased] = useState<readonly ErasedWord[]>([])
+  const [erasedWords, setErasedWords] = useState<readonly ErasedWord[]>([])
+  const [writingWords, setWritingWords] = useState<readonly WritingWord[]>([])
 
-  useEffect(() => {
-    const previous = previousRef.current
+  useLayoutEffect(() => {
+    const previous = previousRef.current ?? []
     previousRef.current = words
-    if (previous === null) {
+    const changes = whiteboardWordChanges(previous, words)
+    if (changes.removed.length === 0 && changes.added.length === 0) {
       return
     }
-    const current = new Set(words)
-    const removed = previous.flatMap((word, index) => {
-      if (current.has(word)) {
-        return []
-      }
-      const id = `${word}-${nextIdRef.current}`
-      nextIdRef.current += 1
-      return [{ id, word, index }]
-    })
-    if (removed.length === 0) {
-      return
+
+    const erased = changes.removed.map((entry) => ({
+      ...entry,
+      id: `erase-${entry.word}-${nextIdRef.current++}`,
+    }))
+    const writeLead = erased.length > 0 ? WRITE_AFTER_ERASE_MS : 0
+    const writing = changes.added.map((entry, order) => ({
+      id: `write-${entry.word}-${nextIdRef.current++}`,
+      word: entry.word,
+      delayMs: writeLead + order * WRITE_STAGGER_MS,
+    }))
+
+    if (erased.length > 0) {
+      setErasedWords((current) => [...current, ...erased])
+      const eraseTimer = window.setTimeout(() => {
+        const ids = new Set(erased.map((entry) => entry.id))
+        setErasedWords((current) => current.filter((entry) => !ids.has(entry.id)))
+        timersRef.current = timersRef.current.filter((timer) => timer !== eraseTimer)
+      }, ERASE_DURATION_MS)
+      timersRef.current = [...timersRef.current, eraseTimer]
     }
-    setErased((currentErased) => [...currentErased, ...removed])
-    const timer = window.setTimeout(() => {
-      setErased((currentErased) => currentErased.filter((entry) => !removed.some((item) => item.id === entry.id)))
-      timersRef.current = timersRef.current.filter((item) => item !== timer)
-    }, 760)
-    timersRef.current = [...timersRef.current, timer]
+
+    if (writing.length > 0) {
+      setWritingWords((current) => [...current, ...writing])
+      const longestDelay = Math.max(...writing.map((entry) => entry.delayMs))
+      const writeTimer = window.setTimeout(() => {
+        const ids = new Set(writing.map((entry) => entry.id))
+        setWritingWords((current) => current.filter((entry) => !ids.has(entry.id)))
+        timersRef.current = timersRef.current.filter((timer) => timer !== writeTimer)
+      }, longestDelay + WRITE_DURATION_MS)
+      timersRef.current = [...timersRef.current, writeTimer]
+    }
   }, [words])
 
   useEffect(() => {
@@ -250,12 +290,13 @@ function useErasedWords(words: readonly string[]): readonly ErasedWord[] {
     }
   }, [])
 
-  return erased
+  return { erasedWords, writingWords }
 }
 
 const BOARD_CENTER_X = 50.5
 const BOARD_CENTER_Y = 31.7
-const BOARD_WIDTH = 33.9
+/** 글자는 아래의 vw 크기를 유지하고 배경 보드만 줄인다. */
+const BOARD_WIDTH = 33.9 * WHITEBOARD_SCALE
 
 const boardStyle: CSSProperties = {
   position: 'absolute',
@@ -268,8 +309,8 @@ const boardStyle: CSSProperties = {
 
 const wordListStyle: CSSProperties = {
   position: 'absolute',
-  left: '14%',
-  right: '14%',
+  left: '7%',
+  right: '7%',
   top: '16%',
   bottom: '18%',
 }
@@ -289,12 +330,19 @@ const wordStyle: CSSProperties = {
 
 const eraseWordStyle: CSSProperties = {
   opacity: 0.32,
-  animation: 'whiteboard-erase-word 760ms ease-out forwards',
+  animation: `whiteboard-erase-word ${ERASE_DURATION_MS}ms cubic-bezier(0.23, 1, 0.32, 1) forwards`,
 }
 
 const eraseGhostStyle: CSSProperties = {
   position: 'relative',
   zIndex: 1,
+}
+
+function writeWordStyle(delayMs: number): CSSProperties {
+  return {
+    display: 'inline-block',
+    animation: `whiteboard-write-word ${WRITE_DURATION_MS}ms cubic-bezier(0.23, 1, 0.32, 1) ${delayMs}ms both`,
+  }
 }
 
 const whiteboardAnimationCss = `
@@ -308,6 +356,20 @@ const whiteboardAnimationCss = `
   0% { opacity: 0; transform: translate(-74%, -50%) rotate(var(--erase-rotation)) scaleX(0.34); }
   18% { opacity: 0.52; }
   100% { opacity: 0; transform: translate(36%, -50%) rotate(var(--erase-rotation)) scaleX(1.16); }
+}
+
+@keyframes whiteboard-write-word {
+  0% {
+    opacity: 0;
+    clip-path: inset(-0.18em 100% -0.18em 0);
+    filter: blur(0.8px);
+  }
+  24% { opacity: 0.58; }
+  100% {
+    opacity: 1;
+    clip-path: inset(-0.18em 0 -0.18em 0);
+    filter: blur(0);
+  }
 }
 
 @keyframes whiteboard-circle-draw {
@@ -330,6 +392,11 @@ const whiteboardAnimationCss = `
     transform: translate(-50%, -50%) rotate(var(--circle-rotation)) scale(1);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-whiteboard-writing='true'] { animation: none !important; }
+  [data-whiteboard-erasing='true'] { display: none !important; }
+}
 `
 
 function eraserSwipeStyle(word: string, index: number): CSSProperties {
@@ -349,7 +416,7 @@ function eraserSwipeStyle(word: string, index: number): CSSProperties {
     boxShadow: '0 0 5px rgba(225, 228, 218, 0.42)',
     filter: 'blur(1.1px)',
     pointerEvents: 'none',
-    animation: 'whiteboard-eraser-swipe 760ms ease-out forwards',
+    animation: `whiteboard-eraser-swipe ${ERASE_DURATION_MS}ms cubic-bezier(0.23, 1, 0.32, 1) forwards`,
   } as CSSProperties
 }
 
@@ -375,12 +442,13 @@ function circleStyle(word: string, index: number): CSSProperties {
 function scribbleStyle(word: string, index: number): CSSProperties {
   const seed = hashText(word) + index * 101
   const anchors = [
-    { x: 28, y: 18 },
-    { x: 70, y: 42 },
-    { x: 42, y: 72 },
+    { x: 47, y: 18 },
+    { x: 53, y: 42 },
+    { x: 50, y: 72 },
   ] as const
   const anchor = anchors[index % anchors.length]!
-  const x = anchor.x + (jitter(seed, 0) - 0.5) * 22
+  /* 보드만 줄였으므로 긴 단어도 테두리 안에 남게 가로 흔들림은 중앙 근처로 묶는다. */
+  const x = anchor.x + (jitter(seed, 0) - 0.5) * 6
   const y = anchor.y + (jitter(seed, 1) - 0.5) * 16
   const rotation = -8 + jitter(seed, 2) * 16
   const stretch = 0.94 + jitter(seed, 4) * 0.12

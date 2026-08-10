@@ -17,10 +17,9 @@ import type { WordEntry } from '../types/game.ts'
  *
  * ## 대가는 합성이다
  *
- * 회수한 물건은 사라지므로 **합성 재료로 쓸 수 없다.** 보드에 재료가 적히는 순간
- * "치면 손해"가 되고, 그때 플레이어는 고르게 된다 — 짝을 기다려 쌓을 것인가,
- * 자리를 비우고 목숨을 아낄 것인가. 그 갈등이 이 규칙의 값어치다. 그래서 보드에서
- * 재료를 빼지 않는다.
+ * 회수한 물건은 사라지므로 **합성 재료로 쓸 수 없다.** 다만 현재 집중 레시피의
+ * 재료까지 회수 대상으로 잡으면 RecipeFlow가 만든 기회를 보드가 바로 지우므로,
+ * 호출부가 그 단어만 제외한다. 다른 레시피의 재료는 보드에 남을 수 있다.
  *
  * ## 밭에서만 뽑는다
  *
@@ -59,13 +58,10 @@ const WHITEBOARD_SIZE = 3
  *
  * ## 난수를 따로 굴린다
  *
- * 판의 난수를 쓰지 않는다. 보드는 **플레이어가 회수할 때마다** 새 단어를 뽑는데,
- * 판의 난수열에 끼어들면 그 뒤의 단어 순서와 히든 결과가 통째로 밀린다. 그러면
- * **화이트보드를 켠 판과 끈 판을 같은 시드로 비교할 수 없다** — 밸런스를 잴 때
- * 필요한 것이 정확히 그 비교다. `TrailField`가 자기 난수를 굴리는 것과 같은 이유고,
- * 저쪽은 연출이라 그랬지만 이쪽은 **잴 수 있어야 해서** 그렇다.
- *
- * 시드는 판 시드에서 파생해 넘긴다. 같은 시드에 같은 플레이면 같은 보드가 나온다.
+ * 보드는 **플레이어가 회수할 때마다** 새 단어를 뽑는다. RecipeFlow의 난수열에
+ * 끼어들면 보드 한 칸 때문에 집중 레시피 순서가 밀리므로 목록 선택은 별도 난수를 쓴다.
+ * 현재 GameEngine은 `0x5eed` 고정 시드를 넘기고, 화이트보드 우선 스폰 가중치 롤은
+ * 별도로 WordSpawner의 판 난수를 쓴다. 자세한 관계는 `docs/RECIPE_FLOW.md`에 있다.
  */
 class Whiteboard {
   private readonly rng: Rng
@@ -92,57 +88,73 @@ class Whiteboard {
   }
 
   /**
-   * 지금 밭에 맞춰 보드를 채운다.
+   * 지금 밭에 맞춰 보드를 채운다. `excluded`는 현재 집중 레시피의 재료처럼 이번에
+   * 회수 대상으로 잡으면 안 되는 단어다.
    *
-   * **밭을 벗어난 항목만 갈아끼운다.** 국면이 바뀔 때마다 통째로 갈면 노리고
+   * **밭을 벗어나거나 제외된 항목만 갈아끼운다.** 국면이 바뀔 때마다 통째로 갈면 노리고
    * 기다리던 단어가 눈앞에서 사라지는데, 그건 플레이어가 한 계획을 규칙이 무르는
    * 것이라 가장 나쁜 종류의 변화다.
    *
    * 밭이 보드보다 좁으면 밭 크기까지만 적는다 — 보드가 밭을 통째로 덮으면 내려오는
    * 것이 전부 회수 대상이 되어 아무것도 쌓이지 않는다.
    */
-  refill(pool: readonly WordEntry[]): void {
-    const available = new Set(pool.map((entry) => entry.word))
-    this.list = this.list.filter((word) => available.has(word))
+  refill(pool: readonly WordEntry[], excluded: readonly string[] = []): void {
+    this.refillSlots(pool, excluded)
+  }
 
-    /*
-     * 밭이 보드보다 좁으면 그만큼만. `- 1`은 밭 전체를 덮지 않기 위한 것인데,
-     * 밭이 하나뿐이면 0이 되어 보드가 닫힌다 — 그 구간에는 배출구가 없는 것이 맞다.
-     */
-    const room = Math.min(this.size, pool.length - 1)
-    if (this.list.length >= room) {
-      this.list = this.list.slice(0, Math.max(room, 0))
-      return
+  /**
+   * 이 단어를 회수했다. 그 자리를 밭의 다른 단어로 채우되 제외 단어는 넣지 않는다.
+   *
+   * 보드에 없는 단어면 아무 일도 없다고 알린다 — 부르는 쪽이 "회수인가 평범한
+   * 드롭인가"를 이 반환값으로 가른다.
+   */
+  claim(word: string, pool: readonly WordEntry[], excluded: readonly string[] = []): boolean {
+    const at = this.list.indexOf(word)
+    if (at === -1) {
+      return false
+    }
+    this.refillSlots(pool, excluded, at)
+    return true
+  }
+
+  /** 유지되는 글자가 보드 안에서 뛰지 않도록 빈 자리만 같은 인덱스에서 채운다. */
+  private refillSlots(
+    pool: readonly WordEntry[],
+    excluded: readonly string[],
+    vacantIndex: number | null = null,
+  ): void {
+    const blocked = new Set(excluded)
+    const available = new Set(
+      pool.map((entry) => entry.word).filter((word) => !blocked.has(word)),
+    )
+    /* 밭 전체가 회수 대상이 되지 않도록 언제나 한 단어는 보드 밖에 남긴다. */
+    const room = Math.max(Math.min(this.size, available.size - 1), 0)
+    const slots: Array<string | undefined> = this.list
+      .slice(0, room)
+      .map((word, index) =>
+        index === vacantIndex || !available.has(word) ? undefined : word,
+      )
+    while (slots.length < room) {
+      slots.push(undefined)
     }
 
-    const candidates = [...available].filter((word) => !this.has(word))
-    while (this.list.length < room && candidates.length > 0) {
+    const kept = new Set(slots.filter((word): word is string => word !== undefined))
+    const candidates = [...available].filter((word) => !kept.has(word))
+    for (let slot = 0; slot < slots.length && candidates.length > 0; slot += 1) {
+      if (slots[slot] !== undefined) {
+        continue
+      }
       const index = this.rng.int(candidates.length)
       const chosen = candidates[index]
       const tail = candidates[candidates.length - 1]
       if (chosen === undefined || tail === undefined) {
         break
       }
-      this.list.push(chosen)
+      slots[slot] = chosen
       candidates[index] = tail
       candidates.pop()
     }
-  }
-
-  /**
-   * 이 단어를 회수했다. 그 자리를 밭의 다른 단어로 채운다.
-   *
-   * 보드에 없는 단어면 아무 일도 없다고 알린다 — 부르는 쪽이 "회수인가 평범한
-   * 드롭인가"를 이 반환값으로 가른다.
-   */
-  claim(word: string, pool: readonly WordEntry[]): boolean {
-    const at = this.list.indexOf(word)
-    if (at === -1) {
-      return false
-    }
-    this.list.splice(at, 1)
-    this.refill(pool)
-    return true
+    this.list = slots.filter((word): word is string => word !== undefined)
   }
 }
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { FIRST_NIGHT_SEC } from '../src/game/config.ts'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
@@ -16,6 +17,26 @@ describe('회수된 물건은 목숨을 깎지 않는다', () => {
   const clock = new FrameClock()
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
+
+  it('집중 레시피를 먼저 정하고 그 재료는 보드에서 뺀다', async () => {
+    const engine = await GameEngine.create(20260810)
+    let state: GameState | null = null
+    engine.onStateChange((next) => {
+      state = next
+    })
+    engine.startRun()
+
+    await clock.advance(FIRST_NIGHT_SEC + 1)
+
+    const now = state as GameState | null
+    const focused = engine.debugFocusedRecipeWords()
+    expect(now?.timeOfDay.phase).toBe('day')
+    expect(focused.length, '낮의 집중 레시피가 정해지지 않았다').toBeGreaterThan(0)
+    for (const word of focused) {
+      expect(now?.whiteboard, `${word}은 집중 재료라 보드에 있으면 안 된다`).not.toContain(word)
+    }
+    engine.dispose()
+  })
 
   /**
    * 보드에 적힌 셋은 단어 107개 중 셋이라 **화면에 잘 안 뜬다.** 한 판만 보면 한 번도

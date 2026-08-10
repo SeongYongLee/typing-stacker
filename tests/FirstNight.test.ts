@@ -88,6 +88,7 @@ describe('첫 밤은 합성으로 끝난다', () => {
       const engine = await GameEngine.create(seed)
       let state: GameState | null = null
       let merges = 0
+      let firstNightMerges = 0
       /** 합성이 `FIRST_NIGHT_MERGES`번째가 된 순간 국면이 아직 첫 밤이었는가 */
       let phaseAtLastMerge: string | null = null
       engine.onStateChange((next) => {
@@ -96,6 +97,9 @@ describe('첫 밤은 합성으로 끝난다', () => {
       engine.onEvent((event: GameEvent) => {
         if (event.kind === 'merge') {
           merges += 1
+          if ((state as GameState | null)?.timeOfDay.phase === 'firstNight') {
+            firstNightMerges += 1
+          }
           if (merges === FIRST_NIGHT_MERGES) {
             phaseAtLastMerge = (state as GameState | null)?.timeOfDay.phase ?? null
           }
@@ -123,31 +127,29 @@ describe('첫 밤은 합성으로 끝난다', () => {
         }
       }
       engine.dispose()
-      return { merges, leftFirstNightAt, phaseAtLastMerge, elapsed }
+      return { merges, firstNightMerges, leftFirstNightAt, phaseAtLastMerge, elapsed }
     }
 
     /**
-     * 합성 두 번이 일어나면 그 자리에서 첫 밤이 끝난다.
-     *
-     * 상한(35초)보다 **한참 앞**이어야 한다 — 상한에 걸려서 끝난 것이면 사건으로
-     * 끊은 것이 아니라 시간으로 끊은 것이고, 이 변경이 아무 일도 안 한 셈이다.
+     * 모든 2재료 레시피를 여는 지금은 같은 물건 둘만 내보내던 때처럼 합성 두 번을
+     * 통계적으로 보장하지 않는다. 대신 첫 밤 안에 실제 합성 기회가 있고, 두 번에 닿은
+     * 판에서는 두 번째 사건이 첫 밤 안에서 일어났는지만 확인한다.
      */
-    it('합성 두 번이면 상한보다 훨씬 일찍 끝난다', async () => {
-      const early: number[] = []
+    it('첫 밤 안에 합성 기회를 만든다', async () => {
+      const runs = []
       for (const seed of [20260809, 7, 1234, 55, 909, 31]) {
-        const result = await play(seed, 60)
-        if (result.merges >= FIRST_NIGHT_MERGES && result.leftFirstNightAt >= 0) {
-          early.push(result.leftFirstNightAt)
-        }
+        runs.push(await play(seed, 60))
       }
-      expect(early.length, '합성 두 번에 닿은 판이 없다').toBeGreaterThan(0)
-      const median = [...early].sort((a, b) => a - b)[Math.floor(early.length / 2)] ?? 0
-      expect(median, `첫 밤이 끝난 시각 중앙값 ${median}초`).toBeLessThan(FIRST_NIGHT_SEC)
+      expect(runs.some((run) => run.firstNightMerges > 0), '첫 밤에 합성이 한 번도 없다').toBe(true)
+      for (const run of runs.filter((item) => item.merges >= FIRST_NIGHT_MERGES)) {
+        expect(run.phaseAtLastMerge).toBe('firstNight')
+        expect(run.leftFirstNightAt).toBeLessThan(FIRST_NIGHT_SEC)
+      }
     }, 120_000)
 
     /**
-     * **상한이 없으면 합성을 못 한 사람이 판 전체를 밭 둘짜리로 보낸다.**
-     * 봇으로는 97%가 두 번을 해내지만 사람은 오타와 놓침이 있어 더 낮다.
+     * **상한이 없으면 합성을 못 한 사람이 판 전체를 첫 밤 집중 흐름으로 보낸다.**
+     * 모든 조합을 여는 흐름은 같은 물건 둘만 내보내던 방식보다 두 번째 합성이 늦다.
      */
     it('아무것도 안 치면 상한에서 끝난다', async () => {
       const engine = await GameEngine.create(20260809)

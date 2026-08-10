@@ -278,8 +278,8 @@ const wordStyle: CSSProperties = {
   position: 'absolute',
   display: 'block',
   color: '#2b3933',
-  fontFamily: '"Nanum Pen Script", "Nanum Brush Script", "Apple SD Gothic Neo", "Malgun Gothic", cursive',
-  fontWeight: 500,
+  fontFamily: '"GriunXHangeul A Foreign Hand", "Apple SD Gothic Neo", "Malgun Gothic", cursive',
+  fontWeight: 400,
   lineHeight: 1,
   letterSpacing: '0.02em',
   textAlign: 'center',
@@ -383,12 +383,11 @@ function scribbleStyle(word: string, index: number): CSSProperties {
   const x = anchor.x + (jitter(seed, 0) - 0.5) * 22
   const y = anchor.y + (jitter(seed, 1) - 0.5) * 16
   const rotation = -8 + jitter(seed, 2) * 16
-  const size = 19 + jitter(seed, 3) * 16
   const stretch = 0.94 + jitter(seed, 4) * 0.12
   return {
     left: `${x}%`,
     top: `${y}%`,
-    fontSize: `clamp(16px, ${size / 12}vw, ${size}px)`,
+    fontSize: 35,
     transform: `translate(-50%, -50%) rotate(${rotation}deg) scaleX(${stretch})`,
   }
 }

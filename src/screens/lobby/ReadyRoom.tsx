@@ -13,6 +13,11 @@ import type { SessionPhase } from '../../multi/MatchSession.ts'
 import { MAX_PLAYERS } from '../../multi/protocol.ts'
 import { tierOf } from '../../rank/tiers.ts'
 import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
+import { LIVES } from '../../game/config.ts'
+import {
+  MATCH_MODE_CHOICE_LABELS,
+  type MatchModeChoice,
+} from '../../multi/matchModes.ts'
 
 /**
  * 붙은 뒤 시작 전 — 명단·티어·채팅·준비.
@@ -26,25 +31,71 @@ import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
  * 상대가 들어오자마자 판이 열리면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
  * 없다 — 첫 단어가 이미 내려오고 있다. 양쪽이 준비를 눌러야 시작한다.
  */
-const READY_RULES: Record<'auto' | 'manual', readonly ReactNode[]> = {
-  auto: [
+const SHARED_RULES: readonly ReactNode[] = [
+  <>
+    한 받침대 위에 <Key>한 탑을 함께</Key> 쌓습니다.
+  </>,
+  <>
+    차례대로 단어를 치고 <Key>한 번씩</Key> 물건을 떨어뜨립니다.
+  </>,
+  <>
+    물건이 받침대를 벗어나면 <Key>그 물건 주인</Key>의 하트가 줄어듭니다.
+  </>,
+  <>
+    하트 {LIVES}개를 잃으면 탈락하고, <Key>마지막 생존자</Key>가 이깁니다.
+  </>,
+]
+
+const DUEL_RULES: readonly ReactNode[] = [
+  <>
+    각자 자기 받침대와 <Key>자기 탑</Key>을 가집니다.
+  </>,
+  '같은 단어가 같은 순서로 나오고, 동시에 진행합니다.',
+  '자기 탑에서 물건이 벗어나면 자기 하트가 줄어듭니다.',
+  '먼저 목표 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.',
+]
+
+const ROULETTE_RULES: readonly ReactNode[] = [
+  <>
+    시작할 때 <Key>함께 쌓기</Key>와 <Key>대결</Key> 중 하나를 자동으로 고릅니다.
+  </>,
+  '선택된 모드의 규칙으로 바로 시작합니다.',
+]
+
+function readyRules(kind: 'auto' | 'manual', choice: MatchModeChoice): readonly ReactNode[] {
+  const modeRules = choice === 'roulette'
+    ? ROULETTE_RULES
+    : choice === 'duel'
+      ? DUEL_RULES
+      : SHARED_RULES
+  const modeTitle = (
     <>
-      <Key>1대1</Key>로 붙습니다.
-    </>,
-    <>
-      <Key>비슷한 티어</Key>의 상대를 찾아줍니다.
-    </>,
-    '이긴 만큼 티어 점수가 오릅니다.',
-  ],
-  manual: [
-    <>
-      <Key>방 참가 코드</Key>를 주고받아 아는 사람과 모입니다.
-    </>,
-    <>최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.</>,
-    <>
-      <Key>티어 점수는 바뀌지 않습니다.</Key>
-    </>,
-  ],
+      모드: <Key>{MATCH_MODE_CHOICE_LABELS[choice]}</Key>
+    </>
+  )
+  const tail = kind === 'auto'
+    ? [
+        <>
+          랭크 게임은 <Key>1대1</Key>로 진행합니다.
+        </>,
+        <>
+          <Key>비슷한 티어</Key>의 상대를 찾아주고, 이긴 만큼 티어 점수가 오릅니다.
+        </>,
+      ]
+    : [
+        <>
+          <Key>방 참가 코드</Key>를 주고받아 아는 사람과 모입니다.
+        </>,
+        <>최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.</>,
+        <>
+          친선전에서는 <Key>티어 점수는 바뀌지 않습니다.</Key>
+        </>,
+      ]
+  return [
+    modeTitle,
+    ...modeRules,
+    ...tail,
+  ]
 }
 
 // 혼자 하기 GAME RULES 본문과 같은 크기로 두 화면의 규칙을 한 체계로 읽게 한다
@@ -77,6 +128,7 @@ function ReadyRoom({
   const ratings = useRosterTiers(phase.players)
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
   const rulesKind = phase.chatEnabled ? 'manual' : 'auto'
+  const rules = readyRules(rulesKind, phase.matchModeChoice)
 
   useMenuKeys({
     count: 1,
@@ -167,7 +219,7 @@ function ReadyRoom({
           aria-label="게임 규칙"
           data-ready-rules={rulesKind}
         >
-          <Blurb kind={rulesKind} lines={READY_RULES[rulesKind]} fontSize={READY_TEXT_SIZE} />
+          <Blurb kind={rulesKind} lines={rules} fontSize={READY_TEXT_SIZE} />
         </aside>
       </div>
     </div>

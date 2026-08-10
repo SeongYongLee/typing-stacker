@@ -77,6 +77,22 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     const parsed = parseMessage({ t: 'start', seed: 1, players: many })
     expect(parsed?.t).toBe('start')
     expect(parsed?.t === 'start' && parsed.players.length).toBe(MAX_PLAYERS)
+    expect(parsed?.t === 'start' && parsed.matchMode).toBe('shared')
+  })
+
+  it('start는 대전 모드를 함께 싣는다', () => {
+    expect(parseMessage({ t: 'start', seed: 1, players: [], matchMode: 'duel' })).toEqual({
+      t: 'start',
+      seed: 1,
+      players: [],
+      matchMode: 'duel',
+    })
+    expect(parseMessage({ t: 'start', seed: 1, players: [], matchMode: 'unknown' })).toEqual({
+      t: 'start',
+      seed: 1,
+      players: [],
+      matchMode: 'shared',
+    })
   })
 
   it('lives는 음수를 0으로 눌러 받는다', () => {

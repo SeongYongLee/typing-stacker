@@ -23,6 +23,7 @@ import { LobbyScreen } from './screens/LobbyScreen.tsx'
 import { LoopbackScreen } from './screens/LoopbackScreen.tsx'
 import { MatchScreen } from './screens/MatchScreen.tsx'
 import { ResultScreen } from './screens/ResultScreen.tsx'
+import { SoloRulesScreen } from './screens/SoloRulesScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 import { titleThemeForHour, type TitleTheme } from './screens/titleTheme.ts'
 
@@ -37,14 +38,16 @@ function initialRoute(): Route {
   return 'title'
 }
 
+type SoloStage = 'rules' | SoloStep
+
 function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
   // 스플래시 그림과 음악이 같은 낮·밤을 쓰고, 머무는 동안 갑자기 바뀌지 않게 고정한다
   const [titleTheme, setTitleTheme] = useState<TitleTheme>(() => (
     titleThemeForHour(new Date().getHours())
   ))
-  /** 혼자 하기가 열리기 전의 박자. null이면 판이 이미 돌고 있거나 다른 화면이다 */
-  const [soloStep, setSoloStep] = useState<SoloStep | null>(null)
+  /** 규칙 확인부터 시작 신호까지. null이면 판이 이미 돌고 있거나 다른 화면이다 */
+  const [soloStage, setSoloStage] = useState<SoloStage | null>(null)
   const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
   const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
@@ -69,10 +72,10 @@ function App() {
   }))
 
   /*
-   * 혼자 하기는 READY → START 두 박자를 거쳐 연다. 이유는 `SOLO_READY_MS`에.
+   * 혼자 하기는 규칙을 확인한 뒤 READY → START 두 박자를 거쳐 연다.
    *
-   * 바로 시작하면 첫 단어가 이미 내려오고 있다 — 누른 손은 아직 마우스나 Enter에
-   * 있고 자판으로 옮길 틈이 없다. 다시 하기도 마찬가지라 같은 길로 보낸다.
+   * 매 판 규칙 화면을 거친다. 다시 하기도 같은 길로 보내야 첫 판과 재시작의 시작
+   * 조건이 갈리지 않고, 게임 시작 버튼을 누른 뒤에는 손을 자판으로 옮길 틈이 생긴다.
    *
    * 그동안 판을 만들지 않는다. `startRun()`을 먼저 부르고 화면만 덮으면 그 사이에
    * 단어가 내려오고 시간이 흐른다 — 기다려주는 것이 아니라 눈만 가리는 것이 된다.
@@ -87,7 +90,7 @@ function App() {
       return
     }
     setRoute('solo')
-    setSoloStep('ready')
+    setSoloStage('rules')
   }, [engine, route, splashTransition])
 
   useEffect(() => {
@@ -101,7 +104,7 @@ function App() {
       }
       if (splashTransition === 'covered') {
         setRoute('solo')
-        setSoloStep('ready')
+        setSoloStage('rules')
         setSplashTransition('revealing')
         return
       }
@@ -114,25 +117,29 @@ function App() {
     return () => clearTimeout(timer)
   }, [splashTransition])
 
+  const beginSolo = useCallback(() => {
+    setSoloStage('ready')
+  }, [])
+
   useEffect(() => {
-    if (soloStep === null || engine === null) {
+    if (soloStage === null || soloStage === 'rules' || engine === null) {
       return
     }
     const timer = setTimeout(
       () => {
-        if (soloStep === 'ready') {
-          setSoloStep('start')
+        if (soloStage === 'ready') {
+          setSoloStage('start')
           return
         }
         // 판마다 단어 순서가 달라지도록 시드를 새로 뽑는다
         engine.reseed(Date.now() >>> 0)
         engine.startRun()
-        setSoloStep(null)
+        setSoloStage(null)
       },
-      soloStep === 'ready' ? SOLO_READY_MS : SOLO_START_MS,
+      soloStage === 'ready' ? SOLO_READY_MS : SOLO_START_MS,
     )
     return () => clearTimeout(timer)
-  }, [soloStep, engine])
+  }, [soloStage, engine])
 
   /*
    * 시작 박자에서 판으로 넘어온 순간마다 오른다.
@@ -150,13 +157,13 @@ function App() {
    * 어둠 없는 프레임이 아예 생기지 않는다. `useLayoutEffect`도 그리기 전이지만
    * 자식까지 한 번 붙였다 떼므로, 여기서는 더 이른 이 자리가 맞다.
    */
-  const [lastSolo, setLastSolo] = useState<SoloStep | null>(soloStep)
+  const [lastSolo, setLastSolo] = useState<SoloStage | null>(soloStage)
   const [liftSeq, setLiftSeq] = useState(0)
   /** 걷는 중인가. 다 걷히면 덮개를 뗀다 — 판 내내 남겨둘 이유가 없다 */
   const [lifting, setLifting] = useState(false)
-  if (soloStep !== lastSolo) {
-    setLastSolo(soloStep)
-    if (soloStep === null && lastSolo !== null) {
+  if (soloStage !== lastSolo) {
+    setLastSolo(soloStage)
+    if (soloStage === null && lastSolo !== null) {
       setLifting(true)
       setLiftSeq((seq) => seq + 1)
     }
@@ -172,7 +179,7 @@ function App() {
   const backToTitle = useCallback(() => {
     match.leave()
     // 이걸 끄지 않으면 타이틀로 나온 뒤에 판이 저 혼자 열린다
-    setSoloStep(null)
+    setSoloStage(null)
     openTitle()
   }, [match, openTitle])
 
@@ -244,11 +251,15 @@ function App() {
    * 안 들고 있어서 위의 제약에 걸리지 않으면서, 손을 올리는 그 몇 초가 빈 화면이
    * 아니라 들어가는 구간이 된다.
    */
-  if (soloStep !== null) {
+  if (soloStage !== null) {
     return (
       <>
         <StartBackdrop>
-          <SoloStart step={soloStep} />
+          {soloStage === 'rules' ? (
+            <SoloRulesScreen onStart={beginSolo} />
+          ) : (
+            <SoloStart step={soloStage} />
+          )}
         </StartBackdrop>
         <SplashTransition phase={splashTransition} />
       </>

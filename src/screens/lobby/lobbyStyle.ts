@@ -47,9 +47,9 @@ const buttonStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   borderRadius: 10,
-  border: '1px solid #48507a',
-  background: '#e4e68a',
-  color: '#1a1405',
+  border: '1px solid #e4e68a',
+  background: '#21211f',
+  color: '#e4e68a',
 }
 
 const pathLabelStyle: CSSProperties = {

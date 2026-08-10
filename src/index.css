@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Rubik Mono One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/rubik-mono-one-latin.woff2') format('woff2');
+}
+
 :root {
   --bg: #0d0f16;
   --bg-panel: #151824;
@@ -11,6 +19,7 @@
   --ok: #6bffb0;
 
   --sans: system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --display: 'Rubik Mono One', var(--sans);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   font: 16px/1.45 var(--sans);

@@ -56,7 +56,7 @@ function LoopbackScreen({ onBack }: LoopbackScreenProps) {
             padding: '2px 10px',
             fontSize: 12,
             borderRadius: 6,
-            border: '1px solid #6a5320',
+            border: '1px solid #21211f',
             background: 'transparent',
             color: '#e4e68a',
           }}

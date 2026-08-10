@@ -58,7 +58,7 @@ function SoloStart({ step }: { step: SoloStep }) {
         ref={ref}
         data-solo-start={step}
         style={{
-          font: '700 72px/1 var(--sans)',
+          font: '400 72px/1 var(--display)',
           letterSpacing: '0.16em',
           // 자간을 준 만큼 오른쪽이 비어 가운데가 왼쪽으로 밀린다
           textIndent: '0.16em',

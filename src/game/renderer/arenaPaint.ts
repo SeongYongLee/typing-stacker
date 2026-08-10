@@ -155,9 +155,9 @@ function drawCatcher(
   const x = view.toScreenX(catcher.x)
   const y = view.toScreenY(catcher.y)
   const side = catcher.x < 0 ? 'left' : 'right'
-  const fadeIn = Math.min(catcher.progress / 0.18, 1)
-  const fadeOut = Math.min((1 - catcher.progress) / 0.22, 1)
-  const alpha = Math.max(0, Math.min(fadeIn, fadeOut))
+  const fadeIn = catcherFadeIn(catcher.progress)
+  const fadeOut = catcherFadeOut(catcher.progress)
+  const alpha = catcherAlpha(catcher.progress)
   const motion = catcher.progress < 0.5 ? 1 - fadeIn : 1 - fadeOut
   const slide = motion * 34
   /*
@@ -187,6 +187,18 @@ function drawCatcher(
     )
   }
   ctx.restore()
+}
+
+function catcherFadeIn(progress: number): number {
+  return Math.min(progress / 0.18, 1)
+}
+
+function catcherFadeOut(progress: number): number {
+  return Math.min((1 - progress) / 0.22, 1)
+}
+
+function catcherAlpha(progress: number): number {
+  return Math.max(0, Math.min(catcherFadeIn(progress), catcherFadeOut(progress)))
 }
 
 function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
@@ -309,11 +321,13 @@ function drawBody(
   ownerColors: ReadonlyMap<OwnerId, string> | null,
   mark: number | undefined,
   pulse: number,
+  alpha = 1,
 ): void {
   const { ctx } = view
   const { shape } = body.variant
 
   ctx.save()
+  ctx.globalAlpha = alpha
   ctx.translate(view.toScreenX(body.x), view.toScreenY(body.y))
   // 월드는 y가 위로 +, 캔버스는 아래로 + 이므로 회전 방향을 뒤집는다
   ctx.rotate(-body.rotation)
@@ -337,14 +351,14 @@ function drawBody(
    * 주인 색은 신원이라 흔들리면 안 되므로 그대로 둔다.
    */
   const rimAlpha = ownerColor === null && mark !== undefined ? pulse : 1
-  const drawn = drawSprite(view, body.variant.sprite, body.variant.artBounds, rimColor, rimAlpha)
+  const drawn = drawSprite(view, body.variant.sprite, body.variant.artBounds, rimColor, rimAlpha, alpha)
 
   // 그림이 아직 로드되지 않았으면 충돌 도형만이라도 보여준다
   if (!drawn) {
     ctx.fillStyle = body.variant.color
     ctx.strokeStyle = rimColor ?? 'rgba(0, 0, 0, 0.4)'
     ctx.lineWidth = 1.5
-    ctx.globalAlpha = 0.55
+    ctx.globalAlpha = 0.55 * alpha
     for (const part of partsOf(shape)) {
       tracePart(view, part)
       ctx.fill()
@@ -365,6 +379,7 @@ function drawSprite(
   bounds: Bounds,
   ownerColor: string | null,
   rimAlpha = 1,
+  alpha = 1,
 ): boolean {
   const img = sprite(src)
   if (img === null) {
@@ -379,16 +394,17 @@ function drawSprite(
   if (ownerColor !== null) {
     const glow = rim(img, ownerColor)
     if (glow !== null) {
-      ctx.globalAlpha = rimAlpha
+      ctx.globalAlpha = rimAlpha * alpha
       // 테두리 그림은 원본보다 여백만큼 크다. 같은 비율로 넓게 그려야 자리가 맞는다
       const pad = padRatio(img)
       const padX = width * pad.x
       const padY = height * pad.y
       ctx.drawImage(glow, left - padX, top - padY, width + padX * 2, height + padY * 2)
-      ctx.globalAlpha = 1
+      ctx.globalAlpha = alpha
     }
   }
 
+  ctx.globalAlpha = alpha
   ctx.drawImage(img, left, top, width, height)
   return true
 }
@@ -450,4 +466,4 @@ function traceShape(view: ArenaView, shape: PrimitiveShape, ox: number, oy: numb
   }
 }
 
-export { drawAim, drawBody, drawCat, drawCatcher, drawLedges, drawPlatformBack, drawPlatformFront }
+export { catcherAlpha, drawAim, drawBody, drawCat, drawCatcher, drawLedges, drawPlatformBack, drawPlatformFront }

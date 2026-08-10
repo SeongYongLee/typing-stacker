@@ -5,6 +5,7 @@ import { ARENA, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
 import type { BodySnapshot, OwnerId } from '../types/game.ts'
 import { ARENA_ART_SOURCES } from './arenaArt.ts'
 import {
+  catcherAlpha,
   drawAim,
   drawBody,
   drawCat,
@@ -292,12 +293,15 @@ class ArenaRenderer {
      */
     this.trailTime = drawTrails(view, this.trails, state, this.trailTime)
     for (const body of state.bodies) {
+      const bodyAlpha =
+        body.recalled === true && state.catcher !== null ? catcherAlpha(state.catcher.progress) : 1
       drawBody(
         view,
         body,
         state.ownerColors,
         state.pairMarks.get(body.variant.id),
         state.pairPulse,
+        bodyAlpha,
       )
     }
     if (state.catcher !== null) {

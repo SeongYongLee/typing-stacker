@@ -32,7 +32,7 @@ import { nightEntries } from '../systems/NightWords.ts'
 import { Whiteboard } from '../systems/Whiteboard.ts'
 import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
-import { followCameraY, spawnYFor } from '../systems/Camera.ts'
+import { followCameraY, spawnYFor, targetCameraY } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
@@ -567,7 +567,7 @@ class GameEngine {
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
       this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
-      this.physics.setEscapeY(this.cameraY + ARENA.killY)
+      this.syncEscapeLine()
       const result = this.physics.step(dt)
       this.applyQuake(result.quake)
       // 쏟아지는 동안에도 부딪히는 소리는 나야 한다. 무너짐은 이 게임의 결말이다
@@ -589,7 +589,7 @@ class GameEngine {
     this.elapsed += dt
     this.sinceLastDrop += dt
     this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
-    this.physics.setEscapeY(this.cameraY + ARENA.killY)
+    this.syncEscapeLine()
     if (this.invulnerableLeft > 0) {
       this.invulnerableLeft = Math.max(this.invulnerableLeft - dt, 0)
     }
@@ -671,6 +671,18 @@ class GameEngine {
     }
 
     this.emit()
+  }
+
+  private syncEscapeLine(): void {
+    const stackTop = this.physics.stackTop()
+    /*
+     * 카메라가 내려오는 중이면 현재 카메라가 실제 탑보다 높게 남아 있다. 그 상태에서
+     * 현재 카메라 하단선을 이탈선으로 쓰면 정상 낙하 물건도 고양이가 먼저 가져간다.
+     * 올라갈 때는 현재 화면 기준으로 빠르게 잡고, 내려올 때는 목표 카메라 기준으로
+     * 낮춰 잡는다.
+     */
+    const escapeCameraY = Math.min(this.cameraY, targetCameraY(stackTop))
+    this.physics.setEscapeY(escapeCameraY + ARENA.killY)
   }
 
   /**
@@ -869,6 +881,7 @@ class GameEngine {
     if (this.catcherLeft <= 0) {
       this.catcherLeft = 0
       this.catcherView = null
+      this.physics.clearRecalledItems()
       this.physics.clearCatcher()
     }
   }

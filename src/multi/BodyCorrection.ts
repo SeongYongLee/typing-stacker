@@ -97,6 +97,7 @@ class BodyCorrection {
       slot.y = body.y + (correction?.dy ?? 0) * scale
       slot.rotation = body.rotation + (correction?.rotation ?? 0) * scale
       slot.settled = body.settled
+      slot.recalled = body.recalled
       if (correction !== undefined) this.suppressed.add(body.handle)
       count += 1
     }

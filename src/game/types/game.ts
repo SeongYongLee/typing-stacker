@@ -151,6 +151,7 @@ interface BodySnapshot {
   readonly y: number
   readonly rotation: number
   readonly settled: boolean
+  readonly recalled?: boolean
 }
 
 /** 네트워크 등 외부 권위 상태로 물리 세계를 복구하기 위한 공통 좌표. */

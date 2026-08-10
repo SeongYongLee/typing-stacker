@@ -95,12 +95,42 @@ describe('PhysicsWorld', () => {
   it('이탈 기준선을 올리면 높은 카메라에서도 바로 이탈로 잡힌다', () => {
     world.reset()
     const escapeY = ARENA.killY + 5
+    const item = stackable()
     world.setEscapeY(escapeY)
-    world.spawnItemAt(stackable(), 0, escapeY - 0.1, SOLO_OWNER)
+    world.spawnItemAt(
+      item,
+      ARENA.platformHalfWidth + 0.9,
+      escapeY + halfExtentY(item.shape) - 0.02,
+      SOLO_OWNER,
+    )
 
     const result = world.step(1 / 60)
     expect(result.escaped.map((item) => item.owner)).toEqual([SOLO_OWNER])
     expect(world.itemCount).toBe(0)
+  })
+
+  it('이탈 기준선이 올라가도 받침대 위로 떨어지는 물건은 고양이가 먼저 가져가지 않는다', () => {
+    world.reset()
+    const escapeY = ARENA.killY + 5
+    const item = stackable()
+    world.setEscapeY(escapeY)
+    world.spawnItemAt(item, 0, escapeY + halfExtentY(item.shape) - 0.02, SOLO_OWNER)
+
+    const result = world.step(1 / 60)
+    expect(result.escaped).toEqual([])
+    expect(world.itemCount).toBe(1)
+  })
+
+  it('이탈 기준선이 올라가도 이미 자리 잡은 물건은 깎지 않는다', () => {
+    world.reset()
+    world.spawnItem(stackable(), 0, SOLO_OWNER)
+    const settled = simulate(world, 5).settled
+    expect(settled).toHaveLength(1)
+
+    world.setEscapeY(ARENA.killY + 5)
+    const result = world.step(1 / 60)
+    expect(result.escaped).toEqual([])
+    expect(world.itemCount).toBe(1)
   })
 
   it('회수 손은 받침대 밖에서 물건을 받아 필드에 남기지 않는다', () => {
@@ -125,6 +155,20 @@ describe('PhysicsWorld', () => {
 
     expect(world.itemCount).toBe(1)
     expect(world.stackTop()).toBe(ARENA.platformTop)
+  })
+
+  it('회수 물건은 손이 사라질 때 함께 치울 수 있다', () => {
+    world.reset()
+    const side = 'right'
+    const dropX = recallDropX(side)
+    world.setCatcher(plankOf(catchSpot(dropX, side, ARENA.platformTop + 3)))
+    world.spawnItemAt(stackable(), dropX, ARENA.platformTop + 4, SOLO_OWNER, 0, true)
+    simulate(world, 1.2)
+
+    expect(world.itemCount).toBe(1)
+    world.clearRecalledItems()
+    world.clearCatcher()
+    expect(world.itemCount).toBe(0)
   })
 
   it('물건을 여러 개 쌓으면 위로 올라간다', () => {

@@ -28,13 +28,13 @@ import { GRAB_AT, type CatView } from '../systems/CatPickup.ts'
 const CAT_WIDTH = 1.5
 
 /** 뛰기 시작하는 자리가 물건에서 바깥쪽으로 얼마나 떨어져 있는가(m) */
-const LEAP_OUT = 0.82
+const LEAP_OUT = 0.7
 
 /** 물어 가며 착지하는 자리는 더 바깥이다 — 물건을 갖고 물러난다 */
-const LEAP_AWAY = 1.55
+const LEAP_AWAY = 1.45
 
 /** 뛰기 시작하는 높이가 물건보다 얼마나 아래인가(m). 화면 밖에서 올라와야 한다 */
-const LEAP_DROP = 1.7
+const LEAP_DROP = 1.45
 
 /** 무는 자리 — 고양이 그림 가운데에서 앞쪽·위쪽으로 얼마나(그림 폭 대비) */
 const MOUTH_FORWARD = 0.24

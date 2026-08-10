@@ -675,7 +675,7 @@ class PhysicsWorld {
         continue
       }
 
-      if (this.isEscaped(x, y)) {
+      if (this.isEscaped(entry, x, y)) {
         /*
          * 이탈은 물건당 한 번만 센다. 매 프레임 세면 목숨 3개가 한순간에 날아간다.
          *
@@ -817,6 +817,7 @@ class PhysicsWorld {
         y,
         rotation: 0,
         settled: false,
+        recalled: false,
       })
       slot.handle = handle
       slot.variant = entry.variant
@@ -825,6 +826,7 @@ class PhysicsWorld {
       slot.y = y
       slot.rotation = entry.body.rotation()
       slot.settled = entry.settled
+      slot.recalled = entry.recalled
       count += 1
     }
     // 지난 프레임에 있었지만 지금은 없는 물건의 칸을 버린다
@@ -867,8 +869,31 @@ class PhysicsWorld {
     this.escapeY = y
   }
 
-  private isEscaped(x: number, y: number): boolean {
-    return y < this.escapeY || Math.abs(x) > ARENA.halfWidth
+  private isEscaped(entry: TrackedBody, x: number, y: number): boolean {
+    if (Math.abs(x) > ARENA.halfWidth || y < ARENA.killY) {
+      return true
+    }
+    /*
+     * 카메라가 올라간 싱글 판에서는 화면 아래로 사라지는 순간을 바로 잡아야 고양이가
+     * 늦지 않는다. 중심점이 아니라 아랫면을 본다. 눈에는 물건의 아래쪽이 먼저 화면을
+     * 벗어나므로, 중심이 선을 넘을 때까지 기다리면 고양이가 한 박자 늦다.
+     *
+     * 다만 이미 자리 잡은 물건까지 이 기준으로 세면, 카메라가 높은 동안 받침대 위
+     * 물건이 화면 아래에 있다는 이유만으로 계속 목숨을 깎는다.
+     */
+    return (
+      !entry.settled &&
+      !this.hasSupportBelow(entry, x) &&
+      y - halfExtentY(entry.variant.shape) < this.escapeY
+    )
+  }
+
+  private hasSupportBelow(entry: TrackedBody, x: number): boolean {
+    const halfWidth = Math.max(entry.variant.artBounds.hw, 0.1)
+    if (Math.abs(x) - halfWidth <= ARENA.platformHalfWidth) {
+      return true
+    }
+    return this.ledgeList.some((ledge) => Math.abs(x - ledge.x) - halfWidth <= ledge.halfWidth)
   }
 
   isQuiet(): boolean {
@@ -1129,6 +1154,17 @@ class PhysicsWorld {
     }
     this.world.removeRigidBody(this.catcherBody)
     this.catcherBody = null
+  }
+
+  clearRecalledItems(): void {
+    for (const [handle, entry] of this.tracked) {
+      if (!entry.recalled) {
+        continue
+      }
+      this.forgetWelds(handle)
+      this.world.removeRigidBody(entry.body)
+      this.tracked.delete(handle)
+    }
   }
 
   private createPlatform(): void {

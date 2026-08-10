@@ -400,7 +400,17 @@ class PhysicsWorld {
     recalled = false,
     fever = false,
   ): number {
-    return this.spawnItemMovingAt(variant, x, y, owner, itemId, recalled)
+    return this.spawnItemMovingAt(
+      variant,
+      x,
+      y,
+      owner,
+      itemId,
+      recalled,
+      { x: 0, y: 0 },
+      0,
+      fever,
+    )
   }
 
   spawnItemMovingAt(
@@ -412,6 +422,7 @@ class PhysicsWorld {
     recalled = false,
     velocity: Vec2 = { x: 0, y: 0 },
     angularVelocity = 0,
+    fever = false,
   ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)

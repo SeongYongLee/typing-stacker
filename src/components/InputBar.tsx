@@ -418,7 +418,7 @@ function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: In
             gap: 8,
           }}
         >
-          <Score score={stats.score} />
+          <Score score={stats.score} fever={fever} />
           <Combo combo={stats.combo} />
         </div>
       </div>

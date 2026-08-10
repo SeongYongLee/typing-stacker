@@ -56,6 +56,15 @@ describe('ScoreManager', () => {
     expect(stats.hiddenFound).toEqual([hidden.label])
   })
 
+  it('합성 결과는 합성 보너스와 결과물 보너스를 즉시 더한다', () => {
+    const score = new ScoreManager()
+    const crafted = anyVariant(true)
+
+    score.onCrafted(crafted)
+
+    expect(score.stats(0, 3, 60).score).toBe(SCORE.craftBonus + crafted.scoreBonus)
+  })
+
   it('같은 히든을 또 찾아도 목록에는 한 번만 남는다', () => {
     const score = new ScoreManager()
     const hidden = anyVariant(true)
@@ -116,18 +125,21 @@ describe('ScoreManager', () => {
     expect(score.stats(0, 3, 60).maxCombo).toBe(3)
   })
 
-  it('콤보는 목숨을 잃을 때만 끊긴다', () => {
+  it('목숨 손실은 콤보만 끊고 이미 얻은 점수는 깎지 않는다', () => {
     const score = new ScoreManager()
     score.onWordMatched('사과')
     score.onWordMatched('사과')
-    // 물건이 멈추거나 미스가 나도 콤보는 유지된다
     score.onSettled(anyVariant(false), ARENA.platformTop)
-    expect(score.stats(9, 3, 60).combo).toBe(2)
+    const before = score.stats(0, 3, 60)
 
     score.onLifeLost()
-    expect(score.stats(9, 2, 60).combo).toBe(0)
+    const after = score.stats(0, 2, 60)
+
+    expect(after.combo).toBe(0)
+    expect(after.score).toBe(before.score)
+    expect(after.rawScore).toBe(before.rawScore)
     // 최고 기록은 남는다
-    expect(score.stats(9, 2, 60).maxCombo).toBe(2)
+    expect(after.maxCombo).toBe(2)
   })
 
   it('콤보 배수가 착지 점수에 곱해진다', () => {

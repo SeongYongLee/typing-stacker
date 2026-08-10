@@ -22,3 +22,7 @@ pnpm relay:deploy                                 # Cloudflare에 올린다 (wra
 ## 방 하나가 Durable Object 하나다
 
 `worker/`에 있다. 같은 코드는 언제나 같은 인스턴스로 가므로 방을 찾는 절차가 필요 없고, 전송로는 `Transport` 인터페이스 뒤에 있어 게임 코드는 무엇으로 붙었는지 모른다 — 그래서 시험용 루프백으로 갈아끼워 서버 없이도 판 전체를 자동 검증한다.
+
+## 관련 해결 기록
+
+- [멀티플레이 물리 키프레임 깜빡임](solutions/multiplayer-physics-sync-flicker.md)

@@ -1,7 +1,7 @@
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
-import { LIVES } from '../game/config.ts'
+import { SOLO_LIVES } from '../game/config.ts'
 import type { RunStats } from '../game/types/game.ts'
 import { useRunRanking, type RunRanking } from '../hooks/useRunRanking.ts'
 import { loadProfile } from '../storage/profile.ts'
@@ -99,7 +99,7 @@ function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScre
       <div style={panelStyle}>
         <div>
           <p style={{ color: '#ff6b6b', fontSize: 13, letterSpacing: '0.12em', margin: 0 }}>
-            목숨 {LIVES}개를 모두 잃었다
+            목숨 {SOLO_LIVES}개를 모두 잃었다
           </p>
           <div
             style={{

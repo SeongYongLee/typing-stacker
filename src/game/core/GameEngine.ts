@@ -1,5 +1,6 @@
 import {
   AIM_HALF_RANGE,
+  ARENA,
   DROP_COOLDOWN_MS,
   FIRST_NIGHT_MERGES,
   FIRST_NIGHT_SEC,
@@ -7,7 +8,7 @@ import {
   INVULNERABLE_SEC,
   CATCH,
   LEDGE,
-  LIVES,
+  SOLO_LIVES,
   OPENING_HIDDEN_CHANCE,
   SOLO_OWNER,
   QUAKE_DURATION,
@@ -40,7 +41,7 @@ import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats, WordEntry } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
-import { CatPickup } from '../systems/CatPickup.ts'
+import { CatPickup, catPickupY } from '../systems/CatPickup.ts'
 import type { TrailHit } from '../systems/TrailField.ts'
 import { GameLoop } from './GameLoop.ts'
 
@@ -202,7 +203,7 @@ class GameEngine {
   private cameraY = 0
   /** 이번 판에 닿았던 가장 높은 난이도 진행도(0~1) */
   private difficultyPeak = 0
-  private lives = LIVES
+  private lives = SOLO_LIVES
   /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
   private invulnerableLeft = 0
   /** 직전에 매긴 짝 표식. 색을 이어 쓰려면 지난 판정을 들고 있어야 한다 */
@@ -298,7 +299,7 @@ class GameEngine {
     this.feedback = null
     this.sinceLastDrop = Number.POSITIVE_INFINITY
     this.collapseTimer = 0
-    this.lives = LIVES
+    this.lives = SOLO_LIVES
     this.invulnerableLeft = 0
     this.lastMarks = NO_MARKS
     this.hiddenReveal = null
@@ -565,6 +566,7 @@ class GameEngine {
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
       this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
+      this.physics.setEscapeY(this.cameraY + ARENA.killY)
       const result = this.physics.step(dt)
       this.applyQuake(result.quake)
       // 쏟아지는 동안에도 부딪히는 소리는 나야 한다. 무너짐은 이 게임의 결말이다
@@ -586,6 +588,7 @@ class GameEngine {
     this.elapsed += dt
     this.sinceLastDrop += dt
     this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
+    this.physics.setEscapeY(this.cameraY + ARENA.killY)
     if (this.invulnerableLeft > 0) {
       this.invulnerableLeft = Math.max(this.invulnerableLeft - dt, 0)
     }
@@ -656,7 +659,7 @@ class GameEngine {
       // 목숨을 깎은 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
       const taken = costly[0]
       if (taken !== undefined) {
-        this.cats.take(taken.variant, taken.x, taken.y)
+        this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY))
       }
       if (this.lives === 0) {
         this.phase = 'collapsing'

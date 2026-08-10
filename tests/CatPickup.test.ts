@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CatPickup, DURATION, GRAB_AT, KINDS } from '../src/game/systems/CatPickup.ts'
+import { CatPickup, DURATION, GRAB_AT, KINDS, catPickupY } from '../src/game/systems/CatPickup.ts'
 import { catPose } from '../src/game/renderer/catPose.ts'
 import { ARENA_ART } from '../src/game/renderer/arenaArt.generated.ts'
+import { ARENA } from '../src/game/config.ts'
 import { ALL_VARIANTS } from '../src/game/data/words.ts'
 
 /**
@@ -54,6 +55,15 @@ describe('고양이는 한 마리만 나온다', () => {
    */
   it('무적 시간 안에 끝난다', () => {
     expect(DURATION).toBeLessThan(2)
+  })
+
+  it('카메라가 올라가도 현재 화면 아래쪽에서 물어 간다', () => {
+    const cameraY = 8
+    expect(catPickupY(ARENA.killY - 0.1, cameraY)).toBeGreaterThan(cameraY + ARENA.killY)
+  })
+
+  it('이미 보이는 높이에서 떨어진 물건은 그 자리를 유지한다', () => {
+    expect(catPickupY(3.2, 0)).toBe(3.2)
   })
 })
 
@@ -131,9 +141,9 @@ describe('뛰는 모양', () => {
 
   /** 화면 밖 아래에서 올라와 아래로 내려간다 — 허공에서 생겼다 사라지면 안 된다 */
   it('시작과 끝은 물건보다 한참 아래다', () => {
-    expect(poseAt(0).y).toBeLessThan(0.2 - 2)
+    expect(poseAt(0).y).toBeLessThan(0.2 - 1.3)
     // 1.0에서는 이미 치워져 있다 — 마지막으로 보이는 프레임을 본다
-    expect(poseAt(0.99).y).toBeLessThan(0.2 - 2)
+    expect(poseAt(0.99).y).toBeLessThan(0.2 - 1.3)
   })
 
   /** 물건을 갖고 바깥으로 물러난다. 안쪽으로 가면 받침대를 밟고 지나간다 */

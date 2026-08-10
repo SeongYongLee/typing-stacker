@@ -30,7 +30,7 @@ import type {
   PrimitiveShape,
   Vec2,
 } from '../types/game.ts'
-import { isEscaped, isOutOfSight } from './collapseDetector.ts'
+import { isOutOfSight } from './collapseDetector.ts'
 
 /**
  * Rapier 모듈을 **필요할 때 받아온다.**
@@ -351,6 +351,8 @@ class PhysicsWorld {
   private readonly ledgeList: { x: number; y: number; halfWidth: number; body: RigidBody }[] = []
   /** 지금 서 있는 회수 판. 잠깐 있다 사라지므로 하나뿐이다 */
   private catcherBody: RigidBody | null = null
+  /** 이 높이보다 아래로 내려가면 이탈이다. 싱글은 카메라를 따라 움직이고, 대전은 기본값을 쓴다 */
+  private escapeY: number = ARENA.killY
   private accumulator = 0
 
   private constructor() {
@@ -673,7 +675,7 @@ class PhysicsWorld {
         continue
       }
 
-      if (isEscaped(x, y)) {
+      if (this.isEscaped(x, y)) {
         /*
          * 이탈은 물건당 한 번만 센다. 매 프레임 세면 목숨 3개가 한순간에 날아간다.
          *
@@ -842,13 +844,15 @@ class PhysicsWorld {
    * 낮은 탑에서도 물건 하나마다 화면이 위아래로 출렁인다.
    *
    * 이탈이 확정된 물건도 세지 않는다. 튕겨 날아가는 중인 것에 카메라가 끌려가면
-   * 남은 탑이 보이지 않는다. (한 번 자리를 잡은 물건은 무너지는 중에도 계속 세므로,
-   * 탑이 쏟아지는 동안 시야가 갑자기 바닥으로 내려앉지는 않는다.)
+   * 남은 탑이 보이지 않는다. 회수 손에 올라간 물건도 세지 않는다. 그 물건은 잠깐
+   * 멈출 수는 있지만 쌓일 물건이 아니므로, 카메라가 손을 따라 위로 튀면 안 된다.
+   * (한 번 자리를 잡은 물건은 무너지는 중에도 계속 세므로, 탑이 쏟아지는 동안 시야가
+   * 갑자기 바닥으로 내려앉지는 않는다.)
    */
   stackTop(): number {
     let top: number = ARENA.platformTop
     for (const entry of this.tracked.values()) {
-      if (entry.lost || !entry.settled) {
+      if (entry.lost || entry.recalled || !entry.settled) {
         continue
       }
       const height = entry.body.translation().y + halfExtentY(entry.variant.shape)
@@ -857,6 +861,14 @@ class PhysicsWorld {
       }
     }
     return top
+  }
+
+  setEscapeY(y: number): void {
+    this.escapeY = y
+  }
+
+  private isEscaped(x: number, y: number): boolean {
+    return y < this.escapeY || Math.abs(x) > ARENA.halfWidth
   }
 
   isQuiet(): boolean {
@@ -1047,6 +1059,7 @@ class PhysicsWorld {
     this.tracked.clear()
     this.welds.clear()
     this.accumulator = 0
+    this.escapeY = ARENA.killY
   }
 
   dispose(): void {

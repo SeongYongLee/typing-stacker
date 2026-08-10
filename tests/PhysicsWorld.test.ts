@@ -92,6 +92,17 @@ describe('PhysicsWorld', () => {
     expect(world.itemCount).toBe(0)
   })
 
+  it('이탈 기준선을 올리면 높은 카메라에서도 바로 이탈로 잡힌다', () => {
+    world.reset()
+    const escapeY = ARENA.killY + 5
+    world.setEscapeY(escapeY)
+    world.spawnItemAt(stackable(), 0, escapeY - 0.1, SOLO_OWNER)
+
+    const result = world.step(1 / 60)
+    expect(result.escaped.map((item) => item.owner)).toEqual([SOLO_OWNER])
+    expect(world.itemCount).toBe(0)
+  })
+
   it('회수 손은 받침대 밖에서 물건을 받아 필드에 남기지 않는다', () => {
     world.reset()
     const side = 'right'
@@ -102,6 +113,18 @@ describe('PhysicsWorld', () => {
     const { escaped } = simulate(world, CATCH.holdSec)
     expect(escaped).toEqual([SOLO_OWNER])
     expect(world.itemCount).toBe(0)
+  })
+
+  it('회수 손에 올라간 물건은 탑 높이로 세지 않는다', () => {
+    world.reset()
+    const side = 'right'
+    const dropX = recallDropX(side)
+    world.setCatcher(plankOf(catchSpot(dropX, side, ARENA.platformTop + 3)))
+    world.spawnItemAt(stackable(), dropX, ARENA.platformTop + 4, SOLO_OWNER, 0, true)
+    simulate(world, 1.2)
+
+    expect(world.itemCount).toBe(1)
+    expect(world.stackTop()).toBe(ARENA.platformTop)
   })
 
   it('물건을 여러 개 쌓으면 위로 올라간다', () => {

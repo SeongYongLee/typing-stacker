@@ -50,7 +50,7 @@ export {
 
 export { LEDGE, CATCH, HIDDEN_CHANCE, OPENING_HIDDEN_CHANCE } from './config/items.ts'
 
-export { LIVES, INVULNERABLE_SEC, SOLO_OWNER, SCORE } from './config/scoring.ts'
+export { LIVES, SOLO_LIVES, INVULNERABLE_SEC, SOLO_OWNER, SCORE } from './config/scoring.ts'
 
 export {
   SETTLE_SPEED,

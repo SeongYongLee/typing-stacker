@@ -18,6 +18,7 @@
  * 때문에 같은 시드가 같은 판을 못 만든다** — 부스러기(`TrailField`)와 같은 이유다.
  */
 import type { ItemVariant } from '../types/game.ts'
+import { ARENA } from '../config.ts'
 
 /** 고양이 네 마리. 나올 때마다 무작위로 고른다 */
 const KINDS = ['cheese', 'american-shorthair', 'tabby', 'tuxedo'] as const
@@ -30,10 +31,13 @@ type CatKind = (typeof KINDS)[number]
  * 짧으면 무엇이 지나갔는지 못 읽고, 길면 다음 물건을 놓는 손을 막는다. 목숨을 잃은
  * 뒤에는 무적이 2초 이어지므로 그 안에서 끝나야 다음 이탈과 겹치지 않는다.
  */
-const DURATION = 1.1
+const DURATION = 0.95
 
 /** 물건을 무는 지점(0~1). 이때 물건이 고양이 손에 붙는다 */
-const GRAB_AT = 0.45
+const GRAB_AT = 0.3
+
+/** 현재 카메라에서 이탈선보다 이만큼 위를 고양이가 물 목표로 삼는다 */
+const PICKUP_ABOVE_KILL_LINE = 0.55
 
 interface CatView {
   readonly kind: CatKind
@@ -127,5 +131,9 @@ class CatPickup {
   }
 }
 
-export { CatPickup, KINDS, DURATION, GRAB_AT }
+function catPickupY(escapedY: number, cameraY: number): number {
+  return Math.max(escapedY, cameraY + ARENA.killY + PICKUP_ABOVE_KILL_LINE)
+}
+
+export { CatPickup, KINDS, DURATION, GRAB_AT, catPickupY }
 export type { CatKind, CatView }

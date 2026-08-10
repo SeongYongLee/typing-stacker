@@ -2,8 +2,11 @@
  * 점수와 목숨 — **판이 어떻게 끝나고 무엇이 남는가**.
  */
 
-/** 물건이 받침대를 벗어날 때마다 하나씩 줄고, 0이 되면 끝이다 */
+/** 대전에서 물건이 받침대를 벗어날 때마다 하나씩 줄고, 0이 되면 끝이다 */
 const LIVES = 3
+
+/** 싱글 게임 목숨. 대전보다 긴 판을 허용해 도감·화이트보드 흐름을 더 자주 보게 한다 */
+const SOLO_LIVES = 5
 
 /**
  * 목숨을 잃은 뒤 이만큼은 더 깎이지 않는다.
@@ -42,4 +45,4 @@ const SCORE = {
   craftBonus: 260,
 } as const
 
-export { LIVES, INVULNERABLE_SEC, SOLO_OWNER, SCORE }
+export { LIVES, SOLO_LIVES, INVULNERABLE_SEC, SOLO_OWNER, SCORE }

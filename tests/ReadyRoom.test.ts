@@ -27,6 +27,13 @@ function markup(chatEnabled: boolean): string {
 }
 
 describe('ReadyRoom 게임 규칙', () => {
+  it('왼쪽 내용과 규칙 설명을 GAME RULES 본문과 같은 17px로 보여준다', () => {
+    const html = markup(true)
+
+    expect(html.match(/font-size:17px/g)?.length).toBeGreaterThanOrEqual(5)
+    expect(html).not.toMatch(/font-size:(?:12|13|14|15)px/)
+  })
+
   it('친선전 준비 화면에서 코드·인원·티어 규칙을 보여준다', () => {
     const html = markup(true)
 

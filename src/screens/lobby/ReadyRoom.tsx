@@ -47,6 +47,9 @@ const READY_RULES: Record<'auto' | 'manual', readonly ReactNode[]> = {
   ],
 }
 
+// 혼자 하기 GAME RULES 본문과 같은 크기로 두 화면의 규칙을 한 체계로 읽게 한다
+const READY_TEXT_SIZE = 17
+
 const roomLayoutStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 440px) minmax(300px, 420px)',
@@ -89,8 +92,8 @@ function ReadyRoom({
   return (
     <div style={rootStyle}>
       <div style={roomLayoutStyle}>
-        <div style={panelStyle} data-ready-room={ready.size}>
-          <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
+        <div style={{ ...panelStyle, fontSize: READY_TEXT_SIZE }} data-ready-room={ready.size}>
+          <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
             같이 할 사람들
           </p>
 
@@ -122,7 +125,6 @@ function ReadyRoom({
                     style={{
                       flex: 1,
                       textAlign: 'left',
-                      fontSize: 17,
                       fontWeight: mine ? 700 : 500,
                       color: '#f2f4fb',
                     }}
@@ -131,7 +133,7 @@ function ReadyRoom({
                     {mine && ' (나)'}
                   </span>
                   <TierBadge rating={ratings.get(player.device)} />
-                  <span style={{ fontSize: 14, color: isReady ? '#6bffb0' : '#6a7290' }}>
+                  <span style={{ color: isReady ? '#6bffb0' : '#6a7290' }}>
                     {isReady ? '준비됨' : '기다리는 중…'}
                   </span>
                 </div>
@@ -145,11 +147,17 @@ function ReadyRoom({
           */}
           {phase.chatEnabled && <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />}
 
-          <MenuButton selected={!iAmReady} onClick={onReady} disabled={iAmReady} primary>
+          <MenuButton
+            selected={!iAmReady}
+            onClick={onReady}
+            disabled={iAmReady}
+            primary
+            style={{ fontSize: READY_TEXT_SIZE }}
+          >
             {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
           </MenuButton>
 
-          <MenuButton selected={false} onClick={onBack}>
+          <MenuButton selected={false} onClick={onBack} style={{ fontSize: READY_TEXT_SIZE }}>
             나가기 (Esc)
           </MenuButton>
         </div>
@@ -159,7 +167,7 @@ function ReadyRoom({
           aria-label="게임 규칙"
           data-ready-rules={rulesKind}
         >
-          <Blurb kind={rulesKind} lines={READY_RULES[rulesKind]} />
+          <Blurb kind={rulesKind} lines={READY_RULES[rulesKind]} fontSize={READY_TEXT_SIZE} />
         </aside>
       </div>
     </div>
@@ -228,12 +236,12 @@ function ChatBox({
         }}
       >
         {lines.length === 0 ? (
-          <span style={{ fontSize: 13, color: '#4a5171' }}>
+          <span style={{ color: '#4a5171' }}>
             시작 전에 한마디 나눌 수 있습니다.
           </span>
         ) : (
           lines.map((line) => (
-            <span key={line.seq} style={{ fontSize: 14, color: '#b6bdd4', lineHeight: 1.5 }}>
+            <span key={line.seq} style={{ color: '#b6bdd4', lineHeight: 1.5 }}>
               <b style={{ color: line.from === selfId ? '#e4e68a' : '#8bd6ff' }}>
                 {line.nickname}
               </b>{' '}
@@ -244,7 +252,7 @@ function ChatBox({
         <div ref={endRef} />
       </div>
       <input
-        style={{ ...fieldStyle, fontSize: 15, textAlign: 'left', padding: '10px 12px' }}
+        style={{ ...fieldStyle, fontSize: READY_TEXT_SIZE, textAlign: 'left', padding: '10px 12px' }}
         value={text}
         onChange={(event) => setText(event.currentTarget.value)}
         placeholder="한마디 (Enter로 보냅니다)"
@@ -293,7 +301,6 @@ function TierBadge({ rating }: { rating: number | undefined }) {
     <span
       data-tier-badge={tier.name}
       style={{
-        fontSize: 12,
         fontWeight: 700,
         color: tier.color,
         border: `1px solid ${tier.color}`,

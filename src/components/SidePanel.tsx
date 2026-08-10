@@ -35,7 +35,15 @@ function SidePanel({ record, blurb, kind }: SidePanelProps) {
 }
 
 /** 설명 줄들. 화면마다 목록만 다르고 생김새는 같다 */
-function Blurb({ lines, kind }: { lines: readonly ReactNode[]; kind: string }) {
+function Blurb({
+  lines,
+  kind,
+  fontSize = 13,
+}: {
+  lines: readonly ReactNode[]
+  kind: string
+  fontSize?: number
+}) {
   return (
     <ul
       style={{
@@ -43,7 +51,7 @@ function Blurb({ lines, kind }: { lines: readonly ReactNode[]; kind: string }) {
         padding: '0 0 0 16px',
         display: 'grid',
         gap: 8,
-        fontSize: 13,
+        fontSize,
         lineHeight: 1.65,
         color: '#b6bdd4',
       }}

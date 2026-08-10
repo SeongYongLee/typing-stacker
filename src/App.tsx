@@ -15,7 +15,10 @@ import { useAudioBoot, useMusic, useSplashDoor } from './hooks/useAudio.ts'
 import { musicFor, type Route } from './screenMusic.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
 import { useMatchSession } from './hooks/useMatchSession.ts'
+import { useCompetitionSession } from './hooks/useCompetitionSession.ts'
 import { CollectionScreen } from './screens/CollectionScreen.tsx'
+import { CompetitionLobbyScreen } from './screens/CompetitionLobbyScreen.tsx'
+import { CompetitionScreen } from './screens/CompetitionScreen.tsx'
 import { NameScreen } from './screens/NameScreen.tsx'
 import { OptionsScreen } from './screens/OptionsScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
@@ -51,6 +54,7 @@ function App() {
   const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
   const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
+  const competition = useCompetitionSession()
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
   useAudioBoot()
@@ -68,7 +72,10 @@ function App() {
     titleTheme,
     soloPhase: state?.phase ?? null,
     soloTimeOfDay: state?.timeOfDay.phase ?? null,
-    matchPhase: match.state?.phase ?? null,
+    matchPhase:
+      route === 'competition'
+        ? competition.state?.phase ?? null
+        : match.state?.phase ?? null,
   }))
 
   /*
@@ -178,10 +185,11 @@ function App() {
 
   const backToTitle = useCallback(() => {
     match.leave()
+    competition.leave()
     // 이걸 끄지 않으면 타이틀로 나온 뒤에 판이 저 혼자 열린다
     setSoloStage(null)
     openTitle()
-  }, [match, openTitle])
+  }, [match, competition, openTitle])
 
   if (route === 'loopback') {
     return <LoopbackScreen onBack={openTitle} />
@@ -201,6 +209,29 @@ function App() {
         collected={state?.collected ?? []}
         onBack={openTitle}
       />
+    )
+  }
+
+  if (route === 'competition') {
+    const phase = competition.phase
+    if (phase?.kind === 'playing' && competition.state !== null) {
+      return (
+        <CompetitionScreen
+          engine={phase.engine}
+          state={competition.state}
+          onLeave={backToTitle}
+        />
+      )
+    }
+    return (
+      <SplashBackdrop>
+        <CompetitionLobbyScreen
+          phase={phase}
+          onOpen={competition.open}
+          onReady={competition.setReady}
+          onBack={backToTitle}
+        />
+      </SplashBackdrop>
     )
   }
 
@@ -231,6 +262,7 @@ function App() {
           onStart={startSolo}
           onName={() => setRoute('name')}
           onMultiplayer={() => setRoute('lobby')}
+          onCompetition={() => setRoute('competition')}
           onCollection={() => setRoute('collection')}
           onOptions={() => setRoute('options')}
           ready={engine !== null && state !== null && assetProgress >= 1}

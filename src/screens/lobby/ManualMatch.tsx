@@ -3,7 +3,6 @@ import { MenuButton } from '../../components/MenuButton.tsx'
 import { MenuField } from '../../components/MenuField.tsx'
 import { IconPicker } from '../../components/IconPicker.tsx'
 import { useMenuKeys } from '../../hooks/useMenuKeys.ts'
-import type { JoinRequest } from '../../hooks/useMatchSession.ts'
 import { NICKNAME_MAX, ROOM_CODE_LENGTH, isRoomCode } from '../../multi/protocol.ts'
 import {
   isUsableName,
@@ -29,12 +28,20 @@ import { fieldStyle, panelStyle, pathLabelStyle, rootStyle } from './lobbyStyle.
  * 한 번 적은 이름은 저장해 다음에 채워둔다. 같은 사람들과 다시 할 때마다 새로 짓게
  * 하면 그것이 문턱이 된다.
  */
+interface ManualJoinRequest {
+  readonly mode: { readonly kind: 'host' } | { readonly kind: 'join'; readonly code: string }
+  readonly nickname: string
+  readonly icon: string
+}
+
 function ManualMatch({
   onOpen,
   onBack,
+  title = '친선전',
 }: {
-  onOpen: (request: JoinRequest) => void
+  onOpen: (request: ManualJoinRequest) => void
   onBack: () => void
+  title?: string
 }) {
   const [name, setName] = useState(() => loadManualName())
   /*
@@ -48,7 +55,7 @@ function ManualMatch({
   const named = isUsableName(name)
   const codeReady = named && isRoomCode(trimmedCode)
 
-  const enter = (mode: JoinRequest['mode']): void => {
+  const enter = (mode: ManualJoinRequest['mode']): void => {
     if (!named) {
       return
     }
@@ -105,7 +112,7 @@ function ManualMatch({
     <div style={rootStyle}>
       <div style={{ ...panelStyle, gap: 12 }} data-manual-match={named ? 'named' : 'unnamed'}>
         <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          친선전
+          {title}
         </h2>
 
         <span style={pathLabelStyle}>이름</span>
@@ -201,3 +208,4 @@ function ManualMatch({
  */
 
 export { ManualMatch }
+export type { ManualJoinRequest }

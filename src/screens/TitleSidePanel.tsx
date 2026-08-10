@@ -5,6 +5,7 @@ import type { Leaderboard } from '../hooks/useLeaderboard.ts'
 import { LIVES } from '../game/config.ts'
 import { TURN_LIMIT_SEC } from '../multi/MatchEngine.ts'
 import { MAX_PLAYERS } from '../multi/protocol.ts'
+import { COMPETITION_MAX_PLAYERS } from '../competition/config.ts'
 
 /** 시작 화면에서 고른 항목에 딸린 것을 옆에 보여준다 */
 interface TitleSidePanelProps {
@@ -12,7 +13,7 @@ interface TitleSidePanelProps {
   board: Leaderboard
 }
 
-type PanelKind = 'name' | 'solo' | 'versus' | 'collection' | 'options'
+type PanelKind = 'name' | 'solo' | 'versus' | 'competition' | 'collection' | 'options'
 
 /**
  * 항목마다의 설명.
@@ -24,6 +25,15 @@ type BlurbPanelKind = Exclude<PanelKind, 'solo'>
 
 const BLURBS: Record<BlurbPanelKind, readonly ReactNode[]> = {
   name: ['순위표와 대전 상대에게 보이는 이름과 아이콘을 바꿉니다.'],
+  competition: [
+    <>최대 {COMPETITION_MAX_PLAYERS}명이 각자 다른 단어를 치며 받침대 하나에 동시에 쌓습니다.</>,
+    <>
+      단어를 놓치거나 내 물건이 떨어지면 <Danger>내 목숨</Danger>이 하나 줄어듭니다.
+    </>,
+    <>
+      턴과 점수는 없습니다. <Key>마지막 생존자</Key>가 이깁니다.
+    </>,
+  ],
   versus: [
     <>받침대 하나를 최대 {MAX_PLAYERS}명이 함께 씁니다. 목숨은 각자 {LIVES}개입니다.</>,
     <>

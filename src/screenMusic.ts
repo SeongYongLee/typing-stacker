@@ -4,7 +4,7 @@ import type { GamePhase } from './game/types/game.ts'
 import type { TitleTheme } from './screens/titleTheme.ts'
 
 /** 지금 어느 화면에 있는지. 싱글과 대전은 서로 다른 엔진을 쓴다 */
-type Route = 'title' | 'solo' | 'lobby' | 'collection' | 'options' | 'name' | 'loopback'
+type Route = 'title' | 'solo' | 'lobby' | 'competition' | 'collection' | 'options' | 'name' | 'loopback'
 
 interface MusicScene {
   readonly route: Route
@@ -43,6 +43,7 @@ function musicFor(scene: MusicScene): BgmTrackName | null {
     case 'title':
       return splashTrack
     case 'lobby':
+    case 'competition':
       // 대전은 낮에 머문다. 판이 열리기 전만 대기방 곡이다
       return scene.matchPhase === null ? 'lobby' : 'gameDay'
     case 'solo':

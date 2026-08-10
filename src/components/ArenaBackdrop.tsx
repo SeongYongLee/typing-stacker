@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
@@ -159,31 +159,98 @@ function Whiteboard({
   activeWords: readonly string[]
   nightfall: number
 }) {
+  const erasedWords = useErasedWords(words)
   const active = new Set(activeWords)
   return (
     <div aria-label={words.length === 0 ? '회수 목록 없음' : `회수 목록: ${words.join(', ')}`} style={boardStyle}>
       <div aria-hidden style={fill('whiteboard-day', 1)} />
       <div aria-hidden style={fill('whiteboard-night', nightfall)} />
-      {words.length > 0 && (
+      <style>{whiteboardAnimationCss}</style>
+      {(words.length > 0 || erasedWords.length > 0) && (
         <div style={wordListStyle}>
-          {words.map((word) => (
+          {words.map((word, index) => (
             <span
               key={word}
               data-whiteboard-word={word}
               data-whiteboard-active={active.has(word) ? 'true' : undefined}
               style={{
                 ...wordStyle,
+                ...scribbleStyle(word, index),
                 opacity: active.has(word) ? 0.64 : 0.34,
-                borderBottom: active.has(word) ? '1px solid rgba(43, 57, 51, 0.28)' : '1px solid transparent',
               }}
             >
+              {active.has(word) && <span aria-hidden style={circleStyle(word, index)} />}
               {word}
+            </span>
+          ))}
+          {erasedWords.map((entry) => (
+            <span
+              key={entry.id}
+              aria-hidden
+              style={{
+                ...wordStyle,
+                ...scribbleStyle(entry.word, entry.index),
+                ...eraseWordStyle,
+              }}
+            >
+              <span style={eraseGhostStyle}>{entry.word}</span>
+              <span style={eraserSwipeStyle(entry.word, entry.index)} />
             </span>
           ))}
         </div>
       )}
     </div>
   )
+}
+
+type ErasedWord = {
+  readonly id: string
+  readonly word: string
+  readonly index: number
+}
+
+function useErasedWords(words: readonly string[]): readonly ErasedWord[] {
+  const previousRef = useRef<readonly string[] | null>(null)
+  const nextIdRef = useRef(0)
+  const timersRef = useRef<number[]>([])
+  const [erased, setErased] = useState<readonly ErasedWord[]>([])
+
+  useEffect(() => {
+    const previous = previousRef.current
+    previousRef.current = words
+    if (previous === null) {
+      return
+    }
+    const current = new Set(words)
+    const removed = previous.flatMap((word, index) => {
+      if (current.has(word)) {
+        return []
+      }
+      const id = `${word}-${nextIdRef.current}`
+      nextIdRef.current += 1
+      return [{ id, word, index }]
+    })
+    if (removed.length === 0) {
+      return
+    }
+    setErased((currentErased) => [...currentErased, ...removed])
+    const timer = window.setTimeout(() => {
+      setErased((currentErased) => currentErased.filter((entry) => !removed.some((item) => item.id === entry.id)))
+      timersRef.current = timersRef.current.filter((item) => item !== timer)
+    }, 760)
+    timersRef.current = [...timersRef.current, timer]
+  }, [words])
+
+  useEffect(() => {
+    return () => {
+      for (const timer of timersRef.current) {
+        window.clearTimeout(timer)
+      }
+      timersRef.current = []
+    }
+  }, [])
+
+  return erased
 }
 
 const BOARD_CENTER_X = 50.5
@@ -203,25 +270,143 @@ const wordListStyle: CSSProperties = {
   position: 'absolute',
   left: '14%',
   right: '14%',
-  top: '28%',
-  bottom: '16%',
-  display: 'grid',
-  gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
-  alignItems: 'center',
-  transform: 'rotate(-1.6deg)',
+  top: '16%',
+  bottom: '18%',
 }
 
 const wordStyle: CSSProperties = {
-  position: 'relative',
+  position: 'absolute',
   display: 'block',
   color: '#2b3933',
-  fontSize: 'clamp(12px, 1.15vw, 21px)',
-  fontWeight: 600,
+  fontFamily: '"Nanum Pen Script", "Nanum Brush Script", "Apple SD Gothic Neo", "Malgun Gothic", cursive',
+  fontWeight: 500,
   lineHeight: 1,
-  letterSpacing: '0.01em',
+  letterSpacing: '0.02em',
   textAlign: 'center',
   textShadow: '0 0 1px rgba(255, 255, 255, 0.28)',
   filter: 'blur(0.15px)',
+}
+
+const eraseWordStyle: CSSProperties = {
+  opacity: 0.32,
+  animation: 'whiteboard-erase-word 760ms ease-out forwards',
+}
+
+const eraseGhostStyle: CSSProperties = {
+  position: 'relative',
+  zIndex: 1,
+}
+
+const whiteboardAnimationCss = `
+@keyframes whiteboard-erase-word {
+  0% { opacity: 0.34; filter: blur(0.15px); }
+  42% { opacity: 0.2; filter: blur(0.5px); }
+  100% { opacity: 0; filter: blur(1.1px); }
+}
+
+@keyframes whiteboard-eraser-swipe {
+  0% { opacity: 0; transform: translate(-74%, -50%) rotate(var(--erase-rotation)) scaleX(0.34); }
+  18% { opacity: 0.52; }
+  100% { opacity: 0; transform: translate(36%, -50%) rotate(var(--erase-rotation)) scaleX(1.16); }
+}
+
+@keyframes whiteboard-circle-draw {
+  0% {
+    opacity: 0;
+    clip-path: polygon(50% 50%, 50% 50%, 50% 50%, 50% 50%);
+    transform: translate(-50%, -50%) rotate(var(--circle-rotation)) scale(0.92);
+  }
+  35% {
+    opacity: 0.22;
+    clip-path: polygon(50% 0%, 100% 0%, 100% 54%, 50% 54%);
+  }
+  70% {
+    opacity: 0.36;
+    clip-path: polygon(50% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 48%);
+  }
+  100% {
+    opacity: 1;
+    clip-path: polygon(50% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%);
+    transform: translate(-50%, -50%) rotate(var(--circle-rotation)) scale(1);
+  }
+}
+`
+
+function eraserSwipeStyle(word: string, index: number): CSSProperties {
+  const seed = hashText(word) + index * 307
+  const rotation = -5 + jitter(seed, 7) * 10
+  return {
+    '--erase-rotation': `${rotation}deg`,
+    position: 'absolute',
+    zIndex: 2,
+    left: '50%',
+    top: '52%',
+    width: 'calc(100% + 30px)',
+    height: '1.15em',
+    borderRadius: '45% 52% 48% 46%',
+    background:
+      'linear-gradient(90deg, rgba(228, 231, 219, 0), rgba(228, 231, 219, 0.62) 28%, rgba(232, 234, 224, 0.72) 56%, rgba(228, 231, 219, 0))',
+    boxShadow: '0 0 5px rgba(225, 228, 218, 0.42)',
+    filter: 'blur(1.1px)',
+    pointerEvents: 'none',
+    animation: 'whiteboard-eraser-swipe 760ms ease-out forwards',
+  } as CSSProperties
+}
+
+function circleStyle(word: string, index: number): CSSProperties {
+  const seed = hashText(word) + index * 211
+  const rotation = -7 + jitter(seed, 6) * 14
+  return {
+    '--circle-rotation': `${rotation}deg`,
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 'calc(100% + 22px)',
+    height: 'calc(100% + 12px)',
+    transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+    border: '2px solid rgba(43, 57, 51, 0.34)',
+    borderRadius: '48% 54% 51% 46% / 56% 44% 52% 48%',
+    boxShadow: 'inset 0 0 0 1px rgba(43, 57, 51, 0.08)',
+    pointerEvents: 'none',
+    animation: 'whiteboard-circle-draw 520ms cubic-bezier(0.22, 0.74, 0.24, 1) both',
+  } as CSSProperties
+}
+
+function scribbleStyle(word: string, index: number): CSSProperties {
+  const seed = hashText(word) + index * 101
+  const anchors = [
+    { x: 28, y: 18 },
+    { x: 70, y: 42 },
+    { x: 42, y: 72 },
+  ] as const
+  const anchor = anchors[index % anchors.length]!
+  const x = anchor.x + (jitter(seed, 0) - 0.5) * 22
+  const y = anchor.y + (jitter(seed, 1) - 0.5) * 16
+  const rotation = -8 + jitter(seed, 2) * 16
+  const size = 19 + jitter(seed, 3) * 16
+  const stretch = 0.94 + jitter(seed, 4) * 0.12
+  return {
+    left: `${x}%`,
+    top: `${y}%`,
+    fontSize: `clamp(16px, ${size / 12}vw, ${size}px)`,
+    transform: `translate(-50%, -50%) rotate(${rotation}deg) scaleX(${stretch})`,
+  }
+}
+
+function hashText(text: string): number {
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function jitter(seed: number, salt: number): number {
+  let value = (seed + Math.imul(salt + 1, 0x9e3779b9)) >>> 0
+  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b)
+  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35)
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967296
 }
 
 function fill(name: 'whiteboard-day' | 'whiteboard-night', alpha: number): CSSProperties {

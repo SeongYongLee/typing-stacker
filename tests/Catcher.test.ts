@@ -22,17 +22,14 @@ const TOPS = [0, ARENA.platformTop, 1.6, 2.4, 3.4]
 const SIDES = ['left', 'right'] as const
 
 describe('회수 판을 놓는 자리', () => {
-  it('안쪽 끝이 떨군 자리를 덮는다', () => {
+  it('물건을 받침대 밖 손 위에 떨군다', () => {
     for (const side of SIDES) {
       {
         const dropX = recallDropX(side)
-        const spot = catchSpot(dropX, side, 1.6)
-        /*
-         * 안쪽 끝이 떨군 자리보다 **안쪽**에 있어야 물건이 판 위에 온전히 앉는다.
-         * 딱 맞으면 물건의 반폭이 판 밖으로 걸쳐 모서리에서 튕긴다.
-         */
-        const inside = side === 'left' ? spot.innerX - dropX : dropX - spot.innerX
-        expect(inside, `${side} · 떨군 자리 ${dropX}`).toBeGreaterThanOrEqual(MAX_ITEM_HALF_WIDTH)
+        expect(Math.abs(dropX), side).toBeGreaterThan(
+          ARENA.platformHalfWidth + MAX_ITEM_HALF_WIDTH * 0.5,
+        )
+        expect(Math.abs(dropX), side).toBeLessThan(ARENA.halfWidth - MAX_ITEM_HALF_WIDTH * 0.5)
       }
     }
   })
@@ -81,8 +78,8 @@ describe('회수 판을 놓는 자리', () => {
   })
 
   it('빼내는 쪽이 단어가 내려온 레인을 따른다', () => {
-    expect(catchSpot(0, 'left', 1.6).outerX).toBeLessThan(0)
-    expect(catchSpot(0, 'right', 1.6).outerX).toBeGreaterThan(0)
+    expect(recallDropX('left')).toBeLessThan(0)
+    expect(recallDropX('right')).toBeGreaterThan(0)
   })
 })
 

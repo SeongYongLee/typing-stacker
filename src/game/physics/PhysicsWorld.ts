@@ -1091,8 +1091,8 @@ class PhysicsWorld {
    * 둘째, **잠깐 있다 사라진다.** 그래서 목록이 아니라 하나만 들고 있고, 새로 세우면
    * 앞의 것을 치운다 — 겹쳐 세우면 배출구가 공중 발판이 된다.
    *
-   * 마찰을 통나무(0.9)보다 낮게 두는 것은 미끄러지라고 만든 판이기 때문이다. 0으로
-   * 두지 않는 것은 물건이 얹히자마자 튀어나가면 "회수됐다"가 아니라 "쳐냈다"로 보여서다.
+   * 마찰을 거의 두지 않는 것은 미끄러지라고 만든 판이기 때문이다. 통나무처럼 붙잡으면
+   * 팔이 사라진 뒤 물건이 다시 필드로 떨어져, 회수가 아니라 늦은 드롭이 된다.
    */
   setCatcher(plank: { x: number; y: number; halfLength: number; angle: number }): void {
     this.clearCatcher()
@@ -1102,7 +1102,7 @@ class PhysicsWorld {
     this.world.createCollider(
       rapier()
         .ColliderDesc.cuboid(plank.halfLength, CATCH.halfThickness)
-        .setFriction(0.25)
+        .setFriction(0.04)
         .setRestitution(0.02),
       body,
     )

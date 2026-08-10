@@ -2,8 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { PhysicsWorld, type SettleEvent } from '../src/game/physics/PhysicsWorld.ts'
 import { isEscaped } from '../src/game/physics/collapseDetector.ts'
 import { halfExtentY, shapeBounds } from '../src/game/shapes.ts'
-import { ARENA, SOLO_OWNER } from '../src/game/config.ts'
+import { ARENA, CATCH, SOLO_OWNER } from '../src/game/config.ts'
 import { WORDS } from '../src/game/data/words.ts'
+import { catchSpot, plankOf, recallDropX } from '../src/game/systems/Catcher.ts'
 import type { ItemVariant, OwnerId } from '../src/game/types/game.ts'
 
 /**
@@ -88,6 +89,18 @@ describe('PhysicsWorld', () => {
     const { escaped } = simulate(world, 5)
     expect(escaped).toEqual([SOLO_OWNER])
     // 이탈한 물건은 세계에서 치워진다 — 남겨두면 매 프레임 이탈로 잡혀 목숨이 한꺼번에 날아간다
+    expect(world.itemCount).toBe(0)
+  })
+
+  it('회수 손은 받침대 밖에서 물건을 받아 필드에 남기지 않는다', () => {
+    world.reset()
+    const side = 'right'
+    const dropX = recallDropX(side)
+    world.setCatcher(plankOf(catchSpot(dropX, side, ARENA.platformTop)))
+    world.spawnItemAt(stackable(), dropX, ARENA.spawnY, SOLO_OWNER, 0, true)
+
+    const { escaped } = simulate(world, CATCH.holdSec)
+    expect(escaped).toEqual([SOLO_OWNER])
     expect(world.itemCount).toBe(0)
   })
 

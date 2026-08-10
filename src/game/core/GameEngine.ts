@@ -404,10 +404,6 @@ class GameEngine {
     if (recalled) {
       const side = result.word.side
       const dropX = recallDropX(side)
-      const catcher = plankOf(catchSpot(dropX, side, this.physics.stackTop()))
-      this.physics.setCatcher(catcher)
-      this.catcherView = catcher
-      this.catcherLeft = CATCH.holdSec
       this.queueDrop(variant, dropX, true)
     } else {
       this.queueDrop(variant, this.aimer.worldX)
@@ -541,6 +537,13 @@ class GameEngine {
    * 대기하다 떨어진 것도 여기를 지나므로, 낙하음이 물건이 생기는 순간과 어긋나지 않는다.
    */
   private dropNow(variant: ItemVariant, x: number, recalled = false): void {
+    if (recalled) {
+      const side = x < 0 ? 'left' : 'right'
+      const catcher = plankOf(catchSpot(x, side, this.physics.stackTop()))
+      this.physics.setCatcher(catcher)
+      this.catcherView = catcher
+      this.catcherLeft = CATCH.holdSec
+    }
     this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER, 0, recalled)
     this.sinceLastDrop = 0
     this.fire({

@@ -145,8 +145,12 @@ function drawCatcher(
   },
 ): void {
   const { ctx } = view
-  const width = catcher.halfLength * 2.25 * view.scale
   const art = GENERATED_ART['catch-day']
+  /*
+   * 손 그림은 물리 판 길이에 맞춰 늘리지 않는다. 회수 손은 "여기서 받아 간다"는
+   * 연출이지 길이가 변하는 도구가 아니므로, 이미지가 가진 비율과 화면 크기만 따른다.
+   */
+  const width = Math.min(260, Math.max(190, view.scale * 2.25))
   const height = width * (art.height / art.width)
   const x = view.toScreenX(catcher.x)
   const y = view.toScreenY(catcher.y)
@@ -154,7 +158,8 @@ function drawCatcher(
   const fadeIn = Math.min(catcher.progress / 0.18, 1)
   const fadeOut = Math.min((1 - catcher.progress) / 0.22, 1)
   const alpha = Math.max(0, Math.min(fadeIn, fadeOut))
-  const slide = (1 - fadeIn) * 34
+  const motion = catcher.progress < 0.5 ? 1 - fadeIn : 1 - fadeOut
+  const slide = motion * 34
   /*
    * 손 그림은 원본부터 왼쪽 아래 → 오른쪽 위로 45도쯤 뻗어 있다. 물리 각도를 그대로
    * 더하면 그림이 두 번 기울어져 뒤집히므로, 원본 기울기에서 회수 판 기울기만큼만 보정한다.

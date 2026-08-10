@@ -28,6 +28,7 @@ const WHITEBOARD_CENTER_Y = 31.7
 const WHITEBOARD_WIDTH = 33.9 * 0.8
 const WHITEBOARD_ASPECT = 610 / 1200
 const WHITEBOARD_WORD_AREA = { left: 0.07, top: 0.16, width: 0.86, height: 0.66 } as const
+const WHITEBOARD_RECALL_TRAVEL_END = 0.62
 
 /**
  * 재료가 출발하는 방향.
@@ -435,7 +436,8 @@ function drawWhiteboardRecall(
   }
 
   const t = Math.min(Math.max(recall.progress, 0), 1)
-  const eased = t * t * (3 - 2 * t)
+  const travel = Math.min(t / WHITEBOARD_RECALL_TRAVEL_END, 1)
+  const eased = travel * travel * (3 - 2 * travel)
   const start = whiteboardWordScreenPoint(view, recall.word, recall.index)
   const side = recall.side
   const sign = side === 'left' ? -1 : 1
@@ -444,16 +446,16 @@ function drawWhiteboardRecall(
     y: view.toScreenY(catcher.y) - view.scale * 0.16,
   }
   /*
-   * 화면 좌표는 위가 작다. 중간점을 위로 끌어올려 "보드에서 위로 톡 던져 손에
-   * 들어간다"로 보이게 한다. 물리 바디가 아니므로 기존 판 위 물건과 부딪치지 않는다.
+   * 화면 좌표는 아래가 +y다. 실제 물리 바디는 아니지만 y만큼은 중력식을 따른다.
+   * 이동은 앞 구간에서 끝낸다. 그 뒤에는 손에 얹힌 채 잠깐 머물다가, 손의 페이드아웃
+   * 곡선을 그대로 타고 같이 사라진다. 렌더 전용이라 기존 판 위 물건과 부딪치지 않는다.
    */
-  const peakLift = Math.max(92, view.scale * 1.25)
-  const control = {
-    x: (start.x + end.x) / 2 + sign * view.scale * 0.22,
-    y: Math.min(start.y, end.y) - peakLift,
-  }
-  const cx = quadratic(start.x, control.x, end.x, eased)
-  const cy = quadratic(start.y, control.y, end.y, eased)
+  const arcLift = Math.max(138, view.scale * 1.7)
+  const fadeExit = Math.max(0, (catcher.progress - 0.78) / 0.22)
+  const exitX = sign * fadeExit * Math.max(64, view.scale * 0.72)
+  const exitY = fadeExit * Math.max(18, view.scale * 0.22)
+  const cx = start.x + (end.x - start.x) * eased + sign * Math.sin(Math.PI * travel) * view.scale * 0.16 + exitX
+  const cy = start.y + (end.y - start.y) * travel - Math.sin(Math.PI * travel) * arcLift + exitY
   const ratio = img.naturalWidth / img.naturalHeight
   const base = view.scale * (0.58 + Math.sin(Math.PI * eased) * 0.12)
   const width = ratio >= 1 ? base : base * ratio
@@ -551,11 +553,6 @@ function whiteboardWordScreenPoint(
     x: boardLeft + boardWidth * (WHITEBOARD_WORD_AREA.left + WHITEBOARD_WORD_AREA.width * wordX / 100),
     y: boardTop + boardHeight * (WHITEBOARD_WORD_AREA.top + WHITEBOARD_WORD_AREA.height * wordY / 100),
   }
-}
-
-function quadratic(from: number, control: number, to: number, t: number): number {
-  const inv = 1 - t
-  return inv * inv * from + 2 * inv * t * control + t * t * to
 }
 
 function hashText(text: string): number {

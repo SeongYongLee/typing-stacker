@@ -31,48 +31,42 @@ import { MODE_BLURBS, modeLabel, nextModeChoice } from './modeRules.tsx'
  * 상대가 들어오자마자 판이 열리면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
  * 없다 — 첫 단어가 이미 내려오고 있다. 양쪽이 준비를 눌러야 시작한다.
  */
-function readyRules(kind: 'auto' | 'manual', choice: MatchModeChoice): readonly ReactNode[] {
+function readyRules(choice: MatchModeChoice): readonly ReactNode[] {
   const modeTitle = (
     <>
       모드: <Key>{modeLabel(choice)}</Key>
     </>
   )
-  const tail = kind === 'auto'
-    ? [
-        <>
-          랭크 게임은 <Key>1대1</Key>로 진행합니다.
-        </>,
-        <>
-          <Key>비슷한 티어</Key>의 상대를 찾아주고, 이긴 만큼 티어 점수가 오릅니다.
-        </>,
-      ]
-    : [
-        <>
-          <Key>방 참가 코드</Key>를 주고받아 아는 사람과 모입니다.
-        </>,
-        <>최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.</>,
-        <>
-          친선전에서는 <Key>티어 점수는 바뀌지 않습니다.</Key>
-        </>,
-      ]
   return [
     modeTitle,
     ...MODE_BLURBS[choice],
     <>
       하트 {LIVES}개를 잃으면 탈락합니다.
     </>,
-    ...tail,
   ]
 }
 
 // 혼자 하기 GAME RULES 본문과 같은 크기로 두 화면의 규칙을 한 체계로 읽게 한다
 const READY_TEXT_SIZE = 17
+const PLAYER_ROW_HEIGHT = 58
+const PLAYER_ROW_GAP = 10
+const PLAYER_STATUS_WIDTH = 106
+const CHAT_LOG_HEIGHT = 360
+const playerListMaxHeight = MAX_PLAYERS * PLAYER_ROW_HEIGHT + (MAX_PLAYERS - 1) * PLAYER_ROW_GAP
 
 const roomLayoutStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 440px) minmax(300px, 420px)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
   gap: 20,
-  alignItems: 'start',
+  alignItems: 'stretch',
+  width: 'min(1180px, 96vw)',
+}
+
+const readyColumnStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateRows: 'auto auto auto',
+  gap: 12,
+  alignContent: 'start',
 }
 
 function ReadyRoom({
@@ -97,7 +91,7 @@ function ReadyRoom({
   const ratings = useRosterTiers(phase.players)
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
   const rulesKind = phase.chatEnabled ? 'manual' : 'auto'
-  const rules = readyRules(rulesKind, phase.matchModeChoice)
+  const rules = readyRules(phase.matchModeChoice)
   const changeMode = (): void => onMatchMode(nextModeChoice(phase.matchModeChoice))
 
   useMenuKeys({
@@ -111,96 +105,179 @@ function ReadyRoom({
     onCancel: onBack,
   })
 
+  const playersPanel = (
+    <div
+      style={{
+        ...panelStyle,
+        width: '100%',
+        alignContent: 'start',
+        fontSize: READY_TEXT_SIZE,
+      }}
+      data-ready-room={ready.size}
+    >
+      <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
+        같이 할 사람들
+      </p>
+
+      <div
+        style={{
+          display: 'grid',
+          gap: PLAYER_ROW_GAP,
+          maxHeight: playerListMaxHeight,
+          overflowY: 'auto',
+        }}
+      >
+        {phase.players.map((player, index) => {
+          const isReady = ready.has(player.id)
+          const mine = player.id === phase.selfId
+          return (
+            <div
+              key={player.id}
+              data-ready={isReady ? 'yes' : 'no'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                minHeight: PLAYER_ROW_HEIGHT,
+                padding: '14px 16px',
+                borderRadius: 12,
+                background: '#0d0f16',
+                border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
+              }}
+            >
+              {/*
+                 색 점 자리에 아이콘을 둔다. 테두리가 그 사람의 색이므로 점이 하던
+                 일(누가 누구인지)은 그대로이고, 아이콘을 안 고른 사람은 빈 동그라미가
+                 같은 자리를 지킨다 — 줄이 어긋나지 않는다.
+               */}
+              <Avatar icon={player.icon} size={26} ring={ownerColorAt(index)} />
+              <span
+                style={{
+                  flex: 1,
+                  textAlign: 'left',
+                  fontWeight: mine ? 700 : 500,
+                  color: '#f2f4fb',
+                }}
+              >
+                {player.nickname}
+                {mine && ' (나)'}
+              </span>
+              <TierBadge rating={ratings.get(player.device)} />
+              <span
+                style={{
+                  width: PLAYER_STATUS_WIDTH,
+                  flex: `0 0 ${PLAYER_STATUS_WIDTH}px`,
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap',
+                  color: isReady ? '#6bffb0' : '#6a7290',
+                }}
+              >
+                {isReady ? '준비됨' : '기다리는 중…'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+  const rulesPanel = (
+    <aside
+      style={{ ...panelBoxStyle, width: '100%' }}
+      aria-label="게임 규칙"
+      data-ready-rules={rulesKind}
+    >
+      <Blurb kind={rulesKind} lines={rules} fontSize={READY_TEXT_SIZE} />
+    </aside>
+  )
+  const modePanel = (
+    <div style={{ ...panelStyle, width: '100%', fontSize: READY_TEXT_SIZE }}>
+      <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
+        모드 설정
+      </p>
+      <MenuButton
+        selected={false}
+        onClick={changeMode}
+        disabled={!phase.canChangeMatchMode}
+        style={{ fontSize: READY_TEXT_SIZE }}
+      >
+        모드 · {modeLabel(phase.matchModeChoice)}
+        {!phase.canChangeMatchMode && ' (호스트만 변경)'}
+      </MenuButton>
+    </div>
+  )
+  const readyButton = (
+    <MenuButton
+      selected={!iAmReady}
+      onClick={onReady}
+      disabled={iAmReady}
+      primary
+      style={{ fontSize: READY_TEXT_SIZE }}
+    >
+      {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
+    </MenuButton>
+  )
+  const backButton = (
+    <MenuButton selected={false} onClick={onBack} style={{ fontSize: READY_TEXT_SIZE }}>
+      나가기 (Esc)
+    </MenuButton>
+  )
+
+  if (!phase.chatEnabled) {
+    return (
+      <div style={rootStyle}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 20,
+            alignItems: 'start',
+            width: 'min(760px, 96vw)',
+          }}
+        >
+          {playersPanel}
+          <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+            {rulesPanel}
+            {readyButton}
+            {backButton}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={rootStyle}>
       <div style={roomLayoutStyle}>
-        <div style={{ ...panelStyle, fontSize: READY_TEXT_SIZE }} data-ready-room={ready.size}>
-          <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
-            같이 할 사람들
-          </p>
+        {playersPanel}
 
-          <div style={{ display: 'grid', gap: 10 }}>
-            {phase.players.map((player, index) => {
-              const isReady = ready.has(player.id)
-              const mine = player.id === phase.selfId
-              return (
-                <div
-                  key={player.id}
-                  data-ready={isReady ? 'yes' : 'no'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '14px 16px',
-                    borderRadius: 12,
-                    background: '#0d0f16',
-                    border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
-                  }}
-                >
-                  {/*
-                     색 점 자리에 아이콘을 둔다. 테두리가 그 사람의 색이므로 점이 하던
-                     일(누가 누구인지)은 그대로이고, 아이콘을 안 고른 사람은 빈 동그라미가
-                     같은 자리를 지킨다 — 줄이 어긋나지 않는다.
-                   */}
-                  <Avatar icon={player.icon} size={26} ring={ownerColorAt(index)} />
-                  <span
-                    style={{
-                      flex: 1,
-                      textAlign: 'left',
-                      fontWeight: mine ? 700 : 500,
-                      color: '#f2f4fb',
-                    }}
-                  >
-                    {player.nickname}
-                    {mine && ' (나)'}
-                  </span>
-                  <TierBadge rating={ratings.get(player.device)} />
-                  <span style={{ color: isReady ? '#6bffb0' : '#6a7290' }}>
-                    {isReady ? '준비됨' : '기다리는 중…'}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-
-          {/*
-            코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
-            자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
-          */}
-          {phase.chatEnabled && <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />}
-
-          <MenuButton
-            selected={!iAmReady}
-            onClick={onReady}
-            disabled={iAmReady}
-            primary
-            style={{ fontSize: READY_TEXT_SIZE }}
-          >
-            {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
-          </MenuButton>
-
-          <MenuButton
-            selected={false}
-            onClick={changeMode}
-            disabled={!phase.canChangeMatchMode}
-            style={{ fontSize: READY_TEXT_SIZE }}
-          >
-            모드 · {modeLabel(phase.matchModeChoice)}
-            {!phase.canChangeMatchMode && ' (호스트만 변경)'}
-          </MenuButton>
-
-          <MenuButton selected={false} onClick={onBack} style={{ fontSize: READY_TEXT_SIZE }}>
-            나가기 (Esc)
-          </MenuButton>
+        <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+          {modePanel}
+          {rulesPanel}
         </div>
 
-        <aside
-          style={{ ...panelBoxStyle, width: '100%' }}
-          aria-label="게임 규칙"
-          data-ready-rules={rulesKind}
-        >
-          <Blurb kind={rulesKind} lines={rules} fontSize={READY_TEXT_SIZE} />
-        </aside>
+        <div style={readyColumnStyle}>
+          {phase.chatEnabled ? (
+            <div
+              style={{
+                ...panelStyle,
+                width: '100%',
+                minHeight: CHAT_LOG_HEIGHT + 112,
+                fontSize: READY_TEXT_SIZE,
+              }}
+            >
+              {/*
+                코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
+                자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
+              */}
+              <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />
+            </div>
+          ) : (
+            <div />
+          )}
+
+          {readyButton}
+          {backButton}
+        </div>
       </div>
     </div>
   )
@@ -255,7 +332,7 @@ function ChatBox({
     <div style={{ display: 'grid', gap: 8 }} data-chat={lines.length}>
       <div
         style={{
-          height: 120,
+          height: CHAT_LOG_HEIGHT,
           overflowY: 'auto',
           textAlign: 'left',
           padding: '8px 10px',

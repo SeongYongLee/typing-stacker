@@ -24,7 +24,7 @@ function useRulesMenu(): readonly RulesMenuItem[] {
   return useMemo(
     () => [
       {
-        label: `싱글 · ${onOff(settings.soloRules)}`,
+        label: `혼자 하기 · ${onOff(settings.soloRules)}`,
         run: () => updateDisplaySettings({ soloRules: !settings.soloRules }),
       },
     ],

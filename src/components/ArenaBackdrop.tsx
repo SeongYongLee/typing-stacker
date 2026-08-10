@@ -3,10 +3,17 @@ import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
 
-interface ArenaBackdropProps {
-  /** 지금 몇 시인가. 조명과 벽시계가 이것을 따라간다 */
-  time: TimeOfDay
-}
+type ArenaBackdropProps =
+  | {
+      mode: 'solo'
+      /** 판의 국면. 조명과 벽시계가 이것을 따라간다. */
+      time: TimeOfDay
+    }
+  | {
+      mode: 'match'
+      /** 현재 현지 시각에 따라 고정한 조명. 0은 낮, 1은 밤이다. */
+      nightfall: 0 | 1
+    }
 
 /**
  * 판 뒤에 깔리는 분실물 보관소.
@@ -20,7 +27,24 @@ interface ArenaBackdropProps {
  * `ArenaRenderer.drawDayNight`와 같다 — 두 그림이 같은 구도라 겹치는 것으로 충분하고,
  * 계산해 섞으면 붓질과 그림자가 뭉개진다.
  */
-function ArenaBackdrop({ time }: ArenaBackdropProps) {
+function ArenaBackdrop(props: ArenaBackdropProps) {
+  if (props.mode === 'match') {
+    return <BackdropLayers nightfall={props.nightfall} />
+  }
+  return <SoloArenaBackdrop time={props.time} />
+}
+
+/** 대전은 방만 쓴다. 판의 규칙이 없는 화이트보드와 국면 시계는 그리지 않는다. */
+function BackdropLayers({ nightfall }: { nightfall: number }) {
+  return (
+    <div aria-hidden style={rootStyle}>
+      <div style={layerStyle('background-day', 1)} />
+      <div style={layerStyle('background-night', nightfall)} />
+    </div>
+  )
+}
+
+function SoloArenaBackdrop({ time }: { time: TimeOfDay }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wall = useWallBox(rootRef)
   return (

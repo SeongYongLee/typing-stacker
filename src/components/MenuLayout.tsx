@@ -53,6 +53,19 @@ const columnsStyle: CSSProperties = {
   alignItems: 'start',
 }
 
+/** 밝은 낮 스플래시 위에서도 메뉴가 타이틀과 같은 대비를 갖게 한다. */
+const menuStyle: CSSProperties = {
+  display: 'grid',
+  gap: 10,
+  alignContent: 'start',
+  padding: 16,
+  border: '1px solid rgba(181, 190, 211, 0.22)',
+  borderRadius: 16,
+  background: 'rgba(13, 16, 26, 0.82)',
+  boxShadow: '0 18px 48px rgba(5, 9, 17, 0.24)',
+  backdropFilter: 'blur(12px) saturate(0.9)',
+}
+
 function MenuLayout({ title, titleSize = 32, menu, panel, hint }: MenuLayoutProps) {
   return (
     <div style={rootStyle}>
@@ -63,6 +76,7 @@ function MenuLayout({ title, titleSize = 32, menu, panel, hint }: MenuLayoutProp
               font: `700 ${titleSize}px/${TITLE_LINE_HEIGHT}px var(--sans)`,
               color: '#f2f4fb',
               letterSpacing: '-0.02em',
+              textShadow: '0 2px 14px rgba(5, 9, 17, 0.86)',
               margin: 0,
             }}
           >
@@ -71,11 +85,23 @@ function MenuLayout({ title, titleSize = 32, menu, panel, hint }: MenuLayoutProp
         </div>
 
         <div style={columnsStyle}>
-          <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>{menu}</div>
+          <div style={menuStyle}>{menu}</div>
           {panel}
         </div>
 
-        <p style={{ marginTop: 20, fontSize: 12, color: '#4a5171' }}>{hint}</p>
+        <p
+          style={{
+            display: 'inline-block',
+            margin: '20px 0 0',
+            padding: '5px 10px',
+            borderRadius: 999,
+            background: 'rgba(10, 14, 24, 0.48)',
+            color: 'rgba(242, 244, 251, 0.76)',
+            fontSize: 12,
+          }}
+        >
+          {hint}
+        </p>
       </div>
     </div>
   )

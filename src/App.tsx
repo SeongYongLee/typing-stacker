@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SOLO_READY_MS, SOLO_START_MS } from './game/config.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
+import { SplashBackdrop } from './components/SplashBackdrop.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'
 import { StartCurtain } from './components/StartCurtain.tsx'
 import {
@@ -204,13 +205,15 @@ function App() {
       )
     }
     return (
-      <LobbyScreen
-        phase={phase}
-        onOpen={match.open}
-        onReady={match.setReady}
-        onChat={match.sendChat}
-        onBack={backToTitle}
-      />
+      <SplashBackdrop>
+        <LobbyScreen
+          phase={phase}
+          onOpen={match.open}
+          onReady={match.setReady}
+          onChat={match.sendChat}
+          onBack={backToTitle}
+        />
+      </SplashBackdrop>
     )
   }
 

@@ -17,6 +17,15 @@ interface InputBarProps {
   nightfall: number
 }
 
+interface MemoInputProps {
+  input: HangulInput
+  nightfall: number
+  ariaLabel: string
+  width?: CSSProperties['width']
+  /** 틀린 입력마다 바뀌는 번호. null이면 실패 연출을 하지 않는다. */
+  invalidSeq?: number | null
+}
+
 /*
  * 입력창은 **보관소의 메모장**이다. 들어온 물건의 이름을 여기에 적는다.
  *
@@ -293,7 +302,13 @@ const rowStyle: CSSProperties = {
   width: '100%',
 }
 
-function InputBar({ input, feedback, stats, invulnerable, nightfall }: InputBarProps) {
+function MemoInput({
+  input,
+  nightfall,
+  ariaLabel,
+  width = 'min(420px, 34vw)',
+  invalidSeq = null,
+}: MemoInputProps) {
   const fieldRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLDivElement | null>(null)
 
@@ -318,7 +333,7 @@ function InputBar({ input, feedback, stats, invulnerable, nightfall }: InputBarP
    * 입력칸을 좌우로 흔들고 밑줄을 붉게 튀겨서 빗나갔다는 것을 몸으로 알게 한다.
    */
   useEffect(() => {
-    if (feedback === null || feedback.ok) {
+    if (invalidSeq === null) {
       return
     }
     play(
@@ -341,43 +356,54 @@ function InputBar({ input, feedback, stats, invulnerable, nightfall }: InputBarP
       ],
       { duration: 420, easing: 'linear' },
     )
-  }, [feedback])
+  }, [invalidSeq])
 
+  return (
+    <div ref={fieldRef} style={{ width, position: 'relative' }}>
+      <MemoPad nightfall={nightfall} />
+      <Pencil text={input.value} nightfall={nightfall} tapSeq={input.tapSeq} />
+      <input
+        ref={input.ref}
+        style={inputStyle}
+        value={input.value}
+        onChange={input.onChange}
+        onKeyDown={input.onKeyDown}
+        onCompositionStart={input.onCompositionStart}
+        onCompositionEnd={input.onCompositionEnd}
+        autoFocus
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        aria-label={ariaLabel}
+      />
+      <div
+        ref={underlineRef}
+        style={{
+          height: 2,
+          marginTop: 4,
+          background: input.composing ? UNDERLINE_COMPOSING : UNDERLINE,
+          transition: 'background 120ms',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      />
+    </div>
+  )
+}
+
+function InputBar({ input, feedback, stats, invulnerable, nightfall }: InputBarProps) {
   return (
     <div style={wrapStyle}>
       <div style={rowStyle}>
         <div style={{ justifySelf: 'end' }}>
           <Lives lives={stats.lives} invulnerable={invulnerable} />
         </div>
-        <div ref={fieldRef} style={{ width: 'min(420px, 34vw)', position: 'relative' }}>
-          <MemoPad nightfall={nightfall} />
-          <Pencil text={input.value} nightfall={nightfall} tapSeq={input.tapSeq} />
-          <input
-            ref={input.ref}
-            style={inputStyle}
-            value={input.value}
-            onChange={input.onChange}
-            onKeyDown={input.onKeyDown}
-            onCompositionStart={input.onCompositionStart}
-            onCompositionEnd={input.onCompositionEnd}
-            autoFocus
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            aria-label="단어 입력"
-          />
-          <div
-            ref={underlineRef}
-            style={{
-              height: 2,
-              marginTop: 4,
-              background: input.composing ? UNDERLINE_COMPOSING : UNDERLINE,
-              transition: 'background 120ms',
-              position: 'relative',
-              zIndex: 1,
-            }}
-          />
-        </div>
+        <MemoInput
+          input={input}
+          nightfall={nightfall}
+          ariaLabel="단어 입력"
+          invalidSeq={feedback !== null && !feedback.ok ? feedback.seq : null}
+        />
         {/* 점수와 콤보를 나란히 둔다 — 둘 다 입력의 결과이고, 눈은 여기 붙어 있다 */}
         <div
           style={{
@@ -433,4 +459,4 @@ function FeedbackChip({ feedback }: { feedback: SubmitFeedback | null }) {
   )
 }
 
-export { InputBar }
+export { InputBar, MemoInput }

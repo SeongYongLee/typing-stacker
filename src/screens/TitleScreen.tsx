@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import backgroundDay from '../assets/splash/background-day.png'
-import backgroundNight from '../assets/splash/background-night.png'
 import titleDay from '../assets/splash/title-day.png'
 import titleNight from '../assets/splash/title-night.png'
 import { MenuButton } from '../components/MenuButton.tsx'
+import { SplashBackdrop } from '../components/SplashBackdrop.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'
 import { useLeaderboard } from '../hooks/useLeaderboard.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
@@ -25,9 +24,9 @@ interface TitleScreenProps {
   theme: TitleTheme
 }
 
-const SPLASH_ASSETS: Record<TitleTheme, { background: string; title: string }> = {
-  day: { background: backgroundDay, title: titleDay },
-  night: { background: backgroundNight, title: titleNight },
+const SPLASH_TITLES: Record<TitleTheme, string> = {
+  day: titleDay,
+  night: titleNight,
 }
 
 function TitleScreen({
@@ -42,7 +41,7 @@ function TitleScreen({
 }: TitleScreenProps) {
   const board = useLeaderboard()
   const [loadedAssets, setLoadedAssets] = useState(0)
-  const assets = SPLASH_ASSETS[theme]
+  const title = SPLASH_TITLES[theme]
 
   // 이름이 맨 앞이되 버튼 무리에는 끼지 않는다 — 까닭은 NameGreeting에 적었다
   const items: readonly {
@@ -87,26 +86,16 @@ function TitleScreen({
   }
 
   return (
-    <div
-      className="title-splash"
-      data-theme={theme}
-      data-ready={loadedAssets === 2 ? 'yes' : 'no'}
+    <SplashBackdrop
+      theme={theme}
+      ready={loadedAssets === 2}
+      onBackgroundSettled={markAssetLoaded}
     >
-      <img
-        className="title-splash__background"
-        src={assets.background}
-        alt=""
-        aria-hidden="true"
-        onLoad={markAssetLoaded}
-        onError={markAssetLoaded}
-      />
-      <div className="title-splash__veil" aria-hidden="true" />
-
       <main className="title-splash__stage">
         <h1 className="sr-only">수상한 분실물 보관소</h1>
         <img
           className="title-splash__logo"
-          src={assets.title}
+          src={title}
           alt=""
           aria-hidden="true"
           onLoad={markAssetLoaded}
@@ -140,7 +129,7 @@ function TitleScreen({
 
         <p className="title-splash__hint">↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다</p>
       </main>
-    </div>
+    </SplashBackdrop>
   )
 }
 

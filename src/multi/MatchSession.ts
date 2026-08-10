@@ -10,6 +10,7 @@ import type { ChatLine } from './ChatLog.ts'
 import { failure } from './Transport.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 import {
+  MATCH_MODE_CHOICE_LABELS,
   resolveMatchMode,
   type MatchMode,
   type MatchModeChoice,
@@ -50,7 +51,12 @@ type SessionPhase =
    */
   | { readonly kind: 'handshaking' }
   /** 방장이 상대를 기다리는 중. 이 코드를 상대에게 전달해야 한다 */
-  | { readonly kind: 'waiting'; readonly roomCode: string }
+  | {
+      readonly kind: 'waiting'
+      readonly roomCode: string
+      readonly matchModeChoice: MatchModeChoice
+      readonly canChangeMatchMode: boolean
+    }
   /**
    * 자동매칭으로 방을 받았고 상대가 들어오기를 기다린다.
    *
@@ -74,6 +80,7 @@ type SessionPhase =
       readonly chat: readonly ChatLine[]
       readonly chatEnabled: boolean
       readonly matchModeChoice: MatchModeChoice
+      readonly canChangeMatchMode: boolean
     }
   /**
    * 모두 준비했고 곧 시작한다. 남은 셈을 화면이 크게 보여준다.
@@ -142,7 +149,8 @@ class MatchSession {
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null
   /** 자동매칭으로 붙었는가. 준비 시한을 두는 것도, 코드를 감추는 것도 이 경우뿐이다 */
   private autoMatched = false
-  private matchModeChoice: MatchModeChoice = 'shared'
+  private matchModeChoice: MatchModeChoice = 'roulette'
+  private systemMessageSeq = 0
   /**
    * 말을 걸 수 있는 방인가.
    *
@@ -187,7 +195,7 @@ class MatchSession {
     session.autoMatched = mode.kind === 'auto'
     session.matchModeChoice = mode.kind === 'auto'
       ? 'roulette'
-      : mode.matchModeChoice ?? 'shared'
+      : mode.matchModeChoice ?? 'roulette'
     session.onPhase({ kind: 'connecting' })
     void session.connect(mode)
     return session
@@ -209,7 +217,7 @@ class MatchSession {
     session.transport = transport
     listen((event) => session.handleEvent(event))
     if (transport.isHost) {
-      session.onPhase({ kind: 'waiting', roomCode: transport.roomCode ?? '' })
+      session.emitWaiting()
     } else {
       session.onPhase({ kind: 'handshaking' })
       session.armHandshakeTimeout()
@@ -243,7 +251,12 @@ class MatchSession {
         this.onPhase(
           this.autoMatched
             ? { kind: 'pairing' }
-            : { kind: 'waiting', roomCode: transport.roomCode ?? '' },
+            : {
+                kind: 'waiting',
+                roomCode: transport.roomCode ?? '',
+                matchModeChoice: this.matchModeChoice,
+                canChangeMatchMode: true,
+              },
         )
       } else {
         // 참가자는 붙자마자 자기를 알린다. 방장이 명단을 만들 수 있어야 한다
@@ -384,12 +397,24 @@ class MatchSession {
       return
     }
 
+    if (transport.isHost && event.message.t === 'mode') {
+      // 모드는 방장이 정한다. 참가자의 요청은 지금 UI에서 보내지 않지만, 들어와도 무시한다
+      return
+    }
+
     if (!transport.isHost && event.message.t === 'roster') {
       this.roster = event.message.players
       if (event.message.matchModeChoice !== undefined) {
         this.matchModeChoice = event.message.matchModeChoice
       }
       this.clearHandshakeTimeout()
+      this.emitReady()
+      return
+    }
+
+    if (!transport.isHost && event.message.t === 'mode') {
+      this.matchModeChoice = event.message.matchModeChoice
+      this.ready.clear()
       this.emitReady()
       return
     }
@@ -441,6 +466,30 @@ class MatchSession {
     transport.broadcast({ t: 'chat', text })
   }
 
+  setMatchModeChoice(choice: MatchModeChoice): void {
+    const transport = this.transport
+    if (transport === null || this.started || this.autoMatched) {
+      return
+    }
+    if (!transport.isHost) {
+      transport.broadcast({ t: 'mode', matchModeChoice: choice })
+      return
+    }
+    if (choice === this.matchModeChoice) {
+      return
+    }
+    this.matchModeChoice = choice
+    this.ready.clear()
+    transport.broadcast({ t: 'mode', matchModeChoice: choice })
+    transport.broadcast({ t: 'readyList', ready: [] })
+    this.announceModeChange(choice)
+    if (this.joined.size === 0) {
+      this.emitWaiting()
+      return
+    }
+    this.emitReady()
+  }
+
   /** 방장만 한다. 걸러 남은 말만 모두에게 돌린다 */
   private receiveChat(from: PlayerId, text: string): void {
     const transport = this.transport
@@ -453,6 +502,20 @@ class MatchSession {
     }
     transport.broadcast({ t: 'chatted', from, text: line.text })
     this.emitReady()
+  }
+
+  private announceModeChange(choice: MatchModeChoice): void {
+    const transport = this.transport
+    if (transport === null || !transport.isHost || !this.chatEnabled) {
+      return
+    }
+    const from = `system:${this.systemMessageSeq += 1}`
+    const text = `모드가 ${MATCH_MODE_CHOICE_LABELS[choice]}로 바뀌었습니다. 준비가 해제되었습니다.`
+    const line = this.chat.add(from, '알림', text, this.chatClock())
+    if (line === null) {
+      return
+    }
+    transport.broadcast({ t: 'chatted', from, text: line.text })
   }
 
   private nameOf(id: PlayerId): string {
@@ -512,6 +575,20 @@ class MatchSession {
       chat: this.chat.view,
       chatEnabled: this.chatEnabled,
       matchModeChoice: this.matchModeChoice,
+      canChangeMatchMode: transport.isHost && this.chatEnabled,
+    })
+  }
+
+  private emitWaiting(): void {
+    const transport = this.transport
+    if (transport === null || !transport.isHost || this.autoMatched) {
+      return
+    }
+    this.onPhase({
+      kind: 'waiting',
+      roomCode: transport.roomCode ?? '',
+      matchModeChoice: this.matchModeChoice,
+      canChangeMatchMode: true,
     })
   }
 

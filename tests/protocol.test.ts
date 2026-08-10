@@ -95,6 +95,18 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     })
   })
 
+  it('mode는 정해진 모드 선택만 받는다', () => {
+    expect(parseMessage({ t: 'mode', matchModeChoice: 'roulette' })).toEqual({
+      t: 'mode',
+      matchModeChoice: 'roulette',
+    })
+    expect(parseMessage({ t: 'mode', matchModeChoice: 'duel' })).toEqual({
+      t: 'mode',
+      matchModeChoice: 'duel',
+    })
+    expect(parseMessage({ t: 'mode', matchModeChoice: 'invalid' })).toBeNull()
+  })
+
   it('lives는 음수를 0으로 눌러 받는다', () => {
     const parsed = parseMessage({
       t: 'lives',

@@ -228,6 +228,7 @@ function App() {
           onOpen={match.open}
           onReady={match.setReady}
           onChat={match.sendChat}
+          onMatchMode={match.setMatchModeChoice}
           onBack={backToTitle}
         />
       </SplashBackdrop>

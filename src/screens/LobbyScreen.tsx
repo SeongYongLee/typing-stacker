@@ -14,6 +14,7 @@ import type { ReactNode } from 'react'
 import { ROOM_CODE_LENGTH } from '../multi/protocol.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
+import type { MatchModeChoice } from '../multi/matchModes.ts'
 
 import { ManualMatch } from './lobby/ManualMatch.tsx'
 import { MatchCountdown } from './lobby/MatchCountdown.tsx'
@@ -29,6 +30,7 @@ interface LobbyScreenProps {
   onReady: () => void
   /** 준비 화면에서 한마디 한다 */
   onChat: (text: string) => void
+  onMatchMode: (choice: MatchModeChoice) => void
   onBack: () => void
 }
 
@@ -55,7 +57,7 @@ const LOBBY_BLURBS: Partial<Record<string, readonly ReactNode[]>> = {
   back: ['시작 화면으로 나갑니다.'],
 }
 
-function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProps) {
+function LobbyScreen({ phase, onOpen, onReady, onChat, onMatchMode, onBack }: LobbyScreenProps) {
   /*
    * 이름은 이 화면의 것이 아니라 **기기의 것**이다.
    *
@@ -171,7 +173,15 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
   }
 
   if (phase?.kind === 'waiting') {
-    return <WaitingRoom roomCode={phase.roomCode} onBack={onBack} />
+    return (
+      <WaitingRoom
+        roomCode={phase.roomCode}
+        matchModeChoice={phase.matchModeChoice}
+        canChangeMatchMode={phase.canChangeMatchMode}
+        onMatchMode={onMatchMode}
+        onBack={onBack}
+      />
+    )
   }
 
   if (phase?.kind === 'countdown') {
@@ -179,7 +189,15 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
   }
 
   if (phase?.kind === 'ready') {
-    return <ReadyRoom phase={phase} onReady={onReady} onChat={onChat} onBack={onBack} />
+    return (
+      <ReadyRoom
+        phase={phase}
+        onReady={onReady}
+        onChat={onChat}
+        onMatchMode={onMatchMode}
+        onBack={onBack}
+      />
+    )
   }
 
   if (phase?.kind === 'failed') {

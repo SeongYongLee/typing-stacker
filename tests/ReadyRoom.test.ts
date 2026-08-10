@@ -16,6 +16,7 @@ function phase(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'shared'
     chat: [],
     chatEnabled,
     matchModeChoice,
+    canChangeMatchMode: chatEnabled,
   }
 }
 
@@ -24,6 +25,7 @@ function markup(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'shared
     phase: phase(chatEnabled, matchModeChoice),
     onReady: () => {},
     onChat: () => {},
+    onMatchMode: () => {},
     onBack: () => {},
   }))
 }
@@ -42,6 +44,7 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).toContain('data-ready-rules="manual"')
     expect(html).toContain('모드:')
     expect(html).toContain('함께 쌓기')
+    expect(html).toContain('모드 · 함께 쌓기')
     expect(html).toContain('방 참가 코드')
     expect(html).toContain('최대 8명')
     expect(html).toContain('한 탑을 함께')

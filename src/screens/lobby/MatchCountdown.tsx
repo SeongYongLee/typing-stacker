@@ -21,7 +21,7 @@ function MatchCountdown({ phase }: { phase: Extract<SessionPhase, { kind: 'count
   return (
     <Countdown
       secondsLeft={phase.secondsLeft}
-      note={`${starter} 턴으로 시작`}
+      focus={`${starter} 턴으로 시작`}
     />
   )
 }

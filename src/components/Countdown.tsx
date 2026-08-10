@@ -29,11 +29,11 @@ const panelStyle: CSSProperties = {
 
 interface CountdownProps {
   secondsLeft: number
-  /** 숫자 아래 한 줄. 대전에서는 누가 함께 있는지를 적는다 */
-  note?: string
+  /** 숫자 아래 크게 보여줄 시작 정보. 대전에서는 첫 타자를 적는다 */
+  focus?: string
 }
 
-function Countdown({ secondsLeft, note }: CountdownProps) {
+function Countdown({ secondsLeft, focus }: CountdownProps) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
@@ -41,10 +41,10 @@ function Countdown({ secondsLeft, note }: CountdownProps) {
     play(
       ref.current,
       [
-        { transform: 'scale(1.4)', opacity: 0.2 },
+        { transform: 'scale(1.22)', opacity: 0.35 },
         { transform: 'scale(1)', opacity: 1 },
       ],
-      { duration: 380, easing: 'ease-out' },
+      { duration: 620, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
     )
   }, [secondsLeft])
 
@@ -64,8 +64,33 @@ function Countdown({ secondsLeft, note }: CountdownProps) {
         >
           {secondsLeft}
         </div>
-        {note !== undefined && (
-          <p style={{ color: '#4a5171', margin: 0, fontSize: 13 }}>{note}</p>
+        {focus !== undefined && (
+          <div
+            style={{
+              display: 'grid',
+              justifyItems: 'center',
+              minWidth: 220,
+              maxWidth: 'min(78vw, 420px)',
+              marginTop: 4,
+            }}
+          >
+            <p
+              style={{
+                width: '100%',
+                margin: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: '#f2f4fb',
+                fontSize: 28,
+                fontWeight: 900,
+                lineHeight: 1.1,
+                textShadow: '0 4px 18px rgba(13, 15, 22, 0.6)',
+              }}
+            >
+              {focus}
+            </p>
+          </div>
         )}
       </div>
     </div>

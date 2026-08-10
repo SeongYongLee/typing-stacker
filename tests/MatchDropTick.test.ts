@@ -104,26 +104,29 @@ describe('drop 적용 tick', () => {
     dropSomething(pair)
     await pair.clock.advance(0.14)
     expect(pair.host.debugBodies()).toHaveLength(1)
-    // dropped가 늦어도 드롭 직후 sync가 먼저 오면 권위 상태로 물건을 볼 수 있다.
-    expect(pair.guest.debugBodies()).toHaveLength(1)
+    expect(pair.guest.debugBodies()).toHaveLength(0)
 
     await pair.clock.advance(0.1)
     expect(pair.guest.debugBodies()).toHaveLength(1)
     expect(pair.guest.debugBodies()[0]?.variantId).toBe(pair.host.debugBodies()[0]?.variantId)
   })
 
-  it('드롭 직후에는 정기 간격을 기다리지 않고 권위 키프레임을 보낸다', async () => {
+  it('낙하 중에는 보정하지 않고 정착한 뒤 권위 상태를 보낸다', async () => {
     pair = await makePair(() => 0)
     await pair.clock.advance(1)
 
     dropSomething(pair)
     await pair.clock.advance(0.18)
 
+    expect(pair.hostLink.sent.filter((message) => message.t === 'sync')).toHaveLength(0)
+
+    await pair.clock.advance(4)
     const syncs = pair.hostLink.sent.filter((message) => message.t === 'sync')
     expect(syncs.length).toBeGreaterThan(0)
-    const first = syncs[0]
-    expect(first?.t).toBe('sync')
-    expect(first?.t === 'sync' && first.bodies).toHaveLength(1)
-    expect(first?.t === 'sync' && first.tick).toBeTypeOf('number')
+    const last = syncs.at(-1)
+    expect(last?.t).toBe('sync')
+    expect(last?.t === 'sync' && last.bodies.some(
+      (body) => body.stateVersion === 1 && body.settled,
+    )).toBe(true)
   })
 })

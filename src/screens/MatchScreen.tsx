@@ -918,20 +918,44 @@ function HurtNotice({
  */
 function TurnNotice({ state }: { state: MatchViewState }) {
   const ref = useRef<HTMLDivElement | null>(null)
+  const pulseRef = useRef<HTMLSpanElement | null>(null)
   const current = state.current
   const player = state.players.find((candidate) => candidate.id === current) ?? null
   const mine = current === state.selfId
 
   useEffect(() => {
+    const frames = mine
+      ? [
+          { transform: 'translateY(-8px) scale(0.94)' },
+          { transform: 'translateY(0) scale(1.06)', offset: 0.34 },
+          { transform: 'translateY(0) scale(1)' },
+        ]
+      : [
+          { transform: 'translateY(-4px) scale(0.98)' },
+          { transform: 'translateY(0) scale(1)', offset: 0.22 },
+        ]
     play(
       ref.current,
-      [
-        { opacity: 0, transform: 'translateY(-8px) scale(0.96)' },
-        { opacity: 1, transform: 'translateY(0) scale(1)', offset: 0.22 },
-      ],
-      { duration: 360, easing: 'ease-out' },
+      frames,
+      { duration: mine ? 520 : 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
     )
-  }, [current])
+  }, [current, mine])
+
+  useEffect(() => {
+    if (!mine) {
+      return
+    }
+    const pulse = play(
+      pulseRef.current,
+      [
+        { opacity: 0.45, transform: 'scale(0.98)' },
+        { opacity: 0.9, transform: 'scale(1.05)', offset: 0.5 },
+        { opacity: 0.45, transform: 'scale(0.98)' },
+      ],
+      { duration: 1400, easing: 'ease-in-out', iterations: Infinity },
+    )
+    return () => pulse?.cancel()
+  }, [current, mine])
 
   if (current === null || player === null) {
     return null
@@ -956,32 +980,67 @@ function TurnNotice({ state }: { state: MatchViewState }) {
     >
       <div
         style={{
+          position: 'relative',
           display: 'inline-grid',
           gap: 2,
-          minWidth: 116,
+          minWidth: mine ? 132 : 116,
           maxWidth: 'min(76vw, 320px)',
-          padding: '8px 18px 9px',
+          padding: mine ? '9px 22px 10px' : '8px 18px 9px',
           borderRadius: 8,
-          border: '1px solid #b89a4c',
-          background: '#efe0b6',
-          boxShadow: '0 8px 24px rgba(8, 9, 14, 0.22)',
-          color: '#312716',
+          border: mine ? '1px solid #f0d778' : '1px solid #b89a4c',
+          background: mine ? '#fff1bd' : 'rgba(122, 111, 83, 0.82)',
+          boxShadow: mine
+            ? '0 0 0 4px rgba(228, 230, 138, 0.16), 0 12px 34px rgba(8, 9, 14, 0.34)'
+            : '0 8px 22px rgba(8, 9, 14, 0.18)',
+          color: mine ? '#312716' : '#d9cfb1',
+          transition:
+            'background 280ms ease, border-color 280ms ease, box-shadow 280ms ease, color 280ms ease, padding 280ms ease, min-width 280ms ease',
         }}
       >
         <span
+          ref={pulseRef}
+          aria-hidden
           style={{
+            position: 'absolute',
+            inset: mine ? -7 : -4,
+            borderRadius: 11,
+            border: mine
+              ? '1px solid rgba(228, 230, 138, 0.5)'
+              : '1px solid rgba(228, 230, 138, 0)',
+            boxShadow: mine
+              ? '0 0 22px rgba(228, 230, 138, 0.28)'
+              : '0 0 0 rgba(228, 230, 138, 0)',
+            opacity: mine ? 0.7 : 0,
+            transform: mine ? 'scale(1)' : 'scale(0.96)',
+            transition:
+              'opacity 280ms ease, transform 280ms ease, inset 280ms ease, border-color 280ms ease, box-shadow 280ms ease',
+          }}
+        />
+        <span
+          style={{
+            position: 'relative',
             minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            fontSize: 18,
-            fontWeight: 800,
+            fontSize: mine ? 21 : 18,
+            fontWeight: mine ? 900 : 800,
+            opacity: mine ? 1 : 0.82,
+            transition: 'font-size 260ms ease, opacity 260ms ease, color 260ms ease',
           }}
         >
           {mine ? '내 턴' : `${player.nickname} 턴`}
         </span>
         {state.turnLeft !== null && (
-          <span style={{ fontSize: 11, color: mine ? '#7a5d08' : '#68583a' }}>
+          <span
+            style={{
+              position: 'relative',
+              fontSize: 11,
+              fontWeight: mine ? 800 : 500,
+              color: mine ? '#7a5d08' : '#b9ad90',
+              opacity: mine ? 1 : 0.78,
+            }}
+          >
             {Math.ceil(state.turnLeft)}초
           </span>
         )}

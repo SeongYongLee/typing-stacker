@@ -149,17 +149,14 @@ function drawCatcher(
   /*
    * 손 그림은 물리 판 길이에 맞춰 늘리지 않는다. 회수 손은 "여기서 받아 간다"는
    * 연출이지 길이가 변하는 도구가 아니므로, 이미지가 가진 비율과 화면 크기만 따른다.
+   * 손바닥은 읽히고 팔 끝은 화면 밖에 걸치도록 기준 표시 크기의 3.24배로 그린다.
    */
-  const width = Math.min(260, Math.max(190, view.scale * 2.25))
+  const width = catcherImageWidth(view.scale)
   const height = width * (art.height / art.width)
   const x = view.toScreenX(catcher.x)
   const y = view.toScreenY(catcher.y)
   const side = catcher.x < 0 ? 'left' : 'right'
-  const fadeIn = catcherFadeIn(catcher.progress)
-  const fadeOut = catcherFadeOut(catcher.progress)
-  const alpha = catcherAlpha(catcher.progress)
-  const motion = catcher.progress < 0.5 ? 1 - fadeIn : 1 - fadeOut
-  const slide = motion * 34
+  const pose = catcherPose(catcher.progress, side, width, height)
   /*
    * 손 그림은 원본부터 왼쪽 아래 → 오른쪽 위로 45도쯤 뻗어 있다. 물리 각도를 그대로
    * 더하면 그림이 두 번 기울어져 뒤집히므로, 원본 기울기에서 회수 판 기울기만큼만 보정한다.
@@ -168,14 +165,18 @@ function drawCatcher(
   const screenAngle = side === 'left' ? angleFix : -angleFix
 
   ctx.save()
-  ctx.globalAlpha = alpha
-  ctx.translate(x + (side === 'left' ? -slide : slide), y + slide * 0.25)
+  ctx.globalAlpha = pose.alpha
+  ctx.translate(x + pose.x, y + pose.y)
   ctx.rotate(screenAngle)
   if (side === 'right') {
     ctx.scale(-1, 1)
   }
   const drawn = drawDayNight(view, 'catch-day', 'catch-night', (image) => {
-    ctx.drawImage(image, -width / 2, -height * 0.53, width, height)
+    /*
+     * 그림의 기준을 한가운데가 아니라 **손바닥 사이**에 둔다. 그러면 물리 판과 물건은
+     * 손에 남고, 길어진 팔만 바깥으로 뻗어 화면 경계를 넘어간다.
+     */
+    ctx.drawImage(image, -width * 0.76, -height * 0.3, width, height)
   })
   if (!drawn) {
     ctx.fillStyle = 'rgba(65, 183, 152, 0.65)'
@@ -187,6 +188,33 @@ function drawCatcher(
     )
   }
   ctx.restore()
+}
+
+function catcherImageWidth(scale: number): number {
+  return Math.min(260, Math.max(190, scale * 2.25)) * 3.24
+}
+
+function catcherVisualOffset(side: 'left' | 'right'): number {
+  return side === 'left' ? -200 : 200
+}
+
+function catcherPose(
+  progress: number,
+  side: 'left' | 'right',
+  width: number,
+  height: number,
+): { readonly x: number; readonly y: number; readonly alpha: number } {
+  const fadeIn = catcherFadeIn(progress)
+  const fadeOut = catcherFadeOut(progress)
+  const motion = progress < 0.5 ? 1 - fadeIn : 1 - fadeOut
+  const outward = side === 'left' ? -1 : 1
+  return {
+    /* 손바닥을 바깥으로 누적 200px 옮기고, 등장할 때는 거기서 더 바깥에 머문다 */
+    x: catcherVisualOffset(side) + outward * motion * width * 0.28,
+    /* 같은 순간 조금 위로 올라와 떨어지는 물건을 받는다 */
+    y: motion * height * 0.14,
+    alpha: catcherAlpha(progress),
+  }
 }
 
 function catcherFadeIn(progress: number): number {
@@ -466,4 +494,16 @@ function traceShape(view: ArenaView, shape: PrimitiveShape, ox: number, oy: numb
   }
 }
 
-export { catcherAlpha, drawAim, drawBody, drawCat, drawCatcher, drawLedges, drawPlatformBack, drawPlatformFront }
+export {
+  catcherAlpha,
+  catcherImageWidth,
+  catcherPose,
+  catcherVisualOffset,
+  drawAim,
+  drawBody,
+  drawCat,
+  drawCatcher,
+  drawLedges,
+  drawPlatformBack,
+  drawPlatformFront,
+}

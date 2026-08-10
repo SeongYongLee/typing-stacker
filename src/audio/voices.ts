@@ -1,5 +1,6 @@
 import { HEAVY_MASS } from '../game/config.ts'
 import type { Material } from '../game/types/game.ts'
+import { HIDDEN_REVEAL_PRE_GAIN } from './outputLevels.ts'
 
 /**
  * 소리를 코드로 만든다. 오디오 파일은 하나도 쓰지 않는다.
@@ -493,7 +494,7 @@ function boxLanding(voice: Voice, strength: number, mass: number, grain: number)
   })
 }
 
-/** 스플래시 화면용 사무실 나무문이 경첩 소리를 내며 열린다. 아직 재생 위치에는 연결하지 않는다 */
+/** 스플래시 화면용 사무실 나무문이 경첩 소리를 내며 열린다 */
 function woodenDoorOpen(voice: Voice): void {
   // 한 번 매끈하게 훑으면 바람처럼 들린다. 방향이 다른 짧은 마찰을 겹쳐 경첩을 만든다
   burst(voice, {
@@ -742,8 +743,8 @@ function reveal(voice: Voice): void {
    */
   const base = hz(79)
   const partials: readonly (readonly [number, number, number])[] = [
-    [1, 0.05, 1],
-    [2.76, 0.016, 0.7],
+    [1, 0.05 * HIDDEN_REVEAL_PRE_GAIN, 1],
+    [2.76, 0.016 * HIDDEN_REVEAL_PRE_GAIN, 0.7],
   ]
   for (const [ratio, gain, duration] of partials) {
     tone(voice, { type: 'sine', freq: base * ratio, gain, duration, attack: 0.012 })
@@ -752,7 +753,7 @@ function reveal(voice: Voice): void {
     filter: 'highpass',
     freq: 1800,
     toFreq: 3000,
-    gain: 0.012,
+    gain: 0.012 * HIDDEN_REVEAL_PRE_GAIN,
     duration: 0.45,
     attack: 0.08,
   })

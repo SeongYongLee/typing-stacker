@@ -3,7 +3,14 @@ import { SOLO_READY_MS, SOLO_START_MS } from './game/config.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'
 import { StartCurtain } from './components/StartCurtain.tsx'
-import { useAudioBoot, useMusic } from './hooks/useAudio.ts'
+import {
+  SplashTransition,
+  SPLASH_COVERED_MS,
+  SPLASH_DARKEN_MS,
+  SPLASH_REVEAL_MS,
+  type SplashTransitionPhase,
+} from './components/SplashTransition.tsx'
+import { useAudioBoot, useMusic, useSplashDoor } from './hooks/useAudio.ts'
 import { musicFor, type Route } from './screenMusic.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
 import { useMatchSession } from './hooks/useMatchSession.ts'
@@ -16,6 +23,7 @@ import { LoopbackScreen } from './screens/LoopbackScreen.tsx'
 import { MatchScreen } from './screens/MatchScreen.tsx'
 import { ResultScreen } from './screens/ResultScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
+import { titleThemeForHour, type TitleTheme } from './screens/titleTheme.ts'
 
 /**
  * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
@@ -30,13 +38,20 @@ function initialRoute(): Route {
 
 function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
+  // 스플래시 그림과 음악이 같은 낮·밤을 쓰고, 머무는 동안 갑자기 바뀌지 않게 고정한다
+  const [titleTheme, setTitleTheme] = useState<TitleTheme>(() => (
+    titleThemeForHour(new Date().getHours())
+  ))
   /** 혼자 하기가 열리기 전의 박자. null이면 판이 이미 돌고 있거나 다른 화면이다 */
   const [soloStep, setSoloStep] = useState<SoloStep | null>(null)
+  const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
   const { engine, state, assetProgress } = useGameEngine()
   const match = useMatchSession()
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
   useAudioBoot()
+  // 검어지는 동안 문을 열고, 완전히 가려 화면을 바꾸는 순간 쿵 닫는다
+  useSplashDoor(splashTransition === 'darkening' || splashTransition === 'covered')
   /*
    * 어느 화면에서 무엇이 흐르는지를 여기 한 곳에 모은다.
    *
@@ -44,7 +59,13 @@ function App() {
    * 화면 구조를 바꿀 때마다 그 순서가 조용히 뒤집힌다. 무엇보다 "지금 무슨 곡이
    * 나와야 하는가"는 한눈에 읽혀야 하는 규칙이다.
    */
-  useMusic(musicFor(route, state?.phase ?? null, match.state?.phase ?? null))
+  useMusic(musicFor({
+    route,
+    titleTheme,
+    soloPhase: state?.phase ?? null,
+    soloTimeOfDay: state?.timeOfDay.phase ?? null,
+    matchPhase: match.state?.phase ?? null,
+  }))
 
   /*
    * 혼자 하기는 READY → START 두 박자를 거쳐 연다. 이유는 `SOLO_READY_MS`에.
@@ -56,12 +77,41 @@ function App() {
    * 단어가 내려오고 시간이 흐른다 — 기다려주는 것이 아니라 눈만 가리는 것이 된다.
    */
   const startSolo = useCallback(() => {
-    if (engine === null) {
+    if (engine === null || splashTransition !== 'idle') {
+      return
+    }
+    if (route === 'title') {
+      // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
+      setSplashTransition('darkening')
       return
     }
     setRoute('solo')
     setSoloStep('ready')
-  }, [engine])
+  }, [engine, route, splashTransition])
+
+  useEffect(() => {
+    if (splashTransition === 'idle') {
+      return
+    }
+    const timer = setTimeout(() => {
+      if (splashTransition === 'darkening') {
+        setSplashTransition('covered')
+        return
+      }
+      if (splashTransition === 'covered') {
+        setRoute('solo')
+        setSoloStep('ready')
+        setSplashTransition('revealing')
+        return
+      }
+      setSplashTransition('idle')
+    }, splashTransition === 'darkening'
+      ? SPLASH_DARKEN_MS
+      : splashTransition === 'covered'
+        ? SPLASH_COVERED_MS
+        : SPLASH_REVEAL_MS)
+    return () => clearTimeout(timer)
+  }, [splashTransition])
 
   useEffect(() => {
     if (soloStep === null || engine === null) {
@@ -111,30 +161,37 @@ function App() {
     }
   }
 
+  const openTitle = useCallback(() => {
+    // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
+    setTitleTheme(titleThemeForHour(new Date().getHours()))
+    setSplashTransition('idle')
+    setRoute('title')
+  }, [])
+
   const backToTitle = useCallback(() => {
     match.leave()
     // 이걸 끄지 않으면 타이틀로 나온 뒤에 판이 저 혼자 열린다
     setSoloStep(null)
-    setRoute('title')
-  }, [match])
+    openTitle()
+  }, [match, openTitle])
 
   if (route === 'loopback') {
-    return <LoopbackScreen onBack={() => setRoute('title')} />
+    return <LoopbackScreen onBack={openTitle} />
   }
 
   if (route === 'name') {
-    return <NameScreen onBack={() => setRoute('title')} />
+    return <NameScreen onBack={openTitle} />
   }
 
   if (route === 'options') {
-    return <OptionsScreen onBack={() => setRoute('title')} />
+    return <OptionsScreen onBack={openTitle} />
   }
 
   if (route === 'collection') {
     return (
       <CollectionScreen
         collected={state?.collected ?? []}
-        onBack={() => setRoute('title')}
+        onBack={openTitle}
       />
     )
   }
@@ -159,15 +216,19 @@ function App() {
 
   if (route === 'title' || engine === null || state === null) {
     return (
-      <TitleScreen
-        onStart={startSolo}
-        onName={() => setRoute('name')}
-        onMultiplayer={() => setRoute('lobby')}
-        onCollection={() => setRoute('collection')}
-        onOptions={() => setRoute('options')}
-        ready={engine !== null && state !== null && assetProgress >= 1}
-        progress={assetProgress}
-      />
+      <>
+        <TitleScreen
+          onStart={startSolo}
+          onName={() => setRoute('name')}
+          onMultiplayer={() => setRoute('lobby')}
+          onCollection={() => setRoute('collection')}
+          onOptions={() => setRoute('options')}
+          ready={engine !== null && state !== null && assetProgress >= 1}
+          progress={assetProgress}
+          theme={titleTheme}
+        />
+        <SplashTransition phase={splashTransition} />
+      </>
     )
   }
 
@@ -182,9 +243,12 @@ function App() {
    */
   if (soloStep !== null) {
     return (
-      <StartBackdrop>
-        <SoloStart step={soloStep} />
-      </StartBackdrop>
+      <>
+        <StartBackdrop>
+          <SoloStart step={soloStep} />
+        </StartBackdrop>
+        <SplashTransition phase={splashTransition} />
+      </>
     )
   }
 
@@ -202,7 +266,7 @@ function App() {
         <ResultScreen
           stats={state.stats}
           onRestart={startSolo}
-          onHome={() => setRoute('title')}
+          onHome={openTitle}
         />
       )}
     </div>

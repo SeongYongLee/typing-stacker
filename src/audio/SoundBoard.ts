@@ -19,6 +19,9 @@ class SoundBoard {
   private readonly limiter = new SoundLimiter()
   /** 지금 화면이 틀고 싶어 하는 곡. null이면 조용해야 하는 자리다 */
   private wantedTrack: BgmTrackName | null = null
+  /** 첫 제스처 전 스플래시라면 문 열림을 버리지 않고 잠깐 들고 있는다 */
+  private splashOpenPending = false
+  private splashOpenedAt = Number.NEGATIVE_INFINITY
 
   get settings(): AudioSettings {
     return this.bus.current
@@ -29,9 +32,11 @@ class SoundBoard {
   }
 
   /** 사용자 제스처 안에서 부른다. 이 전에는 브라우저가 소리를 내주지 않는다 */
-  unlock(): void {
-    this.bus.unlock()
+  async unlock(): Promise<void> {
+    await this.bus.unlock()
+    // running이 되기 전에 예약하면 첫 음악과 문 소리가 브라우저에서 조용히 사라진다
     this.syncMusic()
+    this.flushSplashOpen()
   }
 
   /**
@@ -57,6 +62,53 @@ class SoundBoard {
   /** 탭이 가려졌다 / 돌아왔다 */
   setSuspended(suspended: boolean): void {
     this.bus.setSuspended(suspended)
+  }
+
+  /**
+   * 스플래시에서 플레이 화면으로 넘어가는 문 전환을 시작하거나 마쳤다.
+   *
+   * 전환이 첫 제스처와 겹치는 경우를 위해 열림 소리 하나만 컨텍스트가 열릴 때까지
+   * 들고 있는다. 게임 사건까지 쌓아두면 돌아왔을 때 지난 충돌음이 터지지만, 문 열림은
+   * 지금 보고 있는 화면의 시작이라 예외다.
+   */
+  setSplash(open: boolean): void {
+    if (open) {
+      this.splashOpenPending = true
+      this.flushSplashOpen()
+      return
+    }
+
+    this.splashOpenPending = false
+    const voice = this.effectVoice()
+    if (voice === null) {
+      return
+    }
+    // 첫 클릭으로 문을 열자마자 화면을 나가도 열림과 닫힘이 한 소리로 뭉개지지 않게 한다
+    const at = Math.max(voice.at, this.splashOpenedAt + 0.6)
+    voices.woodenDoorClose({ ...voice, at }, 0.78)
+  }
+
+  private flushSplashOpen(): void {
+    if (!this.splashOpenPending || !this.bus.running) {
+      return
+    }
+    this.splashOpenPending = false
+    const voice = this.effectVoice()
+    if (voice === null) {
+      return
+    }
+    this.splashOpenedAt = voice.at
+    voices.woodenDoorOpen(voice)
+  }
+
+  private effectVoice(): Voice | null {
+    const ctx = this.bus.context
+    const out = this.bus.sfx
+    const noise = this.bus.noiseBuffer
+    if (!this.bus.running || ctx === null || out === null || noise === null || this.bus.current.sfxVolume <= 0) {
+      return null
+    }
+    return { ctx, out, noise, at: ctx.currentTime }
   }
 
   /**
@@ -94,7 +146,7 @@ class SoundBoard {
     const noise = this.bus.noiseBuffer
     // 첫 제스처 전이거나 효과음을 껐으면 아무것도 예약하지 않는다.
     // 게인이 0이라 들리지 않기도 하지만, 무너질 때 헛도는 노드 수십 개를 아낀다
-    if (ctx === null || out === null || noise === null || this.bus.current.sfxVolume <= 0) {
+    if (!this.bus.running || ctx === null || out === null || noise === null || this.bus.current.sfxVolume <= 0) {
       return
     }
 

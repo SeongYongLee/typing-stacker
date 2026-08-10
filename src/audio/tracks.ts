@@ -4,30 +4,10 @@
  * 소리를 내는 방법(`Bgm`)과 무엇을 연주할지(여기)를 나눠 둔다. 곡을 하나 더 넣는 것이
  * 표 하나를 더 쓰는 일이 되어야 하고, 그렇지 않으면 재생기가 화면을 알게 된다.
  *
- * ## 곡을 무엇으로 가르는가
- *
- * 처음에는 빠르기와 화음표만 바꿔 넷을 만들었다. 실기로 들으니 **전부 같은 곡으로
- * 들렸다** — 당연했다. 음색이 같고(사인 베이스 + 삼각파 패드 + 삼각파 아르페지오),
- * 박자가 같고(8분음표 여덟 칸), 무엇보다 **멜로디가 없었다.** 화음만 깔린 것들끼리는
- * 코드 진행을 바꿔도 "같은 배경음"으로 뭉뚱그려 들린다.
- *
- * 그래서 네 축을 전부 가른다.
- *
- * | | 조성 중심 | 박자 | 음색 | 멜로디 |
- * |---|---|---|---|---|
- * | 타이틀 | C장조 | 4/4 | 사인 + 두꺼운 패드 | 있다 (느린 노래) |
- * | 대기방 | D도리안 | 4/4 스타카토 | **사각파**, 패드 없음 | 있다 (짧은 되풀이) |
- * | 도감 | F장조 | **3/4 왈츠** | 오르골(사인 2옥타브 위) | 있다 (내려오는 선) |
- * | 판 | A단조 | 4/4 몰아치는 베이스 | 삼각파 | **없다** |
- *
- * 판에만 멜로디를 두지 않는다. 판에서 귀가 쓸 정보는 얹혔는지·놓쳤는지이고,
- * 멜로디는 그 주의를 가져간다. **없는 것 자체가 판의 성격**이 된다.
- *
- * ## 조성은 갈라도 음 집합은 붙여둔다
- *
- * C장조 · A단조 · D도리안은 **같은 흰건반 일곱 음**이고 F장조만 Bb 하나가 다르다.
- * 중심음과 음색은 확실히 다르되 음 집합은 붙어 있어서, 화면을 옮길 때 앞 곡의
- * 여운 위로 다음 곡이 시작해도 부딪히지 않는다(곡을 바꿀 때 예약된 음을 끊지 않는다).
+ * 낮·밤 스플래시와 플레이 곡은 참고 음원의 **멜로디를 옮기지 않았다.** 구간별로 잰
+ * 빠르기·밝기·리듬 밀도와 짧은 플럭 음색만 출발점으로 삼고, 화음 진행과 선율은 새로
+ * 썼다. 요청대로 각 참고 구간보다 조금 빠르되, 플레이 곡에는 멜로디를 두지 않아
+ * 착지음과 타자음을 가리지 않는다.
  */
 
 /** 한 마디의 베이스와 화음 (MIDI 번호) */
@@ -46,116 +26,196 @@ interface Layer {
   readonly length: number
 }
 
+/** 흰 잡음을 짧게 잘라 만드는 리듬. pattern의 0은 쉼, 1은 가장 센 타격이다 */
+interface RhythmLayer {
+  readonly pattern: readonly number[]
+  readonly filter: BiquadFilterType
+  readonly freq: number
+  readonly toFreq?: number
+  readonly q: number
+  readonly gain: number
+  readonly duration: number
+}
+
 interface BgmTrack {
   readonly bpm: number
   readonly bars: readonly Bar[]
   /** 한 마디를 몇 칸으로 나눌지. 8이면 4/4, 6이면 3/4다 */
   readonly stepsPerBar: number
-  /**
-   * 아르페지오를 놓을 칸. 길이는 stepsPerBar와 같아야 한다.
-   * 빈 칸이 곡의 성격을 정하고, 무엇보다 **효과음이 끼어들 자리**가 여기서 나온다.
-   */
+  /** 아르페지오를 놓을 칸. 길이는 stepsPerBar와 같아야 한다 */
   readonly pattern: readonly boolean[]
   readonly arp: Layer & { readonly octave: number }
   /** 베이스를 놓을 칸. 여럿이면 마디 안에서 뛴다 */
   readonly bass: Layer & { readonly steps: readonly number[] }
-  /** 화음을 길게 깔지. null이면 깔지 않는다 — 성기고 마른 소리가 된다 */
+  /** 화음을 길게 깔지. null이면 깔지 않는다 */
   readonly pad: Layer | null
+  /** 귀여운 짧은 타악 결. 효과음보다 훨씬 작게 둔다 */
+  readonly rhythm: RhythmLayer | null
   readonly melody: (Layer & { readonly notes: readonly MelodyNote[] }) | null
 }
 
 /* 화음 — 베이스는 2옥타브대, 화음음은 3~4옥타브대에 둔다 */
 const Am = { bass: 45, chord: [52, 57, 60] } as const satisfies Bar
+const Bm = { bass: 35, chord: [50, 54, 59] } as const satisfies Bar
 const C = { bass: 36, chord: [52, 55, 60] } as const satisfies Bar
+const D = { bass: 38, chord: [54, 57, 62] } as const satisfies Bar
 const F = { bass: 41, chord: [53, 57, 60] } as const satisfies Bar
 const G = { bass: 43, chord: [50, 55, 59] } as const satisfies Bar
+const A = { bass: 45, chord: [52, 57, 61] } as const satisfies Bar
 const Dm = { bass: 38, chord: [53, 57, 62] } as const satisfies Bar
 const Em = { bass: 40, chord: [52, 55, 59] } as const satisfies Bar
+const Fsm = { bass: 42, chord: [49, 54, 57] } as const satisfies Bar
 const Bb = { bass: 34, chord: [53, 58, 62] } as const satisfies Bar
-/** E장조. A단조로 되돌아가는 힘이 가장 센 화음이라 단락의 끝에만 쓴다 */
-const E = { bass: 44, chord: [52, 56, 59] } as const satisfies Bar
-
 /**
- * 판이 도는 동안 — A단조.
+ * 낮 스플래시 — D장조, 72 BPM.
  *
- * 16마디(약 46초)다. 처음에는 4마디(11초)였는데 한 판이 1분을 넘기므로 같은 자리가
- * 다섯 번 넘게 돌아왔다 — 그쯤 되면 음악이 배경이 아니라 시계처럼 들린다.
- *
- * 네 마디씩 네 단락이고 단락 끝의 화음이 서로 다르다(G · E · Am · E).
- * 같은 진행을 늘리기만 하면 길어도 길게 느껴지지 않는다 — **어디쯤인지 알 수 있어야**
- * 길이가 길이로 들린다.
- *
- * 이 곡의 표식은 **한 마디에 두 번 뛰는 베이스**다. 다른 곡은 마디마다 한 번만
- * 짚으므로, 판에 들어오는 순간 걸음이 빨라진 것이 먼저 들린다.
+ * 참고 구간은 약 62 BPM의 느긋한 박과 중역 플럭이 중심이었다. 한 박을 더 촘촘히
+ * 나누는 대신 속도는 72 BPM까지만 올려, 메뉴를 읽는 사람을 재촉하지 않는다.
  */
-const GAME: BgmTrack = {
-  bpm: 84,
+const SPLASH_DAY: BgmTrack = {
+  bpm: 72,
   stepsPerBar: 8,
-  bars: [
-    Am, F, C, G,
-    Am, F, C, E,
-    Dm, G, C, Am,
-    F, G, Am, E,
-  ],
-  pattern: [true, false, true, true, false, true, false, true],
-  arp: { type: 'triangle', gain: 0.04, octave: 12, length: 0.9 },
-  bass: { type: 'sine', gain: 0.075, steps: [0, 4], length: 3 },
-  pad: { type: 'triangle', gain: 0.022, length: 7 },
-  // 멜로디를 두지 않는다. 판에서 귀가 쓸 것은 음악이 아니다
-  melody: null,
-}
-
-/**
- * 타이틀과 옵션 — C장조.
- *
- * 유일하게 **밝은 장조**이고 화음을 두껍게 깐다. 처음 들어온 사람이 만나는 소리라
- * 여기만 환영하는 쪽으로 기울여 뒀다. 멜로디가 느리게 흐르고 아르페지오는 두 칸만
- * 남겨서, 읽고 고르는 동안 재촉하지 않는다.
- */
-const TITLE: BgmTrack = {
-  bpm: 60,
-  stepsPerBar: 8,
-  bars: [C, G, Am, F, C, Em, G, C],
-  pattern: [true, false, false, false, true, false, false, false],
-  arp: { type: 'sine', gain: 0.03, octave: 12, length: 1.6 },
-  bass: { type: 'sine', gain: 0.07, steps: [0], length: 6 },
-  pad: { type: 'triangle', gain: 0.032, length: 7 },
-  // 마지막 두 마디가 G → C로 닫힌다. 되돌아올 때 매듭이 지어져야 맴돈다는 느낌이 없다
+  bars: [D, Bm, G, A, D, Em, G, A, Bm, G, A, D],
+  pattern: [true, false, false, true, false, true, false, false],
+  arp: { type: 'sine', gain: 0.026, octave: 12, length: 0.58 },
+  bass: { type: 'sine', gain: 0.058, steps: [0], length: 5.5 },
+  pad: { type: 'triangle', gain: 0.018, length: 7 },
+  rhythm: {
+    pattern: [0.75, 0, 0, 0.45, 0, 0.6, 0, 0],
+    filter: 'bandpass',
+    freq: 950,
+    toFreq: 500,
+    q: 0.8,
+    gain: 0.007,
+    duration: 0.045,
+  },
   melody: {
     type: 'sine',
-    gain: 0.042,
+    gain: 0.034,
     length: 1,
     notes: [
-      [0, 72, 4], [4, 76, 4],
-      [8, 79, 6],
-      [16, 76, 4], [20, 72, 4],
-      [24, 74, 6],
-      [32, 76, 4], [36, 79, 4],
-      [40, 83, 6],
-      [48, 79, 4], [52, 76, 4],
-      [56, 72, 8],
+      [0, 74, 3], [4, 78, 2], [6, 81, 4],
+      [12, 78, 3], [16, 76, 2], [19, 74, 4],
+      [24, 71, 3], [28, 74, 2], [30, 76, 4],
+      [36, 73, 2], [40, 74, 5],
+      [48, 78, 3], [52, 81, 3], [56, 83, 5],
+      [64, 81, 2], [67, 78, 3], [72, 76, 4],
+      [80, 73, 3], [84, 76, 2], [88, 74, 8],
     ],
   },
 }
 
 /**
- * 대전 대기방 — D도리안.
+ * 밤 스플래시 — B단조, 108 BPM.
  *
- * **사각파에 패드가 없다.** 넷 중 유일하게 마른 소리이고, 스타카토로 또박또박
- * 4분음표를 짚는다 — 상대를 기다리는 동안 **시간이 흐르고 있다는 것**이 들려야 한다.
- * 음악까지 멎어 있으면 연결이 끊긴 것처럼 느껴진다.
- *
- * 멜로디가 매번 풀리지 않은 음으로 끝난다. 아직 시작 전이라는 것이 그렇게 들린다.
+ * 참고 구간의 약 100 BPM, 낮은 중심음과 띄엄띄엄 놓인 타격을 가져오되 선율과 화음은
+ * 새로 썼다. 낮보다 빠르지만 빈 칸이 많아 밤 화면의 고요를 깨지 않는다.
  */
+const SPLASH_NIGHT: BgmTrack = {
+  bpm: 108,
+  stepsPerBar: 8,
+  bars: [Bm, G, D, A, Bm, Em, Fsm, A, G, D, A, Bm],
+  pattern: [true, false, true, false, false, true, false, false],
+  arp: { type: 'triangle', gain: 0.019, octave: 12, length: 0.5 },
+  bass: { type: 'sine', gain: 0.064, steps: [0], length: 5 },
+  pad: { type: 'sine', gain: 0.015, length: 7 },
+  rhythm: {
+    pattern: [0.8, 0, 0, 0, 0.45, 0, 0, 0],
+    filter: 'lowpass',
+    freq: 520,
+    toFreq: 180,
+    q: 0.6,
+    gain: 0.009,
+    duration: 0.07,
+  },
+  melody: {
+    type: 'sine',
+    gain: 0.028,
+    length: 1,
+    notes: [
+      [0, 71, 4], [6, 74, 2], [12, 78, 5],
+      [20, 76, 3], [24, 74, 5],
+      [32, 71, 3], [36, 69, 3], [40, 67, 5],
+      [48, 71, 3], [52, 74, 2], [56, 78, 5],
+      [64, 79, 3], [68, 78, 3], [72, 76, 4],
+      [80, 74, 4], [88, 71, 8],
+    ],
+  },
+}
+
+/**
+ * 낮 플레이 — G장조, 96 BPM, 16마디(40초).
+ *
+ * 참고 구간의 약 80 BPM보다 빠르고, 짧은 타악 결을 촘촘히 둔다. 멜로디는 비워서
+ * 타자·착지음이 앞에 남고, 네 마디마다 끝 화음을 달리해 긴 판에서도 시계처럼 안 들린다.
+ */
+const GAME_DAY: BgmTrack = {
+  bpm: 96,
+  stepsPerBar: 8,
+  bars: [
+    G, C, Em, D,
+    G, Am, C, D,
+    Em, C, G, D,
+    Am, C, D, G,
+  ],
+  pattern: [true, false, true, true, false, true, false, true],
+  arp: { type: 'triangle', gain: 0.027, octave: 12, length: 0.62 },
+  bass: { type: 'sine', gain: 0.066, steps: [0, 4], length: 2.7 },
+  pad: { type: 'triangle', gain: 0.012, length: 7 },
+  rhythm: {
+    pattern: [0.9, 0, 0.45, 0.65, 0, 0.55, 0, 0.7],
+    filter: 'bandpass',
+    freq: 1600,
+    toFreq: 900,
+    q: 0.7,
+    gain: 0.008,
+    duration: 0.026,
+  },
+  melody: null,
+}
+
+/**
+ * 밤 플레이 — E단조, 116 BPM, 20마디(약 41초).
+ *
+ * 참고 구간의 약 105 BPM보다 한 걸음 빠르고 저음 비중을 높였다. 낮과 같은 음 집합을
+ * 써서 1.4초 크로스페이드 동안 부딪히지 않되, 세 번 뛰는 베이스로 밤의 긴장만 올린다.
+ */
+const GAME_NIGHT: BgmTrack = {
+  bpm: 116,
+  stepsPerBar: 8,
+  bars: [
+    Em, C, G, Bm,
+    Em, C, Am, Bm,
+    G, D, Em, Bm,
+    C, G, Am, Bm,
+    Em, D, C, Bm,
+  ],
+  pattern: [true, false, true, false, true, true, false, true],
+  arp: { type: 'sine', gain: 0.026, octave: 12, length: 0.52 },
+  bass: { type: 'triangle', gain: 0.074, steps: [0, 3, 6], length: 1.8 },
+  pad: { type: 'sine', gain: 0.01, length: 7 },
+  rhythm: {
+    pattern: [1, 0, 0.5, 0, 0.72, 0.55, 0, 0.75],
+    filter: 'lowpass',
+    freq: 780,
+    toFreq: 240,
+    q: 0.7,
+    gain: 0.011,
+    duration: 0.045,
+  },
+  melody: null,
+}
+
+/** 대전 대기방 — D도리안. 사각파와 패드 없는 스타카토가 기다리는 시간을 알린다. */
 const LOBBY: BgmTrack = {
   bpm: 76,
   stepsPerBar: 8,
   bars: [Dm, G, Dm, C, Dm, G, Am, C],
   pattern: [true, false, true, false, true, false, true, false],
-  // 사각파는 배음이 세지만 버스의 고역 깎기가 눌러준다. 여기서는 그 성질이 표식이다
   arp: { type: 'square', gain: 0.022, octave: 12, length: 0.45 },
   bass: { type: 'triangle', gain: 0.062, steps: [0, 4], length: 3 },
   pad: null,
+  rhythm: null,
   melody: {
     type: 'sine',
     gain: 0.036,
@@ -169,16 +229,7 @@ const LOBBY: BgmTrack = {
   },
 }
 
-/**
- * 도감 — F장조, **3/4 왈츠**.
- *
- * 유일하게 박자가 다르다. 세 박은 네 박과 걸음걸이 자체가 달라서, 조성이나 음색보다
- * 먼저 "다른 곡"으로 들린다. 베이스가 첫 박을 짚고 화음이 둘째·셋째 박에 얹히는
- * 왈츠의 기본형이다.
- *
- * 아르페지오를 두 옥타브 위에 올려 오르골처럼 만들었다. 가운데가 비면 소리가 넓게
- * 퍼져 들려서, 같은 음량이라도 덜 눌린다 — 모은 것을 들여다보는 자리다.
- */
+/** 도감 — F장조 3/4 왈츠. 두 옥타브 위 아르페지오가 오르골처럼 들린다. */
 const COLLECTION: BgmTrack = {
   bpm: 66,
   stepsPerBar: 6,
@@ -187,6 +238,7 @@ const COLLECTION: BgmTrack = {
   arp: { type: 'sine', gain: 0.026, octave: 24, length: 0.8 },
   bass: { type: 'sine', gain: 0.06, steps: [0], length: 2 },
   pad: { type: 'triangle', gain: 0.02, length: 5 },
+  rhythm: null,
   melody: {
     type: 'sine',
     gain: 0.03,
@@ -205,8 +257,10 @@ const COLLECTION: BgmTrack = {
 }
 
 const TRACKS = {
-  game: GAME,
-  title: TITLE,
+  splashDay: SPLASH_DAY,
+  splashNight: SPLASH_NIGHT,
+  gameDay: GAME_DAY,
+  gameNight: GAME_NIGHT,
   lobby: LOBBY,
   collection: COLLECTION,
 } as const
@@ -214,4 +268,4 @@ const TRACKS = {
 type BgmTrackName = keyof typeof TRACKS
 
 export { TRACKS }
-export type { Bar, BgmTrack, BgmTrackName, Layer, MelodyNote }
+export type { Bar, BgmTrack, BgmTrackName, Layer, MelodyNote, RhythmLayer }

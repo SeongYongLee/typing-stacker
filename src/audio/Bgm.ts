@@ -1,5 +1,5 @@
 import { TRACKS, type Bar, type BgmTrack, type BgmTrackName } from './tracks.ts'
-import { hz, tone, type Voice } from './voices.ts'
+import { burst, hz, tone, type Voice } from './voices.ts'
 
 /**
  * 배경음악 재생기. 이것도 파일이 아니라 코드다.
@@ -8,7 +8,7 @@ import { hz, tone, type Voice } from './voices.ts'
  * 어디가 끝이고 어디가 시작인지 들리지 않는다.
  *
  * 무엇을 연주할지는 `tracks.ts`가 정한다. 여기는 연주하는 방법만 안다 —
- * 베이스·화음·아르페지오·멜로디 네 겹을 악보가 시킨 자리에 놓을 뿐이다.
+ * 베이스·화음·아르페지오·짧은 타악·멜로디를 악보가 시킨 자리에 놓을 뿐이다.
  *
  * ## 앞질러 예약하는 이유
  *
@@ -42,6 +42,14 @@ const TIMER_MS = 100
 const CROSSFADE_SEC = 1.4
 
 /**
+ * 첫 곡이 들리기까지의 시간.
+ *
+ * 첫 제스처가 혼자 하기 버튼이면 스플래시는 0.6초 뒤 가려진다. 여기까지 1.4초로
+ * 밀려들면 음량이 절반에도 못 닿아 배경음이 없는 것처럼 들리므로, 첫 곡만 빠르게 연다.
+ */
+const INITIAL_FADE_IN_SEC = 0.24
+
+/**
  * 조용해질 때 잦아드는 시간.
  *
  * 곡을 바꿀 때보다 짧다. 일시정지는 **지금 멈췄다**는 것이 바로 전해져야 하는데,
@@ -70,6 +78,8 @@ interface Playing {
 
 class Bgm {
   private current: Playing | null = null
+  /** 앱에서 첫 곡만 빠르게 열고, 이후 재개·전환은 기존 1.4초 호흡을 지킨다 */
+  private hasPlayed = false
   /**
    * 곡마다 마지막으로 있던 자리.
    *
@@ -116,11 +126,14 @@ class Bgm {
       retiring: false,
     }
 
-    // 처음 트는 것이라 겹칠 상대가 없어도 밀려들어오게 한다. 시작이 튀지 않아야 한다
-    this.retire(this.current, CROSSFADE_SEC)
+    const previous = this.current
+    this.retire(previous, CROSSFADE_SEC)
     this.current = next
 
-    ramp(gain.gain, ctx, 1, CROSSFADE_SEC)
+    // 첫 곡은 스플래시가 가려지기 전에 들려야 하고, 이후 재개·전환은 길게 잇는다
+    const fadeInSec = this.hasPlayed ? CROSSFADE_SEC : INITIAL_FADE_IN_SEC
+    this.hasPlayed = true
+    ramp(gain.gain, ctx, 1, fadeInSec)
     this.schedule(next)
     next.timer = window.setInterval(() => this.schedule(next), TIMER_MS)
   }
@@ -199,6 +212,7 @@ class Bgm {
         attack: 0.03,
       })
     }
+    this.playRhythm(voice, track, beat)
     this.playMelody(voice, track, step, stepSec)
     this.playArp(voice, track, bar, beat, stepSec)
   }
@@ -223,6 +237,24 @@ class Bgm {
       gain: track.arp.gain,
       duration: stepSec * track.arp.length,
       attack: 0.02,
+    })
+  }
+
+  /** 악보의 0~1 세기로 흰 잡음을 짧게 잘라 귀여운 타악 결을 만든다 */
+  private playRhythm(voice: Voice, track: BgmTrack, beat: number): void {
+    const rhythm = track.rhythm
+    const velocity = rhythm?.pattern[beat] ?? 0
+    if (rhythm === null || velocity <= 0) {
+      return
+    }
+    burst(voice, {
+      filter: rhythm.filter,
+      freq: rhythm.freq,
+      toFreq: rhythm.toFreq,
+      q: rhythm.q,
+      gain: rhythm.gain * velocity,
+      duration: rhythm.duration,
+      attack: Math.min(0.006, rhythm.duration * 0.3),
     })
   }
 
@@ -291,4 +323,4 @@ function ramp(param: AudioParam, ctx: AudioContext, target: number, seconds: num
   param.linearRampToValueAtTime(target, now + seconds)
 }
 
-export { Bgm, CROSSFADE_SEC, FADE_OUT_SEC }
+export { Bgm, CROSSFADE_SEC, INITIAL_FADE_IN_SEC, FADE_OUT_SEC }

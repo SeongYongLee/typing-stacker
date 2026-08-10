@@ -55,7 +55,7 @@ function simulate(
   for (let t = 0; t < seconds; t += dt) {
     const result = world.step(dt)
     settled.push(...result.settled)
-    escaped.push(...result.escaped)
+    escaped.push(...result.escaped.map((item) => item.owner))
   }
   return { settled, escaped }
 }

@@ -37,6 +37,7 @@ import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
 import type { FallingWord, GamePhase, ItemVariant, RunStats, WordEntry } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
+import { CatPickup } from '../systems/CatPickup.ts'
 import type { TrailHit } from '../systems/TrailField.ts'
 import { GameLoop } from './GameLoop.ts'
 
@@ -169,6 +170,13 @@ class GameEngine {
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
   /**
+   * 물건을 놓치면 뛰어드는 고양이. 판의 결과에 닿지 않는 연출이다.
+   *
+   * 목숨을 잃는 이탈에만 부른다 — 무너질 때 우수수 떨어지는 것까지 부르면 고양이가
+   * 여럿 교차해 무엇이 목숨을 깎았는지 오히려 안 보인다.
+   */
+  private readonly cats = new CatPickup()
+  /**
    * 이번 프레임에 부딪힌 자리들. 렌더러가 그 자리에서 물이 퍼지게 하는 데 쓴다.
    *
    * 배열을 새로 만들지 않고 **비워 쓴다.** 매 프레임 도는 자리라 새로 만들면
@@ -296,6 +304,7 @@ class GameEngine {
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
+    this.cats.reset()
     this.cameraY = 0
     this.difficultyPeak = 0
     this.physics.reset()
@@ -503,6 +512,7 @@ class GameEngine {
     this.advanceQuake(dt)
     // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
     this.landing.advance(dt)
+    this.cats.update(dt)
     // 지난 프레임의 부딪힘은 이미 그려졌다. 비우지 않으면 물이 계속 퍼진다
     this.frameImpacts.length = 0
 
@@ -588,6 +598,11 @@ class GameEngine {
       // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
       this.score.onLifeLost()
       this.fire({ kind: 'lifeLost', livesLeft: this.lives })
+      // 목숨을 깎은 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
+      const taken = escaped[0]
+      if (taken !== undefined) {
+        this.cats.take(taken.variant, taken.x, taken.y)
+      }
       if (this.lives === 0) {
         this.phase = 'collapsing'
         this.collapseTimer = 0
@@ -844,6 +859,7 @@ class GameEngine {
               progress: reveal.elapsed / reveal.duration,
             },
       landing: this.landing.view,
+      cat: this.cats.view,
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,

@@ -6,6 +6,8 @@ import { grownBy } from './trailPaint.ts'
 import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import { sprite } from './spriteCache.ts'
 import { ARENA_ART as GENERATED_ART, type ArenaArtName } from './arenaArt.generated.ts'
+import { catPose } from './catPose.ts'
+import type { CatView } from '../systems/CatPickup.ts'
 import { padRatio, rim } from './rimCache.ts'
 import { PAIR_MARK_COLORS } from '../systems/PairMarks.ts'
 import { ARENA, LEDGE, ARENA_SCREEN_MAX_WIDTH } from '../config.ts'
@@ -81,6 +83,7 @@ type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
   'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'>> & {
   readonly hiddenReveal: HiddenReveal | null
   readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
+  readonly cat: CatView | null
 }
 
 /** 없는 것에 기본값을 준다. **한 곳에서만 정한다** — 그리는 자리마다 물으면 곧 갈린다 */
@@ -95,6 +98,7 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
     formingLedge: state.formingLedge ?? null,
     pairMarks: state.pairMarks ?? NO_PAIR_MARKS,
     pairPulse: state.pairPulse ?? 0,
+    cat: state.cat ?? null,
   }
 }
 
@@ -191,6 +195,12 @@ interface ArenaRenderState {
    * 소리도 같은 판정을 쓴다.
    */
   readonly impacts: readonly TrailHit[]
+  /**
+   * 물건을 놓쳐 뛰어든 고양이. 없으면 null이다.
+   *
+   * 어디로 뛰는지는 `catPose.ts`가 정한다 — 여기 오는 것은 "누가 어디서 언제부터"까지다.
+   */
+  readonly cat?: CatView | null
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
 }
@@ -370,6 +380,14 @@ class ArenaRenderer {
      */
     this.drawPlatformFront()
     this.drawLedges(state.ledges)
+    /*
+     * 고양이가 **가장 앞이다.** 목숨이 깎였다는 소식이라 이 프레임에서 가장 중요하고,
+     * 무엇에 가리면 그 소식이 안 닿는다. 흔들림 안에 두는 것은 같은 방 안의 것이기
+     * 때문이다 — 밖으로 빼면 화면이 흔들리는데 고양이만 가만히 있어 얹은 UI로 보인다.
+     */
+    if (state.cat !== null) {
+      this.drawCat(state.cat)
+    }
     ctx.restore()
   }
 
@@ -518,6 +536,68 @@ class ArenaRenderer {
       ctx.globalAlpha = base
     }
     return true
+  }
+
+  /**
+   * 물건을 놓치면 뛰어들어 물어 가는 고양이.
+   *
+   * 물건이 테두리 밖으로 조용히 날아가는 것만으로는 **무엇을 잃었는지도 잃었다는
+   * 것도 잘 안 보였다** — 화면 구석에서 일어나고 그때 눈은 다음 단어를 쫓고 있다.
+   * 고양이가 가로질러 오르면 그 순간이 한 번 화면을 지난다.
+   *
+   * **낮/밤을 가르지 않는다.** 그림이 한 장뿐이라 `drawDayNight`를 쓰지 않는다 —
+   * 방의 물건이 아니라 잠깐 들어왔다 나가는 것이라 조명에 물들지 않아도 어색하지 않고,
+   * 오히려 배경에서 떨어져 나와 보이는 쪽이 이 연출이 하려는 일에 맞는다.
+   *
+   * 그림이 아직 안 왔으면 **아무것도 그리지 않는다.** 물건은 이미 세계에서 치워졌고
+   * (`PhysicsWorld`), 여기서 대신 네모를 그리면 정체 모를 덩이가 지나갈 뿐이다.
+   */
+  private drawCat(cat: CatView): void {
+    const pose = catPose(cat)
+    const image = sprite(artUrl(pose.art))
+    if (image === null) {
+      return
+    }
+    const { ctx } = this
+    const width = pose.width * this.scale
+    const height = width * (image.naturalHeight / image.naturalWidth)
+    ctx.drawImage(
+      image,
+      this.toScreenX(pose.x) - width / 2,
+      this.toScreenY(pose.y) - height / 2,
+      width,
+      height,
+    )
+
+    /*
+     * 물고 있는 물건은 고양이 **뒤에** 그린다. 앞에 두면 물건이 얼굴을 가려 어느
+     * 고양이인지가 안 보이고, 무엇보다 입에 문 것이 아니라 앞에 든 것으로 보인다.
+     */
+    if (pose.carry !== null) {
+      // 위에서 이미 그린 고양이를 물건 위에 한 번 더 덮는다
+      this.drawCarried(cat, pose.carry)
+      ctx.drawImage(
+        image,
+        this.toScreenX(pose.x) - width / 2,
+        this.toScreenY(pose.y) - height / 2,
+        width,
+        height,
+      )
+    }
+  }
+
+  /** 고양이가 물고 가는 물건. 판에 있던 것과 같은 그림·같은 크기다 */
+  private drawCarried(cat: CatView, at: { readonly x: number; readonly y: number }): void {
+    const { ctx } = this
+    ctx.save()
+    ctx.translate(this.toScreenX(at.x), this.toScreenY(at.y))
+    /*
+     * 조금 기울여 문다. 똑바로 두면 물건이 공중에 정지한 것으로 보여, 물려 가는 것이
+     * 아니라 고양이와 겹쳐 지나가는 것으로 읽힌다.
+     */
+    ctx.rotate(cat.from === 'left' ? 0.35 : -0.35)
+    this.drawSprite(cat.variant.sprite, cat.variant.artBounds, null)
+    ctx.restore()
   }
 
   /**

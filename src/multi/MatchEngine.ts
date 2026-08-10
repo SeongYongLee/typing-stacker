@@ -7,6 +7,7 @@ import {
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
+import type { EscapeEvent } from '../game/physics/PhysicsWorld.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
 import { Aimer } from '../game/systems/Aimer.ts'
@@ -1224,11 +1225,11 @@ class MatchEngine {
   }
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
-  private hostJudge(dt: number, escaped: readonly OwnerId[]): void {
+  private hostJudge(dt: number, escaped: readonly EscapeEvent[]): void {
     let anyLost = false
     // 이번 판정에 함께 죽는 사람들은 공동 등수다
     this.match.startDeathBatch()
-    for (const owner of escaped) {
+    for (const { owner } of escaped) {
       // 무적인 사람의 물건은 세계에서 치우되 목숨은 깎지 않는다
       if (this.isInvulnerable(owner)) {
         continue

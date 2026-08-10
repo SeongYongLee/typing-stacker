@@ -65,6 +65,19 @@ const SOURCES = [
   { name: 'platform-front-night', file: 'open-storage-box-night-front.png', maxWidth: 1200, trim: true, group: 'box' },
   { name: 'ledge-day', file: 'dust-platform-day.png', maxWidth: 700, trim: true },
   { name: 'ledge-night', file: 'dust-platform-night.png', maxWidth: 700, trim: true },
+  /*
+   * 화이트보드에 적힌 단어를 치면 뻗어 나와 물건을 회수해 가는 손.
+   *
+   * **낮/밤을 한 묶음으로 자른다.** 둘의 불투명 경계가 세로로 2px 다른데(낮 y118,
+   * 밤 y120) 각자 자르면 그만큼 어긋난 채 겹쳐진다 — 겹쳐 쌓는 어법이라 어긋나면
+   * 밤에 낮 그림의 테두리가 드러난다.
+   *
+   * **오른쪽은 이 그림을 좌우로 뒤집어 쓴다.** 그림이 한 벌뿐이라 파이프라인에서
+   * 뒤집지 않고 그리는 쪽에서 뒤집는다 — 산출물이 두 배가 되지 않고, 좌우가 늘
+   * 같은 그림이라는 것이 코드에 드러난다.
+   */
+  { name: 'catch-day', file: 'cupped-hands-day.png', maxWidth: 900, trim: true, group: 'catch' },
+  { name: 'catch-night', file: 'cupped-hands-night.png', maxWidth: 900, trim: true, group: 'catch' },
   // 입력창이 앉는 메모장. 단어를 여기에 적는다
   { name: 'memo-day', file: 'memo-pad-day.png', maxWidth: 900, trim: true },
   { name: 'memo-night', file: 'memo-pad-night.png', maxWidth: 900, trim: true },
@@ -90,6 +103,24 @@ const SOURCES = [
   // 타이틀 화면
   { name: 'title-day', file: 'suspicious-lost-and-found-title-day-final.png', maxWidth: 1600, trim: true },
   { name: 'title-night', file: 'suspicious-lost-and-found-title-night-final.png', maxWidth: 1600, trim: true },
+  /*
+   * 물건을 놓치면 뛰어들어 물어 가는 고양이(`systems/CatPickup.ts`).
+   *
+   * **배경이 아닌데 이 파이프라인에 있다.** 여기서 하는 일이 자르고 줄여 WebP로
+   * 내는 것뿐이고 고양이에게 필요한 것도 그것뿐이라서다 — 물건 쪽 파이프라인은
+   * 실루엣에서 충돌 도형을 뽑는 것이 본업인데 고양이는 부딪히지 않는다.
+   *
+   * 이름의 left/right는 **들어오는 쪽**이다. `jump-left`는 왼쪽에서 뛰어들어
+   * 앞발이 오른쪽을 향한다.
+   */
+  { name: 'cat-cheese-left', file: 'cat-cheese-jump-left.png', maxWidth: 420, trim: true },
+  { name: 'cat-cheese-right', file: 'cat-cheese-jump-right.png', maxWidth: 420, trim: true },
+  { name: 'cat-american-shorthair-left', file: 'cat-american-shorthair-jump-left.png', maxWidth: 420, trim: true },
+  { name: 'cat-american-shorthair-right', file: 'cat-american-shorthair-jump-right.png', maxWidth: 420, trim: true },
+  { name: 'cat-tabby-left', file: 'cat-tabby-jump-left.png', maxWidth: 420, trim: true },
+  { name: 'cat-tabby-right', file: 'cat-tabby-jump-right.png', maxWidth: 420, trim: true },
+  { name: 'cat-tuxedo-left', file: 'cat-tuxedo-jump-left.png', maxWidth: 420, trim: true },
+  { name: 'cat-tuxedo-right', file: 'cat-tuxedo-jump-right.png', maxWidth: 420, trim: true },
 ]
 
 /** 이 값 이하의 알파는 없는 것으로 본다. 붓끝의 옅은 자락까지 세면 여백이 안 잘린다 */

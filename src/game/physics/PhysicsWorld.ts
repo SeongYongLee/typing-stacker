@@ -143,6 +143,15 @@ interface ImpactEvent {
   readonly y: number
 }
 
+/** 받침대를 벗어난 물건 하나. 고양이가 이 자리로 뛰어든다 */
+interface EscapeEvent {
+  readonly owner: OwnerId
+  readonly variant: ItemVariant
+  /** 벗어난 자리(월드 좌표) */
+  readonly x: number
+  readonly y: number
+}
+
 interface StepResult {
   readonly settled: readonly SettleEvent[]
   /**
@@ -151,12 +160,16 @@ interface StepResult {
    */
   readonly impacts: readonly ImpactEvent[]
   /**
-   * 이번 스텝에 받침대를 벗어난 물건들의 **주인**.
-   * 개수가 아니라 주인을 돌려주는 이유는, 떨어뜨린 사람이 아니라 쌓은 사람이
-   * 목숨을 잃기 때문이다 — 그래서 상대 물건을 밀어내는 것이 공격이 된다.
-   * 같은 사람의 물건이 둘 떨어지면 같은 값이 두 번 들어온다.
+   * 이번 스텝에 받침대를 벗어난 물건들.
+   *
+   * **주인을 함께 돌려주는 이유**는 떨어뜨린 사람이 아니라 쌓은 사람이 목숨을 잃기
+   * 때문이다 — 그래서 상대 물건을 밀어내는 것이 공격이 된다. 같은 사람의 물건이
+   * 둘 떨어지면 같은 주인이 두 번 들어온다.
+   *
+   * **무엇이 어디서 떨어졌는지도 싣는다.** 고양이가 그 자리로 뛰어들어 그 물건을
+   * 물고 나가기 때문이다(`systems/CatPickup.ts`).
    */
-  readonly escaped: readonly OwnerId[]
+  readonly escaped: readonly EscapeEvent[]
   /** 무거운 물건이 부딪힌 세기. 0이면 아무 일도 없었다 */
   readonly quake: number
 }
@@ -622,7 +635,7 @@ class PhysicsWorld {
     const settled: SettleEvent[] = []
     const impacts: ImpactEvent[] = []
     const goneHandles: number[] = []
-    const escaped: OwnerId[] = []
+    const escaped: EscapeEvent[] = []
     let quake = 0
 
     for (const [handle, entry] of this.tracked) {
@@ -635,11 +648,17 @@ class PhysicsWorld {
       }
 
       if (isEscaped(x, y)) {
-        // 이탈은 물건당 한 번만 센다. 매 프레임 세면 목숨 3개가 한순간에 날아간다.
-        // 바디는 남겨서 테두리 밖으로 날아가는 모습이 계속 그려지게 한다.
+        /*
+         * 이탈은 물건당 한 번만 센다. 매 프레임 세면 목숨 3개가 한순간에 날아간다.
+         *
+         * **바디는 그 자리에서 치운다.** 예전에는 남겨서 테두리 밖으로 날아가는 모습을
+         * 보여줬는데, 지금은 고양이가 뛰어들어 물어 간다(`systems/CatPickup.ts`) —
+         * 물건이 두 벌로 보이지 않으려면 세계에서는 사라져야 한다.
+         */
         if (!entry.lost) {
           entry.lost = true
-          escaped.push(entry.owner)
+          escaped.push({ owner: entry.owner, variant: entry.variant, x, y })
+          goneHandles.push(handle)
         }
         continue
       }
@@ -1074,4 +1093,4 @@ class PhysicsWorld {
 }
 
 export { PhysicsWorld }
-export type { SettleEvent, ImpactEvent, StepResult, BodyCorrection }
+export type { SettleEvent, EscapeEvent, ImpactEvent, StepResult, BodyCorrection }

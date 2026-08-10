@@ -13,6 +13,9 @@ const RECIPE_PICKS_BEFORE_AMBIENT: Readonly<Record<Phase, number>> = {
 /** 히든이나 이탈로 재료가 사라져도 영원히 같은 조합에 갇히지 않게 하는 여유다. */
 const EXTRA_RECIPE_OFFERS = 2
 
+/** 완성 가능성이 높은 레시피 사이에 새 레시피를 이만큼 둔다. */
+const FRESH_FOCUSES_BETWEEN_COMPLETION = 2
+
 interface RecipeGroups {
   /** 단어만 쳐서 바로 만들 수 있는 조합 */
   readonly direct: readonly Recipe[]
@@ -82,6 +85,8 @@ class RecipeFlow {
   private openingVariedBag: Recipe[] = []
   private openingFocusCount = 0
   private ambientBag: WordEntry[] = []
+  private freshFocusesRemaining = 0
+  private recentFocuses: Recipe[] = []
   private readonly attemptedChains = new Set<string>()
 
   constructor(rng: Rng, entries: readonly WordEntry[], recipes: readonly Recipe[]) {
@@ -200,16 +205,23 @@ class RecipeFlow {
       return this.takeOpeningRecipe()
     }
 
-    const chained = this.groups.chained.filter(
-      (recipe) => !this.attemptedChains.has(recipe.id) && this.canSupplyChain(recipe),
-    )
-    if (chained.length > 0) {
-      const picked = this.rng.pick(chained)
-      this.attemptedChains.add(picked.id)
-      return picked
+    const completion = this.completionCandidates()
+    if (this.freshFocusesRemaining === 0) {
+      const picked = this.pickCompletionRecipe(completion)
+      if (picked !== null) {
+        this.freshFocusesRemaining = FRESH_FOCUSES_BETWEEN_COMPLETION
+        return this.rememberFocus(picked)
+      }
     }
 
-    return this.takeDirectRecipe()
+    const fresh = this.takeDirectRecipe(new Set(completion.map((recipe) => recipe.id)))
+    if (fresh !== null) {
+      this.freshFocusesRemaining = Math.max(this.freshFocusesRemaining - 1, 0)
+      return this.rememberFocus(fresh)
+    }
+
+    const fallback = this.pickCompletionRecipe(completion)
+    return fallback === null ? null : this.rememberFocus(fallback)
   }
 
   private takeOpeningRecipe(): Recipe | null {
@@ -234,11 +246,72 @@ class RecipeFlow {
     return this.takeDirectRecipe()
   }
 
-  private takeDirectRecipe(): Recipe | null {
-    if (this.directBag.length === 0) {
-      this.directBag = shuffled(this.groups.direct, this.rng)
+  private takeDirectRecipe(blockedIds: ReadonlySet<string> = EMPTY_IDS): Recipe | null {
+    const recentIds = new Set(this.recentFocuses.map((recipe) => recipe.id))
+    const recentInputs = new Set(this.recentFocuses.flatMap((recipe) => recipe.inputs))
+    const eligible = (recipe: Recipe): boolean =>
+      !blockedIds.has(recipe.id) &&
+      !recentIds.has(recipe.id) &&
+      this.missingEntries(recipe).length > 0
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (this.directBag.length === 0 || attempt > 0) {
+        this.directBag = shuffled(this.groups.direct, this.rng)
+      }
+      const preferredIndex = this.directBag.findLastIndex(
+        (recipe) => eligible(recipe) && recipe.inputs.every((id) => !recentInputs.has(id)),
+      )
+      const relaxedIndex = this.directBag.findLastIndex(eligible)
+      const index = preferredIndex >= 0 ? preferredIndex : relaxedIndex
+      if (index >= 0) {
+        return this.directBag.splice(index, 1)[0] ?? null
+      }
     }
-    return this.directBag.pop() ?? null
+    return null
+  }
+
+  /** 이미 있는 재료를 가장 많이 활용해 완성에 가까운 레시피들이다. */
+  private completionCandidates(): Recipe[] {
+    const chained = this.groups.chained.filter(
+      (recipe) => !this.attemptedChains.has(recipe.id) && this.canSupplyChain(recipe),
+    )
+    return [...this.groups.direct, ...chained].filter((recipe) => {
+      const missing = this.missingEntries(recipe).length
+      return missing > 0 && missing < recipe.inputs.length
+    })
+  }
+
+  private pickCompletionRecipe(candidates: readonly Recipe[]): Recipe | null {
+    if (candidates.length === 0) {
+      return null
+    }
+    const recentIds = new Set(this.recentFocuses.map((recipe) => recipe.id))
+    const recentInputs = new Set(this.recentFocuses.flatMap((recipe) => recipe.inputs))
+    const notRecent = candidates.filter((recipe) => !recentIds.has(recipe.id))
+    const distinct = notRecent.filter((recipe) =>
+      recipe.inputs.every((id) => !recentInputs.has(id)),
+    )
+    const pool = distinct.length > 0 ? distinct : notRecent.length > 0 ? notRecent : candidates
+    const bestRatio = Math.max(
+      ...pool.map((recipe) =>
+        (recipe.inputs.length - this.missingEntries(recipe).length) / recipe.inputs.length,
+      ),
+    )
+    const best = pool.filter(
+      (recipe) =>
+        (recipe.inputs.length - this.missingEntries(recipe).length) / recipe.inputs.length ===
+        bestRatio,
+    )
+    const picked = this.rng.pick(best)
+    if (this.groups.chained.includes(picked)) {
+      this.attemptedChains.add(picked.id)
+    }
+    return picked
+  }
+
+  private rememberFocus(recipe: Recipe): Recipe {
+    this.recentFocuses = [...this.recentFocuses.slice(-1), recipe]
+    return recipe
   }
 
   /** 합성 전용 재료가 이미 판에 있을 때만 그 뒤 레시피를 집중한다. */
@@ -330,6 +403,12 @@ function shuffled<T>(items: readonly T[], rng: Rng): T[] {
 }
 
 const EMPTY_COUNTS: ReadonlyMap<string, number> = new Map()
+const EMPTY_IDS: ReadonlySet<string> = new Set()
 
-export { RecipeFlow, groupRecipes, RECIPE_PICKS_BEFORE_AMBIENT }
+export {
+  FRESH_FOCUSES_BETWEEN_COMPLETION,
+  RecipeFlow,
+  groupRecipes,
+  RECIPE_PICKS_BEFORE_AMBIENT,
+}
 export type { RecipeGroups }

@@ -45,12 +45,11 @@ describe('pairMarks', () => {
     expect(pairMarks(new Map([[pizza.inputs[0]!, 2]]), [pizza]).size).toBe(1)
   })
 
-  it('같은 조합 속성의 다른 형태도 같은 표식을 받는다', () => {
+  it('단어 히든은 기본형 짝 표식을 대신 받지 않는다', () => {
     const clover = RECIPES.find((item) => item.inputs[0] === 'clover' && item.inputs[1] === 'clover')
     expect(clover).toBeDefined()
     const marks = pairMarks(new Map([['clover', 1], ['clover-lucky', 1]]), [clover!])
-    expect(marks.get('clover')).toBe(0)
-    expect(marks.get('clover-lucky')).toBe(0)
+    expect(marks.size).toBe(0)
   })
 
   it('짝끼리 같은 번호, 다른 짝과는 다른 번호', () => {

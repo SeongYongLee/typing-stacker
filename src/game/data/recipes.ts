@@ -175,32 +175,14 @@ const RECIPES: readonly Recipe[] = [
 
 function buildCraftKeys(): ReadonlyMap<string, string> {
   const keys = new Map<string, string>()
-  /*
-   * 같은 단어에서 나오는 기본형과 히든은 조합에서 같은 속성이다.
-   * 예를 들어 세잎클로버와 네잎클로버는 둘 다 `clover`로 센다.
-   */
-  for (const entry of WORDS) {
-    const base = entry.variants[0]
-    if (base === undefined) {
-      continue
-    }
-    for (const variant of entry.variants) {
-      keys.set(variant.id, base.id)
-    }
-  }
 
   /*
    * 합성 결과물의 다른 형태도 같은 속성이다. `vintage-trunk`는 다음 단계 레시피에서
    * `travel-suitcase` 자리에 쓸 수 있어야 한다.
-   *
-   * 이미 단어의 기본/히든으로 묶인 것은 건드리지 않는다. `clover-lucky`는
-   * `clover + clover`의 결과물이기도 하지만 조합 속성은 여전히 `clover`여야 한다.
    */
   for (const item of RECIPES) {
-    for (const variant of [item.result, ...item.hiddenResults]) {
-      if (!keys.has(variant.id)) {
-        keys.set(variant.id, item.result.id)
-      }
+    for (const variant of item.hiddenResults) {
+      keys.set(variant.id, item.result.id)
     }
   }
   return keys

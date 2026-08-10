@@ -36,9 +36,9 @@ const LEAP_AWAY = 1.45
 /** 뛰기 시작하는 높이가 물건보다 얼마나 아래인가(m). 화면 밖에서 올라와야 한다 */
 const LEAP_DROP = 1.45
 
-/** 무는 자리 — 고양이 그림 가운데에서 앞쪽·위쪽으로 얼마나(그림 폭 대비) */
-const MOUTH_FORWARD = 0.24
-const MOUTH_UP = 0.1
+/** 잡는 자리 — 고양이 그림 가운데에서 앞발 손끝 쪽으로 얼마나(그림 폭 대비) */
+const PAW_FORWARD = 0.36
+const PAW_UP = 0.38
 
 interface CatPose {
   /** 그릴 그림의 이름 뒷자리. `cat-<kind>-<from>` */
@@ -80,8 +80,8 @@ function catPose(cat: CatView): CatPose {
   const y = floorY + (cat.y - floorY) * lift
 
   /*
-   * 무는 자리는 **앞발 쪽**이다. `jump-left`는 왼쪽에서 들어와 오른쪽을 향하므로
-   * 앞이 곧 안쪽 — 바깥쪽의 반대다.
+   * 잡는 자리는 **양 앞발 손끝 사이**다. `jump-left`는 왼쪽에서 들어와 오른쪽을
+   * 향하므로 앞발 끝은 안쪽 위에 있다.
    */
   const forward = -outward
   return {
@@ -91,8 +91,8 @@ function catPose(cat: CatView): CatPose {
     width: CAT_WIDTH,
     carry: cat.holding
       ? {
-          x: x + forward * CAT_WIDTH * MOUTH_FORWARD,
-          y: y + CAT_WIDTH * MOUTH_UP,
+          x: x + forward * CAT_WIDTH * PAW_FORWARD,
+          y: y + CAT_WIDTH * PAW_UP,
         }
       : null,
   }

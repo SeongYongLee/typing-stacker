@@ -67,6 +67,9 @@ const TURN_HURRY_SEC = 5
 
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
+/** 드롭 직후에는 충돌·붙음이 갈리기 쉬우므로 잠깐만 더 촘촘히 맞춘다 */
+const DROP_SYNC_BURST_SEC = 1.2
+const DROP_SYNC_BURST_INTERVAL_SEC = 0.2
 /** 판 전환 직후에는 구형 판 ID 없는 지연 명령을 잠깐 버린다. */
 const LEGACY_COMMAND_GRACE_SEC = 1
 /** 드롭 명령이 네트워크를 지나갈 시간을 주는 물리 tick 수. 현재 루프 기준 약 100ms다. */
@@ -324,6 +327,9 @@ class MatchEngine {
    */
   private turnElapsed = 0
   private sinceSync = 0
+  /** 드롭 직후 권위 키프레임을 촘촘히 보낼 남은 시간(초). 방장만 쓴다 */
+  private dropSyncBurstLeft = 0
+  private sinceDropSync = 0
   /** 현재 로컬 물리 step 번호. sync를 받으면 참가자는 방장 tick에 맞춘다. */
   private physicsTick = 0
   /** 물리 세계에 넣는 시점만 예약한다. 단어 제거·턴 이동은 드롭 승인 시점에 한다. */
@@ -1013,6 +1019,9 @@ class MatchEngine {
       return
     }
     this.physics.spawnItemAt(variant, drop.aimX, drop.spawnY, drop.by, drop.itemId)
+    if (this.isHost) {
+      this.armDropSyncBurst()
+    }
   }
 
   private handleMessage(from: PlayerId, message: Message): void {
@@ -1312,6 +1321,18 @@ class MatchEngine {
     })
   }
 
+  /** 현재 권위 물리 상태를 보낸다. */
+  private broadcastAuthoritySync(): void {
+    this.transport.broadcast({
+      t: 'sync',
+      bodies: this.physics.frames(),
+      welds: this.physics.weldPairs(),
+      tick: this.physicsTick,
+      matchId: this.matchId,
+    })
+    this.sinceSync = 0
+  }
+
   /** 새 방장이 되거나 복귀자를 맞출 때 현재 권위 상태를 즉시 다시 선언한다. */
   private broadcastAuthorityState(): void {
     this.sentWordVersion = this.spawner.version
@@ -1321,14 +1342,27 @@ class MatchEngine {
     this.transport.broadcast({
       t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
     })
-    this.transport.broadcast({
-      t: 'sync',
-      bodies: this.physics.frames(),
-      welds: this.physics.weldPairs(),
-      tick: this.physicsTick,
-      matchId: this.matchId,
-    })
-    this.sinceSync = 0
+    this.broadcastAuthoritySync()
+  }
+
+  private armDropSyncBurst(): void {
+    this.dropSyncBurstLeft = Math.max(this.dropSyncBurstLeft, DROP_SYNC_BURST_SEC)
+    // 물리 step을 한 번 지난 직후 첫 키프레임이 나가게 한다.
+    this.sinceDropSync = DROP_SYNC_BURST_INTERVAL_SEC
+  }
+
+  private pulseDropSyncBurst(dt: number): boolean {
+    if (this.dropSyncBurstLeft <= 0) {
+      return false
+    }
+    this.dropSyncBurstLeft = Math.max(0, this.dropSyncBurstLeft - dt)
+    this.sinceDropSync += dt
+    if (this.sinceDropSync < DROP_SYNC_BURST_INTERVAL_SEC) {
+      return false
+    }
+    this.sinceDropSync = 0
+    this.broadcastAuthoritySync()
+    return true
   }
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
@@ -1371,16 +1405,12 @@ class MatchEngine {
      * 물리는 양쪽에서 따로 돌기 때문에 맞춰주지 않으면 서서히 벌어진다.
      * 매 프레임 흘리면 무료 전송로의 한도를 태우므로 간격을 둔다.
      */
-    this.sinceSync += dt
+    const burstSynced = this.pulseDropSyncBurst(dt)
+    if (!burstSynced) {
+      this.sinceSync += dt
+    }
     if (this.sinceSync >= SYNC_INTERVAL_SEC) {
-      this.sinceSync = 0
-      this.transport.broadcast({
-        t: 'sync',
-        bodies: this.physics.frames(),
-        welds: this.physics.weldPairs(),
-        tick: this.physicsTick,
-        matchId: this.matchId,
-      })
+      this.broadcastAuthoritySync()
     }
   }
 

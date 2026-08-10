@@ -141,7 +141,7 @@ describe('첫 밤은 합성으로 끝난다', () => {
         runs.push(await play(seed, 60))
       }
       expect(runs.some((run) => run.firstNightMerges > 0), '첫 밤에 합성이 한 번도 없다').toBe(true)
-      for (const run of runs.filter((item) => item.merges >= FIRST_NIGHT_MERGES)) {
+      for (const run of runs.filter((item) => item.firstNightMerges >= FIRST_NIGHT_MERGES)) {
         expect(run.phaseAtLastMerge).toBe('firstNight')
         expect(run.leftFirstNightAt).toBeLessThan(FIRST_NIGHT_SEC)
       }

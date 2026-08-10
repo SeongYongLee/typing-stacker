@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { INGREDIENT_IDS, RECIPES } from '../src/game/data/recipes.ts'
 import { WORDS } from '../src/game/data/words.ts'
 import {
+  FRESH_FOCUSES_BETWEEN_COMPLETION,
   RECIPE_PICKS_BEFORE_AMBIENT,
   RecipeFlow,
   groupRecipes,
@@ -11,6 +12,19 @@ import type { WordEntry } from '../src/game/types/game.ts'
 
 function baseId(entry: WordEntry): string {
   return entry.variants.find((variant) => !variant.hidden)?.id ?? ''
+}
+
+function focusedRecipe(flow: RecipeFlow, recipes: readonly (typeof RECIPES)[number][]) {
+  const words = new Set(flow.prepareFocusWords())
+  return recipes.find((recipe) => {
+    const recipeWords = new Set(
+      recipe.inputs.flatMap((id) => {
+        const entry = WORDS.find((candidate) => baseId(candidate) === id)
+        return entry === undefined ? [] : [entry.word]
+      }),
+    )
+    return recipeWords.size === words.size && [...recipeWords].every((word) => words.has(word))
+  })
 }
 
 describe('레시피별 단어 무리', () => {
@@ -94,6 +108,32 @@ describe('레시피 흐름', () => {
     }
 
     expect(longest).toBeLessThanOrEqual(RECIPE_PICKS_BEFORE_AMBIENT.day)
+  })
+
+  it('완성 가능성이 높은 레시피 사이에 새 레시피 둘을 둔다', () => {
+    expect(FRESH_FOCUSES_BETWEEN_COMPLETION).toBe(2)
+    const resultIds = ['sunflower', 'clover-lucky', 'leaf-maple', 'pizza-box']
+    const recipes = RECIPES.filter((recipe) => resultIds.includes(recipe.result.id))
+    expect(recipes).toHaveLength(resultIds.length)
+    const flow = new RecipeFlow(createRng(23), WORDS, recipes)
+    flow.setPhase('day')
+    flow.observe(new Map([['sunflower-seed', 1]]))
+
+    const completion = focusedRecipe(flow, recipes)
+    expect(completion?.result.id).toBe('sunflower')
+    flow.onMerged(completion!)
+
+    const firstFresh = focusedRecipe(flow, recipes)
+    expect(firstFresh?.result.id).not.toBe('sunflower')
+    flow.onMerged(firstFresh!)
+
+    const secondFresh = focusedRecipe(flow, recipes)
+    expect(secondFresh?.result.id).not.toBe('sunflower')
+    expect(secondFresh?.id).not.toBe(firstFresh?.id)
+    flow.onMerged(secondFresh!)
+
+    const nextCompletion = focusedRecipe(flow, recipes)
+    expect(nextCompletion?.result.id).toBe('sunflower')
   })
 
   it('선행 합성 결과물이 있으면 연쇄 레시피의 나머지 재료를 집중한다', () => {

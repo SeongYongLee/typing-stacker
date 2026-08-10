@@ -48,7 +48,7 @@ export {
   WORD,
 } from './config/time.ts'
 
-export { LEDGE, HIDDEN_CHANCE, OPENING_HIDDEN_CHANCE } from './config/items.ts'
+export { LEDGE, CATCH, HIDDEN_CHANCE, OPENING_HIDDEN_CHANCE } from './config/items.ts'
 
 export { LIVES, INVULNERABLE_SEC, SOLO_OWNER, SCORE } from './config/scoring.ts'
 

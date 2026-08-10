@@ -8,9 +8,8 @@ import type { Rng } from './Rng.ts'
  * 단어를 실제로 떨어질 물건으로 바꾼다.
  * 플레이어는 Enter를 누른 뒤에야 결과를 보므로, 이 롤은 판정 직후 한 번만 호출된다.
  *
- * `chance`를 밖에서 줄 수 있는 이유는 **구간마다 밀도가 달라야** 하기 때문이다.
- * 첫 밤은 히든 보유 단어만 내보내므로 같은 확률이라도 밀도가 몇 배로 뛴다 —
- * 그 자리에서는 낮은 값을 넘긴다(`OPENING_HIDDEN_CHANCE`).
+ * `chance`를 밖에서 줄 수 있는 이유는 확률 경계와 밸런스 측정을 같은 함수로
+ * 검증하기 위해서다. 실제 판은 모든 국면에서 `HIDDEN_CHANCE`를 쓴다.
  */
 function resolveItem(word: string, rng: Rng, chance: number = HIDDEN_CHANCE): ItemVariant {
   const entry = WORD_BY_TEXT.get(word)

@@ -223,6 +223,8 @@ interface TrackedBody {
    * 수도 있다. 떨어뜨릴 때 표를 달아두면 그 물건 하나만 정확히 가려낸다.
    */
   readonly recalled: boolean
+  /** Night Fever 자동 낙하인지. 물리에는 영향이 없고 렌더 스냅샷까지 전달한다. */
+  readonly fever: boolean
   /**
    * 한 번이라도 자리를 잃은 적이 있는지.
    * 되돌리지 않는다 — 흔들린 스택은 계속 불안정한 것으로 취급한다.
@@ -380,8 +382,9 @@ class PhysicsWorld {
     owner: OwnerId,
     itemId = 0,
     recalled = false,
+    fever = false,
   ): number {
-    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled)
+    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled, fever)
   }
 
   /**
@@ -395,8 +398,19 @@ class PhysicsWorld {
     owner: OwnerId,
     itemId = 0,
     recalled = false,
+    fever = false,
   ): number {
-    return this.spawnItemMovingAt(variant, x, y, owner, itemId, recalled)
+    return this.spawnItemMovingAt(
+      variant,
+      x,
+      y,
+      owner,
+      itemId,
+      recalled,
+      { x: 0, y: 0 },
+      0,
+      fever,
+    )
   }
 
   spawnItemMovingAt(
@@ -408,6 +422,7 @@ class PhysicsWorld {
     recalled = false,
     velocity: Vec2 = { x: 0, y: 0 },
     angularVelocity = 0,
+    fever = false,
   ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)
@@ -455,6 +470,7 @@ class PhysicsWorld {
       owner,
       itemId,
       recalled,
+      fever,
       // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
       heavy: body.mass() >= HEAVY_MASS,
       shakes:
@@ -833,6 +849,7 @@ class PhysicsWorld {
         rotation: 0,
         settled: false,
         recalled: false,
+        fever: false,
       })
       slot.handle = handle
       slot.variant = entry.variant
@@ -842,6 +859,7 @@ class PhysicsWorld {
       slot.rotation = entry.body.rotation()
       slot.settled = entry.settled
       slot.recalled = entry.recalled
+      slot.fever = entry.fever
       count += 1
     }
     // 지난 프레임에 있었지만 지금은 없는 물건의 칸을 버린다

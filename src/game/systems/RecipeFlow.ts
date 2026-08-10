@@ -5,7 +5,6 @@ import type { Rng } from './Rng.ts'
 
 /** 낮에는 재료 둘 뒤, 밤에는 셋 뒤에 다른 무리의 단어를 섞는다. */
 const RECIPE_PICKS_BEFORE_AMBIENT: Readonly<Record<Phase, number>> = {
-  firstNight: 2,
   day: 2,
   night: 3,
 }
@@ -74,16 +73,13 @@ function groupRecipes(
 class RecipeFlow {
   private readonly rng: Rng
   private readonly groups: RecipeGroups
-  private phase: Phase = 'firstNight'
+  private phase: Phase = 'day'
   private available: ReadonlyMap<string, number> = EMPTY_COUNTS
   private focus: Recipe | null = null
   private focusOffers = 0
   private recipePicksSinceAmbient = 0
   private lastWord: string | null = null
   private directBag: Recipe[] = []
-  private openingEasyBag: Recipe[] = []
-  private openingVariedBag: Recipe[] = []
-  private openingFocusCount = 0
   private ambientBag: WordEntry[] = []
   private freshFocusesRemaining = 0
   private recentFocuses: Recipe[] = []
@@ -201,10 +197,6 @@ class RecipeFlow {
   }
 
   private nextFocus(): Recipe | null {
-    if (this.phase === 'firstNight') {
-      return this.takeOpeningRecipe()
-    }
-
     const completion = this.completionCandidates()
     if (this.freshFocusesRemaining === 0) {
       const picked = this.pickCompletionRecipe(completion)
@@ -222,28 +214,6 @@ class RecipeFlow {
 
     const fallback = this.pickCompletionRecipe(completion)
     return fallback === null ? null : this.rememberFocus(fallback)
-  }
-
-  private takeOpeningRecipe(): Recipe | null {
-    const pairs = this.groups.direct.filter((recipe) => recipe.inputs.length === 2)
-    const easy = pairs.filter((recipe) => recipe.inputs[0] === recipe.inputs[1])
-    const varied = pairs.filter((recipe) => recipe.inputs[0] !== recipe.inputs[1])
-    const useEasy = this.openingFocusCount % 2 === 0
-    this.openingFocusCount += 1
-
-    if (useEasy && easy.length > 0) {
-      if (this.openingEasyBag.length === 0) {
-        this.openingEasyBag = shuffled(easy, this.rng)
-      }
-      return this.openingEasyBag.pop() ?? null
-    }
-    if (varied.length > 0) {
-      if (this.openingVariedBag.length === 0) {
-        this.openingVariedBag = shuffled(varied, this.rng)
-      }
-      return this.openingVariedBag.pop() ?? null
-    }
-    return this.takeDirectRecipe()
   }
 
   private takeDirectRecipe(blockedIds: ReadonlySet<string> = EMPTY_IDS): Recipe | null {

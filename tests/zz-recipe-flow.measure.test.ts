@@ -18,8 +18,9 @@ import type { GameEvent } from '../src/game/types/events.ts'
  * CLAUDE.md와 볼트의 측정 표에 누적한다.
  */
 
-const RUNS = 10
-const MAX_RUN_SEC = 180
+const ENV = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+const RUNS = Number(ENV?.MEASURE_RUNS ?? 10)
+const MAX_RUN_SEC = Number(ENV?.MEASURE_MAX_SEC ?? 180)
 const TICK = 0.25
 const PAIR_WINDOW = 3
 const SCENE_WINDOW = 8
@@ -67,12 +68,14 @@ function completesAny(
 interface RunResult {
   readonly seconds: number
   readonly drops: number
+  readonly inputDrops: number
   readonly merges: number
   readonly uniqueWords: number
   readonly nonIngredientDrops: number
   readonly pairWindows: number
   readonly sceneWindows: number
-  readonly firstNightEnd: number | null
+  readonly feverDrops: number
+  readonly capped: boolean
 }
 
 describe('레시피 중심 스폰 실측', () => {
@@ -84,23 +87,26 @@ describe('레시피 중심 스폰 실측', () => {
     const engine = await GameEngine.create(seed)
     let state: GameState | null = null
     let drops = 0
+    let inputDrops = 0
     let merges = 0
     let nonIngredientDrops = 0
     let pairWindows = 0
     let sceneWindows = 0
-    let firstNightEnd: number | null = null
+    let feverDrops = 0
     const words = new Set<string>()
     const itemHistory: string[] = []
 
     engine.onStateChange((next) => {
       state = next
-      if (firstNightEnd === null && next.timeOfDay.phase !== 'firstNight') {
-        firstNightEnd = next.elapsed
-      }
     })
     engine.onEvent((event: GameEvent) => {
       if (event.kind === 'drop') {
         drops += 1
+        if (event.source === 'fever') {
+          feverDrops += 1
+        } else {
+          inputDrops += 1
+        }
       }
       if (event.kind === 'merge') {
         merges += 1
@@ -144,12 +150,14 @@ describe('레시피 중심 스폰 실측', () => {
     return {
       seconds,
       drops,
+      inputDrops,
       merges,
       uniqueWords: words.size,
       nonIngredientDrops,
       pairWindows,
       sceneWindows,
-      firstNightEnd,
+      feverDrops,
+      capped: seconds >= MAX_RUN_SEC,
     }
   }
 
@@ -163,17 +171,16 @@ describe('레시피 중심 스폰 실측', () => {
       runs.reduce((sum, run) => sum + pick(run), 0) / runs.length
     const share = (pick: (run: RunResult) => boolean): number =>
       runs.filter(pick).length / runs.length
-    const endedOpening = runs.filter((run) => run.firstNightEnd !== null)
-    const openingMean =
-      endedOpening.reduce((sum, run) => sum + (run.firstNightEnd ?? 0), 0) /
-      Math.max(endedOpening.length, 1)
-
     const rows: [string, string][] = [
       ['판 길이', `${mean((run) => run.seconds).toFixed(1)}초`],
-      ['드롭 / 고유 단어', `${mean((run) => run.drops).toFixed(1)} / ${mean((run) => run.uniqueWords).toFixed(1)}`],
+      [
+        '전체 드롭 / 입력 / Fever',
+        `${mean((run) => run.drops).toFixed(1)} / ${mean((run) => run.inputDrops).toFixed(1)} / ${mean((run) => run.feverDrops).toFixed(1)}`,
+      ],
+      ['고유 단어', mean((run) => run.uniqueWords).toFixed(1)],
       [
         '비레시피 물건',
-        `판당 ${mean((run) => run.nonIngredientDrops).toFixed(2)}개 · 드롭의 ${Math.round((mean((run) => run.nonIngredientDrops) / mean((run) => run.drops)) * 100)}%`,
+        `판당 ${mean((run) => run.nonIngredientDrops).toFixed(2)}개 · 입력 드롭의 ${Math.round((mean((run) => run.nonIngredientDrops) / mean((run) => run.inputDrops)) * 100)}%`,
       ],
       ['3드롭 안의 2재료 조합', `판당 ${mean((run) => run.pairWindows).toFixed(2)}회`],
       ['8드롭 안의 3+재료 조합', `판당 ${mean((run) => run.sceneWindows).toFixed(2)}회`],
@@ -185,10 +192,7 @@ describe('레시피 중심 스폰 실측', () => {
         '합성 밀도',
         `100드롭당 ${((mean((run) => run.merges) / mean((run) => run.drops)) * 100).toFixed(2)}회 · 분당 ${((mean((run) => run.merges) / mean((run) => run.seconds)) * 60).toFixed(2)}회`,
       ],
-      [
-        '첫 밤 종료',
-        `${endedOpening.length}/${RUNS}판 · 종료한 판 평균 ${openingMean.toFixed(1)}초`,
-      ],
+      [`${MAX_RUN_SEC}초 상한 도달`, `${Math.round(share((run) => run.capped) * 100)}%`],
     ]
 
     console.log(
@@ -196,7 +200,7 @@ describe('레시피 중심 스폰 실측', () => {
         rows.map(([key, value]) => `  | ${key} | ${value} |`).join('\n'),
     )
 
-    expect(mean((run) => run.drops), '봇이 단어를 못 치고 있다').toBeGreaterThan(5)
+    expect(mean((run) => run.inputDrops), '봇이 단어를 못 치고 있다').toBeGreaterThan(5)
     expect(mean((run) => run.uniqueWords), '레시피 집중 뒤 단어 다양성이 사라졌다').toBeGreaterThan(3)
     expect(mean((run) => run.nonIngredientDrops), '레시피 밖 물건이 전혀 나오지 않는다').toBeGreaterThan(0)
   })

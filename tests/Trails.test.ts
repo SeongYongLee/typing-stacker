@@ -5,6 +5,8 @@ import { STEAMING_IDS, TRAILS, trailOf, type Trail } from '../src/game/data/trai
 import { ALL_VARIANTS, WORDS } from '../src/game/data/words.ts'
 import { fadeOf, grownBy, trailPaint } from '../src/game/renderer/trailPaint.ts'
 import {
+  FEVER_TRAIL_COLOR,
+  FEVER_TRAIL_SPEC,
   FULL_SPEED,
   MAX_PARTICLES,
   MIN_SPEED,
@@ -18,7 +20,7 @@ import {
   type TrailBody,
 } from '../src/game/systems/TrailField.ts'
 
-function body(id: string, x: number, y: number, settled = false): TrailBody {
+function body(id: string, x: number, y: number, settled = false, fever = false): TrailBody {
   const variant = ALL_VARIANTS.find((item) => item.id === id)
   if (variant === undefined) throw new Error(`없는 물건: ${id}`)
   return {
@@ -26,6 +28,7 @@ function body(id: string, x: number, y: number, settled = false): TrailBody {
     x,
     y,
     settled,
+    fever,
     variant: { id, color: variant.color, artBounds: variant.artBounds },
   }
 }
@@ -203,6 +206,24 @@ describe('부스러기를 흘린다', () => {
     const field = new TrailField()
     fall(field, 'refrigerator', 30)
     expect(field.particles).toHaveLength(0)
+  })
+
+  it('Fever 자동 낙하는 원래 갈래와 무관하게 긴 연보라 반짝임을 흘린다', () => {
+    const field = new TrailField()
+    const dt = 1 / 60
+    let y = 5
+    field.update([body('refrigerator', 0, y, false, true)], dt)
+    for (let index = 0; index < 30; index += 1) {
+      y -= 4 * dt
+      field.update([body('refrigerator', 0, y, false, true)], dt)
+    }
+
+    expect(field.particles.length).toBeGreaterThan(0)
+    expect(field.particles.every((particle) => particle.kind === 'sparkle')).toBe(true)
+    expect(field.particles.every((particle) => particle.color === FEVER_TRAIL_COLOR)).toBe(true)
+    expect(FEVER_TRAIL_SPEC.life).toBeGreaterThanOrEqual(1.2)
+    expect(FEVER_TRAIL_SPEC.life).toBeGreaterThan(SPECS.sparkle.life * 2)
+    expect(FEVER_TRAIL_SPEC.rate).toBeGreaterThan(SPECS.sparkle.rate)
   })
 
   it('빠를수록 많이 흘린다', () => {

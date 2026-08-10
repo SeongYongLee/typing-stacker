@@ -26,14 +26,12 @@ describe('스플래시 낮·밤 음악', () => {
 })
 
 describe('플레이 낮·밤 음악', () => {
-  it('첫 밤은 시작 곡, 보통 밤은 밤 곡, 낮은 낮 곡이다', () => {
-    expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'firstNight' }))).toBe('gameFirstNight')
+  it('Night Fever는 밤 곡, 낮은 낮 곡이다', () => {
     expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'night' }))).toBe('gameNight')
     expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'day' }))).toBe('gameDay')
   })
 
   it('판이 끝나도 마지막 낮·밤 곡은 이어진다', () => {
-    expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'firstNight' }))).toBe('gameFirstNight')
     expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'day' }))).toBe('gameDay')
     expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'night' }))).toBe('gameNight')
   })

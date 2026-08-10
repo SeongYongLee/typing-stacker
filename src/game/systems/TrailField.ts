@@ -27,6 +27,8 @@ interface TrailBody {
   readonly x: number
   readonly y: number
   readonly settled: boolean
+  /** Night Fever 자동 낙하이면 원래 재질 꼬리 대신 별똥별 꼬리를 쓴다. */
+  readonly fever?: boolean
   readonly variant: {
     readonly id: string
     readonly color: string
@@ -171,6 +173,21 @@ const SPECS: Readonly<Record<Trail, TrailSpec>> = {
     spin: 0.4, grow: 1.1,
   },
 }
+
+/**
+ * Fever 물건은 원래 갈래와 무관하게 더 길고 촘촘한 반짝임을 남긴다.
+ * 물건 뒤에 별이 이어져야 별똥별로 읽히므로 일반 `sparkle`보다 수명과 양을 늘린다.
+ */
+const FEVER_TRAIL_SPEC: TrailSpec = {
+  ...SPECS.sparkle,
+  rate: 82,
+  life: 1.4,
+  size: 0.09,
+  inherit: 0.05,
+  spread: 0.42,
+  spin: 1.8,
+}
+const FEVER_TRAIL_COLOR = '#dec7ff'
 
 /** 한 번 부딪힐 때 터지는 물방울 수. 세기에 따라 이 값까지 늘어난다 */
 const SPLASH_COUNT = 16
@@ -494,7 +511,7 @@ class TrailField {
     suppressed: ReadonlySet<number>,
   ): void {
     for (const body of bodies) {
-      const kind = trailOf(body.variant.id)
+      const kind = body.fever === true ? 'sparkle' : trailOf(body.variant.id)
       const last = this.previous.get(body.handle)
       this.previous.set(body.handle, { x: body.x, y: body.y })
       // 표시 보정은 실제 이동이 아니다. 기록만 새 위치로 옮겨 해제 프레임도 튀지 않게 한다.
@@ -518,7 +535,7 @@ class TrailField {
       if (speed < MIN_SPEED) {
         continue
       }
-      const spec = SPECS[kind]
+      const spec = body.fever === true ? FEVER_TRAIL_SPEC : SPECS[kind]
       const strength = Math.min(speed / FULL_SPEED, 1)
       const count = this.owe(body.handle, spec.rate * strength * dt)
       for (let i = 0; i < count; i += 1) {
@@ -534,7 +551,7 @@ class TrailField {
           born: spec.life,
           size: spec.size * (0.7 + this.random() * 0.6),
           kind,
-          color: body.variant.color,
+          color: body.fever === true ? FEVER_TRAIL_COLOR : body.variant.color,
           phase: this.random() * 6,
           angle: this.random() * Math.PI * 2,
           // 반씩 양쪽으로 돌게 한다. 한 방향으로만 돌면 무리가 같이 도는 것으로 보인다
@@ -639,5 +656,7 @@ export {
   SPLASH_FAN,
   SPLASH_FLOOR,
   STEAM_MAX,
+  FEVER_TRAIL_SPEC,
+  FEVER_TRAIL_COLOR,
 }
 export type { Particle, TrailBody, TrailHit, TrailSpec }

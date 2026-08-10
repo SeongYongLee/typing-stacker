@@ -9,6 +9,7 @@ import { play } from './animate.ts'
  * 한 단계 밝혀 아래쪽 그러데이션 위에서 읽히게 한다.
  */
 const KEPT = '#ff6b6b'
+const FEVER = '#dec7ff'
 const LOST = '#2e3448'
 const SCORE_BACKGROUND = '#e4e68a'
 const COMBO_BACKGROUND = '#6bffb0'
@@ -73,9 +74,18 @@ function Barrier({ ratio }: { ratio: number }) {
   )
 }
 
-function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: number }) {
+function Lives({
+  lives,
+  invulnerable = 0,
+  fever = false,
+}: {
+  lives: number
+  invulnerable?: number
+  fever?: boolean
+}) {
   const rowRef = useRef<HTMLSpanElement | null>(null)
   const slots = useRef<(HTMLSpanElement | null)[]>([])
+  const pulseSlots = useRef<(HTMLSpanElement | null)[]>([])
   const previous = useRef(lives)
 
   // 목숨이 줄어드는 순간을 놓치지 않게 한다 — 물건이 떨어지는 데 시선이 가 있기 때문이다
@@ -113,7 +123,7 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
       return
     }
     const pulse = play(
-      slots.current[0] ?? null,
+      pulseSlots.current[0] ?? null,
       [
         { opacity: 1, transform: 'scale(1)' },
         { opacity: 0.4, transform: 'scale(1.2)' },
@@ -123,6 +133,37 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
     )
     return () => pulse?.cancel()
   }, [lives])
+
+  /*
+   * Fever는 마지막 하트의 `transform` 맥박과 다른 축인 밝기·그림자만 움직인다.
+   * 각 하트를 따로 재생해야 잃은 빈 하트까지 함께 빛나지 않는다.
+   */
+  useEffect(() => {
+    if (!fever) {
+      return
+    }
+    const sparkles = slots.current.slice(0, lives).map((slot, index) =>
+      play(
+        slot,
+        [
+          { filter: 'brightness(1)', textShadow: '0 0 4px rgba(222, 199, 255, 0.55)' },
+          { filter: 'brightness(1.3)', textShadow: '0 0 14px rgba(239, 226, 255, 0.95)' },
+          { filter: 'brightness(1)', textShadow: '0 0 5px rgba(222, 199, 255, 0.6)' },
+        ],
+        {
+          duration: 900,
+          delay: index * 110,
+          iterations: Number.POSITIVE_INFINITY,
+          easing: 'ease-in-out',
+        },
+      ),
+    )
+    return () => {
+      for (const sparkle of sparkles) {
+        sparkle?.cancel()
+      }
+    }
+  }, [fever, lives])
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: VITAL_GAP }}>
@@ -137,18 +178,31 @@ function Lives({ lives, invulnerable = 0 }: { lives: number; invulnerable?: numb
           lineHeight: 1,
         }}
       >
-        {invulnerable > 0 && <Barrier ratio={invulnerable} />}
+        {!fever && invulnerable > 0 && <Barrier ratio={invulnerable} />}
         {Array.from({ length: SOLO_LIVES }, (_, index) => {
           const kept = index < lives
+          const feverHeart = kept && fever
           return (
             <span
               key={index}
               ref={(node) => {
-                slots.current[index] = node
+                pulseSlots.current[index] = node
               }}
-              style={{ display: 'inline-block', color: kept ? KEPT : LOST }}
+              style={{ display: 'inline-block' }}
             >
-              {kept ? '♥' : '♡'}
+              <span
+                ref={(node) => {
+                  slots.current[index] = node
+                }}
+                data-fever-heart={feverHeart || undefined}
+                style={{
+                  display: 'inline-block',
+                  color: feverHeart ? FEVER : kept ? KEPT : LOST,
+                  textShadow: feverHeart ? '0 0 8px rgba(222, 199, 255, 0.72)' : undefined,
+                }}
+              >
+                {kept ? '♥' : '♡'}
+              </span>
             </span>
           )
         })}
@@ -183,10 +237,14 @@ function Combo({ combo }: { combo: number }) {
  *
  * 눈은 입력칸에 붙어 있으므로 연출도 그 옆에서 일어난다.
  */
-function Score({ score }: { score: number }) {
+function Score({ score, fever = false }: { score: number; fever?: boolean }) {
   const valueRef = useRef<HTMLSpanElement | null>(null)
   const previous = useRef(score)
-  const [delta, setDelta] = useState<{ seq: number; amount: number } | null>(null)
+  const [delta, setDelta] = useState<{
+    seq: number
+    amount: number
+    fever: boolean
+  } | null>(null)
   const seq = useRef(0)
   const timer = useRef(0)
 
@@ -217,11 +275,11 @@ function Score({ score }: { score: number }) {
     )
 
     seq.current += 1
-    setDelta({ seq: seq.current, amount })
+    setDelta({ seq: seq.current, amount, fever: fever && up })
     // 타이머의 주인은 이 표시 자신이다 — 값 변화에 매달면 연달아 바뀔 때 지워져 남는다
     clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setDelta(null), DELTA_MS)
-  }, [score])
+  }, [score, fever])
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
@@ -240,7 +298,9 @@ function Score({ score }: { score: number }) {
         >
           {score.toLocaleString('ko-KR')}
         </span>
-        {delta !== null && <Delta key={delta.seq} amount={delta.amount} />}
+        {delta !== null && (
+          <Delta key={delta.seq} amount={delta.amount} fever={delta.fever} />
+        )}
       </span>
     </div>
   )
@@ -249,9 +309,10 @@ function Score({ score }: { score: number }) {
 const DELTA_MS = 900
 
 /** 얼마나 오르내렸는지 한 번 띄우고 사라진다 */
-function Delta({ amount }: { amount: number }) {
+function Delta({ amount, fever = false }: { amount: number; fever?: boolean }) {
   const ref = useRef<HTMLSpanElement | null>(null)
   const up = amount > 0
+  const feverGain = up && fever
 
   useEffect(() => {
     /*
@@ -283,6 +344,7 @@ function Delta({ amount }: { amount: number }) {
     <span
       ref={ref}
       data-score-delta={amount}
+      data-fever-score={feverGain || undefined}
       style={{
         /*
          * 점수 **위쪽**에 띄운다. 오른쪽에 두면 바로 옆 콤보 글자를 덮는다.
@@ -296,12 +358,16 @@ function Delta({ amount }: { amount: number }) {
         // 오르는 값은 현재 점수와 같은 크기다. 깎이는 값도 기존 비율대로 두 배로 키운다
         fontSize: up ? VITAL_VALUE_SIZE : 38,
         fontWeight: 700,
-        color: up ? '#6bffb0' : '#ff6b6b',
+        color: feverGain ? FEVER : up ? '#6bffb0' : '#ff6b6b',
         /*
-         * 커진 글자는 위로 뻗어 레인 바닥선과 겹친다. 그 선도 같은 순간에 붉게
-         * 번지므로 그대로 두면 붉은 것 둘이 포개져 숫자가 읽히지 않는다.
+         * Night Fever의 가산은 하트·별똥별과 같은 연보라 빛으로 묶는다. 내려가는 값은
+         * 밤에도 위험 신호인 빨강을 유지하고, 레인 바닥선과 겹칠 때만 먹빛으로 받친다.
          */
-        textShadow: up ? undefined : '0 2px 8px #0d0f16, 0 0 3px #0d0f16',
+        textShadow: feverGain
+          ? '0 0 10px rgba(222, 199, 255, 0.92)'
+          : up
+            ? undefined
+            : '0 2px 8px #0d0f16, 0 0 3px #0d0f16',
         // 커진 글자가 왼쪽 끝에 매달리면 숫자에서 멀어져 어디서 나온 값인지 흐려진다
         transformOrigin: 'left bottom',
         pointerEvents: 'none',
@@ -313,4 +379,4 @@ function Delta({ amount }: { amount: number }) {
   )
 }
 
-export { Lives, Combo, Score, Barrier, KEPT, LOST }
+export { Lives, Combo, Score, Delta, Barrier, KEPT, FEVER, LOST, BARRIER }

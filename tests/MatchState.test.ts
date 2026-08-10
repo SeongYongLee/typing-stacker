@@ -21,6 +21,14 @@ describe('MatchState — 2명', () => {
     expect(match.canDrop('침입자')).toBe(false)
   })
 
+  it('방장이 정한 사람부터 시작할 수 있다', () => {
+    const match = new MatchState(players('a', 'b', 'c'), 3, 'c')
+    expect(match.currentPlayer).toBe('c')
+    expect(match.canDrop('c')).toBe(true)
+    match.nextTurn()
+    expect(match.currentPlayer).toBe('a')
+  })
+
   it('하트는 물건 주인이 잃는다', () => {
     const match = new MatchState(players('a', 'b'), 3)
     // 누가 밀어냈든 떨어진 물건이 b의 것이면 b가 잃는다

@@ -44,6 +44,8 @@ async function makePair(): Promise<Pair> {
   const common = {
     players: PLAYERS,
     seed: 4242,
+    // 시한 시험은 방장이 손을 놓거나 치는지를 본다. 시작자 랜덤성은 별도 시험이 맡는다.
+    starter: 'host-peer',
     wins: new Map<string, number>(),
     chat: new ChatLog(),
     chatEnabled: true,

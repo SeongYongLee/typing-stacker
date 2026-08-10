@@ -38,10 +38,11 @@ describe('sync 키프레임', () => {
       t: 'sync',
       bodies: [currentBody(1), currentBody(2), currentBody(3)],
       welds: [[1, 2], [2, 3]],
+      tick: 42,
       matchId: 'round-1',
     })
     expect(parsed).toMatchObject({
-      t: 'sync', matchId: 'round-1', welds: [[1, 2], [2, 3]],
+      t: 'sync', matchId: 'round-1', tick: 42, welds: [[1, 2], [2, 3]],
     })
     expect(parsed?.t === 'sync' && parsed.bodies[0]).toMatchObject({
       stateVersion: 1,
@@ -58,6 +59,11 @@ describe('sync 키프레임', () => {
     const parsed = parseMessage({ t: 'sync', bodies: [BODY] })
     expect(parsed).toMatchObject({ t: 'sync', welds: [], bodies: [BODY] })
     expect(parsed?.t === 'sync' && 'stateVersion' in parsed.bodies[0]!).toBe(false)
+  })
+
+  it('tick은 있으면 안전한 정수여야 한다', () => {
+    expect(parseMessage({ t: 'sync', bodies: [BODY], tick: -1 })).toBeNull()
+    expect(parseMessage({ t: 'sync', bodies: [BODY], tick: 1.2 })).toBeNull()
   })
 
   it('현재 상태 필드가 일부만 온 프레임은 통째로 거부한다', () => {

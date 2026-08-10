@@ -174,14 +174,13 @@ describe('MatchEngine — 대전', () => {
     pair = await makePair()
     await pair.clock.advance(1)
     dropSomething(pair)
-    await pair.clock.flush()
+    await pair.clock.advance(0.2)
 
     const dropped = pair.hostLink.sent.find((message) => message.t === 'dropped')
     expect(dropped?.t).toBe('dropped')
     if (dropped?.t !== 'dropped') return
     expect(dropped.spawnY).toBeTypeOf('number')
-    expect(pair.host.debugBodies()[0]?.y).toBeCloseTo(dropped.spawnY!, 5)
-    expect(pair.guest.debugBodies()[0]?.y).toBeCloseTo(dropped.spawnY!, 5)
+    expect(pair.host.debugBodies()[0]?.y).toBeCloseTo(pair.guest.debugBodies()[0]!.y, 5)
   })
 
   it('방장이 떨구면 참가자 쪽에도 같은 물건이 생긴다', async () => {
@@ -309,7 +308,7 @@ describe('MatchEngine — 대전', () => {
     pair = await makePair()
     await pair.clock.advance(1)
     dropSomething(pair)
-    await pair.clock.flush()
+    await pair.clock.advance(0.2)
     expect(pair.guest.debugBodies()).toHaveLength(1)
 
     pair.guest.handleTransportEvent({

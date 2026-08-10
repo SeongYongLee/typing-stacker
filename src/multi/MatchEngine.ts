@@ -69,6 +69,8 @@ const TURN_HURRY_SEC = 5
 const SYNC_INTERVAL_SEC = 2.5
 /** 판 전환 직후에는 구형 판 ID 없는 지연 명령을 잠깐 버린다. */
 const LEGACY_COMMAND_GRACE_SEC = 1
+/** 드롭 명령이 네트워크를 지나갈 시간을 주는 물리 tick 수. 현재 루프 기준 약 100ms다. */
+const DROP_LEAD_TICKS = 6
 
 /**
  * 판을 가리키는 이름. 인원이 몇이든 길이가 같다.
@@ -85,6 +87,20 @@ function matchIdOf(seed: number, devices: readonly string[]): string {
     hash = Math.imul(hash, 0x01000193) >>> 0
   }
   return `${seed}-${devices.length}-${hash.toString(36)}`
+}
+
+/**
+ * 이 판의 첫 차례.
+ *
+ * 방장이 따로 보내지 않고 시드와 명단에서 뽑는다. 둘은 start 메시지에 이미 있고,
+ * 양쪽이 같은 값을 갖는다. 판마다 seed가 바뀌므로 시작하는 사람도 한 사람에게 고정되지 않는다.
+ */
+function starterOf(seed: number, players: readonly PlayerInfo[]): PlayerId | null {
+  if (players.length === 0) {
+    return null
+  }
+  const index = Math.floor(createRng(seed).next() * players.length) % players.length
+  return players[index]?.id ?? players[0]!.id
 }
 
 /** 아무도 무적이 아닐 때 돌려주는 고정 배열 — 매 프레임 빈 배열을 새로 만들지 않으려는 것 */
@@ -187,6 +203,8 @@ interface MatchEngineOptions {
   readonly transport: Transport
   readonly players: readonly PlayerInfo[]
   readonly seed: number
+  /** 이 판을 여는 첫 차례. 없으면 seed와 명단으로 계산한다 */
+  readonly starter?: PlayerId | null
   /**
    * 판을 거듭하며 쌓이는 승수. **세션이 들고 있는 것을 그대로 받아 고친다** —
    * 엔진은 판마다 새로 만들어지므로 여기서 소유하면 점수가 매 판 사라진다.
@@ -224,6 +242,16 @@ interface MatchEngineOptions {
    * 거꾸로 흘러 그 뒤의 말이 전부 버려진다.
    */
   readonly chatClock: () => number
+}
+
+interface ScheduledDrop {
+  readonly by: PlayerId
+  readonly word: string
+  readonly aimX: number
+  readonly spawnY: number
+  readonly variantId: string
+  readonly itemId: number
+  readonly applyAtTick: number | null
 }
 
 class MatchEngine {
@@ -296,6 +324,10 @@ class MatchEngine {
    */
   private turnElapsed = 0
   private sinceSync = 0
+  /** 현재 로컬 물리 step 번호. sync를 받으면 참가자는 방장 tick에 맞춘다. */
+  private physicsTick = 0
+  /** 물리 세계에 넣는 시점만 예약한다. 단어 제거·턴 이동은 드롭 승인 시점에 한다. */
+  private readonly pendingDrops: ScheduledDrop[] = []
   /** 참가자 화면에서만 권위 위치 교정을 짧게 이어 붙인다. */
   private readonly bodyCorrection = new BodyCorrection()
 
@@ -371,7 +403,7 @@ class MatchEngine {
     this.ranked = options.ranked
     this.chatClock = options.chatClock
     this.winsView = [...this.wins]
-    this.match = new MatchState(options.players, LIVES)
+    this.match = new MatchState(options.players, LIVES, options.starter ?? starterOf(options.seed, options.players))
     this.standingsView = this.match.standings()
     this.ownerColors = buildOwnerColors(options.players)
     this.presence = new Presence(options.players, options.transport.selfId)
@@ -529,6 +561,7 @@ class MatchEngine {
       )
       if (this.isHost) {
         this.spawner.lead()
+        this.broadcastAuthorityState()
       }
     }
     if (!this.isHost) {
@@ -570,6 +603,7 @@ class MatchEngine {
       t: 'sync',
       bodies: this.physics.frames(),
       welds: this.physics.weldPairs(),
+      tick: this.physicsTick,
       matchId: this.matchId,
     })
   }
@@ -880,6 +914,7 @@ class MatchEngine {
     this.nextItemId += 1
 
     const spawnY = spawnYFor(this.cameraY)
+    const applyAtTick = this.physicsTick + DROP_LEAD_TICKS
     this.transport.broadcast({
       t: 'dropped',
       by,
@@ -888,19 +923,21 @@ class MatchEngine {
       spawnY,
       variantId: variant.id,
       itemId,
+      applyAtTick,
       matchId: this.matchId,
     })
-    this.applyDrop(by, word, aimX, spawnY, variant.id, itemId)
+    this.acceptDrop(by, word, aimX, spawnY, variant.id, itemId, applyAtTick)
   }
 
-  /** 양쪽이 똑같이 실행하는 부분. 물건 정체는 방장이 정한 id를 그대로 쓴다 */
-  private applyDrop(
+  /** 양쪽이 똑같이 실행하는 부분. 단어·턴은 바로 확정하고 물리 생성만 tick에 맞춘다. */
+  private acceptDrop(
     by: PlayerId,
     word: string,
     aimX: number,
     spawnY: number,
     variantId: string,
     itemId: number,
+    applyAtTick: number | null,
   ): void {
     const variant = VARIANT_BY_ID.get(variantId)
     if (variant === undefined) {
@@ -913,7 +950,7 @@ class MatchEngine {
       this.spawner.remove(target.id)
     }
 
-    this.physics.spawnItemAt(variant, aimX, spawnY, by, itemId)
+    this.scheduleDrop({ by, word, aimX, spawnY, variantId, itemId, applyAtTick })
     // 양쪽이 다 지나는 자리다 — 상대가 떨군 것도 소리로 들린다
     this.fire({
       kind: 'drop',
@@ -947,6 +984,37 @@ class MatchEngine {
     this.emit()
   }
 
+  private scheduleDrop(drop: ScheduledDrop): void {
+    if (drop.applyAtTick === null || drop.applyAtTick <= this.physicsTick) {
+      this.spawnScheduledDrop(drop)
+      return
+    }
+    this.pendingDrops.push(drop)
+    this.pendingDrops.sort((a, b) => (a.applyAtTick ?? 0) - (b.applyAtTick ?? 0))
+  }
+
+  private spawnScheduledDrops(): void {
+    while (this.pendingDrops.length > 0) {
+      const next = this.pendingDrops[0]!
+      if (next.applyAtTick !== null && next.applyAtTick > this.physicsTick) {
+        return
+      }
+      this.pendingDrops.shift()
+      this.spawnScheduledDrop(next)
+    }
+  }
+
+  private spawnScheduledDrop(drop: ScheduledDrop): void {
+    const variant = VARIANT_BY_ID.get(drop.variantId)
+    if (variant === undefined) {
+      return
+    }
+    if (this.physics.frames().some((frame) => frame.itemId === drop.itemId)) {
+      return
+    }
+    this.physics.spawnItemAt(variant, drop.aimX, drop.spawnY, drop.by, drop.itemId)
+  }
+
   private handleMessage(from: PlayerId, message: Message): void {
     if (!this.isHost && HOST_MESSAGES.has(message.t) && from !== this.presence.host) {
       return
@@ -964,13 +1032,14 @@ class MatchEngine {
         break
       case 'dropped':
         if (!this.isHost) {
-          this.applyDrop(
+          this.acceptDrop(
             message.by,
             message.word,
             message.aimX,
             message.spawnY ?? spawnYFor(this.cameraY),
             message.variantId,
             message.itemId,
+            message.applyAtTick ?? null,
           )
         }
         break
@@ -999,6 +1068,10 @@ class MatchEngine {
         break
       case 'sync':
         if (!this.isHost) {
+          if (message.tick !== undefined) {
+            this.physicsTick = message.tick
+            this.pendingDrops.sort((a, b) => (a.applyAtTick ?? 0) - (b.applyAtTick ?? 0))
+          }
           const corrections = this.physics.applyFrames(
             message.bodies,
             (id) => VARIANT_BY_ID.get(id),
@@ -1191,7 +1264,9 @@ class MatchEngine {
      */
     this.spawner.update(dt, difficulty)
 
+    this.spawnScheduledDrops()
     const { impacts, escaped, quake } = this.physics.step(dt)
+    this.physicsTick += 1
     this.landing.note(impacts)
     for (const hit of impacts) {
       this.frameImpacts.push(trailHitOf(hit))
@@ -1235,6 +1310,25 @@ class MatchEngine {
     this.transport.broadcast({
       t: 'words', words: this.spawner.words, matchId: this.matchId,
     })
+  }
+
+  /** 새 방장이 되거나 복귀자를 맞출 때 현재 권위 상태를 즉시 다시 선언한다. */
+  private broadcastAuthorityState(): void {
+    this.sentWordVersion = this.spawner.version
+    this.transport.broadcast({
+      t: 'words', words: this.spawner.words, matchId: this.matchId,
+    })
+    this.transport.broadcast({
+      t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
+    })
+    this.transport.broadcast({
+      t: 'sync',
+      bodies: this.physics.frames(),
+      welds: this.physics.weldPairs(),
+      tick: this.physicsTick,
+      matchId: this.matchId,
+    })
+    this.sinceSync = 0
   }
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
@@ -1284,6 +1378,7 @@ class MatchEngine {
         t: 'sync',
         bodies: this.physics.frames(),
         welds: this.physics.weldPairs(),
+        tick: this.physicsTick,
         matchId: this.matchId,
       })
     }
@@ -1359,5 +1454,5 @@ class MatchEngine {
   }
 }
 
-export { MatchEngine, DROP_INTERVAL_SEC, TURN_LIMIT_SEC, TURN_HURRY_SEC, matchIdOf }
+export { MatchEngine, DROP_INTERVAL_SEC, TURN_LIMIT_SEC, TURN_HURRY_SEC, matchIdOf, starterOf }
 export type { MatchViewState, MatchFeedback, MatchEngineOptions }

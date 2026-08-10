@@ -79,6 +79,7 @@ class HubTransport implements Transport {
   readonly isHost: boolean
   readonly hostId = 'p0'
   readonly roomCode: string | null
+  readonly sent: Message[] = []
   closed = false
   private readonly hub: Hub
   private onEvent: ((event: TransportEvent) => void) | null = null
@@ -113,6 +114,7 @@ class HubTransport implements Transport {
     if (this.closed) {
       return
     }
+    this.sent.push(message)
     this.hub.send(this, message, peer)
   }
 
@@ -120,6 +122,7 @@ class HubTransport implements Transport {
     if (this.closed) {
       return
     }
+    this.sent.push(message)
     this.hub.send(this, message, null)
   }
 

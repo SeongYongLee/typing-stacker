@@ -1,4 +1,4 @@
-import { MatchEngine } from './MatchEngine.ts'
+import { MatchEngine, starterOf } from './MatchEngine.ts'
 import { RelayTransport } from './RelayTransport.ts'
 import { RELAY_URL } from './relayUrl.ts'
 import { createRoomCode } from './protocol.ts'
@@ -77,6 +77,8 @@ type SessionPhase =
       readonly kind: 'countdown'
       readonly players: readonly PlayerInfo[]
       readonly secondsLeft: number
+      /** 판이 열리면 처음 떨굴 사람 */
+      readonly starter: PlayerId | null
     }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
@@ -558,7 +560,8 @@ class MatchSession {
 
     this.roster = players
     let left = this.countdownSec
-    this.onPhase({ kind: 'countdown', players, secondsLeft: left })
+    const starter = starterOf(seed, players)
+    this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter })
 
     const tick = () => {
       left -= 1
@@ -570,7 +573,7 @@ class MatchSession {
         void this.begin(players, seed)
         return
       }
-      this.onPhase({ kind: 'countdown', players, secondsLeft: left })
+      this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter })
       this.countdownTimer = setTimeout(tick, 1000)
     }
     this.countdownTimer = setTimeout(tick, 1000)
@@ -594,6 +597,7 @@ class MatchSession {
         transport,
         players,
         seed,
+        starter: starterOf(seed, players),
         wins: this.wins,
         chat: this.chat,
         chatEnabled: this.chatEnabled,

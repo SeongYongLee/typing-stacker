@@ -16,11 +16,12 @@ import type { SessionPhase } from '../../multi/MatchSession.ts'
 function MatchCountdown({ phase }: { phase: Extract<SessionPhase, { kind: 'countdown' }> }) {
   // 탭을 보고 있지 않으면 소리와 제목으로 부른다 — 첫 차례를 그대로 날리게 된다
   useStartAlert(true)
+  const starter = phase.players.find((player) => player.id === phase.starter)?.nickname ?? '누군가'
 
   return (
     <Countdown
       secondsLeft={phase.secondsLeft}
-      note={phase.players.map((player) => player.nickname).join(' · ')}
+      note={`${starter} 턴으로 시작`}
     />
   )
 }

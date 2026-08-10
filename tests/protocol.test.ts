@@ -114,10 +114,13 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
       aimX: 0.2,
       variantId: 'octopus',
       itemId: 3,
+      applyAtTick: 12,
     }
     expect(parseMessage(full)).toEqual(full)
     const { itemId: _omitted, ...missing } = full
     expect(parseMessage(missing)).toBeNull()
+    expect(parseMessage({ ...full, applyAtTick: -1 })).toBeNull()
+    expect(parseMessage({ ...full, applyAtTick: 1.5 })).toBeNull()
   })
 
   it('over의 winner는 null이 될 수 있다 (무승부)', () => {

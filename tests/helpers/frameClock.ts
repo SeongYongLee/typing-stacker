@@ -13,6 +13,7 @@ class FrameClock {
   private nowMs = 0
   private nextId = 1
   private readonly pending = new Map<number, FrameRequestCallback>()
+  private readonly timers: { at: number; callback: () => void }[] = []
   private restore: (() => void)[] = []
 
   install(): void {
@@ -49,6 +50,23 @@ class FrameClock {
     }
     this.restore = []
     this.pending.clear()
+    this.timers.length = 0
+  }
+
+  get now(): number {
+    return this.nowMs
+  }
+
+  defer(ms: number, callback: () => void): void {
+    this.timers.push({ at: this.nowMs + Math.max(0, ms), callback })
+    this.timers.sort((a, b) => a.at - b.at)
+  }
+
+  private runTimers(): void {
+    while (this.timers.length > 0 && this.timers[0]!.at <= this.nowMs) {
+      const task = this.timers.shift()!
+      task.callback()
+    }
   }
 
   /** 프레임을 stepMs 간격으로 돌리며 그 사이 도착한 메시지를 처리한다 */
@@ -61,6 +79,7 @@ class FrameClock {
       for (const [, callback] of due) {
         callback(this.nowMs)
       }
+      this.runTimers()
       // 전송로가 미뤄둔 전달을 흘려보낸다
       await Promise.resolve()
       await Promise.resolve()

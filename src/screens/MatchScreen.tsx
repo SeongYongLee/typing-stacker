@@ -107,6 +107,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             {state.connectionLost && !state.opponentLeft && state.phase !== 'over' && (
               <Banner text="상대와의 연결이 끊겼습니다" danger />
             )}
+            {state.phase !== 'over' && <TurnNotice state={state} />}
             {state.hurt !== null && state.phase !== 'over' && (
               <HurtNotice state={state} hurt={state.hurt} />
             )}
@@ -904,6 +905,86 @@ function HurtNotice({
       {/* 무적은 하트 위 베리어가 이미 보여준다 — 글로 한 번 더 말하면 읽을 것만 늘어난다 */}
       <div style={{ fontSize: 14, color: '#b6bdd4', marginTop: 4 }}>
         {who} 남은 하트 {hurt.lives}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 지금 누구 차례인지 아레나 위에 쪽지처럼 놓는다.
+ *
+ * 이름표에도 현재 턴이 표시되지만, 판을 보는 눈은 가운데 받침대를 좇는다. 그래서 같은 정보를
+ * 가운데에서 한 번 더 말한다. 다만 턴은 매번 바뀌는 기본 정보라 히든처럼 크게 터뜨리지는 않는다.
+ */
+function TurnNotice({ state }: { state: MatchViewState }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const current = state.current
+  const player = state.players.find((candidate) => candidate.id === current) ?? null
+  const mine = current === state.selfId
+
+  useEffect(() => {
+    play(
+      ref.current,
+      [
+        { opacity: 0, transform: 'translateY(-8px) scale(0.96)' },
+        { opacity: 1, transform: 'translateY(0) scale(1)', offset: 0.22 },
+      ],
+      { duration: 360, easing: 'ease-out' },
+    )
+  }, [current])
+
+  if (current === null || player === null) {
+    return null
+  }
+
+  return (
+    <div
+      ref={ref}
+      data-turn-notice={current}
+      style={{
+        position: 'absolute',
+        top: '9%',
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        textAlign: 'center',
+        textShadow: '0 2px 12px rgba(13, 15, 22, 0.45)',
+        zIndex: 2,
+      }}
+    >
+      <div
+        style={{
+          display: 'inline-grid',
+          gap: 2,
+          minWidth: 116,
+          maxWidth: 'min(76vw, 320px)',
+          padding: '8px 18px 9px',
+          borderRadius: 8,
+          border: '1px solid #b89a4c',
+          background: '#efe0b6',
+          boxShadow: '0 8px 24px rgba(8, 9, 14, 0.22)',
+          color: '#312716',
+        }}
+      >
+        <span
+          style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: 18,
+            fontWeight: 800,
+          }}
+        >
+          {mine ? '내 턴' : `${player.nickname} 턴`}
+        </span>
+        {state.turnLeft !== null && (
+          <span style={{ fontSize: 11, color: mine ? '#7a5d08' : '#68583a' }}>
+            {Math.ceil(state.turnLeft)}초
+          </span>
+        )}
       </div>
     </div>
   )

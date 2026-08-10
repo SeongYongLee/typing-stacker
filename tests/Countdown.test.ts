@@ -73,6 +73,8 @@ describe('시작 셈', () => {
         expect(phase.secondsLeft).toBe(3)
         // 누구와 붙는지 이 화면에서도 보여야 한다
         expect(phase.players).toHaveLength(2)
+        // 첫 차례도 이 화면에서 미리 보여준다
+        expect(phase.players.some((player) => player.id === phase.starter)).toBe(true)
       }
     }
   })

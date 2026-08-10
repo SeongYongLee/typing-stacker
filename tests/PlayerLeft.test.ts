@@ -137,6 +137,7 @@ describe('판 도중에 누가 사라지면', () => {
     // 살아 있는 사람 중 명단에서 가장 앞선 사람이 이어받는다
     expect(seats[1]!.engine.isHost).toBe(true)
     expect(seats[2]!.engine.isHost).toBe(false)
+    expect(seats[1]!.link.sent.some((message) => message.t === 'sync')).toBe(true)
     for (const seat of [seats[1]!, seats[2]!]) {
       expect(seat.state().phase).toBe('playing')
       expect(seat.state().connectionLost).toBe(false)

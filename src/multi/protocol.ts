@@ -120,6 +120,11 @@ type ToGuest =
       readonly variantId: string
       /** 양쪽이 같은 물건으로 취급하도록 방장이 매기는 번호 */
       readonly itemId: number
+      /**
+       * 방장이 정한 물리 적용 tick. 있으면 양쪽이 같은 tick에 물건을 만든다.
+       * 없으면 구형 클라이언트 호환을 위해 받는 즉시 만든다.
+       */
+      readonly applyAtTick?: number
       readonly matchId?: string
     }
   /**
@@ -157,6 +162,8 @@ type ToGuest =
       readonly t: 'sync'
       readonly bodies: readonly BodyFrame[]
       readonly welds: readonly (readonly [number, number])[]
+      /** 이 키프레임이 나온 방장 물리 tick. 구형 메시지에는 없다. */
+      readonly tick?: number
       readonly matchId?: string
     }
   | { readonly t: 'over'; readonly winner: PlayerId | null; readonly matchId?: string }
@@ -287,6 +294,11 @@ function parseMessage(raw: unknown): Message | null {
         return null
       if (!Number.isSafeInteger(raw['itemId']) || raw['itemId'] <= 0) return null
       if (raw['spawnY'] !== undefined && !isFiniteNumber(raw['spawnY'])) return null
+      if (
+        raw['applyAtTick'] !== undefined &&
+        (!Number.isSafeInteger(raw['applyAtTick']) || (raw['applyAtTick'] as number) < 0)
+      )
+        return null
       const droppedMatchId = optionalShortString(raw['matchId'], 96)
       if (droppedMatchId === null) return null
       return {
@@ -297,6 +309,7 @@ function parseMessage(raw: unknown): Message | null {
         spawnY: raw['spawnY'],
         variantId: raw['variantId'],
         itemId: raw['itemId'],
+        applyAtTick: raw['applyAtTick'] as number | undefined,
         ...droppedMatchId,
       }
     case 'chatted':
@@ -366,7 +379,19 @@ function parseMessage(raw: unknown): Message | null {
         }
       }
       const matchId = optionalShortString(raw['matchId'], 96)
-      return matchId === null ? null : { t: 'sync', bodies, welds, ...matchId }
+      if (matchId === null) return null
+      if (
+        raw['tick'] !== undefined &&
+        (!Number.isSafeInteger(raw['tick']) || (raw['tick'] as number) < 0)
+      )
+        return null
+      return {
+        t: 'sync',
+        bodies,
+        welds,
+        tick: raw['tick'] as number | undefined,
+        ...matchId,
+      }
     }
     case 'over': {
       const winner = raw['winner']

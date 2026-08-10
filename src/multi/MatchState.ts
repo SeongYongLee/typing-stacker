@@ -33,13 +33,19 @@ class MatchState {
   private readonly deaths = new Map<PlayerId, number>()
   private deathBatch = 0
 
-  constructor(players: readonly PlayerInfo[], livesPerPlayer: number) {
+  constructor(players: readonly PlayerInfo[], livesPerPlayer: number, firstTurn: PlayerId | null = null) {
     if (players.length === 0) {
       throw new Error('플레이어가 없다')
     }
     this.order = [...players]
     for (const player of this.order) {
       this.lives.set(player.id, livesPerPlayer)
+    }
+    if (firstTurn !== null) {
+      const first = this.order.findIndex((player) => player.id === firstTurn)
+      if (first >= 0) {
+        this.turnIndex = first
+      }
     }
   }
 

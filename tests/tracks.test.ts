@@ -13,7 +13,7 @@ function totalSteps(track: BgmTrack): number {
 
 const entries = Object.entries(TRACKS)
 const SPLASH_TRACKS = ['splashDay', 'splashNight'] as const
-const GAME_TRACKS = ['gameDay', 'gameNight'] as const
+const GAME_TRACKS = ['gameDay', 'gameFirstNight', 'gameNight'] as const
 
 describe('배경음악 악보', () => {
   it('플레이 곡은 한 바퀴가 40초 이상이다', () => {
@@ -94,6 +94,7 @@ describe('낮·밤 네 곡', () => {
     expect(TRACKS.splashDay.bpm).toBeGreaterThan(62)
     expect(TRACKS.splashNight.bpm).toBeGreaterThan(100)
     expect(TRACKS.gameDay.bpm).toBeGreaterThan(80)
+    expect(TRACKS.gameFirstNight.bpm).toBeGreaterThan(105)
     expect(TRACKS.gameNight.bpm).toBeGreaterThan(105)
   })
 
@@ -105,6 +106,8 @@ describe('낮·밤 네 곡', () => {
   it('낮과 밤의 중심음과 리듬이 다르다', () => {
     expect(TRACKS.splashDay.bars[0]?.bass).not.toBe(TRACKS.splashNight.bars[0]?.bass)
     expect(TRACKS.gameDay.bars[0]?.bass).not.toBe(TRACKS.gameNight.bars[0]?.bass)
+    expect(TRACKS.gameFirstNight.bars[0]?.bass).toBe(TRACKS.gameNight.bars[0]?.bass)
+    expect(TRACKS.gameFirstNight.rhythm?.pattern).not.toEqual(TRACKS.gameNight.rhythm?.pattern)
     expect(TRACKS.splashDay.rhythm?.pattern).not.toEqual(TRACKS.splashNight.rhythm?.pattern)
     expect(TRACKS.gameDay.rhythm?.pattern).not.toEqual(TRACKS.gameNight.rhythm?.pattern)
   })
@@ -141,7 +144,7 @@ describe('곡끼리 서로 다르다', () => {
 
   it('대기방만 화음을 깔지 않는다', () => {
     expect(TRACKS.lobby.pad).toBeNull()
-    for (const name of ['splashDay', 'splashNight', 'gameDay', 'gameNight', 'collection'] as const) {
+    for (const name of ['splashDay', 'splashNight', 'gameDay', 'gameFirstNight', 'gameNight', 'collection'] as const) {
       expect(TRACKS[name].pad, name).not.toBeNull()
     }
   })

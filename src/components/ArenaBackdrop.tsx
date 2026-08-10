@@ -47,10 +47,17 @@ function ArenaBackdrop(props: ArenaBackdropProps) {
 
 /** 대전은 방만 쓴다. 판의 규칙이 없는 화이트보드와 국면 시계는 그리지 않는다. */
 function BackdropLayers({ nightfall }: { nightfall: number }) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const wall = useWallBox(rootRef)
   return (
-    <div aria-hidden style={rootStyle}>
+    <div ref={rootRef} aria-hidden style={rootStyle}>
       <div style={layerStyle('background-day', 1)} />
       <div style={layerStyle('background-night', nightfall)} />
+      {wall !== null && (
+        <div style={wall}>
+          <WindowLight nightfall={nightfall} />
+        </div>
+      )}
     </div>
   )
 }
@@ -76,10 +83,24 @@ function SoloArenaBackdrop({
       */}
       {wall !== null && (
         <div style={wall}>
+          <WindowLight nightfall={time.nightfall} />
           <Whiteboard words={whiteboard} activeWords={activeWhiteboard} nightfall={time.nightfall} />
           <ArenaClock time={time} />
         </div>
       )}
+    </div>
+  )
+}
+
+/** 왼쪽 창문에서 들어오는 햇빛/밤빛. 배경 그림의 방 좌표에 붙여 화면비가 바뀌어도 밀리지 않는다. */
+function WindowLight({ nightfall }: { nightfall: number }) {
+  const dayAlpha = 1 - nightfall
+  return (
+    <div aria-hidden style={windowLightRootStyle}>
+      <div style={windowBeamStyle('day', dayAlpha)} />
+      <div style={windowBeamStyle('night', nightfall)} />
+      <div style={windowPoolStyle('day', dayAlpha)} />
+      <div style={windowPoolStyle('night', nightfall)} />
     </div>
   )
 }
@@ -298,6 +319,51 @@ const BOARD_CENTER_X = 50.5
 const BOARD_CENTER_Y = 31.7
 /** 글자는 아래의 vw 크기를 유지하고 배경 보드만 줄인다. */
 const BOARD_WIDTH = 33.9 * WHITEBOARD_SCALE
+
+const windowLightRootStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  pointerEvents: 'none',
+  overflow: 'hidden',
+}
+
+function windowBeamStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
+  const day = tone === 'day'
+  return {
+    position: 'absolute',
+    left: '17.5%',
+    top: day ? '31%' : '30%',
+    width: day ? '31%' : '28%',
+    height: day ? '45%' : '40%',
+    transform: 'skewX(-18deg) rotate(7deg)',
+    transformOrigin: '0 0',
+    background: day
+      ? 'linear-gradient(104deg, rgba(255, 232, 146, 0.54) 0%, rgba(255, 212, 105, 0.28) 34%, rgba(255, 207, 99, 0.08) 72%, rgba(255, 207, 99, 0) 100%)'
+      : 'linear-gradient(104deg, rgba(141, 185, 255, 0.28) 0%, rgba(129, 136, 255, 0.16) 42%, rgba(107, 105, 228, 0.05) 76%, rgba(107, 105, 228, 0) 100%)',
+    clipPath: 'polygon(0 0, 100% 37%, 86% 100%, 0 64%)',
+    filter: day ? 'blur(6px)' : 'blur(8px)',
+    opacity: day ? alpha * 0.72 : alpha * 0.58,
+    mixBlendMode: day ? 'soft-light' : 'screen',
+  }
+}
+
+function windowPoolStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
+  const day = tone === 'day'
+  return {
+    position: 'absolute',
+    left: day ? '22%' : '24%',
+    top: day ? '75%' : '76%',
+    width: day ? '32%' : '28%',
+    height: day ? '12%' : '10%',
+    transform: 'skewX(-18deg) rotate(-2deg)',
+    background: day
+      ? 'radial-gradient(ellipse at 36% 50%, rgba(255, 232, 150, 0.46), rgba(255, 201, 92, 0.16) 48%, rgba(255, 201, 92, 0) 76%)'
+      : 'radial-gradient(ellipse at 36% 50%, rgba(157, 191, 255, 0.26), rgba(128, 122, 255, 0.1) 50%, rgba(128, 122, 255, 0) 78%)',
+    filter: day ? 'blur(5px)' : 'blur(7px)',
+    opacity: day ? alpha * 0.64 : alpha * 0.52,
+    mixBlendMode: 'screen',
+  }
+}
 
 const boardStyle: CSSProperties = {
   position: 'absolute',

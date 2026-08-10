@@ -175,6 +175,39 @@ const GAME_DAY: BgmTrack = {
 }
 
 /**
+ * 첫 밤 플레이 — E단조, 112 BPM, 20마디(약 43초).
+ *
+ * 게임 시작을 알리는 첫 바퀴라 밤 플레이와 거의 같은 저음·음색을 쓰되, 진행을 Em-C만
+ * 반복하고 타격을 덜어 더 단조롭게 둔다. 보통 밤으로 넘어갈 때 낯설지 않도록 중심음은
+ * 그대로 잡는다.
+ */
+const GAME_FIRST_NIGHT: BgmTrack = {
+  bpm: 112,
+  stepsPerBar: 8,
+  bars: [
+    Em, C, Em, C,
+    Em, C, Em, C,
+    Em, C, Em, C,
+    Em, C, Em, C,
+    Em, C, Em, C,
+  ],
+  pattern: [true, false, false, false, true, false, true, false],
+  arp: { type: 'sine', gain: 0.022, octave: 12, length: 0.58 },
+  bass: { type: 'triangle', gain: 0.068, steps: [0, 4], length: 2.4 },
+  pad: { type: 'sine', gain: 0.009, length: 7 },
+  rhythm: {
+    pattern: [0.82, 0, 0, 0, 0.5, 0, 0, 0.42],
+    filter: 'lowpass',
+    freq: 700,
+    toFreq: 220,
+    q: 0.65,
+    gain: 0.009,
+    duration: 0.052,
+  },
+  melody: null,
+}
+
+/**
  * 밤 플레이 — E단조, 116 BPM, 20마디(약 41초).
  *
  * 참고 구간의 약 105 BPM보다 한 걸음 빠르고 저음 비중을 높였다. 낮과 같은 음 집합을
@@ -260,6 +293,7 @@ const TRACKS = {
   splashDay: SPLASH_DAY,
   splashNight: SPLASH_NIGHT,
   gameDay: GAME_DAY,
+  gameFirstNight: GAME_FIRST_NIGHT,
   gameNight: GAME_NIGHT,
   lobby: LOBBY,
   collection: COLLECTION,

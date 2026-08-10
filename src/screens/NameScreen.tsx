@@ -129,8 +129,6 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
     setParts([ADJECTIVES.indexOf(made.adjective), nounList.indexOf(made.noun)])
   }, [nounList])
 
-  const changed = name !== before.name || pickedIcon !== before.icon
-
   const rows = [
     { kind: 'pick' as const, label: '꾸미말', value: ADJECTIVES[adjective] ?? '' },
     { kind: 'pick' as const, label: '물건', value: nounList[noun] ?? '' },
@@ -187,6 +185,9 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
         <p style={{ fontSize: 12, color: '#6a7290', margin: '10px 0 22px' }}>
           순위표와 대전 상대에게 이렇게 보입니다
         </p>
+        <p style={{ fontSize: 12, color: '#7c85a8', margin: '-14px 0 22px' }}>
+          도감에 모은 물건을 프로필 사진으로 쓸 수 있습니다
+        </p>
 
         <div style={{ display: 'grid', gap: 10 }} data-name-picker>
           {rows.map((row, index) =>
@@ -232,13 +233,6 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
             {name}
           </p>
         </div>
-        {/* 무엇을 잃고 무엇을 얻는지 — 나가는 문이 둘이므로 이 줄이 있어야 고를 수 있다 */}
-        <p style={{ fontSize: 12, color: '#6a7290', margin: '8px 0 0' }}>
-          {changed ? `돌아가면 ${before.name} 그대로` : '쓰던 이름 그대로'}
-        </p>
-        <p style={{ fontSize: 12, color: '#7c85a8', margin: '8px 0 0' }}>
-          도감에 모은 물건을 프로필 사진으로 쓸 수 있습니다
-        </p>
         <p style={{ marginTop: 16, fontSize: 12, color: '#4a5171' }}>
           ↑↓로 고르고 ←→로 값을 바꿉니다
         </p>

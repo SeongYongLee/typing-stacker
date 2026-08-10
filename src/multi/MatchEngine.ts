@@ -330,6 +330,8 @@ class MatchEngine {
   private readonly invulnerable = new Map<PlayerId, number>()
   /** 가장 최근에 목숨을 잃은 사람. 무적이 끝나면 지운다 */
   private lastHurt: PlayerId | null = null
+  /** 현재 현지 시각에 맞춰 화면이 고정한 조명. 대전 규칙과는 무관하다. */
+  private nightfall: 0 | 1 = 0
   /** 지금 화면이 올려다보는 높이. 탑을 따라 올라간다 */
   private cameraY = 0
   /** 이번 판에 닿았던 가장 높은 난이도 진행도(0~1) */
@@ -428,6 +430,17 @@ class MatchEngine {
 
   handleResize(): void {
     this.renderer?.resize()
+    this.render()
+  }
+
+  /**
+   * 대전 규칙과 무관한 화면 조명. React 경계가 현지 시각을 읽어 낮 또는 밤으로 고정한다.
+   */
+  setNightfall(nightfall: 0 | 1): void {
+    if (this.nightfall === nightfall) {
+      return
+    }
+    this.nightfall = nightfall
     this.render()
   }
 
@@ -1286,14 +1299,15 @@ class MatchEngine {
       if (!suppressed.has(impact.handle)) this.visibleImpacts.push(impact)
     }
     /*
-     * 혼자 하기에만 있는 것(밤·통나무·합성 표식·히든 공개·지진)은 **넘기지 않는다.**
-     * 렌더러가 기본값을 갖고 있어서, 그쪽에 연출이 늘어도 이 자리는 그대로다.
+     * 국면을 도는 밤은 혼자 하기에만 있지만, 대전도 현재 현지 시각에 맞춘 고정 조명은
+     * 쓴다. 통나무·합성 표식·히든 공개·지진은 여전히 넘기지 않는다.
      */
     this.renderer?.draw({
       bodies,
       aimX: this.aimer.worldX,
       showAim: !this.match.over && this.match.isAlive(this.transport.selfId),
       landing: this.landing.view,
+      nightfall: this.nightfall,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
       // 꼬리 부스러기가 이 값의 차이로 시간을 흘린다

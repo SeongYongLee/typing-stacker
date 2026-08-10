@@ -24,9 +24,9 @@ import { timeOfDay } from '../game/systems/DayNight.ts'
  *
  * ## 대전에는 쓰지 않는다
  *
- * 대전 화면(`MatchScreen`)에는 아직 방 그림이 없다. 카운트다운에만 방을 깔면 판이
- * 열리는 순간 방이 **사라지는** 셈이라, 이으려고 만든 것이 오히려 끊는다.
- * 아레나 아트가 대전까지 오면 그때 같이 쓴다.
+ * 대전은 준비 플로우에 스플래시 배경을 쓰고, 판이 열리면 현재 현지 시각의 방으로
+ * 갈아탄다. 첫 밤으로 들어가는 혼자 하기와 달리 국면 전환 연출이 없으므로 이 어두운
+ * 시작 덮개를 공유하지 않는다.
  *
  * ## 밤으로 깐다
  *
@@ -99,7 +99,7 @@ function StartBackdrop({ children }: { children: ReactNode }) {
   return (
     <div style={rootStyle}>
       <div aria-hidden style={roomStyle}>
-        <ArenaBackdrop time={timeOfDay(0)} />
+        <ArenaBackdrop mode="solo" time={timeOfDay(0)} />
       </div>
       <div aria-hidden ref={veil} style={veilStyle} />
       {/* 숫자·낱말은 어둠보다 앞에 온다 — 가려질 것은 방이지 글자가 아니다 */}

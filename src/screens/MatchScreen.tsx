@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Avatar } from '../components/Avatar.tsx'
 import { play } from '../components/animate.ts'
 import { withSubject } from '../text/particle.ts'
+import { ArenaBackdrop } from '../components/ArenaBackdrop.tsx'
+import { MemoInput } from '../components/InputBar.tsx'
 import { StackArena } from '../components/StackArena.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
 import { LIVES } from '../game/config.ts'
@@ -17,6 +19,7 @@ import { MenuButton } from '../components/MenuButton.tsx'
 import { useMatchRanking } from '../hooks/useMatchRanking.ts'
 import { tierOf, tierProgress } from '../rank/tiers.ts'
 import { useTypingSound } from '../hooks/useAudio.ts'
+import { titleThemeForHour } from './titleTheme.ts'
 
 interface MatchScreenProps {
   engine: MatchEngine
@@ -25,6 +28,7 @@ interface MatchScreenProps {
 }
 
 const rootStyle: CSSProperties = {
+  position: 'relative',
   display: 'grid',
   gridTemplateRows: 'auto 1fr auto',
   height: '100%',
@@ -51,8 +55,17 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   const rematch = useCallback(() => engine.requestRematch(), [engine])
   const input = useHangulInput(submit)
   const { focus } = input
+  // 판을 보는 동안 조명이 갑자기 갈리지 않도록 들어온 시각으로 낮/밤을 고정한다
+  const [nightfall] = useState<0 | 1>(() =>
+    titleThemeForHour(new Date().getHours()) === 'night' ? 1 : 0,
+  )
 
   useTypingSound(input.tapSeq)
+
+  /* 캔버스의 받침대·소품도 DOM 배경과 같은 조명을 쓰게 한다. */
+  useLayoutEffect(() => {
+    engine.setNightfall(nightfall)
+  }, [engine, nightfall])
 
   /*
    * 턴이 바뀌어도 **치던 글자는 지우지 않는다.**
@@ -66,6 +79,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 
   return (
     <div style={rootStyle} onMouseDown={input.keepFocus}>
+      <ArenaBackdrop mode="match" nightfall={nightfall} />
       <Scoreboard state={state} onLeave={onLeave} />
 
       <div style={fieldLayerStyle}>
@@ -101,7 +115,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
         </div>
       </div>
 
-      <InputRow input={input} state={state} />
+      <InputRow input={input} state={state} nightfall={nightfall} />
     </div>
   )
 }
@@ -255,12 +269,12 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
 function InputRow({
   input,
   state,
+  nightfall,
 }: {
   input: ReturnType<typeof useHangulInput>
   state: MatchViewState
+  nightfall: 0 | 1
 }) {
-  const waiting = !state.canDrop && state.phase === 'playing'
-
   /*
    * 판이 끝나면 단어 칸에서 포커스를 뺀다.
    *
@@ -281,44 +295,19 @@ function InputRow({
         justifyItems: 'center',
         gap: 6,
         padding: '14px 20px',
-        borderTop: '1px solid #262b3d',
-        background: '#151824',
+        background:
+          'linear-gradient(to bottom, rgba(13, 15, 22, 0) 0%, rgba(13, 15, 22, 0.58) 42%, rgba(13, 15, 22, 0.88) 100%)',
+        position: 'relative',
+        zIndex: 1,
       }}
     >
-      <div style={{ width: 'min(420px, 60%)' }}>
-        <input
-          ref={input.ref}
-          value={input.value}
-          onChange={input.onChange}
-          onKeyDown={input.onKeyDown}
-          onCompositionStart={input.onCompositionStart}
-          onCompositionEnd={input.onCompositionEnd}
-          autoFocus
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          aria-label={state.inputMode === 'chat' ? '채팅 입력' : '단어 입력'}
-          style={{
-            width: '100%',
-            font: '600 28px/1.2 var(--sans)',
-            color: '#f2f4fb',
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            padding: 0,
-            textAlign: 'center',
-            caretColor: '#e4e68a',
-          }}
-        />
-        <div
-          style={{
-            height: 2,
-            marginTop: 4,
-            background: waiting ? '#2e3448' : '#e4e68a',
-            transition: 'background 140ms',
-          }}
-        />
-      </div>
+      <MemoInput
+        input={input}
+        nightfall={nightfall}
+        ariaLabel={state.inputMode === 'chat' ? '채팅 입력' : '단어 입력'}
+        width="min(420px, 60vw)"
+        invalidSeq={state.feedback?.kind === 'miss' ? state.feedback.seq : null}
+      />
 
       <ActionHint state={state} />
       {/*

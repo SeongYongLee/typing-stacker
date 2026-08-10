@@ -179,15 +179,15 @@ function ReadyRoom({
             {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
           </MenuButton>
 
-          {phase.canChangeMatchMode && (
-            <MenuButton
-              selected={false}
-              onClick={changeMode}
-              style={{ fontSize: READY_TEXT_SIZE }}
-            >
-              모드 · {modeLabel(phase.matchModeChoice)}
-            </MenuButton>
-          )}
+          <MenuButton
+            selected={false}
+            onClick={changeMode}
+            disabled={!phase.canChangeMatchMode}
+            style={{ fontSize: READY_TEXT_SIZE }}
+          >
+            모드 · {modeLabel(phase.matchModeChoice)}
+            {!phase.canChangeMatchMode && ' (호스트만 변경)'}
+          </MenuButton>
 
           <MenuButton selected={false} onClick={onBack} style={{ fontSize: READY_TEXT_SIZE }}>
             나가기 (Esc)

@@ -889,16 +889,27 @@ node scripts/prepare-sprites.cjs
 `git commit -- <경로>` 규약으로도 안 풀린다 — 같은 파일이면 한쪽이 다른 쪽의
 반쯤 된 편집을 담아 가기 때문이다.
 
-**가르는 선은 "월드에 있는 것 / 그 위에 얹히는 것"이다.**
+**가르는 선은 "월드에 있는 것 / 그 위에 얹히는 것"이다.** HEAD 기준 실측이다.
 
 | | 함수 | 줄 |
 |---|---|---|
-| `arenaPaint` | `drawPlatformBack`·`drawPlatformFront`·`platformRect`·`drawLedges`·`drawAim`·`drawBody`·`drawSprite`·`traceShape`·`tracePart`·`partsOf`·`drawDayNight` | 약 270 |
-| `effectPaint` | `drawTrails`·`drawLandingGlow`·`drawHiddenReveal`·`drawGathering`·`drawFormingLedge` | 약 330 |
+| `arenaPaint` | `drawPlatformBack`·`drawPlatformFront`·`platformRect`·`drawLedges`·`drawAim`·`drawBody`·`drawSprite`·`traceShape`·`tracePart`·`partsOf`·`drawDayNight` | **270** |
+| `effectPaint` | `drawTrails`·`drawLandingGlow`·`drawHiddenReveal`·`drawGathering`·`drawFormingLedge` | **331** |
+| 남는 것 | `draw`·`resize`·좌표 변환·타입·상수 | **503** |
 
-**연출만 빼는 것으로는 안 된다.** 한 번 그렇게 해보려다 접었는데, 그날 실제로
-부딪힌 자리가 `drawPlatform`(한쪽)과 `drawTrails`(다른 쪽)이라 연출을 빼내도 둘이
-같은 파일에 남았다. 262줄을 옮기고 모듈을 넷 만들어도 겪던 문제는 하나도 안 풀린다.
+## 파일이 작아지지는 않는다
+
+**남는 503줄이 가장 크다.** 갈라도 `ArenaRenderer`에 절반이 남는다는 뜻이고,
+그중 실제 코드는 100줄 남짓이며 나머지는 **근거를 적은 주석**이다. 그건 이 저장소가
+일부러 하는 일이라 줄일 대상이 아니다.
+
+그러니 이 작업의 값은 **"큰 파일을 쪼갠다"가 아니라 "경합을 나눈다"**이다. 아트를
+만지는 쪽과 연출을 만지는 쪽이 서로 다른 파일에 있게 하는 것이 목적이다 —
+실제로 그 둘이 같은 날 이 파일에서 부딪혔다. 파일 크기를 기대하면 실망한다.
+
+**연출만 빼는 것으로는 안 된다.** 한 번 그렇게 해보려다 접었는데, 그날 부딪힌 자리가
+`drawPlatform`(한쪽)과 `drawTrails`(다른 쪽)이라 연출을 빼내도 둘이 같은 파일에
+남았다. 262줄을 옮기고 모듈을 넷 만들어도 겪던 문제가 하나도 안 풀린다.
 
 ## 먼저 그릇을 만든다
 
@@ -917,17 +928,20 @@ interface View {
 }
 ```
 
-**이것부터 만들고 나머지는 기계로 옮긴다.** `this.` 를 `view.` 로 바꾸는 일이라
-사람이 손으로 하면 빠뜨린다.
+**이것부터 만들고 나머지는 기계로 옮긴다.** `this.`를 `view.`로 바꾸는 일이라
+사람이 손으로 하면 빠뜨린다. 그릇 없이 시작하면 함수마다 인자가 제각각이 된다.
 
-## 공유되는 것은 셋뿐이다
+## 정할 것은 둘뿐이다
 
-전수로 갈라보니 `COLORS` · `artUrl` · `sprite()`만 양쪽이 쓴다. 나머지는 한쪽
-전용이다 — `UI_FONT`·`TAG_*`·`MERGE_GATHER`·`GATHER_FROM`은 연출로, `PLATFORM_*`·
-`ARROW_*`·`rim`·`padRatio`·`PAIR_MARK_COLORS`는 월드로 간다.
+양쪽이 함께 쓰는 것은 `COLORS`·`artUrl`·`sprite()`·`LEDGE`·`ARENA` 다섯인데,
+뒤의 셋은 이미 갈 곳이 있다 — `sprite()`는 `spriteCache.ts`에 있고 `LEDGE`·`ARENA`는
+`config`에서 오므로 양쪽이 각자 import 하면 그만이다.
 
-`sprite()`는 이미 `spriteCache.ts`에 있다. **`artUrl`을 `arenaArt.ts`로 빼고
-`COLORS`를 어디에 둘지만 정하면** 남는 결정이 없다.
+**남는 결정은 `artUrl`을 어디로 뺄지와 `COLORS`를 어디에 둘지 둘뿐이다.**
+
+나머지 스무 개는 한쪽 전용이라 따라간다 — `UI_FONT`·`TAG_*`·`MERGE_GATHER`·
+`GATHER_FROM`·`glowAlpha`·`trailPaint`는 연출로, `PLATFORM_*`·`ARROW_*`·`rim`·
+`padRatio`·`PAIR_MARK_COLORS`는 월드로.
 
 ## 나눠도 순서는 안 나뉜다
 

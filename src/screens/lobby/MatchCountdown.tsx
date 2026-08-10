@@ -19,6 +19,27 @@ function MatchCountdown({ phase }: { phase: Extract<SessionPhase, { kind: 'count
   const starter = phase.players.find((player) => player.id === phase.starter)?.nickname ?? '누군가'
   const focus = phase.matchMode === 'duel' ? '동시 시작' : `${starter} 턴으로 시작`
 
+  if (phase.rouletteMatchMode !== undefined) {
+    const result = phase.rouletteMatchMode === 'duel' ? '대결' : '함께 쌓기'
+    return (
+      <div
+        style={{
+          height: '100%',
+          display: 'grid',
+          placeItems: 'center',
+          padding: 24,
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ display: 'grid', justifyItems: 'center', gap: 12 }}>
+          <p style={{ margin: 0, color: '#6a7290', fontSize: 13 }}>룰렛 결과</p>
+          <strong style={{ color: '#e4e68a', fontSize: 64, lineHeight: 1 }}>{result}</strong>
+          <p style={{ margin: 0, color: '#f2f4fb', fontSize: 20 }}>이 규칙으로 시작합니다</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Countdown
       secondsLeft={phase.secondsLeft}

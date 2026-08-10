@@ -123,6 +123,8 @@ type ToGuest =
       readonly players: readonly PlayerInfo[]
       /** 이 판의 모드. 없으면 구형 클라이언트 호환으로 함께 쌓기다 */
       readonly matchMode: MatchMode
+      /** 사용자가 고른 선택 방식. 룰렛이면 결과 공개 화면을 먼저 보여준다 */
+      readonly matchModeChoice?: MatchModeChoice
     }
   /** 누가 무엇을 떨궜는지. 양쪽이 같은 물건을 같은 자리에 만들기 위한 것 */
   | {
@@ -310,6 +312,7 @@ function parseMessage(raw: unknown): Message | null {
         seed: raw['seed'],
         players: parsePlayers(raw['players']),
         matchMode: isMatchMode(raw['matchMode']) ? raw['matchMode'] : 'shared',
+        matchModeChoice: parseMatchModeChoice(raw['matchModeChoice']),
       }
     case 'dropped':
       if (

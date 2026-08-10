@@ -27,8 +27,8 @@ const HANDSHAKE_TIMEOUT_MS = 10000
  * 그만큼 기다리는 셈이다. 준비 버튼 하나 누르는 데 필요한 시간의 몇 배로 잡았다.
  */
 const READY_TIMEOUT_MS = 30000
-
-
+/** 룰렛 결과를 보여주는 시간. 결과를 읽고 다음 화면으로 넘어갈 만큼만 둔다. */
+const ROULETTE_REVEAL_MS = 1800
 
 /**
  * 방을 만들고 상대가 들어와 판이 시작되기까지의 절차.
@@ -93,6 +93,8 @@ type SessionPhase =
       /** 판이 열리면 처음 떨굴 사람 */
       readonly starter: PlayerId | null
       readonly matchMode: MatchMode
+      /** 룰렛으로 정해진 모드를 잠시 공개하는 동안에만 들어온다 */
+      readonly rouletteMatchMode?: MatchMode
     }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
@@ -142,6 +144,7 @@ class MatchSession {
   private readonly icon: string
   private readonly countdownSec: number
   private countdownTimer: ReturnType<typeof setTimeout> | null = null
+  private rouletteTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onPhase: (phase: SessionPhase) => void
   private disposed = false
   /** 참가자 쪽에서 start를 두 번 받아도 판을 두 번 만들지 않게 */
@@ -429,14 +432,19 @@ class MatchSession {
     }
 
     if (!transport.isHost && event.message.t === 'start') {
-      this.countDown(event.message.players, event.message.seed, event.message.matchMode)
+      this.revealThenStart(
+        event.message.players,
+        event.message.seed,
+        event.message.matchMode,
+        event.message.matchModeChoice ?? this.matchModeChoice,
+      )
     }
   }
 
   /** 화면에서 준비를 눌렀다 */
   setReady(): void {
     const transport = this.transport
-    if (transport === null || this.started) {
+    if (transport === null || this.started || this.rouletteTimer !== null) {
       return
     }
     if (transport.isHost) {
@@ -550,8 +558,14 @@ class MatchSession {
     }
     const seed = Date.now() >>> 0
     const matchMode = resolveMatchMode(this.matchModeChoice, seed)
-    transport.broadcast({ t: 'start', seed, players: this.roster, matchMode })
-    this.countDown(this.roster, seed, matchMode)
+    transport.broadcast({
+      t: 'start',
+      seed,
+      players: this.roster,
+      matchMode,
+      matchModeChoice: this.matchModeChoice,
+    })
+    this.revealThenStart(this.roster, seed, matchMode, this.matchModeChoice)
   }
 
   private emitReady(): void {
@@ -563,7 +577,12 @@ class MatchSession {
      * 준비 화면이 다시 뜨면 셈이 화면에서 사라진다 — 판은 열리는데 아무도
      * 언제 열리는지 못 본다.
      */
-    if (transport === null || this.started || this.countdownTimer !== null) {
+    if (
+      transport === null ||
+      this.started ||
+      this.countdownTimer !== null ||
+      this.rouletteTimer !== null
+    ) {
       return
     }
     this.armReadyTimeout()
@@ -619,6 +638,19 @@ class MatchSession {
     }
   }
 
+  private revealThenStart(
+    players: readonly PlayerInfo[],
+    seed: number,
+    matchMode: MatchMode,
+    choice: MatchModeChoice,
+  ): void {
+    if (this.started || this.countdownTimer !== null || this.rouletteTimer !== null) {
+      return
+    }
+    this.clearReadyTimeout()
+    this.countDown(players, seed, matchMode, choice === 'roulette')
+  }
+
   /**
    * 시작 신호가 오지 않으면 영원히 기다리게 되므로 시한을 둔다.
    * 연결 자체는 성공했으니 전송로가 알려줄 실패가 없다 — 이 층이 스스로 끊어야 한다.
@@ -648,7 +680,12 @@ class MatchSession {
    * 이미 세고 있으면 다시 시작하지 않는다 — start가 두 번 오더라도(재전송, 이중 이펙트)
    * 셈이 되돌아가면 안 된다.
    */
-  private countDown(players: readonly PlayerInfo[], seed: number, matchMode: MatchMode): void {
+  private countDown(
+    players: readonly PlayerInfo[],
+    seed: number,
+    matchMode: MatchMode,
+    revealRoulette = false,
+  ): void {
     if (this.started || this.countdownTimer !== null) {
       return
     }
@@ -661,8 +698,30 @@ class MatchSession {
 
     this.roster = players
     let left = this.countdownSec
+    let showingRoulette = revealRoulette
     const starter = starterOf(seed, players)
-    this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter, matchMode })
+    const emit = () => {
+      this.onPhase({
+        kind: 'countdown',
+        players,
+        secondsLeft: left,
+        starter,
+        matchMode,
+        ...(showingRoulette ? { rouletteMatchMode: matchMode } : {}),
+      })
+    }
+    emit()
+
+    if (showingRoulette) {
+      this.rouletteTimer = setTimeout(() => {
+        this.rouletteTimer = null
+        if (this.disposed || this.started) {
+          return
+        }
+        showingRoulette = false
+        emit()
+      }, ROULETTE_REVEAL_MS)
+    }
 
     const tick = () => {
       left -= 1
@@ -674,7 +733,7 @@ class MatchSession {
         void this.begin(players, seed, matchMode)
         return
       }
-      this.onPhase({ kind: 'countdown', players, secondsLeft: left, starter, matchMode })
+      emit()
       this.countdownTimer = setTimeout(tick, 1000)
     }
     this.countdownTimer = setTimeout(tick, 1000)
@@ -749,7 +808,12 @@ class MatchSession {
     this.creatingEngine = false
     this.pendingEngineEvents.length = 0
     this.started = false
-    void this.begin(this.roster, seed, resolveMatchMode(this.matchModeChoice, seed))
+    void this.revealThenStart(
+      this.roster,
+      seed,
+      resolveMatchMode(this.matchModeChoice, seed),
+      this.matchModeChoice,
+    )
   }
 
   dispose(): void {
@@ -757,6 +821,10 @@ class MatchSession {
     if (this.countdownTimer !== null) {
       clearTimeout(this.countdownTimer)
       this.countdownTimer = null
+    }
+    if (this.rouletteTimer !== null) {
+      clearTimeout(this.rouletteTimer)
+      this.rouletteTimer = null
     }
     this.clearHandshakeTimeout()
     this.clearReadyTimeout()
@@ -800,5 +868,5 @@ function asFailure(error: unknown): TransportFailure {
   return failure('unknown')
 }
 
-export { MatchSession, READY_TIMEOUT_MS }
+export { MatchSession, READY_TIMEOUT_MS, ROULETTE_REVEAL_MS }
 export type { SessionPhase, SessionOptions, OpenMode }

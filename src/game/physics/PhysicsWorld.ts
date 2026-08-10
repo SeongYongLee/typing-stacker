@@ -11,6 +11,7 @@ import {
   ARENA,
   HEAVY_MASS,
   IMPACT_MIN_SPEED,
+  CATCH,
   LEDGE,
   QUAKE_MIN_SIZE,
   QUAKE_MIN_SPEED,
@@ -147,6 +148,13 @@ interface ImpactEvent {
 interface EscapeEvent {
   readonly owner: OwnerId
   readonly variant: ItemVariant
+  /**
+   * 회수 판을 타고 나갔는가. **이 이탈은 목숨을 깎지 않는다**(`systems/Catcher.ts`).
+   *
+   * 선택 필드인 이유는 이것을 읽지 않는 쪽(고양이)이 이미 있기 때문이다 —
+   * 그쪽은 `owner`·`variant`·`x`·`y`만 본다.
+   */
+  readonly recalled?: boolean
   /** 벗어난 자리(월드 좌표) */
   readonly x: number
   readonly y: number
@@ -207,6 +215,14 @@ interface TrackedBody {
   anchored: boolean
   /** 이탈로 이미 세어둔 물건인지. 날아가는 동안 중복으로 세지 않기 위한 표시 */
   lost: boolean
+  /**
+   * 회수로 떨어뜨린 물건인가. 나갈 때 **목숨을 깎지 않는다**.
+   *
+   * 물건에 붙여두는 이유는 나가는 **순간**에는 그것이 회수인지 알 수 없기 때문이다 —
+   * 회수 판은 이미 사라졌을 수도 있고, 같은 프레임에 탑이 무너져 여럿이 함께 나갈
+   * 수도 있다. 떨어뜨릴 때 표를 달아두면 그 물건 하나만 정확히 가려낸다.
+   */
+  readonly recalled: boolean
   /**
    * 한 번이라도 자리를 잃은 적이 있는지.
    * 되돌리지 않는다 — 흔들린 스택은 계속 불안정한 것으로 취급한다.
@@ -333,6 +349,8 @@ class PhysicsWorld {
   private readonly welds = new Map<string, ImpulseJoint>()
   /** 히든을 만날 때마다 공중에 서는 작은 통나무. 판이 끝나면 함께 치운다 */
   private readonly ledgeList: { x: number; y: number; halfWidth: number; body: RigidBody }[] = []
+  /** 지금 서 있는 회수 판. 잠깐 있다 사라지므로 하나뿐이다 */
+  private catcherBody: RigidBody | null = null
   private accumulator = 0
 
   private constructor() {
@@ -354,8 +372,14 @@ class PhysicsWorld {
    * owner는 물건을 쌓은 사람이다 — 이탈했을 때 목숨을 잃는 주체가 된다.
    * itemId는 양쪽이 합의한 식별자로, 권위 키프레임을 맞추는 기준이다.
    */
-  spawnItem(variant: ItemVariant, x: number, owner: OwnerId, itemId = 0): number {
-    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId)
+  spawnItem(
+    variant: ItemVariant,
+    x: number,
+    owner: OwnerId,
+    itemId = 0,
+    recalled = false,
+  ): number {
+    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled)
   }
 
   /**
@@ -368,6 +392,7 @@ class PhysicsWorld {
     y: number,
     owner: OwnerId,
     itemId = 0,
+    recalled = false,
   ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)
@@ -412,6 +437,7 @@ class PhysicsWorld {
       variant,
       owner,
       itemId,
+      recalled,
       // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
       heavy: body.mass() >= HEAVY_MASS,
       shakes:
@@ -657,7 +683,7 @@ class PhysicsWorld {
          */
         if (!entry.lost) {
           entry.lost = true
-          escaped.push({ owner: entry.owner, variant: entry.variant, x, y })
+          escaped.push({ owner: entry.owner, variant: entry.variant, x, y, recalled: entry.recalled })
           goneHandles.push(handle)
         }
         continue
@@ -1017,6 +1043,7 @@ class PhysicsWorld {
       this.world.removeRigidBody(ledge.body)
     }
     this.ledgeList.length = 0
+    this.clearCatcher()
     this.tracked.clear()
     this.welds.clear()
     this.accumulator = 0
@@ -1049,6 +1076,46 @@ class PhysicsWorld {
   /** 지금 서 있는 통나무들. 렌더러가 그리고, 다음 자리를 고를 때 피할 곳이 된다 */
   ledges(): readonly { x: number; y: number; halfWidth: number }[] {
     return this.ledgeList
+  }
+
+  /**
+   * 회수 판을 세운다 — 화이트보드 단어를 쳤을 때 뻗어 나오는 기울어진 판이다.
+   * 자리는 `systems/Catcher.ts`가 정하고 여기서는 세우기만 한다.
+   *
+   * **통나무와 다른 점이 둘이다.**
+   *
+   * 첫째, **기울어져 있다.** 물건이 얹히는 것이 아니라 미끄러져 나가야 하므로
+   * 콜라이더도 그만큼 돌려 세운다 — 축에 나란한 상자로 두면 보이는 그림과 부딪히는
+   * 도형이 어긋나고, 그건 이 프로젝트가 지켜온 전제를 깬다.
+   *
+   * 둘째, **잠깐 있다 사라진다.** 그래서 목록이 아니라 하나만 들고 있고, 새로 세우면
+   * 앞의 것을 치운다 — 겹쳐 세우면 배출구가 공중 발판이 된다.
+   *
+   * 마찰을 통나무(0.9)보다 낮게 두는 것은 미끄러지라고 만든 판이기 때문이다. 0으로
+   * 두지 않는 것은 물건이 얹히자마자 튀어나가면 "회수됐다"가 아니라 "쳐냈다"로 보여서다.
+   */
+  setCatcher(plank: { x: number; y: number; halfLength: number; angle: number }): void {
+    this.clearCatcher()
+    const body = this.world.createRigidBody(
+      rapier().RigidBodyDesc.fixed().setTranslation(plank.x, plank.y).setRotation(plank.angle),
+    )
+    this.world.createCollider(
+      rapier()
+        .ColliderDesc.cuboid(plank.halfLength, CATCH.halfThickness)
+        .setFriction(0.25)
+        .setRestitution(0.02),
+      body,
+    )
+    this.catcherBody = body
+  }
+
+  /** 회수 판을 치운다. 없으면 아무 일도 없다 */
+  clearCatcher(): void {
+    if (this.catcherBody === null) {
+      return
+    }
+    this.world.removeRigidBody(this.catcherBody)
+    this.catcherBody = null
   }
 
   private createPlatform(): void {

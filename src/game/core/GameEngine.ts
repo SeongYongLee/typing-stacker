@@ -5,6 +5,7 @@ import {
   FIRST_NIGHT_SEC,
   HIDDEN_CHANCE,
   INVULNERABLE_SEC,
+  CATCH,
   LEDGE,
   LIVES,
   OPENING_HIDDEN_CHANCE,
@@ -27,6 +28,8 @@ import { pairMarks, pairPulse } from '../systems/PairMarks.ts'
 import { openingEntries } from '../systems/Opening.ts'
 import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
 import { nightEntries } from '../systems/NightWords.ts'
+import { Whiteboard } from '../systems/Whiteboard.ts'
+import { catchSpot, plankOf, recallDropX } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { followCameraY, spawnYFor } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
@@ -92,6 +95,13 @@ interface GameState {
    */
   readonly wordMarks: ReadonlyMap<string, number>
   /**
+   * 지금 벽에 적힌 회수 목록. 이 단어를 치면 쌓지 않고 빼낸다.
+   *
+   * 낙하 쪽지에 표식을 붙이는 쪽(`TypingLane`)과 벽을 그리는 쪽이 같은 값을 본다 —
+   * 둘이 어긋나면 "보드에는 있는데 쪽지에는 표시가 없다"가 생긴다.
+   */
+  readonly whiteboard: readonly string[]
+  /**
    * 짝 표식의 밝기(0~1). 받침대의 물건도 **같은 값**으로 빛난다 —
    * 둘이 함께 뛰어야 한 쌍이라는 것이 색보다 먼저 읽힌다.
    */
@@ -123,6 +133,8 @@ interface GameState {
 interface PendingDrop {
   readonly variant: ItemVariant
   readonly x: number
+  /** 회수로 떨구는 것인가. 쿨다운을 기다리는 동안에도 이 표를 잃으면 안 된다 */
+  readonly recalled: boolean
 }
 
 /**
@@ -213,6 +225,10 @@ class GameEngine {
    */
   private firstNightEnd = FIRST_NIGHT_SEC
   /** 첫 밤에 내보낼 단어. 판마다 다르게 뽑으므로 시작할 때 정해 둔다 */
+  /** 벽에 적힌 회수 목록. 여기 있는 단어를 치면 쌓지 않고 빼낸다 */
+  private readonly whiteboard = new Whiteboard(createRng(0x5eed))
+  /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
+  private catcherLeft = 0
   private firstNightPool: readonly WordEntry[] = []
   /** 밤에 내보낼 단어 — 재료만. 판 내내 같으므로 한 번만 만든다 */
   private readonly nightPool: readonly WordEntry[] = nightEntries(WORDS)
@@ -298,6 +314,8 @@ class GameEngine {
      */
     this.firstNightPool = openingEntries(this.rng, WORDS)
     this.phaseNow = 'firstNight'
+    this.whiteboard.clear()
+    this.catcherLeft = 0
     this.mergeCount = 0
     this.firstNightEnd = FIRST_NIGHT_SEC
     this.spawner.restrict(this.firstNightPool)
@@ -368,7 +386,25 @@ class GameEngine {
       this.rng,
       this.phaseNow === 'firstNight' ? OPENING_HIDDEN_CHANCE : HIDDEN_CHANCE,
     )
-    this.queueDrop(variant, this.aimer.worldX)
+    /*
+     * 보드에 적힌 단어면 **쌓지 않고 빼낸다.**
+     *
+     * 조준을 쓰지 않는 것이 이 갈래의 유일한 예외다 — 빼내는 쪽은 단어가 내려온
+     * 레인이 정하는데 떨구는 자리를 조준이 정하면 판이 아레나를 가로지른다.
+     * 까닭과 실측은 `CATCH.dropX`에.
+     */
+    const pool =
+      this.phaseNow === 'night' ? this.nightPool : this.phaseNow === 'day' ? WORDS : this.firstNightPool
+    const recalled = this.whiteboard.claim(result.word.word, pool)
+    if (recalled) {
+      const side = result.word.side
+      const dropX = recallDropX(side)
+      this.physics.setCatcher(plankOf(catchSpot(dropX, side, this.physics.stackTop())))
+      this.catcherLeft = CATCH.holdSec
+      this.queueDrop(variant, dropX, true)
+    } else {
+      this.queueDrop(variant, this.aimer.worldX)
+    }
     this.discover(variant)
     if (variant.hidden) {
       this.hiddenReveal = {
@@ -484,21 +520,21 @@ class GameEngine {
     return QUAKE_MAX_AMPLITUDE * this.quakeStrength * decay * decay
   }
 
-  private queueDrop(variant: ItemVariant, x: number): void {
+  private queueDrop(variant: ItemVariant, x: number, recalled = false): void {
     if (this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
-      this.dropNow(variant, x)
+      this.dropNow(variant, x, recalled)
       return
     }
     // 쿨다운 중이면 조준한 x를 그대로 들고 대기한다. 입력을 버리지는 않는다.
-    this.dropQueue.push({ variant, x })
+    this.dropQueue.push({ variant, x, recalled })
   }
 
   /**
    * 물건을 실제로 세계에 떨군다.
    * 대기하다 떨어진 것도 여기를 지나므로, 낙하음이 물건이 생기는 순간과 어긋나지 않는다.
    */
-  private dropNow(variant: ItemVariant, x: number): void {
-    this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER)
+  private dropNow(variant: ItemVariant, x: number, recalled = false): void {
+    this.physics.spawnItemAt(variant, x, spawnYFor(this.cameraY), SOLO_OWNER, 0, recalled)
     this.sinceLastDrop = 0
     this.fire({
       kind: 'drop',
@@ -551,6 +587,7 @@ class GameEngine {
       }
     }
     this.advanceLedge(dt)
+    this.advanceCatcher(dt)
 
     /*
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
@@ -575,7 +612,7 @@ class GameEngine {
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
       if (next !== undefined) {
-        this.dropNow(next.variant, next.x)
+        this.dropNow(next.variant, next.x, next.recalled)
       }
     }
 
@@ -592,14 +629,22 @@ class GameEngine {
      * 무너짐 한 번은 이탈 여러 개를 만든다. 그것을 각각 세면 목숨 3개가 한순간에
      * 사라지므로, 한 번 깎인 뒤에는 잠깐 무적으로 둔다 — 개수가 아니라 **사건**을 센다.
      */
-    if (escaped.length > 0 && this.invulnerableLeft <= 0) {
+    /*
+     * **회수로 나간 것은 목숨을 깎지 않는다.** 그것이 이 규칙의 전부다.
+     *
+     * 물건마다 표를 보고 가른다 — 판이 서 있는 동안인지로 가르면 같은 프레임에 탑이
+     * 무너졌을 때 그 이탈까지 함께 면제된다. 회수 하나가 붕괴 하나를 덮어주는 셈이라
+     * 배출구가 아니라 방패가 된다.
+     */
+    const costly = escaped.filter((event) => event.recalled !== true)
+    if (costly.length > 0 && this.invulnerableLeft <= 0) {
       this.lives = Math.max(this.lives - 1, 0)
       this.invulnerableLeft = INVULNERABLE_SEC
       // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
       this.score.onLifeLost()
       this.fire({ kind: 'lifeLost', livesLeft: this.lives })
       // 목숨을 깎은 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
-      const taken = escaped[0]
+      const taken = costly[0]
       if (taken !== undefined) {
         this.cats.take(taken.variant, taken.x, taken.y)
       }
@@ -694,12 +739,26 @@ class GameEngine {
       return
     }
     this.phaseNow = next
+    /*
+     * 보드는 **지금 내려올 수 있는 단어만** 적는다. 밭 밖 단어를 적으면 영영 안
+     * 내려오는 항목이 한 칸을 죽은 채 차지한다.
+     *
+     * 첫 밤에는 닫는다 — 합성을 배우는 구간인데 회수는 "쌓지 않고 버린다"라 정반대다.
+     * 까닭은 `systems/Whiteboard.ts`에.
+     */
+    if (next === 'firstNight') {
+      this.whiteboard.clear()
+    }
     if (next === 'day') {
       this.spawner.release()
+      this.whiteboard.refill(WORDS)
       return
     }
     // 밤에는 재료만. 첫 밤으로 되돌아가는 일은 없다(`DayNight.ts`)
     this.spawner.restrict(next === 'night' ? this.nightPool : this.firstNightPool)
+    if (next === 'night') {
+      this.whiteboard.refill(this.nightPool)
+    }
   }
 
   /**
@@ -778,6 +837,23 @@ class GameEngine {
    * 받아내서 허공에 걸린 것처럼 보인다 — 보이는 것과 부딪히는 것이 어긋나면 안 된다는
    * 이 프로젝트의 전제가 연출에도 그대로 적용된다.
    */
+  /**
+   * 회수 판은 **잠깐만 서 있는다.**
+   *
+   * 더 끌면 다음에 떨구는 물건까지 받아내서 배출구가 아니라 공중 발판이 된다 —
+   * 회수는 친 그 단어에만 걸리는 규칙이다.
+   */
+  private advanceCatcher(dt: number): void {
+    if (this.catcherLeft <= 0) {
+      return
+    }
+    this.catcherLeft -= dt
+    if (this.catcherLeft <= 0) {
+      this.catcherLeft = 0
+      this.physics.clearCatcher()
+    }
+  }
+
   private advanceLedge(dt: number): void {
     const forming = this.formingLedge
     if (forming === null) {
@@ -898,6 +974,7 @@ class GameEngine {
       // 매 프레임 복사하면 GC가 주기적으로 돌아 화면이 살짝 멈춘다
       words: this.spawner.words,
       wordMarks: this.wordMarks(this.marks()),
+      whiteboard: this.whiteboard.words,
       pairPulse: pairPulse(this.elapsed),
       timeOfDay: timeOfDay(this.elapsed, this.firstNightEnd),
       aimNormalized: this.aimer.normalized,

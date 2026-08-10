@@ -953,6 +953,7 @@ class MatchEngine {
     // 양쪽이 다 지나는 자리다 — 상대가 떨군 것도 소리로 들린다
     this.fire({
       kind: 'drop',
+      source: 'input',
       hidden: false,
       material: variant.material,
       tone: variant.tone,

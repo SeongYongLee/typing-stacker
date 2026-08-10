@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { FIRST_NIGHT_SEC } from '../src/game/config.ts'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
@@ -26,7 +25,7 @@ describe('회수된 물건은 목숨을 깎지 않는다', () => {
     })
     engine.startRun()
 
-    await clock.advance(FIRST_NIGHT_SEC + 1)
+    await clock.advance(0.25)
 
     const now = state as GameState | null
     const focused = engine.debugFocusedRecipeWords()

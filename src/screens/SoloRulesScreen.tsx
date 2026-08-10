@@ -20,6 +20,9 @@ const RULES: readonly ReactNode[] = [
   <>
     목숨은 <Danger>{SOLO_LIVES}개({'♥'.repeat(SOLO_LIVES)})</Danger>. 다 잃으면 게임이 끝납니다.
   </>,
+  <>
+    밤에는 <Key>Night Fever</Key>. 별빛 재료 6개가 쏟아지고 3초 쉬며 목숨이 무적이 됩니다.
+  </>,
 ]
 
 const rootStyle: CSSProperties = {

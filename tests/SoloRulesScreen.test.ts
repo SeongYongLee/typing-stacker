@@ -17,6 +17,8 @@ describe('SoloRulesScreen', () => {
     expect(markup).toContain('Enter를 누른 순간')
     expect(markup).toContain('목숨이 하나')
     expect(markup).toContain('5개(♥♥♥♥♥)')
+    expect(markup).toContain('Night Fever')
+    expect(markup).toContain('별빛 재료 6개가 쏟아지고 3초 쉬며 목숨이 무적')
     expect(markup).toContain('게임 시작')
     expect(markup).toContain('다시 보지 않기')
     expect(markup).toContain('font-size:17px')

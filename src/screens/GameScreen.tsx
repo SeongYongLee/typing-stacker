@@ -175,6 +175,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         feedback={state.feedback}
         stats={state.stats}
         invulnerable={state.invulnerable}
+        fever={state.timeOfDay.phase === 'night'}
         nightfall={state.timeOfDay.nightfall}
       />
 

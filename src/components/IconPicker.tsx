@@ -95,7 +95,7 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       style={{
         ...rootStyle,
         borderColor: selected ? '#e4e68a' : '#2e3448',
-        background: selected ? '#2c2413' : '#0d0f16',
+        background: selected ? '#21211f' : '#0d0f16',
       }}
       onMouseEnter={onHover}
       /*

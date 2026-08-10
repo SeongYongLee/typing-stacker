@@ -40,17 +40,17 @@ function MenuButton({
   }
 
   const look: CSSProperties = disabled
-    ? { border: '1px solid #262b3d', background: '#1a1e2c', color: '#4a5171' }
+    ? { border: '1px solid #3a3f52', background: 'transparent', color: '#4a5171' }
     : primary
       ? {
-          border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
-          background: selected ? '#e4e68a' : '#2c2413',
-          color: selected ? '#1a1405' : '#e4e68a',
+          border: '1px solid #e4e68a',
+          background: selected ? '#e4e68a' : '#21211f',
+          color: selected ? '#21211f' : '#e4e68a',
         }
       : {
           border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
-          background: selected ? '#2c2413' : 'transparent',
-          color: selected ? '#e4e68a' : '#b6bdd4',
+          background: selected ? '#e4e68a' : 'transparent',
+          color: selected ? '#21211f' : '#b6bdd4',
         }
 
   /* 키보드로 고르면 useMenuKeys가 소리를 낸다. 마우스로 누른 길에도 같은 소리가 나야 한다 */

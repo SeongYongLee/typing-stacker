@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { MenuButton } from '../../components/MenuButton.tsx'
 import { Avatar } from '../../components/Avatar.tsx'
+import { Blurb, Key } from '../../components/SidePanel.tsx'
+import { panelBoxStyle } from '../../components/sidePanelStyle.ts'
 import { useMenuKeys } from '../../hooks/useMenuKeys.ts'
 import { useRosterTiers } from '../../hooks/useRosterTiers.ts'
 import { ownerColorAt } from '../../multi/ownerColors.ts'
 import { MAX_TEXT } from '../../multi/ChatLog.ts'
 import type { ChatLine } from '../../multi/ChatLog.ts'
 import type { SessionPhase } from '../../multi/MatchSession.ts'
+import { MAX_PLAYERS } from '../../multi/protocol.ts'
 import { tierOf } from '../../rank/tiers.ts'
 import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
 
@@ -22,6 +26,34 @@ import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
  * 상대가 들어오자마자 판이 열리면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
  * 없다 — 첫 단어가 이미 내려오고 있다. 양쪽이 준비를 눌러야 시작한다.
  */
+const READY_RULES: Record<'auto' | 'manual', readonly ReactNode[]> = {
+  auto: [
+    <>
+      <Key>1대1</Key>로 붙습니다.
+    </>,
+    <>
+      <Key>비슷한 티어</Key>의 상대를 찾아줍니다.
+    </>,
+    '이긴 만큼 티어 점수가 오릅니다.',
+  ],
+  manual: [
+    <>
+      <Key>방 참가 코드</Key>를 주고받아 아는 사람과 모입니다.
+    </>,
+    <>최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.</>,
+    <>
+      <Key>티어 점수는 바뀌지 않습니다.</Key>
+    </>,
+  ],
+}
+
+const roomLayoutStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 440px) minmax(300px, 420px)',
+  gap: 20,
+  alignItems: 'start',
+}
+
 function ReadyRoom({
   phase,
   onReady,
@@ -41,6 +73,7 @@ function ReadyRoom({
    */
   const ratings = useRosterTiers(phase.players)
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
+  const rulesKind = phase.chatEnabled ? 'manual' : 'auto'
 
   useMenuKeys({
     count: 1,
@@ -55,70 +88,79 @@ function ReadyRoom({
 
   return (
     <div style={rootStyle}>
-      <div style={panelStyle} data-ready-room={ready.size}>
-        <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
-          같이 할 사람들
-        </p>
+      <div style={roomLayoutStyle}>
+        <div style={panelStyle} data-ready-room={ready.size}>
+          <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
+            같이 할 사람들
+          </p>
 
-        <div style={{ display: 'grid', gap: 10 }}>
-          {phase.players.map((player, index) => {
-            const isReady = ready.has(player.id)
-            const mine = player.id === phase.selfId
-            return (
-              <div
-                key={player.id}
-                data-ready={isReady ? 'yes' : 'no'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  background: '#0d0f16',
-                  border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
-                }}
-              >
-                {/*
-                   색 점 자리에 아이콘을 둔다. 테두리가 그 사람의 색이므로 점이 하던
-                   일(누가 누구인지)은 그대로이고, 아이콘을 안 고른 사람은 빈 동그라미가
-                   같은 자리를 지킨다 — 줄이 어긋나지 않는다.
-                 */}
-                <Avatar icon={player.icon} size={26} ring={ownerColorAt(index)} />
-                <span
+          <div style={{ display: 'grid', gap: 10 }}>
+            {phase.players.map((player, index) => {
+              const isReady = ready.has(player.id)
+              const mine = player.id === phase.selfId
+              return (
+                <div
+                  key={player.id}
+                  data-ready={isReady ? 'yes' : 'no'}
                   style={{
-                    flex: 1,
-                    textAlign: 'left',
-                    fontSize: 17,
-                    fontWeight: mine ? 700 : 500,
-                    color: '#f2f4fb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '14px 16px',
+                    borderRadius: 12,
+                    background: '#0d0f16',
+                    border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
                   }}
                 >
-                  {player.nickname}
-                  {mine && ' (나)'}
-                </span>
-                <TierBadge rating={ratings.get(player.device)} />
-                <span style={{ fontSize: 14, color: isReady ? '#6bffb0' : '#6a7290' }}>
-                  {isReady ? '준비됨' : '기다리는 중…'}
-                </span>
-              </div>
-            )
-          })}
+                  {/*
+                     색 점 자리에 아이콘을 둔다. 테두리가 그 사람의 색이므로 점이 하던
+                     일(누가 누구인지)은 그대로이고, 아이콘을 안 고른 사람은 빈 동그라미가
+                     같은 자리를 지킨다 — 줄이 어긋나지 않는다.
+                   */}
+                  <Avatar icon={player.icon} size={26} ring={ownerColorAt(index)} />
+                  <span
+                    style={{
+                      flex: 1,
+                      textAlign: 'left',
+                      fontSize: 17,
+                      fontWeight: mine ? 700 : 500,
+                      color: '#f2f4fb',
+                    }}
+                  >
+                    {player.nickname}
+                    {mine && ' (나)'}
+                  </span>
+                  <TierBadge rating={ratings.get(player.device)} />
+                  <span style={{ fontSize: 14, color: isReady ? '#6bffb0' : '#6a7290' }}>
+                    {isReady ? '준비됨' : '기다리는 중…'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/*
+            코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
+            자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
+          */}
+          {phase.chatEnabled && <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />}
+
+          <MenuButton selected={!iAmReady} onClick={onReady} disabled={iAmReady} primary>
+            {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
+          </MenuButton>
+
+          <MenuButton selected={false} onClick={onBack}>
+            나가기 (Esc)
+          </MenuButton>
         </div>
 
-        {/*
-          코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
-          자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
-        */}
-        {phase.chatEnabled && <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />}
-
-        {/* 규칙 설명은 바로 앞 화면에서 이미 읽었다. 여기서 볼 것은 상대와 준비 상태뿐이다 */}
-        <MenuButton selected={!iAmReady} onClick={onReady} disabled={iAmReady} primary>
-          {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
-        </MenuButton>
-
-        <MenuButton selected={false} onClick={onBack}>
-          나가기 (Esc)
-        </MenuButton>
+        <aside
+          style={{ ...panelBoxStyle, width: '100%' }}
+          aria-label="게임 규칙"
+          data-ready-rules={rulesKind}
+        >
+          <Blurb kind={rulesKind} lines={READY_RULES[rulesKind]} />
+        </aside>
       </div>
     </div>
   )

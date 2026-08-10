@@ -20,20 +20,10 @@ type PanelKind = 'name' | 'solo' | 'versus' | 'collection' | 'options'
  * 한자리에 모아두는 이유는 다섯을 나란히 놓고 길이와 결을 맞춰야 하기 때문이다 —
  * 하나만 길면 그 항목이 어려운 것처럼 읽힌다.
  */
-const BLURBS: Record<PanelKind, readonly ReactNode[]> = {
+type BlurbPanelKind = Exclude<PanelKind, 'solo'>
+
+const BLURBS: Record<BlurbPanelKind, readonly ReactNode[]> = {
   name: ['순위표와 대전 상대에게 보이는 이름과 아이콘을 바꿉니다.'],
-  solo: [
-    '좌우에서 내려오는 한글 단어를 타이핑합니다.',
-    <>
-      <Key>Enter를 누른 순간</Key>의 화살표 위치로 물건이 떨어집니다.
-    </>,
-    <>
-      물건이 쏠려서 받침대를 벗어나면 <Danger>목숨이 하나</Danger> 줄어듭니다.
-    </>,
-    <>
-      목숨은 <Danger>{LIVES}개(♥♥♥)</Danger>. 다 잃으면 게임이 끝납니다.
-    </>,
-  ],
   versus: [
     <>받침대 하나를 최대 {MAX_PLAYERS}명이 함께 씁니다. 목숨은 각자 {LIVES}개입니다.</>,
     <>
@@ -52,6 +42,8 @@ const BLURBS: Record<PanelKind, readonly ReactNode[]> = {
 }
 
 function TitleSidePanel({ kind, board }: TitleSidePanelProps) {
+  const blurbKind = kind === null || kind === 'solo' ? null : kind
+
   return (
     <SidePanel
       kind={kind ?? 'none'}
@@ -62,7 +54,9 @@ function TitleSidePanel({ kind, board }: TitleSidePanelProps) {
           <VersusTier board={board} />
         ) : null
       }
-      blurb={kind === null ? null : <Blurb kind={kind} lines={BLURBS[kind]} />}
+      blurb={
+        blurbKind === null ? null : <Blurb kind={blurbKind} lines={BLURBS[blurbKind]} />
+      }
     />
   )
 }

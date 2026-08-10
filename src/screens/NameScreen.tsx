@@ -284,7 +284,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
         padding: '7px 8px',
         borderRadius: 10,
         border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
-        background: selected ? '#2c2413' : 'transparent',
+        background: selected ? '#21211f' : 'transparent',
       }}
       data-pick-row={label}
       data-selected={selected ? 'yes' : 'no'}

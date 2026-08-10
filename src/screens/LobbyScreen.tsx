@@ -11,7 +11,7 @@ import { NameScreen } from './NameScreen.tsx'
 import { loadProfile } from '../storage/profile.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { ReactNode } from 'react'
-import { MAX_PLAYERS, ROOM_CODE_LENGTH } from '../multi/protocol.ts'
+import { ROOM_CODE_LENGTH } from '../multi/protocol.ts'
 import type { SessionPhase } from '../multi/MatchSession.ts'
 import type { JoinRequest } from '../hooks/useMatchSession.ts'
 
@@ -35,40 +35,12 @@ interface LobbyScreenProps {
 /**
  * 항목마다의 설명. 시작 화면과 같은 자리에 같은 모양으로 뜬다.
  *
- * 규칙 자체는 시작 화면에서 '함께 하기'를 고를 때 이미 읽었다. 여기서는 **지금 고른
- * 길이 무엇인지**만 말한다 — 코드를 받은 사람과 코드를 만들 사람이 서로 다른 것을
- * 눌러야 하는데, 그 갈림이 버튼 이름만으로는 잘 안 읽혔다.
+ * 랭크·친선전의 규칙은 상대가 정해진 뒤 준비 화면에서 보여준다. 선택하기도 전에
+ * 길게 읽게 하면 실제로 시작할 때는 잊히고, 친선전 규칙은 방에 들어간 사람 모두가
+ * 같은 자리에서 보는 편이 낫다. 여기에는 입력과 이동에 필요한 안내만 남긴다.
  */
-const LOBBY_BLURBS: Record<string, readonly ReactNode[]> = {
+const LOBBY_BLURBS: Partial<Record<string, readonly ReactNode[]>> = {
   name: ['같은 방에 들어온 사람에게 이 이름으로 보입니다.'],
-  auto: [
-    /*
-     * **인원을 먼저 말한다.** 친선전에만 "최대 8명"이 적혀 있으면 랭크도 여럿인 줄
-     * 읽힌다 — 둘 다 같은 대전이고 화면에서 나란히 놓여 있기 때문이다.
-     */
-    <>
-      <Key>1대1</Key>로 붙습니다. 여럿이 하려면 친선전으로.
-    </>,
-    <>
-      <Key>비슷한 티어</Key>의 상대를 찾아줍니다.
-    </>,
-    '이긴 만큼 티어 점수가 오릅니다.',
-  ],
-  manual: [
-    <>
-      <Key>방 참가 코드</Key>를 주고받아 아는 사람과 모입니다.
-    </>,
-    <>
-      최대 {MAX_PLAYERS}명까지 들어올 수 있습니다.
-    </>,
-    /*
-     * 상대를 고를 수 있는 자리라 사다리에 올리지 않는다. 그 사실을 여기서 말해두지
-     * 않으면 판이 끝나고서야 알게 되고, 그때는 이미 한 판을 들인 뒤다.
-     */
-    <>
-      <Key>티어 점수는 바뀌지 않습니다.</Key>
-    </>,
-  ],
   host: [
     <>
       방을 열고 <Key>참가 코드 {ROOM_CODE_LENGTH}자</Key>를 받습니다.
@@ -222,6 +194,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
   }
 
   const blurbKey = items[menu.index]?.blurb ?? 'host'
+  const blurbLines = LOBBY_BLURBS[blurbKey]
 
   /*
    * 시작 화면과 같은 뼈대를 쓴다 — 제목 / 왼쪽 인사와 버튼 / 오른쪽 티어와 설명.
@@ -300,7 +273,7 @@ function LobbyScreen({ phase, onOpen, onReady, onChat, onBack }: LobbyScreenProp
            * 오르지 않는다), 돌아가기나 프로필에 세우면 그 항목과 아무 상관이 없다.
            */
           record={blurbKey === 'auto' ? <VersusTier board={board} /> : null}
-          blurb={<Blurb kind={blurbKey} lines={LOBBY_BLURBS[blurbKey] ?? []} />}
+          blurb={blurbLines === undefined ? null : <Blurb kind={blurbKey} lines={blurbLines} />}
         />
       }
     />

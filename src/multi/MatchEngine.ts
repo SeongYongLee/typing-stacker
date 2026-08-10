@@ -69,7 +69,11 @@ const TURN_HURRY_SEC = 5
 const SYNC_INTERVAL_SEC = 2.5
 /** 판 전환 직후에는 구형 판 ID 없는 지연 명령을 잠깐 버린다. */
 const LEGACY_COMMAND_GRACE_SEC = 1
-/** 드롭 명령이 네트워크를 지나갈 시간을 주는 물리 tick 수. 현재 루프 기준 약 100ms다. */
+/** 대전 물리는 브라우저 프레임 간격 대신 이 간격으로만 전진한다. */
+const FIXED_STEP_SEC = 1 / 60
+/** 한 프레임에 밀린 물리를 처리할 최대 횟수. 탭 복귀 때 긴 따라잡기를 막는다. */
+const MAX_FIXED_STEPS = 3
+/** 드롭 명령이 네트워크를 지나갈 시간을 주는 물리 tick 수. 60Hz 기준 약 100ms다. */
 const DROP_LEAD_TICKS = 6
 
 /**
@@ -326,6 +330,8 @@ class MatchEngine {
   private sinceSync = 0
   /** 현재 로컬 물리 step 번호. sync를 받으면 참가자는 방장 tick에 맞춘다. */
   private physicsTick = 0
+  /** 가변 렌더 프레임 시간을 고정 물리 step으로 바꾸기 위한 누적 시간. */
+  private fixedAccumulator = 0
   /** 물리 세계에 넣는 시점만 예약한다. 단어 제거·턴 이동은 드롭 승인 시점에 한다. */
   private readonly pendingDrops: ScheduledDrop[] = []
   /** 방장이 떨군 뒤 정착 상태를 한 번 더 알려줄 물건들 */
@@ -1225,6 +1231,22 @@ class MatchEngine {
       return
     }
 
+    this.fixedAccumulator = Math.min(
+      this.fixedAccumulator + dt,
+      FIXED_STEP_SEC * MAX_FIXED_STEPS,
+    )
+    while (this.fixedAccumulator >= FIXED_STEP_SEC) {
+      this.fixedAccumulator -= FIXED_STEP_SEC
+      this.updateFixed(FIXED_STEP_SEC)
+      if (this.match.over || this.connectionLost) {
+        break
+      }
+    }
+    this.noticeTurn()
+    this.emit()
+  }
+
+  private updateFixed(dt: number): void {
     this.elapsed += dt
 
     // 모두가 함께 쓰는 쿨타임. 0이 되는 순간이 곧 다음 차례 사람의 시작이다
@@ -1286,8 +1308,6 @@ class MatchEngine {
       this.broadcastWordsIfChanged()
       this.hostJudge(dt, escaped)
     }
-    this.noticeTurn()
-    this.emit()
   }
 
   /**

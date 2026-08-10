@@ -77,6 +77,32 @@ afterEach(() => {
 })
 
 describe('drop 적용 tick', () => {
+  it('같은 시간이 흘렀다면 프레임 간격이 달라도 적용 tick이 같다', async () => {
+    const fast = await makePair(() => 0)
+    await fast.clock.advance(0.96, 16)
+    dropSomething(fast)
+    await fast.clock.flush()
+    const fastDrop = fast.hostLink.sent.find((message) => message.t === 'dropped')
+    fast.host.dispose()
+    fast.guest.dispose()
+    fast.clock.uninstall()
+
+    const slow = await makePair(() => 0)
+    await slow.clock.advance(0.96, 32)
+    dropSomething(slow)
+    await slow.clock.flush()
+    const slowDrop = slow.hostLink.sent.find((message) => message.t === 'dropped')
+    slow.host.dispose()
+    slow.guest.dispose()
+    slow.clock.uninstall()
+
+    expect(fastDrop?.t).toBe('dropped')
+    expect(slowDrop?.t).toBe('dropped')
+    expect(fastDrop?.t === 'dropped' && fastDrop.applyAtTick).toBe(
+      slowDrop?.t === 'dropped' && slowDrop.applyAtTick,
+    )
+  })
+
   it('방장은 dropped에 미래 적용 tick을 싣고 그 tick 전에는 자기 물리에도 만들지 않는다', async () => {
     pair = await makePair((message) => (message.t === 'dropped' ? 48 : 0))
     await pair.clock.advance(1)

@@ -38,34 +38,47 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).not.toMatch(/font-size:(?:12|13|14|15)px/)
   })
 
-  it('친선전 준비 화면에서 코드·턴제·티어 규칙을 보여준다', () => {
+  it('유저 목록은 8명 슬롯 최대 높이를 잡고 채팅 내역을 길게 보여준다', () => {
+    const html = markup(true)
+
+    expect(html).toContain('max-height:534px')
+    expect(html).toContain('height:360px')
+  })
+
+  it('준비 상태 문구가 바뀌어도 상태 칸 폭은 유지된다', () => {
+    const html = markup(true)
+
+    expect(html).toContain('flex:0 0 106px')
+    expect(html).toContain('white-space:nowrap')
+  })
+
+  it('친선전 준비 화면에서 모드 규칙만 보여준다', () => {
     const html = markup(true)
 
     expect(html).toContain('data-ready-rules="manual"')
     expect(html).toContain('모드:')
     expect(html).toContain('함께 쌓기')
     expect(html).toContain('모드 · 함께 쌓기')
-    expect(html).toContain('방 참가 코드')
-    expect(html).toContain('최대 8명')
     expect(html).toContain('한 탑을 함께')
     expect(html).toContain('한 번씩')
     expect(html).toContain('그 물건 주인')
     expect(html).toContain('마지막 생존자')
-    expect(html).toContain('친선전에서는')
+    expect(html).not.toContain('방 참가 코드')
+    expect(html).not.toContain('친선전에서는')
   })
 
-  it('랭크 게임 준비 화면에서 턴제·매칭·티어 규칙을 보여준다', () => {
+  it('랭크 게임 준비 화면에서 모드 규칙과 준비 버튼을 바로 보여준다', () => {
     const html = markup(false)
 
     expect(html).toContain('data-ready-rules="auto"')
-    expect(html).toContain('모드 · 함께 쌓기 (호스트만 변경)')
-    expect(html).toContain('1대1')
     expect(html).toContain('한 탑을 함께')
     expect(html).toContain('한 번씩')
     expect(html).toContain('그 물건 주인')
     expect(html).toContain('마지막 생존자')
-    expect(html).toContain('비슷한 티어')
-    expect(html).toContain('이긴 만큼 티어 점수가 오릅니다.')
+    expect(html).toContain('준비 (Enter)')
+    expect(html).not.toContain('모드 설정')
+    expect(html).not.toContain('호스트만 변경')
+    expect(html).not.toContain('이긴 만큼 티어 점수가 오릅니다.')
   })
 
   it('대결 모드 준비 화면에서 각자 탑과 동시 진행 규칙을 보여준다', () => {

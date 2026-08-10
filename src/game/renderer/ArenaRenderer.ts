@@ -68,7 +68,7 @@ type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
   readonly whiteboardRecall: WhiteboardRecall | null
   readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
   readonly catcher: NonNullable<ArenaRenderState['catcher']> | null
-  readonly cat: CatView | null
+  readonly cats: readonly CatView[]
 }
 
 /** 없는 것에 기본값을 준다. **한 곳에서만 정한다** — 그리는 자리마다 물으면 곧 갈린다 */
@@ -85,12 +85,13 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
     catcher: state.catcher ?? null,
     pairMarks: state.pairMarks ?? NO_PAIR_MARKS,
     pairPulse: state.pairPulse ?? 0,
-    cat: state.cat ?? null,
+    cats: state.cats ?? NO_CATS,
   }
 }
 
 /* 매 프레임 새로 만들지 않으려고 들고 있는 빈 값들 */
 const NO_LEDGES: readonly never[] = []
+const NO_CATS: readonly CatView[] = []
 const NO_PAIR_MARKS: ReadonlyMap<string, number> = new Map()
 
 /**
@@ -202,7 +203,7 @@ interface ArenaRenderState {
    *
    * 어디로 뛰는지는 `catPose.ts`가 정한다 — 여기 오는 것은 "누가 어디서 언제부터"까지다.
    */
-  readonly cat?: CatView | null
+  readonly cats?: readonly CatView[]
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
   readonly duelTowers?: readonly DuelTowerRenderState[]
@@ -373,8 +374,8 @@ class ArenaRenderer {
      * 무엇에 가리면 그 소식이 안 닿는다. 흔들림 안에 두는 것은 같은 방 안의 것이기
      * 때문이다 — 밖으로 빼면 화면이 흔들리는데 고양이만 가만히 있어 얹은 UI로 보인다.
      */
-    if (state.cat !== null) {
-      drawCat(view, state.cat)
+    for (const cat of state.cats) {
+      drawCat(view, cat)
     }
     ctx.restore()
   }

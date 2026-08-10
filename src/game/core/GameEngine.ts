@@ -61,6 +61,8 @@ const COLLAPSE_VIEW_SEC = 1.3
 const CAT_RETHROW_CHANCE = 0.25
 /** 물고 간 뒤 바로 튀어나오면 고양이가 던진 것으로 읽히지 않아서 약간 기다린다 */
 const CAT_RETHROW_DELAY_SEC = 0.28
+/** 탑 중앙 부근에서 포물선 정점을 지나도록 맞춘 재투척 속도 */
+const CAT_RETHROW_VELOCITY = { horizontal: 1.5, vertical: 8.2 } as const
 /** 받을 곳이 없는 물건은 화면 아래까지 완전히 내려가기 전에 고양이가 낚아챈다 */
 const CAT_EARLY_ESCAPE_MARGIN = 0.35
 /** 보드 단어가 물건으로 바뀌어 손과 함께 사라지는 시간 */
@@ -226,7 +228,7 @@ class GameEngine {
    * 목숨을 잃는 이탈에만 부른다 — 무너질 때 우수수 떨어지는 것까지 부르면 고양이가
    * 여럿 교차해 무엇이 목숨을 깎았는지 오히려 안 보인다.
    */
-  private readonly cats = new CatPickup()
+  private readonly cats: CatPickup
   /**
    * 이번 프레임에 부딪힌 자리들. 렌더러가 그 자리에서 물이 퍼지게 하는 데 쓴다.
    *
@@ -276,6 +278,7 @@ class GameEngine {
     this.physics = physics
     this.seed = seed
     this.collection = new Collection(known)
+    this.cats = new CatPickup(seed ^ 0x63617473)
     this.rng = createRng(seed)
     this.recipeFlow = new RecipeFlow(createRng(seed ^ 0x72656369), WORDS, RECIPES)
     this.catRng = createRng(seed ^ 0xc47f00d)
@@ -359,7 +362,7 @@ class GameEngine {
     this.aimer = new Aimer(AIM_HALF_RANGE)
     this.score.reset()
     this.collection.startRun()
-    this.cats.reset()
+    this.cats.reset(this.seed ^ 0x63617473)
     this.cameraY = 0
     this.difficultyPeak = 0
     this.physics.reset()
@@ -701,7 +704,17 @@ class GameEngine {
      * 배출구가 아니라 방패가 된다.
      */
     const costly = escaped.filter((event) => event.recalled !== true)
-    if (costly.length > 0 && !isLifeProtected(this.phaseNow, this.invulnerableLeft)) {
+    if (costly.length > 0 && this.phaseNow === 'night') {
+      /*
+       * Night Fever는 방어 구간이다. 빠진 물건마다 고양이를 한 마리씩 보내고 전부
+       * 되던진다. 여러 물건이 같은 프레임에 빠져도 첫 물건만 구하면 "우르르"가
+       * 아니라 평소 회수와 같아지므로 배열 전체를 처리한다.
+       */
+      for (const taken of costly) {
+        this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY), true)
+        this.queueCatThrow(taken.variant, taken.x < 0 ? 'left' : 'right')
+      }
+    } else if (costly.length > 0 && !isLifeProtected(this.phaseNow, this.invulnerableLeft)) {
       // 목숨을 깎을 뻔한 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
       const taken = costly[0]
       if (taken !== undefined) {
@@ -780,7 +793,10 @@ class GameEngine {
       SOLO_OWNER,
       0,
       false,
-      { x: -sign * 3.5, y: 3.4 },
+      {
+        x: -sign * CAT_RETHROW_VELOCITY.horizontal,
+        y: CAT_RETHROW_VELOCITY.vertical,
+      },
       -sign * 1.8,
     )
     this.fire({
@@ -1109,7 +1125,7 @@ class GameEngine {
               progress: Math.min(this.whiteboardRecall.elapsed / WHITEBOARD_RECALL_SEC, 1),
             },
       landing: this.landing.view,
-      cat: this.cats.view,
+      cats: this.cats.views,
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,

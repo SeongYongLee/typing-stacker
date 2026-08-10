@@ -148,21 +148,6 @@ function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScre
             />
           </div>
 
-          {/*
-            히든은 만났을 때만 나온다. 실측으로 절반의 판이 하나도 못 만나는데,
-            그때마다 "없음"이 자리를 차지하고 아무 말도 하지 않았다.
-          */}
-          {stats.hiddenFound.length > 0 && (
-            <div style={{ marginTop: 18 }}>
-              <p style={{ fontSize: 12, color: '#6a7290', letterSpacing: '0.08em', margin: 0 }}>
-                발견한 히든
-              </p>
-              <p style={{ margin: '6px 0 0', color: '#e4e68a' }}>
-                {stats.hiddenFound.join(' · ')}
-              </p>
-            </div>
-          )}
-
           {freshlyCollected.length > 0 && (
             <NewCollection items={freshlyCollected} />
           )}

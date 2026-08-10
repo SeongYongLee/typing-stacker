@@ -55,15 +55,21 @@ interface CatView {
 }
 
 class CatPickup {
-  private live: {
+  private readonly live: {
     kind: CatKind
     from: 'left' | 'right'
     variant: ItemVariant
     x: number
     y: number
     elapsed: number
-  } | null = null
-  private seed = 1
+  }[] = []
+  private seed: number
+  private lastKind: CatKind | null = null
+  private readonly kindBag: CatKind[] = []
+
+  constructor(seed = 1) {
+    this.seed = seed & 0x7fffffff
+  }
 
   /**
    * 난수를 스스로 굴린다. 까닭은 이 파일 맨 위에.
@@ -80,12 +86,13 @@ class CatPickup {
    * 부르면 고양이가 여럿 교차해 무엇이 목숨을 깎았는지 오히려 안 보인다 — 엔진도
    * 같은 이유로 이탈을 개수가 아니라 사건으로 센다(`INVULNERABLE_SEC`).
    */
-  take(variant: ItemVariant, x: number, y: number): void {
-    if (this.live !== null) {
+  take(variant: ItemVariant, x: number, y: number, allowCrowd = false): void {
+    if (!allowCrowd && this.live.length > 0) {
       return
     }
-    this.live = {
-      kind: KINDS[Math.floor(this.random() * KINDS.length)] ?? KINDS[0],
+    const kind = this.nextKind()
+    this.live.push({
+      kind,
       /*
        * 떨어진 쪽에서 들어온다. 반대쪽에서 오면 화면을 가로질러 와야 해서 뛰어드는
        * 것이 아니라 지나가는 것으로 보이고, 물건에 닿는 순간도 늦다.
@@ -95,39 +102,80 @@ class CatPickup {
       x,
       y,
       elapsed: 0,
-    }
+    })
   }
 
   update(dt: number): void {
-    if (this.live === null) {
-      return
-    }
-    this.live.elapsed += dt
-    if (this.live.elapsed >= DURATION) {
-      this.live = null
+    for (let index = this.live.length - 1; index >= 0; index -= 1) {
+      const cat = this.live[index]
+      if (cat === undefined) {
+        continue
+      }
+      cat.elapsed += dt
+      if (cat.elapsed >= DURATION) {
+        this.live.splice(index, 1)
+      }
     }
   }
 
   /** 판을 다시 시작할 때. 앞 판의 고양이가 남아 있으면 안 된다 */
-  reset(): void {
-    this.live = null
+  reset(seed?: number): void {
+    this.live.length = 0
+    if (seed !== undefined) {
+      this.seed = seed & 0x7fffffff
+      this.lastKind = null
+      this.kindBag.length = 0
+    }
   }
 
   /** 지금 어디에 있는가. 없으면 null */
   get view(): CatView | null {
-    if (this.live === null) {
-      return null
-    }
-    const progress = Math.min(this.live.elapsed / DURATION, 1)
+    return this.views[0] ?? null
+  }
+
+  /** 야간에 한꺼번에 뛰어든 고양이를 모두 내놓는다 */
+  get views(): readonly CatView[] {
+    return this.live.map((cat) => this.toView(cat))
+  }
+
+  private toView(cat: (typeof this.live)[number]): CatView {
+    const progress = Math.min(cat.elapsed / DURATION, 1)
     return {
-      kind: this.live.kind,
-      from: this.live.from,
-      variant: this.live.variant,
-      x: this.live.x,
-      y: this.live.y,
+      kind: cat.kind,
+      from: cat.from,
+      variant: cat.variant,
+      x: cat.x,
+      y: cat.y,
       progress,
       holding: progress >= GRAB_AT,
     }
+  }
+
+  /** 네 품종을 한 번씩 섞어 쓰므로 운이 나빠도 한 종류만 이어지지 않는다 */
+  private nextKind(): CatKind {
+    if (this.kindBag.length === 0) {
+      this.kindBag.push(...KINDS)
+      for (let index = this.kindBag.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(this.random() * (index + 1))
+        const current = this.kindBag[index]
+        const swap = this.kindBag[swapIndex]
+        if (current !== undefined && swap !== undefined) {
+          this.kindBag[index] = swap
+          this.kindBag[swapIndex] = current
+        }
+      }
+      const next = this.kindBag[this.kindBag.length - 1]
+      if (next === this.lastKind && this.kindBag.length > 1) {
+        const first = this.kindBag[0]
+        if (first !== undefined) {
+          this.kindBag[0] = next
+          this.kindBag[this.kindBag.length - 1] = first
+        }
+      }
+    }
+    const kind = this.kindBag.pop() ?? KINDS[0]
+    this.lastKind = kind
+    return kind
   }
 }
 

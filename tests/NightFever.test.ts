@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ARENA, DAY_SEC, NIGHT_FEVER, NIGHT_SEC, SOLO_LIVES } from '../src/game/config.ts'
+import {
+  ARENA,
+  DAY_SEC,
+  NIGHT_FEVER,
+  NIGHT_SEC,
+  SOLO_LIVES,
+  SOLO_OWNER,
+} from '../src/game/config.ts'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import { VARIANT_BY_ID } from '../src/game/data/words.ts'
@@ -211,4 +218,79 @@ describe('GameEngine Night Fever 통합', () => {
     expect((state as GameState | null)?.invulnerable).toBeGreaterThan(0)
     engine.dispose()
   }, 60_000)
+
+  it('밤에 이탈한 물건마다 고양이가 나와 모두 재투척한다', async () => {
+    const engine = await GameEngine.create(20260811)
+    const drops: GameEvent[] = []
+    engine.onEvent((event) => drops.push(event))
+    engine.startRun()
+    await clock.advance(DAY_SEC + 0.05)
+
+    const internals = engine as unknown as {
+      physics: {
+        spawnItemAt(
+          item: ReturnType<typeof variant>,
+          x: number,
+          y: number,
+          owner: typeof SOLO_OWNER,
+        ): number
+      }
+      cats: { readonly views: readonly unknown[] }
+    }
+    const item = variant('egg')
+    const catThrows = () => drops.filter(
+      (event) => event.kind === 'drop' && event.source === 'input',
+    ).length
+    const beforeThrows = catThrows()
+    internals.physics.spawnItemAt(
+      item,
+      -(ARENA.halfWidth + 0.1),
+      ARENA.platformTop + 1,
+      SOLO_OWNER,
+    )
+    internals.physics.spawnItemAt(
+      item,
+      ARENA.halfWidth + 0.1,
+      ARENA.platformTop + 1,
+      SOLO_OWNER,
+    )
+
+    await clock.advance(0.05)
+    expect(internals.cats.views).toHaveLength(2)
+
+    await clock.advance(0.35)
+    expect(catThrows()).toBe(beforeThrows + 2)
+    engine.dispose()
+  }, 60_000)
+
+  it('카메라가 올라가도 재투척 물건이 탑 위를 넘는다', async () => {
+    const engine = await GameEngine.create(20260812)
+    const cameraY = 8
+    const internals = engine as unknown as {
+      cameraY: number
+      throwBackFromCat(item: ReturnType<typeof variant>, from: 'left' | 'right'): void
+      physics: {
+        step(dt: number): unknown
+        snapshots(): readonly { readonly x: number; readonly y: number }[]
+      }
+    }
+    internals.cameraY = cameraY
+    internals.throwBackFromCat(variant('egg'), 'left')
+
+    let highest = Number.NEGATIVE_INFINITY
+    let xAtHighest = Number.POSITIVE_INFINITY
+    for (let frame = 0; frame < 75; frame += 1) {
+      internals.physics.step(1 / 60)
+      const body = internals.physics.snapshots()[0]
+      if (body !== undefined && body.y > highest) {
+        highest = body.y
+        xAtHighest = body.x
+      }
+    }
+
+    // 카메라가 탑을 뒤늦게 따라가는 중이어도 화면 높이 위로 먼저 빼낸다.
+    expect(highest).toBeGreaterThan(cameraY + ARENA.height + 0.5)
+    expect(xAtHighest).toBeLessThan(0)
+    engine.dispose()
+  })
 })

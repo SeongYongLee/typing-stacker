@@ -67,6 +67,28 @@ describe('고양이는 한 마리만 나온다', () => {
   })
 })
 
+describe('야간 고양이 무리', () => {
+  it('무리 허용 시 빠진 물건마다 한 마리씩 뛰어든다', () => {
+    const cats = cat()
+    cats.take(ITEM, -1.5, 0.4, true)
+    cats.take(ITEM, 1.5, 0.3, true)
+    cats.take(ITEM, -0.8, 0.2, true)
+
+    expect(cats.views).toHaveLength(3)
+    expect(new Set(cats.views.map((view) => view.kind)).size).toBeGreaterThan(1)
+  })
+
+  it('무리도 지나가면 모두 사라진다', () => {
+    const cats = cat()
+    cats.take(ITEM, -1.5, 0.4, true)
+    cats.take(ITEM, 1.5, 0.3, true)
+
+    cats.update(DURATION * 1.1)
+
+    expect(cats.views).toHaveLength(0)
+  })
+})
+
 describe('판의 난수를 쓰지 않는다', () => {
   /**
    * 연출이 판의 난수열에 끼어들면 **고양이 한 마리 때문에 같은 시드가 같은 판을
@@ -81,15 +103,26 @@ describe('판의 난수를 쓰지 않는다', () => {
     spy.mockRestore()
   })
 
-  /** 나올 때마다 무작위다. 한 마리만 계속 나오면 네 마리를 그린 뜻이 없다 */
-  it('되풀이하면 여러 마리가 나온다', () => {
+  /** 한 종류만 계속 보이지 않도록 네 번 안에 네 품종을 모두 소진한다 */
+  it('네 번 나오면 네 품종이 모두 한 번씩 나온다', () => {
     const cats = cat()
     const seen = new Set<string>()
-    for (let i = 0; i < 40; i += 1) {
+    for (let i = 0; i < KINDS.length; i += 1) {
       cats.reset()
       cats.take(ITEM, -1.5, 0.4)
       seen.add(cats.view!.kind)
     }
+    expect(seen).toEqual(new Set(KINDS))
+  })
+
+  it('판 시드가 다르면 첫 고양이도 고정되지 않는다', () => {
+    const seen = new Set<string>()
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const cats = new CatPickup(seed)
+      cats.take(ITEM, -1.5, 0.4)
+      seen.add(cats.view!.kind)
+    }
+
     expect(seen.size).toBeGreaterThan(1)
   })
 })

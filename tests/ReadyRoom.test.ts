@@ -58,6 +58,7 @@ describe('ReadyRoom 게임 규칙', () => {
     const html = markup(false)
 
     expect(html).toContain('data-ready-rules="auto"')
+    expect(html).toContain('모드 · 함께 쌓기 (호스트만 변경)')
     expect(html).toContain('1대1')
     expect(html).toContain('한 탑을 함께')
     expect(html).toContain('한 번씩')

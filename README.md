@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/SeongYongLee/typing-stacker/actions/workflows/ci.yml/badge.svg)](https://github.com/SeongYongLee/typing-stacker/actions/workflows/ci.yml)
 
-**▶ 플레이: https://seongyonglee.github.io/typing-stacker/** (데스크톱 · 물리 키보드)
+**▶ 플레이: https://typelostfound.quest/** (데스크톱 · 물리 키보드)
 
 한글 타자게임과 물리 쌓기를 합친 웹 게임. 좌우에서 내려오는 단어를 타이핑하면, 그 단어에 해당하는 물건이 가운데 받침대 위로 떨어져 쌓인다.
 
@@ -44,7 +44,7 @@ pnpm build
 
 데스크톱 가로 화면 + 물리 키보드 전용이다. 타자게임이므로 모바일은 지원하지 않는다.
 
-`main`에 푸시하면 GitHub Actions가 typecheck·테스트를 돌린 뒤 GitHub Pages로 배포한다. Pages는 저장소 이름을 경로로 붙이므로 빌드에서만 `base`를 바꾸고, 런타임에서 만드는 스프라이트 경로는 `import.meta.env.BASE_URL`을 앞에 붙인다 — 로컬 개발 서버는 계속 루트로 뜬다. 커밋 전에는 pre-commit 훅이 **커밋될 내용만 임시로 꺼내** typecheck·lint·테스트를 돌린다. 워킹 트리가 어수선해도 올라가는 것 자체는 온전하다.
+`main`에 푸시하면 GitHub Actions가 typecheck·테스트를 돌린 뒤 GitHub Pages로 배포한다. 프로덕션 빌드는 상대 `base`를 사용해 커스텀 도메인 루트와 기존 `/typing-stacker/` 경로를 모두 지원하고, 런타임에서 만드는 스프라이트 경로는 `import.meta.env.BASE_URL`을 앞에 붙인다 — 로컬 개발 서버는 계속 루트로 뜬다. 커밋 전에는 pre-commit 훅이 **커밋될 내용만 임시로 꺼내** typecheck·lint·테스트를 돌린다. 워킹 트리가 어수선해도 올라가는 것 자체는 온전하다.
 
 ## 문서
 

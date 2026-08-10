@@ -27,6 +27,8 @@ const MAX_PEERS = 8
  */
 const ALLOWED_ORIGINS = [
   'https://seongyonglee.github.io',
+  'https://typelostfound.quest',
+  'https://www.typelostfound.quest',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',

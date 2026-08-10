@@ -114,6 +114,8 @@ function describe(side: LoopbackSide): string {
       return '짝을 맞추는 중'
     case 'countdown':
       return `${phase.secondsLeft}초 뒤 시작`
+    case 'roulette':
+      return '룰렛으로 모드를 고르는 중'
     case 'ready':
       return `준비 확인 중 (${phase.ready.length}/${phase.players.length})`
     case 'playing':

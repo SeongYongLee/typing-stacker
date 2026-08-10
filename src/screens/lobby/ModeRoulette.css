@@ -1,0 +1,178 @@
+.mode-roulette {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 9, 17, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.mode-roulette__panel {
+  position: relative;
+  display: grid;
+  width: min(420px, calc(100vw - 48px));
+  justify-items: center;
+  gap: 14px;
+  padding: 22px 24px 24px;
+  overflow: hidden;
+  border: 1px solid rgba(228, 230, 138, 0.58);
+  border-radius: 8px;
+  background: rgba(13, 16, 26, 0.96);
+  box-shadow: 0 24px 64px rgba(5, 9, 17, 0.48);
+  color: #f2f4fb;
+  text-align: center;
+}
+
+.mode-roulette__eyebrow {
+  margin: 0;
+  color: #b6bdd4;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mode-roulette__pointer {
+  position: relative;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  margin-bottom: -26px;
+  border-right: 14px solid transparent;
+  border-left: 14px solid transparent;
+  border-top: 24px solid #f2f4fb;
+  filter: drop-shadow(0 3px 3px rgba(5, 9, 17, 0.45));
+}
+
+.mode-roulette__wheel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(260px, 68vw);
+  aspect-ratio: 1;
+  border: 7px solid #f2f4fb;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -22.5deg,
+    #e4e68a 0deg 45deg,
+    #5cb8dd 45deg 90deg,
+    #e4e68a 90deg 135deg,
+    #5cb8dd 135deg 180deg,
+    #e4e68a 180deg 225deg,
+    #5cb8dd 225deg 270deg,
+    #e4e68a 270deg 315deg,
+    #5cb8dd 315deg 360deg
+  );
+  box-shadow:
+    0 0 0 5px #252b3d,
+    0 14px 32px rgba(5, 9, 17, 0.42);
+  will-change: transform;
+}
+
+.mode-roulette__wheel::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 58px;
+  aspect-ratio: 1;
+  border: 5px solid #f2f4fb;
+  border-radius: 50%;
+  background: #252b3d;
+  box-shadow: 0 4px 12px rgba(5, 9, 17, 0.38);
+  content: '';
+  transform: translate(-50%, -50%);
+}
+
+.mode-roulette__wheel--shared {
+  animation: roulette-spin-shared 2400ms cubic-bezier(0.12, 0.72, 0.18, 1) both;
+}
+
+.mode-roulette__wheel--duel {
+  animation: roulette-spin-duel 2400ms cubic-bezier(0.12, 0.72, 0.18, 1) both;
+}
+
+.mode-roulette__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 18px;
+  color: #b6bdd4;
+  font-size: 14px;
+}
+
+.mode-roulette__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mode-roulette__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.mode-roulette__swatch--shared {
+  background: #e4e68a;
+}
+
+.mode-roulette__swatch--duel {
+  background: #5cb8dd;
+}
+
+.mode-roulette__result {
+  display: grid;
+  min-height: 58px;
+  margin: 0;
+  opacity: 0;
+  animation: roulette-result-in 260ms 2400ms ease-out both;
+}
+
+.mode-roulette__result strong {
+  color: #f2f4fb;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.mode-roulette__result span {
+  color: #b6bdd4;
+  font-size: 15px;
+}
+
+@keyframes roulette-spin-shared {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(1440deg); }
+}
+
+@keyframes roulette-spin-duel {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(1485deg); }
+}
+
+@keyframes roulette-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-roulette__wheel--shared {
+    animation: none;
+    transform: rotate(0deg);
+  }
+
+  .mode-roulette__wheel--duel {
+    animation: none;
+    transform: rotate(45deg);
+  }
+
+  .mode-roulette__result {
+    opacity: 1;
+    animation: none;
+  }
+}

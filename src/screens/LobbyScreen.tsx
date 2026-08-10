@@ -20,6 +20,7 @@ import type { TitleTheme } from './titleTheme.ts'
 
 import { ManualMatch } from './lobby/ManualMatch.tsx'
 import { MatchCountdown } from './lobby/MatchCountdown.tsx'
+import { ModeRoulette } from './lobby/ModeRoulette.tsx'
 import { Notice } from './lobby/Notice.tsx'
 import { ReadyRoom } from './lobby/ReadyRoom.tsx'
 import { Searching } from './lobby/Searching.tsx'
@@ -218,6 +219,22 @@ function LobbyScreen({
 
   if (phase?.kind === 'countdown') {
     return <MatchCountdown phase={phase} />
+  }
+
+  if (phase?.kind === 'roulette') {
+    return (
+      <div style={{ position: 'relative', height: '100%' }}>
+        <ReadyRoom
+          phase={{ ...phase, kind: 'ready' }}
+          onReady={onReady}
+          onChat={onChat}
+          onMatchMode={onMatchMode}
+          onBack={onBack}
+          interactive={false}
+        />
+        <ModeRoulette phase={phase} />
+      </div>
+    )
   }
 
   if (phase?.kind === 'ready') {

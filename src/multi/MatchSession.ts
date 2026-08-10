@@ -27,8 +27,19 @@ const HANDSHAKE_TIMEOUT_MS = 10000
  * 그만큼 기다리는 셈이다. 준비 버튼 하나 누르는 데 필요한 시간의 몇 배로 잡았다.
  */
 const READY_TIMEOUT_MS = 30000
-/** 룰렛 결과를 보여주는 시간. 결과를 읽고 다음 화면으로 넘어갈 만큼만 둔다. */
-const ROULETTE_REVEAL_MS = 1800
+/** 룰렛이 돌고 결과를 읽은 뒤 카운트다운으로 넘어가기까지의 시간. */
+const ROULETTE_REVEAL_MS = 3600
+
+interface ReadyRoomState {
+  readonly players: readonly PlayerInfo[]
+  readonly ready: readonly PlayerId[]
+  readonly selfId: PlayerId
+  /** 주고받은 말. 코드로 모인 방에서만 오간다 */
+  readonly chat: readonly ChatLine[]
+  readonly chatEnabled: boolean
+  readonly matchModeChoice: MatchModeChoice
+  readonly canChangeMatchMode: boolean
+}
 
 /**
  * 방을 만들고 상대가 들어와 판이 시작되기까지의 절차.
@@ -71,17 +82,9 @@ type SessionPhase =
    * 상대가 들어오자마자 시작하면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
    * 없다 — 첫 단어가 이미 내려오고 있다.
    */
-  | {
-      readonly kind: 'ready'
-      readonly players: readonly PlayerInfo[]
-      readonly ready: readonly PlayerId[]
-      readonly selfId: PlayerId
-      /** 주고받은 말. 코드로 모인 방에서만 오간다 */
-      readonly chat: readonly ChatLine[]
-      readonly chatEnabled: boolean
-      readonly matchModeChoice: MatchModeChoice
-      readonly canChangeMatchMode: boolean
-    }
+  | ({ readonly kind: 'ready' } & ReadyRoomState)
+  /** 룰렛이 도는 동안 준비방을 그대로 두고 중앙에 결과를 공개한다. */
+  | ({ readonly kind: 'roulette'; readonly matchMode: MatchMode } & ReadyRoomState)
   /**
    * 모두 준비했고 곧 시작한다. 남은 셈을 화면이 크게 보여준다.
    * 양쪽이 각자 세지만 시작 신호를 받은 시점이 기준이라 거의 같이 끝난다.
@@ -93,8 +96,6 @@ type SessionPhase =
       /** 판이 열리면 처음 떨굴 사람 */
       readonly starter: PlayerId | null
       readonly matchMode: MatchMode
-      /** 룰렛으로 정해진 모드를 잠시 공개하는 동안에만 들어온다 */
-      readonly rouletteMatchMode?: MatchMode
     }
   | { readonly kind: 'playing'; readonly engine: MatchEngine }
   | { readonly kind: 'failed'; readonly failure: TransportFailure }
@@ -436,7 +437,7 @@ class MatchSession {
         event.message.players,
         event.message.seed,
         event.message.matchMode,
-        event.message.matchModeChoice ?? this.matchModeChoice,
+        event.message.matchModeChoice ?? event.message.matchMode,
       )
     }
   }
@@ -648,7 +649,34 @@ class MatchSession {
       return
     }
     this.clearReadyTimeout()
-    this.countDown(players, seed, matchMode, choice === 'roulette')
+    if (choice !== 'roulette' || this.countdownSec <= 0) {
+      this.countDown(players, seed, matchMode)
+      return
+    }
+
+    const transport = this.transport
+    if (transport === null) {
+      return
+    }
+    this.roster = players
+    this.onPhase({
+      kind: 'roulette',
+      players,
+      ready: [...this.ready],
+      selfId: transport.selfId,
+      chat: this.chat.view,
+      chatEnabled: this.chatEnabled,
+      matchModeChoice: choice,
+      canChangeMatchMode: false,
+      matchMode,
+    })
+    this.rouletteTimer = setTimeout(() => {
+      this.rouletteTimer = null
+      if (this.disposed || this.started) {
+        return
+      }
+      this.countDown(players, seed, matchMode)
+    }, ROULETTE_REVEAL_MS)
   }
 
   /**
@@ -680,12 +708,7 @@ class MatchSession {
    * 이미 세고 있으면 다시 시작하지 않는다 — start가 두 번 오더라도(재전송, 이중 이펙트)
    * 셈이 되돌아가면 안 된다.
    */
-  private countDown(
-    players: readonly PlayerInfo[],
-    seed: number,
-    matchMode: MatchMode,
-    revealRoulette = false,
-  ): void {
+  private countDown(players: readonly PlayerInfo[], seed: number, matchMode: MatchMode): void {
     if (this.started || this.countdownTimer !== null) {
       return
     }
@@ -698,7 +721,6 @@ class MatchSession {
 
     this.roster = players
     let left = this.countdownSec
-    let showingRoulette = revealRoulette
     const starter = starterOf(seed, players)
     const emit = () => {
       this.onPhase({
@@ -707,21 +729,9 @@ class MatchSession {
         secondsLeft: left,
         starter,
         matchMode,
-        ...(showingRoulette ? { rouletteMatchMode: matchMode } : {}),
       })
     }
     emit()
-
-    if (showingRoulette) {
-      this.rouletteTimer = setTimeout(() => {
-        this.rouletteTimer = null
-        if (this.disposed || this.started) {
-          return
-        }
-        showingRoulette = false
-        emit()
-      }, ROULETTE_REVEAL_MS)
-    }
 
     const tick = () => {
       left -= 1

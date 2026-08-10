@@ -75,12 +75,15 @@ function ReadyRoom({
   onChat,
   onMatchMode,
   onBack,
+  interactive = true,
 }: {
   phase: Extract<SessionPhase, { kind: 'ready' }>
   onReady: () => void
   onChat: (text: string) => void
   onMatchMode: (choice: MatchModeChoice) => void
   onBack: () => void
+  /** 룰렛이 준비방 위에 떠 있는 동안 입력과 단축키를 잠근다. */
+  interactive?: boolean
 }) {
   const ready = new Set(phase.ready)
   const iAmReady = ready.has(phase.selfId)
@@ -96,6 +99,7 @@ function ReadyRoom({
 
   useMenuKeys({
     count: 1,
+    active: interactive,
     useTab: false,
     onActivate: () => {
       if (!iAmReady) {
@@ -197,7 +201,7 @@ function ReadyRoom({
       <MenuButton
         selected={false}
         onClick={changeMode}
-        disabled={!phase.canChangeMatchMode}
+        disabled={!interactive || !phase.canChangeMatchMode}
         style={{ fontSize: READY_TEXT_SIZE }}
       >
         모드 · {modeLabel(phase.matchModeChoice)}
@@ -206,9 +210,9 @@ function ReadyRoom({
   )
   const readyButton = (
     <MenuButton
-      selected={!iAmReady}
+      selected={interactive && !iAmReady}
       onClick={onReady}
-      disabled={iAmReady}
+      disabled={!interactive || iAmReady}
       primary
       style={{ fontSize: READY_TEXT_SIZE }}
     >
@@ -216,7 +220,12 @@ function ReadyRoom({
     </MenuButton>
   )
   const backButton = (
-    <MenuButton selected={false} onClick={onBack} style={{ fontSize: READY_TEXT_SIZE }}>
+    <MenuButton
+      selected={false}
+      onClick={onBack}
+      disabled={!interactive}
+      style={{ fontSize: READY_TEXT_SIZE }}
+    >
       나가기 (Esc)
     </MenuButton>
   )
@@ -268,7 +277,12 @@ function ReadyRoom({
                 코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
                 자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
               */}
-              <ChatBox lines={phase.chat} selfId={phase.selfId} onSend={onChat} />
+              <ChatBox
+                lines={phase.chat}
+                selfId={phase.selfId}
+                onSend={onChat}
+                disabled={!interactive}
+              />
             </div>
           ) : (
             <div />
@@ -306,10 +320,12 @@ function ChatBox({
   lines,
   selfId,
   onSend,
+  disabled = false,
 }: {
   lines: readonly ChatLine[]
   selfId: string
   onSend: (text: string) => void
+  disabled?: boolean
 }) {
   const [text, setText] = useState('')
   const endRef = useRef<HTMLDivElement | null>(null)
@@ -366,6 +382,7 @@ function ChatBox({
         placeholder="한마디 (Enter로 보냅니다)"
         maxLength={MAX_TEXT}
         aria-label="채팅 입력"
+        disabled={disabled}
         onKeyDown={(event) => {
           if (event.key !== 'Enter') {
             return

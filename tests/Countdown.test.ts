@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MatchSession, type SessionPhase } from '../src/multi/MatchSession.ts'
+import {
+  MatchSession,
+  ROULETTE_REVEAL_MS,
+  type SessionPhase,
+} from '../src/multi/MatchSession.ts'
 import { Hub } from './helpers/hub.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
@@ -57,14 +61,20 @@ async function settle(): Promise<void> {
   }
 }
 
+async function readyAll(matchModeChoice: 'shared' | 'roulette' = 'shared'): Promise<void> {
+  seats[0]!.session.setMatchModeChoice(matchModeChoice)
+  await settle()
+  for (const seat of seats) {
+    seat.session.setReady()
+  }
+  await settle()
+}
+
 describe('시작 셈', () => {
   it('모두 준비하면 곧바로 열지 않고 센다', async () => {
     seats = seatsOf(2, 3)
     await settle()
-    for (const seat of seats) {
-      seat.session.setReady()
-    }
-    await settle()
+    await readyAll()
 
     for (const seat of seats) {
       const phase = seat.phase()
@@ -82,10 +92,7 @@ describe('시작 셈', () => {
   it('1초마다 줄어든다', async () => {
     seats = seatsOf(2, 3)
     await settle()
-    for (const seat of seats) {
-      seat.session.setReady()
-    }
-    await settle()
+    await readyAll()
 
     const left = () => {
       const phase = seats[0]!.phase()
@@ -105,10 +112,7 @@ describe('시작 셈', () => {
   it('다시 시작 신호가 와도 셈이 되돌아가지 않는다', async () => {
     seats = seatsOf(2, 3)
     await settle()
-    for (const seat of seats) {
-      seat.session.setReady()
-    }
-    await settle()
+    await readyAll()
     await vi.advanceTimersByTimeAsync(1000)
 
     // 이미 준비를 누른 뒤에 또 누른다 — 방장이 명단을 다시 알린다
@@ -137,13 +141,41 @@ describe('시작 셈', () => {
     expect(seats[0]!.phase()?.kind).toBe('playing')
   })
 
+  it('룰렛이 끝난 뒤에야 카운트다운을 시작한다', async () => {
+    seats = seatsOf(2, 3)
+    await settle()
+    await readyAll('roulette')
+
+    for (const seat of seats) {
+      expect(seat.phase()?.kind).toBe('roulette')
+    }
+
+    await vi.advanceTimersByTimeAsync(ROULETTE_REVEAL_MS - 1)
+    for (const seat of seats) {
+      expect(seat.phase()?.kind).toBe('roulette')
+    }
+
+    await vi.advanceTimersByTimeAsync(1)
+    for (const seat of seats) {
+      const phase = seat.phase()
+      expect(phase?.kind).toBe('countdown')
+      if (phase?.kind === 'countdown') {
+        expect(phase.secondsLeft).toBe(3)
+      }
+    }
+
+    await vi.advanceTimersByTimeAsync(1000)
+    const phase = seats[0]!.phase()
+    expect(phase?.kind).toBe('countdown')
+    if (phase?.kind === 'countdown') {
+      expect(phase.secondsLeft).toBe(2)
+    }
+  })
+
   it('세는 중에 나가면 타이머가 남지 않는다', async () => {
     seats = seatsOf(2, 3)
     await settle()
-    for (const seat of seats) {
-      seat.session.setReady()
-    }
-    await settle()
+    await readyAll()
 
     seats[0]!.session.dispose()
     await vi.advanceTimersByTimeAsync(5000)

@@ -167,6 +167,7 @@ function Whiteboard({
       <div aria-hidden style={fill('whiteboard-day', 1)} />
       <div aria-hidden style={fill('whiteboard-night', nightfall)} />
       <style>{whiteboardAnimationCss}</style>
+      <span aria-hidden data-whiteboard-status style={ownerStatusStyle}>주인 찾는 중</span>
       {(words.length > 0 || erasedWords.length > 0) && (
         <div style={wordListStyle}>
           {words.map((word, index) => {
@@ -315,11 +316,26 @@ const wordListStyle: CSSProperties = {
   bottom: '18%',
 }
 
+const WHITEBOARD_FONT = '"GriunXHangeul A Foreign Hand", "Apple SD Gothic Neo", "Malgun Gothic", cursive'
+const WHITEBOARD_WORD_SIZE = 35
+
+const ownerStatusStyle: CSSProperties = {
+  position: 'absolute',
+  left: '10%',
+  top: '10%',
+  color: '#000',
+  fontFamily: WHITEBOARD_FONT,
+  fontSize: WHITEBOARD_WORD_SIZE * 0.7,
+  fontWeight: 400,
+  lineHeight: 1,
+  letterSpacing: '0.02em',
+}
+
 const wordStyle: CSSProperties = {
   position: 'absolute',
   display: 'block',
   color: '#2b3933',
-  fontFamily: '"GriunXHangeul A Foreign Hand", "Apple SD Gothic Neo", "Malgun Gothic", cursive',
+  fontFamily: WHITEBOARD_FONT,
   fontWeight: 400,
   lineHeight: 1,
   letterSpacing: '0.02em',
@@ -455,7 +471,7 @@ function scribbleStyle(word: string, index: number): CSSProperties {
   return {
     left: `${x}%`,
     top: `${y}%`,
-    fontSize: 35,
+    fontSize: WHITEBOARD_WORD_SIZE,
     transform: `translate(-50%, -50%) rotate(${rotation}deg) scaleX(${stretch})`,
   }
 }
@@ -523,4 +539,4 @@ function layerStyle(name: 'background-day' | 'background-night', alpha: number):
  * 낮에는 빛을 더하는 대신 그늘을 지우는 방향으로 가야 한다.
  */
 
-export { ArenaBackdrop }
+export { ArenaBackdrop, Whiteboard }

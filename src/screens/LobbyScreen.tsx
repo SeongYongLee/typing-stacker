@@ -33,7 +33,8 @@ interface LobbyScreenProps {
   onReady: () => void
   /** 준비 화면에서 한마디 한다 */
   onChat: (text: string) => void
-  onMatchMode: (choice: MatchModeChoice) => void
+  /** 구형 호출부 호환용. 대결 고정 중에는 사용하지 않는다. */
+  onMatchMode?: (choice: MatchModeChoice) => void
   onBack: () => void
   theme: TitleTheme
 }
@@ -87,7 +88,6 @@ function LobbyScreen({
   onOpen,
   onReady,
   onChat,
-  onMatchMode,
   onBack,
   theme,
 }: LobbyScreenProps) {
@@ -210,8 +210,6 @@ function LobbyScreen({
       <WaitingRoom
         roomCode={phase.roomCode}
         matchModeChoice={phase.matchModeChoice}
-        canChangeMatchMode={phase.canChangeMatchMode}
-        onMatchMode={onMatchMode}
         onBack={onBack}
       />
     )
@@ -228,7 +226,6 @@ function LobbyScreen({
           phase={{ ...phase, kind: 'ready' }}
           onReady={onReady}
           onChat={onChat}
-          onMatchMode={onMatchMode}
           onBack={onBack}
           interactive={false}
         />
@@ -243,7 +240,6 @@ function LobbyScreen({
         phase={phase}
         onReady={onReady}
         onChat={onChat}
-        onMatchMode={onMatchMode}
         onBack={onBack}
       />
     )

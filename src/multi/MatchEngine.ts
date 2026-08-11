@@ -2,17 +2,29 @@ import {
   AIM_HALF_RANGE,
   ARENA,
   INVULNERABLE_SEC,
+  LEDGE,
   LIVES,
 } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
+import { RECIPES } from '../game/data/recipes.ts'
+import { shapeBounds } from '../game/shapes.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
-import type { EscapeEvent } from '../game/physics/PhysicsWorld.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
 import { Aimer } from '../game/systems/Aimer.ts'
-import { difficultyAt, difficultyProgress, forPlayers } from '../game/systems/Difficulty.ts'
-import { resolveItem } from '../game/systems/ItemResolver.ts'
+import {
+  MAX_ON_SCREEN,
+  difficultyAt,
+  difficultyProgress,
+  forPlayers,
+} from '../game/systems/Difficulty.ts'
+import { resolveCrafted, resolveItem } from '../game/systems/ItemResolver.ts'
+import { canMergeAnything, findMerge } from '../game/systems/Merger.ts'
+import { placeLedge } from '../game/systems/Ledge.ts'
+import { pairMarks, pairPulse } from '../game/systems/PairMarks.ts'
+import { RecipeFlow } from '../game/systems/RecipeFlow.ts'
+import { Whiteboard } from '../game/systems/Whiteboard.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
 import { judgeInput } from '../game/systems/TypingJudge.ts'
 import { LandingGlow } from '../game/systems/LandingGlow.ts'
@@ -20,10 +32,16 @@ import type { TrailHit } from '../game/systems/TrailField.ts'
 import { impactEventOf, quakeEventOf, trailHitOf } from '../game/systems/ImpactFeel.ts'
 import { WordSpawner } from '../game/systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../game/types/events.ts'
-import type { DifficultyLevel, FallingWord, OwnerId } from '../game/types/game.ts'
+import type { DifficultyLevel, FallingWord, OwnerId, WordEntry } from '../game/types/game.ts'
 import { MatchState } from './MatchState.ts'
 import { buildOwnerColors } from './ownerColors.ts'
-import type { Message, PlayerId, PlayerInfo } from './protocol.ts'
+import type {
+  BodyFrame,
+  DuelHeartReward,
+  Message,
+  PlayerId,
+  PlayerInfo,
+} from './protocol.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 import type { ChatLine } from './ChatLog.ts'
 import type { ChatLog } from './ChatLog.ts'
@@ -31,6 +49,7 @@ import { BodyCorrection } from './BodyCorrection.ts'
 import { Presence } from './Presence.ts'
 import type { MatchMode } from './matchModes.ts'
 import { visibleDuelTowerIds } from './duelTowers.ts'
+import { DuelRace, type DuelResult } from './DuelRace.ts'
 
 /**
  * 대전 한 판.
@@ -38,9 +57,8 @@ import { visibleDuelTowerIds } from './duelTowers.ts'
  * 싱글의 GameEngine과 나눠 둔 이유는 규칙이 다르기 때문이다 — 여기서는 받침대가 하나이고
  * 턴이 돌아가며, 목숨은 물건 주인이 잃는다. 물리·렌더러·단어 시스템은 그대로 공유한다.
  *
- * **방장이 심판이다.** 양쪽이 각자 물리를 돌리지만 "누가 목숨을 잃었는지, 턴이 누구에게
- * 넘어가는지"는 방장만 정하고 결과를 보낸다. Rapier의 크로스 플랫폼 결정론에 승패를
- * 걸지 않으려는 것이고, 턴이 끝날 때마다 방장이 권위 키프레임을 보내 어긋남을 되돌린다.
+ * **방장이 심판이다.** 공유 모드는 방장 물리가 정본이고, 대결은 각 참가자의 자기 판
+ * 물리가 정본이다. 목숨·골인·순위는 어느 모드든 방장만 확정해 결과 순서를 하나로 둔다.
  */
 
 /**
@@ -52,8 +70,14 @@ import { visibleDuelTowerIds } from './duelTowers.ts'
  * 싱글의 DROP_COOLDOWN_MS와 같은 장치이고, 사람마다 따로 돈다.
  */
 const DROP_INTERVAL_SEC = 0.5
-/** 동시 진행에서는 모두가 단어를 칠 수 있으므로 단어 공급 간격을 넉넉히 둔다. */
-const DUEL_WORD_INTERVAL_MULTIPLIER = 3
+/** 동시 진행에서는 모두가 단어를 치므로 함께 쌓기보다 단어를 더 자주 공급한다. */
+const DUEL_WORD_RATE_MULTIPLIER = 3
+const MERGED_ITEM_ID_BASE = 1_000_000
+
+const NO_MARKS: ReadonlyMap<string, number> = new Map()
+const WORD_BASE_ID = new Map(
+  WORDS.map((entry) => [entry.word, entry.variants[0]?.id ?? '']),
+)
 
 function difficultyForMatch(
   level: DifficultyLevel,
@@ -66,7 +90,8 @@ function difficultyForMatch(
   }
   return {
     ...scaled,
-    spawnInterval: scaled.spawnInterval * DUEL_WORD_INTERVAL_MULTIPLIER,
+    maxConcurrent: MAX_ON_SCREEN,
+    spawnInterval: scaled.spawnInterval / DUEL_WORD_RATE_MULTIPLIER,
   }
 }
 
@@ -86,8 +111,12 @@ const TURN_HURRY_SEC = 5
 
 /** 권위 키프레임을 보내는 간격(초). 턴이 없어져 끝나는 지점이 사라졌다 */
 const SYNC_INTERVAL_SEC = 2.5
-/** 대결 모드에서 이 높이까지 자기 탑을 올리면 즉시 이긴다. */
+/** 대결 게임판 주인이 움직임을 직접 배포하는 간격. 원격 판은 그 사이를 예측한다. */
+const DUEL_BOARD_SYNC_INTERVAL_SEC = 0.125
+/** 대결 모드에서 이 높이까지 자기 탑을 올리면 골인한다. */
 const DUEL_TARGET_STACK_TOP = ARENA.platformTop + 3.2
+/** 골인·탈락한 타워가 결과 효과와 함께 사라지는 시간. */
+const DUEL_TOWER_EXIT_SEC = 1.2
 /** 판 전환 직후에는 구형 판 ID 없는 지연 명령을 잠깐 버린다. */
 const LEGACY_COMMAND_GRACE_SEC = 1
 /** 대전 물리는 브라우저 프레임 간격 대신 이 간격으로만 전진한다. */
@@ -137,7 +166,8 @@ function clamp(value: number, min: number, max: number): number {
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
 
 const HOST_MESSAGES = new Set<Message['t']>([
-  'dropped', 'chatted', 'left', 'words', 'lives', 'sync', 'over', 'rematchList', 'restart',
+  'dropped', 'chatted', 'left', 'words', 'lives', 'duelWhiteboard', 'duelResults', 'sync', 'over',
+  'rematchList', 'restart',
 ])
 
 interface MatchViewState {
@@ -173,6 +203,11 @@ interface MatchViewState {
   /** 방금 목숨을 잃은 사람. 누구인지가 핵심이라 가운데에 띄운다 */
   readonly hurt: { readonly by: PlayerId; readonly lives: number } | null
   readonly words: readonly FallingWord[]
+  readonly wordMarks: ReadonlyMap<string, number>
+  readonly pairPulse: number
+  readonly whiteboard: readonly string[]
+  readonly activeWhiteboard: readonly string[]
+  readonly heartReward: DuelHeartReward | null
   readonly aimNormalized: number
   /**
    * 주고받은 말. 코드로 모인 방에서만 오간다.
@@ -192,6 +227,8 @@ interface MatchViewState {
    * 같은 붕괴로 함께 탈락하면 공동 등수다.
    */
   readonly standings: readonly { readonly id: PlayerId; readonly placement: number }[]
+  /** 대결 중 이미 골인하거나 탈락해 순위가 확정된 사람들. */
+  readonly duelResults: readonly DuelResult[]
   readonly feedback: MatchFeedback | null
   readonly winner: PlayerId | null
   readonly connectionLost: boolean
@@ -302,9 +339,14 @@ class MatchEngine {
   private readonly seed: number
   private readonly chatClock: () => number
   private readonly duelWorlds: ReadonlyMap<PlayerId, PhysicsWorld> | null
+  private readonly duelRace: DuelRace | null
+  /** 결과 연출 시작 시각. 타워를 즉시 잘라내지 않고 자연스럽게 치우는 데 쓴다. */
+  private readonly duelFinishedAt = new Map<PlayerId, number>()
   private readonly wantRematch = new Set<PlayerId>()
   /** 승수는 판마다 한 번만 올린다 — 방장과 참가자가 각자 끝을 알아채기 때문이다 */
   private recorded = false
+  /** 1위가 경기 도중 정해져도 승수는 그 순간 한 번만 올린다. */
+  private awardedWinner: PlayerId | null = null
   /** 모두의 계속하기가 모인 뒤 재시작 신호는 판마다 한 번만 보낸다. */
   private restartRequested = false
   private opponentLeft = false
@@ -322,6 +364,18 @@ class MatchEngine {
 
   private rng: Rng
   private spawner: WordSpawner
+  private readonly recipeFlows = new Map<PlayerId, RecipeFlow>()
+  private recipePickIndex = 0
+  private readonly recipeCounts = new Map<string, number>()
+  private focusedRecipeWords: readonly string[] = []
+  private readonly whiteboard: Whiteboard
+  private whiteboardWords: readonly string[] = []
+  private heartReward: DuelHeartReward | null = null
+  private heartRewardSeq = 0
+  private readonly duelRng: Rng
+  private nextMergedItemId: number
+  private readonly pendingMergedRecipes: string[] = []
+  private readonly duelMarks = new Map<PlayerId, ReadonlyMap<string, number>>()
   private aimer = new Aimer(AIM_HALF_RANGE)
   /** 빛나는 물건이 얹힐 때 번지는 색. 싱글과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
@@ -353,8 +407,15 @@ class MatchEngine {
    */
   private turnElapsed = 0
   private sinceSync = 0
-  /** 현재 로컬 물리 step 번호. sync를 받으면 참가자는 방장 tick에 맞춘다. */
+  private sinceDuelBoardSync = 0
+  /** 현재 로컬 물리 step 번호. 공유 모드 참가자만 sync에서 방장 tick에 맞춘다. */
   private physicsTick = 0
+  /** 게임판별로 마지막에 적용한 주인 tick. 늦게 도착한 상태가 판을 되감지 못하게 한다. */
+  private readonly duelBoardTicks = new Map<PlayerId, number>()
+  /** 판 주인이 마지막으로 확정한 탑 높이. 예측 물리는 골인 판정에 쓰지 않는다. */
+  private readonly duelStackTops = new Map<PlayerId, number>()
+  /** 원격 게임판 주인이 보고한 이탈. 목숨과 순위 판정은 다음 방장 step에서 확정한다. */
+  private readonly pendingDuelEscapes = new Map<PlayerId, number>()
   /** 가변 렌더 프레임 시간을 고정 물리 step으로 바꾸기 위한 누적 시간. */
   private fixedAccumulator = 0
   /** 물리 세계에 넣는 시점만 예약한다. 단어 제거·턴 이동은 드롭 승인 시점에 한다. */
@@ -363,6 +424,8 @@ class MatchEngine {
   private readonly pendingSettledSync = new Set<number>()
   /** 참가자 화면에서만 권위 위치 교정을 짧게 이어 붙인다. */
   private readonly bodyCorrection = new BodyCorrection()
+  /** 대결 원격 판은 각 판 주인의 위치로 교정하되 화면에서만 짧게 이어 붙인다. */
+  private readonly duelBodyCorrections = new Map<PlayerId, BodyCorrection>()
 
   /**
    * 덫이 걸린 단어 — 단어 → 건 사람.
@@ -444,11 +507,36 @@ class MatchEngine {
     this.chatClock = options.chatClock
     this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES, options.starter ?? starterOf(options.seed, options.players))
-    this.standingsView = this.match.standings()
+    this.duelRace = this.matchMode === 'duel' ? new DuelRace(options.players) : null
+    for (const player of options.players) {
+      this.duelStackTops.set(player.id, ARENA.platformTop)
+      if (this.matchMode === 'duel') {
+        this.duelBodyCorrections.set(player.id, new BodyCorrection())
+      }
+    }
+    this.standingsView = this.duelRace === null ? this.match.standings() : []
     this.ownerColors = buildOwnerColors(options.players)
     this.presence = new Presence(options.players, options.transport.selfId)
     this.rng = createRng(options.seed)
-    this.spawner = new WordSpawner(this.rng, WORDS)
+    for (let index = 0; index < options.players.length; index += 1) {
+      const player = options.players[index]!
+      this.recipeFlows.set(
+        player.id,
+        new RecipeFlow(createRng(options.seed ^ 0x72656369 ^ ((index + 1) * 0x9e37)), WORDS, RECIPES),
+      )
+    }
+    const selfIndex = Math.max(0, options.players.findIndex((player) => player.id === options.transport.selfId))
+    this.duelRng = createRng(options.seed ^ 0x6475656c ^ ((selfIndex + 1) * 0x45d9))
+    this.nextMergedItemId = MERGED_ITEM_ID_BASE + selfIndex * 100_000
+    this.whiteboard = new Whiteboard(createRng(options.seed ^ 0x5eed))
+    this.spawner = new WordSpawner(
+      this.rng,
+      WORDS,
+      this.matchMode === 'duel' ? (candidates) => this.pickRecipeWord(candidates) : null,
+    )
+    if (this.matchMode === 'duel') {
+      this.syncDuelRecipeGuidance()
+    }
     if (!this.isHost) {
       this.spawner.follow()
     }
@@ -480,7 +568,55 @@ class MatchEngine {
   start(): void {
     this.loop.start()
     this.fire({ kind: 'runStart' })
+    if (this.isHost && this.matchMode === 'duel') {
+      this.broadcastDuelWhiteboard()
+    }
     this.emit()
+  }
+
+  private pickRecipeWord(candidates: readonly WordEntry[]): WordEntry {
+    const players = this.match.players.filter((player) => this.isDuelActive(player.id))
+    if (players.length === 0) return this.rng.pick(candidates)
+    const player = players[this.recipePickIndex % players.length]!
+    this.recipePickIndex += 1
+    return this.recipeFlows.get(player.id)?.pick(candidates) ?? this.rng.pick(candidates)
+  }
+
+  /** 각자 자기 보드에서 완성하기 쉬운 재료를 공용 단어 밭에 번갈아 공급한다. */
+  private syncDuelRecipeGuidance(): void {
+    if (this.matchMode !== 'duel') return
+    const focused = new Set<string>()
+    for (const player of this.match.players) {
+      const flow = this.recipeFlows.get(player.id)
+      if (flow === undefined) continue
+      this.recipeCounts.clear()
+      for (const [id, count] of this.worldFor(player.id).countsByVariant()) {
+        this.recipeCounts.set(id, count)
+      }
+      for (const falling of this.spawner.words) {
+        if (falling.state !== 'active') continue
+        const id = WORD_BASE_ID.get(falling.word)
+        if (id !== undefined) {
+          this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
+        }
+      }
+      for (const pending of this.pendingDrops) {
+        if (pending.by === player.id) {
+          this.recipeCounts.set(
+            pending.variantId,
+            (this.recipeCounts.get(pending.variantId) ?? 0) + 1,
+          )
+        }
+      }
+      flow.observe(this.recipeCounts)
+      for (const word of flow.prepareFocusWords()) focused.add(word)
+    }
+    this.focusedRecipeWords = [...focused]
+    if (this.isHost) {
+      this.whiteboard.refill(WORDS, this.focusedRecipeWords)
+      this.whiteboardWords = this.whiteboard.words
+      this.spawner.prefer(this.whiteboardWords)
+    }
   }
 
   onStateChange(listener: (state: MatchViewState) => void): void {
@@ -536,8 +672,12 @@ class MatchEngine {
     if (this.match.over) {
       return
     }
-    if (this.inputMode() === 'chat') {
+    const inputMode = this.inputMode()
+    if (inputMode === 'chat') {
       this.sendChat(text)
+      return
+    }
+    if (inputMode === 'idle') {
       return
     }
     const result = judgeInput(this.spawner.words, text)
@@ -645,6 +785,16 @@ class MatchEngine {
     this.transport.sendTo(peer, {
       t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
     })
+    if (this.matchMode === 'duel') {
+      this.transport.sendTo(peer, {
+        t: 'duelWhiteboard', words: this.whiteboardWords, matchId: this.matchId,
+      })
+    }
+    if (this.duelRace !== null) {
+      this.transport.sendTo(peer, {
+        t: 'duelResults', results: this.duelRace.results, matchId: this.matchId,
+      })
+    }
     this.transport.sendTo(peer, {
       t: 'sync',
       bodies: this.allFrames(),
@@ -656,6 +806,11 @@ class MatchEngine {
 
   /** 사라진 사람을 판에서 뺀다. 양쪽이 똑같이 실행한다 */
   private applyLeft(who: PlayerId): void {
+    if (this.duelRace !== null && !this.duelRace.isActive(who)) {
+      this.presence.markGone(who)
+      this.emit()
+      return
+    }
     if (!this.match.isAlive(who)) {
       return
     }
@@ -663,7 +818,12 @@ class MatchEngine {
     // 그 사람만의 회차다 — 함께 무너진 것이 아니므로 등수를 같이 매기면 안 된다
     this.match.startDeathBatch()
     this.match.setLives(who, 0)
-    this.standingsView = this.match.standings()
+    if (this.duelRace !== null) {
+      this.duelRace.eliminate([who])
+      if (this.isHost) this.publishDuelResults()
+    } else {
+      this.standingsView = this.match.standings()
+    }
     this.match.ensureTurnAlive()
     // 사라진 사람 차례에서 시계가 이어지면 안 된다
     this.turnElapsed = 0
@@ -671,7 +831,11 @@ class MatchEngine {
       this.transport.broadcast({
         t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
       })
-      if (this.match.over) {
+      if (this.duelRace !== null ? this.finishDuelIfReady() : this.match.over) {
+        if (this.duelRace !== null) {
+          this.emit()
+          return
+        }
         this.loop.stop()
         this.recordWin(this.match.winner)
         this.transport.broadcast({
@@ -692,7 +856,7 @@ class MatchEngine {
     if (this.canDropNow()) {
       return 'drop'
     }
-    return this.chatEnabled ? 'chat' : 'idle'
+    return this.canPlayerChat(this.transport.selfId) ? 'chat' : 'idle'
   }
 
   handleTransportEvent(event: TransportEvent): void {
@@ -796,15 +960,22 @@ class MatchEngine {
     return this.allWorlds().flatMap((world) => [...world.weldPairs()])
   }
 
+  private awardWinner(winner: PlayerId | null): void {
+    if (winner === null || this.awardedWinner !== null) {
+      return
+    }
+    this.awardedWinner = winner
+    this.wins.set(winner, (this.wins.get(winner) ?? 0) + 1)
+    this.winsView = [...this.wins]
+  }
+
   /** 이긴 사람에게 1점. 무승부(둘 다 같은 붕괴로 탈락)면 아무도 못 얻는다 */
   private recordWin(winner: PlayerId | null): void {
     if (this.recorded) {
       return
     }
     this.recorded = true
-    if (winner !== null) {
-      this.wins.set(winner, (this.wins.get(winner) ?? 0) + 1)
-    }
+    this.awardWinner(winner)
     // 무승부(winner === null)는 이긴 것이 아니다
     this.fire({ kind: 'gameOver', won: winner === this.transport.selfId })
     this.winsView = [...this.wins]
@@ -871,7 +1042,7 @@ class MatchEngine {
   private canDropNow(): boolean {
     if (this.matchMode === 'duel') {
       return !this.match.over
-        && this.match.isAlive(this.transport.selfId)
+        && this.isDuelActive(this.transport.selfId)
         && this.cooldownOf(this.transport.selfId) <= 0
     }
     return this.match.canDrop(this.transport.selfId) && this.dropCooldown <= 0
@@ -879,7 +1050,7 @@ class MatchEngine {
 
   private canPlayerDrop(id: PlayerId): boolean {
     if (this.matchMode === 'duel') {
-      return !this.match.over && this.match.isAlive(id) && this.cooldownOf(id) <= 0
+      return !this.match.over && this.isDuelActive(id) && this.cooldownOf(id) <= 0
     }
     return this.match.canDrop(id) && this.dropCooldown <= 0
   }
@@ -896,6 +1067,16 @@ class MatchEngine {
     return this.duelCooldowns.get(id) ?? 0
   }
 
+  private isDuelActive(id: PlayerId): boolean {
+    return this.match.isAlive(id) && (this.duelRace?.isActive(id) ?? true)
+  }
+
+  private canPlayerChat(id: PlayerId): boolean {
+    if (!this.chatEnabled) return false
+    if (this.matchMode !== 'duel') return !this.canPlayerDrop(id)
+    return (this.duelRace?.resultOf(id) ?? null) !== null
+  }
+
   /**
    * 한마디 한다.
    *
@@ -904,7 +1085,7 @@ class MatchEngine {
    * 않으므로 곧바로 결과를 알린다.
    */
   sendChat(text: string): void {
-    if (!this.chatEnabled) {
+    if (!this.canPlayerChat(this.transport.selfId)) {
       return
     }
     if (this.isHost) {
@@ -916,7 +1097,7 @@ class MatchEngine {
 
   /** 방장이 걸러 모두에게 돌린다. 버려진 말은 퍼지지 않는다 */
   private applyChat(from: PlayerId, text: string): void {
-    if (!this.chatEnabled || !this.isHost) {
+    if (!this.isHost || !this.canPlayerChat(from)) {
       return
     }
     const line = this.chat.add(from, this.nameOf(from), text, this.chatClock())
@@ -993,6 +1174,10 @@ class MatchEngine {
     if (target === undefined) {
       return
     }
+    if (this.matchMode === 'duel' && this.whiteboard.has(word)) {
+      this.resolveWhiteboardClaim(by, target)
+      return
+    }
     const aimX = clamp(rawAimX, -AIM_HALF_RANGE, AIM_HALF_RANGE)
     const variant = resolveItem(word)
     const itemId = this.nextItemId
@@ -1012,6 +1197,47 @@ class MatchEngine {
       matchId: this.matchId,
     })
     this.acceptDrop(by, word, aimX, spawnY, variant.id, itemId, applyAtTick)
+  }
+
+  private resolveWhiteboardClaim(by: PlayerId, target: FallingWord): void {
+    const index = this.whiteboard.words.indexOf(target.word)
+    if (index < 0 || !this.whiteboard.claim(target.word, WORDS, this.focusedRecipeWords)) return
+
+    this.spawner.remove(target.id)
+    this.match.setLives(by, Math.min(LIVES, this.match.livesOf(by) + 1))
+    this.duelCooldowns.set(by, DROP_INTERVAL_SEC)
+    this.whiteboardWords = this.whiteboard.words
+    this.spawner.prefer(this.whiteboardWords)
+    this.heartReward = {
+      seq: ++this.heartRewardSeq,
+      player: by,
+      word: target.word,
+      index,
+    }
+    this.transport.broadcast({
+      t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
+    })
+    this.broadcastDuelWhiteboard(this.heartReward)
+    if (by === this.transport.selfId) {
+      this.feedbackSeq += 1
+      this.feedback = {
+        seq: this.feedbackSeq,
+        text: target.word,
+        kind: 'dropped',
+        itemLabel: '하트',
+        hidden: false,
+      }
+    }
+    this.emit()
+  }
+
+  private broadcastDuelWhiteboard(reward?: DuelHeartReward): void {
+    this.transport.broadcast({
+      t: 'duelWhiteboard',
+      words: this.whiteboardWords,
+      ...(reward === undefined ? {} : { reward }),
+      matchId: this.matchId,
+    })
   }
 
   /** 양쪽이 똑같이 실행하는 부분. 단어·턴은 바로 확정하고 물리 생성만 tick에 맞춘다. */
@@ -1101,7 +1327,7 @@ class MatchEngine {
       return
     }
     world.spawnItemAt(variant, drop.aimX, drop.spawnY, drop.by, drop.itemId)
-    if (this.isHost) {
+    if (this.isHost && this.matchMode !== 'duel') {
       this.pendingSettledSync.add(drop.itemId)
     }
   }
@@ -1157,9 +1383,29 @@ class MatchEngine {
           this.applyLives(message.lives)
         }
         break
+      case 'duelWhiteboard':
+        if (!this.isHost && this.matchMode === 'duel') {
+          this.whiteboardWords = message.words
+          this.spawner.prefer(this.whiteboardWords)
+          if (message.reward !== undefined && message.reward.seq > (this.heartReward?.seq ?? 0)) {
+            this.heartReward = message.reward
+            const claimed = this.spawner.words.find((word) => (
+              word.state === 'active' && word.word === message.reward?.word
+            ))
+            if (claimed !== undefined) this.spawner.remove(claimed.id)
+          }
+          this.emit()
+        }
+        break
+      case 'duelResults':
+        if (!this.isHost && this.duelRace !== null) {
+          this.applyDuelResults(message.results)
+          this.emit()
+        }
+        break
       case 'sync':
         if (!this.isHost) {
-          if (message.tick !== undefined) {
+          if (this.duelWorlds === null && message.tick !== undefined) {
             this.physicsTick = message.tick
             this.pendingDrops.sort((a, b) => (a.applyAtTick ?? 0) - (b.applyAtTick ?? 0))
           }
@@ -1171,15 +1417,18 @@ class MatchEngine {
             )
             this.bodyCorrection.note(corrections)
           } else {
-            for (const [owner, world] of this.duelWorlds) {
-              const bodies = message.bodies.filter((frame) => frame.owner === owner)
-              const bodyIds = new Set(bodies.map((frame) => frame.itemId))
-              const welds = message.welds.filter(([a, b]) => bodyIds.has(a) && bodyIds.has(b))
-              world.applyFrames(bodies, (id) => VARIANT_BY_ID.get(id), welds)
-            }
+            // 재연결 복구에서만 방장이 보관한 내 판을 받는다. 평소 정본은 판 주인이다.
+            this.applyDuelBoardFrames(
+              this.transport.selfId,
+              message.bodies,
+              message.welds,
+            )
           }
           this.emit()
         }
+        break
+      case 'duelBoardState':
+        this.applyDuelBoardState(from, message)
         break
       case 'over':
         if (!this.isHost) {
@@ -1187,7 +1436,8 @@ class MatchEngine {
           if (!this.match.over) {
             this.match.finishWithWinner(message.winner)
           }
-          this.standingsView = this.match.standings()
+          this.standingsView = this.duelRace?.results.map(({ id, placement }) => ({ id, placement }))
+            ?? this.match.standings()
           this.recordWin(message.winner)
           this.emit()
         }
@@ -1256,7 +1506,9 @@ class MatchEngine {
         this.markHurt(id)
       }
     }
-    this.standingsView = this.match.standings()
+    if (this.duelRace === null) {
+      this.standingsView = this.match.standings()
+    }
     /*
      * 차례인 사람이 방금 탈락했으면 넘긴다 — 안 그러면 죽은 사람 차례에서 판이 멈춘다.
      * 차례가 남에게 넘어갔으니 시한도 처음부터다. 되돌리지 않으면 방금 받은 사람이
@@ -1315,8 +1567,16 @@ class MatchEngine {
 
   private readonly update = (dt: number): void => {
     this.bodyCorrection.advance(dt)
+    for (const correction of this.duelBodyCorrections.values()) {
+      correction.advance(dt)
+    }
     const cameraTop = this.matchMode === 'duel'
-      ? this.worldFor(this.transport.selfId).stackTop()
+      ? Math.max(
+          ARENA.platformTop,
+          ...this.match.players
+            .filter((player) => this.isDuelActive(player.id))
+            .map((player) => this.duelStackTops.get(player.id) ?? ARENA.platformTop),
+        )
       : this.physics.stackTop()
     this.cameraY = followCameraY(this.cameraY, cameraTop, dt)
     // 판이 끝난 뒤에도 색은 계속 사라져야 한다 — 그리기가 매 프레임 이어지므로
@@ -1377,7 +1637,9 @@ class MatchEngine {
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
      * 탑이 무너질 때마다 단어가 뜸해졌다 몰아쳤다 하면 무엇이 기준인지 알 수 없다.
      */
-    const top = Math.max(...this.allWorlds().map((world) => world.stackTop()))
+    const top = this.duelWorlds === null
+      ? this.physics.stackTop()
+      : Math.max(ARENA.platformTop, ...this.duelStackTops.values())
     this.difficultyPeak = Math.max(this.difficultyPeak, difficultyProgress(top))
     /*
      * 사람이 많을수록 단어를 더 많이, 더 자주 내보낸다. 차례를 기다리는 사람들이
@@ -1395,12 +1657,33 @@ class MatchEngine {
      * 난이도가 쌓은 높이를 따라가는데 그 높이가 양쪽에서 미세하게 어긋나서,
      * 시드를 맞춰도 나오는 순간이 결국 갈린다.
      */
+    if (this.isHost && this.matchMode === 'duel') {
+      this.syncDuelRecipeGuidance()
+    }
     this.spawner.update(dt, difficulty)
 
     this.spawnScheduledDrops()
-    const stepped = this.allWorlds().map((world) => world.step(dt))
+    let ownedEscaped: readonly PlayerId[] = []
+    const stepped = this.duelWorlds === null
+      ? [this.physics.step(dt)]
+      : [...this.duelWorlds].map(([owner, world]) => {
+          const result = world.step(dt)
+          if (owner === this.transport.selfId) {
+            ownedEscaped = result.escaped.map((event) => event.owner)
+          }
+          return result
+        })
     this.physicsTick += 1
-    const escaped = stepped.flatMap((result) => [...result.escaped])
+    const escapedOwners = this.duelWorlds === null
+      ? stepped.flatMap((result) => result.escaped.map((event) => event.owner))
+      : ownedEscaped
+    if (this.duelWorlds !== null) {
+      this.duelStackTops.set(
+        this.transport.selfId,
+        this.worldFor(this.transport.selfId).stackTop(),
+      )
+      this.tryDuelMerge()
+    }
     let quake = 0
     for (const result of stepped) {
       quake = Math.max(quake, result.quake)
@@ -1417,7 +1700,13 @@ class MatchEngine {
 
     if (this.isHost) {
       this.broadcastWordsIfChanged()
-      this.hostJudge(dt, escaped)
+      this.hostJudge(dt, escapedOwners)
+    }
+    if (this.duelWorlds !== null && this.isDuelActive(this.transport.selfId)) {
+      this.sinceDuelBoardSync += dt
+      if (escapedOwners.length > 0 || this.sinceDuelBoardSync >= DUEL_BOARD_SYNC_INTERVAL_SEC) {
+        this.broadcastDuelBoardState(escapedOwners.length)
+      }
     }
   }
 
@@ -1452,6 +1741,66 @@ class MatchEngine {
     })
   }
 
+  private tryDuelMerge(): void {
+    if (this.duelWorlds === null || !this.isDuelActive(this.transport.selfId)) return
+    const owner = this.transport.selfId
+    const world = this.worldFor(owner)
+    if (!canMergeAnything(RECIPES, world.countsByVariant())) return
+    const match = findMerge(world.contactGraph(), RECIPES)
+    if (match === null) return
+
+    const result = resolveCrafted(match.recipe, this.duelRng)
+    const itemId = ++this.nextMergedItemId
+    if (world.mergeItems(match.itemIds, result, owner, itemId) === null) return
+
+    this.recipeFlows.get(owner)?.onMerged(match.recipe)
+    this.pendingMergedRecipes.push(match.recipe.id)
+    this.growDuelLedge(world)
+    this.fire({ kind: 'merge' })
+    this.sinceDuelBoardSync = DUEL_BOARD_SYNC_INTERVAL_SEC
+  }
+
+  private growDuelLedge(world: PhysicsWorld): void {
+    const items = world.frames().flatMap((frame) => {
+      const variant = VARIANT_BY_ID.get(frame.variantId)
+      if (variant === undefined) return []
+      const { hw, hh } = shapeBounds(variant.shape)
+      return [{ x: frame.x, y: frame.y, hw, hh }]
+    })
+    const ledges = world.ledges().map((ledge) => ({
+      ...ledge,
+      hw: ledge.halfWidth,
+      hh: LEDGE.halfHeight,
+    }))
+    const spot = placeLedge(items, ledges, world.stackTop(), this.duelRng)
+    if (spot !== null) world.addLedge(spot.x, spot.y, spot.halfWidth)
+  }
+
+  private marksFor(owner: PlayerId): ReadonlyMap<string, number> {
+    if (this.matchMode !== 'duel') return NO_MARKS
+    const counts = new Map(this.worldFor(owner).countsByVariant())
+    for (const falling of this.spawner.words) {
+      if (falling.state !== 'active') continue
+      const id = WORD_BASE_ID.get(falling.word)
+      if (id !== undefined) counts.set(id, (counts.get(id) ?? 0) + 1)
+    }
+    const marks = pairMarks(counts, RECIPES, this.duelMarks.get(owner) ?? NO_MARKS)
+    this.duelMarks.set(owner, marks)
+    return marks
+  }
+
+  private wordMarksFor(owner: PlayerId): ReadonlyMap<string, number> {
+    const marks = this.marksFor(owner)
+    if (marks.size === 0) return NO_MARKS
+    const byWord = new Map<string, number>()
+    for (const falling of this.spawner.words) {
+      const id = WORD_BASE_ID.get(falling.word)
+      const mark = id === undefined ? undefined : marks.get(id)
+      if (mark !== undefined) byWord.set(falling.word, mark)
+    }
+    return byWord
+  }
+
   /** 현재 권위 물리 상태를 보낸다. */
   private broadcastAuthoritySync(): void {
     this.transport.broadcast({
@@ -1464,6 +1813,87 @@ class MatchEngine {
     this.sinceSync = 0
   }
 
+  /** 대결에서는 각 참가자가 자기 게임판의 물리 정본을 직접 배포한다. */
+  private broadcastDuelBoardState(escaped: number): void {
+    if (this.duelWorlds === null) return
+    const owner = this.transport.selfId
+    const world = this.worldFor(owner)
+    this.transport.broadcast({
+      t: 'duelBoardState',
+      owner,
+      bodies: world.frames(),
+      welds: world.weldPairs(),
+      ledges: world.ledges(),
+      mergedRecipes: [...this.pendingMergedRecipes],
+      tick: this.physicsTick,
+      escaped,
+      matchId: this.matchId,
+    })
+    this.pendingMergedRecipes.length = 0
+    this.sinceDuelBoardSync = 0
+  }
+
+  private applyDuelBoardFrames(
+    owner: PlayerId,
+    bodies: readonly BodyFrame[],
+    welds: readonly (readonly [number, number])[],
+  ): void {
+    const world = this.duelWorlds?.get(owner)
+    if (world === undefined) return
+    const ownedBodies = bodies.filter((frame) => frame.owner === owner)
+    const bodyIds = new Set(ownedBodies.map((frame) => frame.itemId))
+    const ownedWelds = welds.filter(([a, b]) => bodyIds.has(a) && bodyIds.has(b))
+    const corrections = world.applyFrames(
+      ownedBodies,
+      (id) => VARIANT_BY_ID.get(id),
+      ownedWelds,
+    )
+    this.duelBodyCorrections.get(owner)?.note(corrections)
+  }
+
+  private applyDuelBoardState(
+    from: PlayerId,
+    message: Extract<Message, { readonly t: 'duelBoardState' }>,
+  ): void {
+    if (
+      this.duelWorlds === null ||
+      (message.owner !== from && (this.isHost || from !== this.presence.host)) ||
+      message.owner === this.transport.selfId ||
+      !this.match.players.some((player) => player.id === message.owner)
+    ) return
+    const owner = message.owner
+    const previousTick = this.duelBoardTicks.get(owner) ?? -1
+    if (message.tick <= previousTick) return
+    this.duelBoardTicks.set(owner, message.tick)
+    this.applyDuelBoardFrames(owner, message.bodies, message.welds)
+    const world = this.worldFor(owner)
+    if (message.ledges !== undefined) {
+      const currentLedges = world.ledges()
+      const ledgesChanged = currentLedges.length !== message.ledges.length || message.ledges.some(
+        (ledge, index) => {
+          const current = currentLedges[index]
+          return current === undefined || current.x !== ledge.x || current.y !== ledge.y ||
+            current.halfWidth !== ledge.halfWidth
+        },
+      )
+      if (ledgesChanged) world.replaceLedges(message.ledges)
+    }
+    if (this.isHost) {
+      const flow = this.recipeFlows.get(owner)
+      for (const recipeId of message.mergedRecipes ?? []) {
+        const recipe = RECIPES.find((candidate) => candidate.id === recipeId)
+        if (recipe !== undefined) flow?.onMerged(recipe)
+      }
+      this.transport.broadcast(message)
+    }
+    this.duelStackTops.set(owner, world.stackTop())
+    if (this.isHost && message.escaped > 0 && this.isDuelActive(owner)) {
+      const pending = this.pendingDuelEscapes.get(owner) ?? 0
+      this.pendingDuelEscapes.set(owner, Math.min(MAX_ON_SCREEN, pending + message.escaped))
+    }
+    this.emit()
+  }
+
   /** 새 방장이 되거나 복귀자를 맞출 때 현재 권위 상태를 즉시 다시 선언한다. */
   private broadcastAuthorityState(): void {
     this.sentWordVersion = this.spawner.version
@@ -1473,7 +1903,42 @@ class MatchEngine {
     this.transport.broadcast({
       t: 'lives', lives: this.match.snapshot().lives, matchId: this.matchId,
     })
+    if (this.duelRace !== null) {
+      this.broadcastDuelWhiteboard()
+      this.transport.broadcast({
+        t: 'duelResults', results: this.duelRace.results, matchId: this.matchId,
+      })
+      this.broadcastDuelBoardState(0)
+      return
+    }
     this.broadcastAuthoritySync()
+  }
+
+  private applyDuelResults(results: readonly DuelResult[]): void {
+    if (this.duelRace === null) return
+    const previous = new Set(this.duelRace.results.map((result) => result.id))
+    this.duelRace.apply(results)
+    for (const result of this.duelRace.results) {
+      if (!previous.has(result.id)) {
+        this.duelFinishedAt.set(result.id, this.elapsed)
+      }
+    }
+    this.standingsView = this.duelRace.results.map(({ id, placement }) => ({ id, placement }))
+    this.awardWinner(this.duelRace.winner())
+  }
+
+  private publishDuelResults(): void {
+    if (this.duelRace === null || !this.isHost) return
+    for (const result of this.duelRace.results) {
+      if (!this.duelFinishedAt.has(result.id)) {
+        this.duelFinishedAt.set(result.id, this.elapsed)
+      }
+    }
+    this.standingsView = this.duelRace.results.map(({ id, placement }) => ({ id, placement }))
+    this.awardWinner(this.duelRace.winner())
+    this.transport.broadcast({
+      t: 'duelResults', results: this.duelRace.results, matchId: this.matchId,
+    })
   }
 
   /**
@@ -1505,23 +1970,30 @@ class MatchEngine {
   }
 
   /** 심판은 방장만 본다 — 목숨과 턴은 한 곳에서만 정해져야 한다 */
-  private hostJudge(dt: number, escaped: readonly EscapeEvent[]): void {
-    const heightWinner = this.matchMode === 'duel' ? this.duelHeightWinner() : null
-    if (heightWinner !== null) {
-      this.match.finishWithWinner(heightWinner)
-      this.standingsView = this.match.standings()
-      this.loop.stop()
-      this.recordWin(heightWinner)
-      this.transport.broadcast({
-        t: 'over', winner: heightWinner, matchId: this.matchId,
-      })
-      return
+  private hostJudge(dt: number, escaped: readonly PlayerId[]): void {
+    let duelChanged = false
+    if (this.duelRace !== null) {
+      const finishers = this.duelGoalFinishers()
+      if (finishers.length > 0) {
+        this.duelRace.finishGoals(finishers)
+        duelChanged = true
+      }
     }
 
     let anyLost = false
     // 이번 판정에 함께 죽는 사람들은 공동 등수다
     this.match.startDeathBatch()
-    for (const { owner } of escaped) {
+    const escapedOwners = this.duelRace === null
+      ? escaped
+      : [
+          ...escaped,
+          ...[...this.pendingDuelEscapes].flatMap(([owner, count]) => Array(count).fill(owner)),
+        ]
+    this.pendingDuelEscapes.clear()
+    for (const owner of escapedOwners) {
+      if (this.duelRace !== null && !this.duelRace.isActive(owner)) {
+        continue
+      }
       // 무적인 사람의 물건은 세계에서 치우되 목숨은 깎지 않는다
       if (this.isInvulnerable(owner)) {
         continue
@@ -1531,7 +2003,16 @@ class MatchEngine {
       anyLost = true
     }
     if (anyLost) {
-      this.standingsView = this.match.standings()
+      if (this.duelRace !== null) {
+        const eliminated = this.match.players
+          .filter((player) => this.duelRace!.isActive(player.id) && !this.match.isAlive(player.id))
+          .map((player) => player.id)
+        if (this.duelRace.eliminate(eliminated).length > 0) {
+          duelChanged = true
+        }
+      } else {
+        this.standingsView = this.match.standings()
+      }
       // 참가자도 같은 순서로 건너뛰도록 양쪽이 똑같이 부른다
       this.match.ensureTurnAlive()
       this.turnElapsed = 0
@@ -1540,7 +2021,15 @@ class MatchEngine {
       })
     }
 
-    if (this.match.over) {
+    if (this.duelRace !== null) {
+      if (duelChanged) {
+        this.publishDuelResults()
+      }
+      if (this.finishDuelIfReady()) {
+        return
+      }
+      return
+    } else if (this.match.over) {
       this.loop.stop()
       this.recordWin(this.match.winner)
       this.transport.broadcast({
@@ -1565,46 +2054,78 @@ class MatchEngine {
     }
   }
 
-  private duelHeightWinner(): PlayerId | null {
-    for (const player of this.match.players) {
-      if (!this.match.isAlive(player.id)) {
-        continue
-      }
-      if (this.worldFor(player.id).stackTop() >= DUEL_TARGET_STACK_TOP) {
-        return player.id
-      }
+  private duelGoalFinishers(): readonly PlayerId[] {
+    if (this.duelRace === null) return []
+    return this.match.players
+      .filter((player) => (
+        this.isDuelActive(player.id) &&
+        (this.duelStackTops.get(player.id) ?? ARENA.platformTop) >= DUEL_TARGET_STACK_TOP
+      ))
+      .sort((a, b) => (
+        (this.duelStackTops.get(b.id) ?? ARENA.platformTop) -
+        (this.duelStackTops.get(a.id) ?? ARENA.platformTop)
+      ))
+      .map((player) => player.id)
+  }
+
+  private finishDuelIfReady(): boolean {
+    if (this.duelRace === null || this.duelRace.activeCount > 1) return false
+    if (this.duelRace.settleLast() !== null) {
+      this.publishDuelResults()
     }
-    return null
+    const winner = this.duelRace.winner()
+    this.match.finishWithWinner(winner)
+    this.loop.stop()
+    this.recordWin(winner)
+    this.transport.broadcast({ t: 'over', winner, matchId: this.matchId })
+    return true
   }
 
   private readonly render = (): void => {
     if (this.matchMode === 'duel') {
-      const alive = new Set(
+      const active = new Set(
         this.match.players
-          .filter((player) => this.match.isAlive(player.id))
+          .filter((player) => this.isDuelActive(player.id))
           .map((player) => player.id),
       )
+      const candidates = this.match.players.filter((player) => {
+        if (active.has(player.id)) return true
+        const finishedAt = this.duelFinishedAt.get(player.id)
+        return finishedAt !== undefined && this.elapsed - finishedAt < DUEL_TOWER_EXIT_SEC
+      })
       const visible = visibleDuelTowerIds({
-        players: this.match.players,
+        players: candidates,
         selfId: this.transport.selfId,
-        alive,
+        alive: active,
         seed: this.seed,
       })
       const towers = visible.map((id) => {
         const world = this.worldFor(id)
         const stackTop = world.stackTop()
+        const bodies = this.duelBodyCorrections.get(id)?.apply(world.snapshots())
+          ?? world.snapshots()
+        const player = this.match.players.find((candidate) => candidate.id === id)
+        const result = this.duelRace?.resultOf(id) ?? null
+        const finishedAt = this.duelFinishedAt.get(id)
         return {
           id,
-          bodies: world.snapshots(),
+          nickname: player?.nickname ?? '이름없음',
+          mine: id === this.transport.selfId,
+          bodies,
           aimX: this.aimer.worldX,
           showAim: id === this.transport.selfId
             && !this.match.over
-            && this.match.isAlive(this.transport.selfId),
-          cameraY: id === this.transport.selfId
-            ? this.cameraY
-            : followCameraY(0, stackTop, 1),
+            && this.isDuelActive(this.transport.selfId),
+          cameraY: this.cameraY,
           stackTop,
-          goalY: DUEL_TARGET_STACK_TOP,
+          lives: this.match.livesOf(id),
+          ledges: world.ledges(),
+          pairMarks: this.marksFor(id),
+          pairPulse: pairPulse(this.elapsed),
+          result,
+          exitProgress: finishedAt === undefined
+            ? 0
+            : clamp((this.elapsed - finishedAt) / DUEL_TOWER_EXIT_SEC, 0, 1),
           ownerColors: this.ownerColors,
         }
       })
@@ -1620,6 +2141,7 @@ class MatchEngine {
         impacts: this.frameImpacts,
         ownerColors: this.ownerColors,
         duelTowers: towers,
+        duelGoalY: DUEL_TARGET_STACK_TOP,
       })
       return
     }
@@ -1663,7 +2185,7 @@ class MatchEngine {
       canDrop: this.canDropNow(),
       current: this.matchMode === 'duel' ? null : this.match.currentPlayer,
       myTurn: this.matchMode === 'duel'
-        ? this.match.isAlive(this.transport.selfId) && !snapshot.over
+        ? this.isDuelActive(this.transport.selfId) && !snapshot.over
         : this.match.currentPlayer === this.transport.selfId,
       dropCooldown: Math.min(1, Math.max(0, this.waitLeft() / DROP_INTERVAL_SEC)),
       turnLeft:
@@ -1677,12 +2199,22 @@ class MatchEngine {
           : { by: this.lastHurt, lives: this.match.livesOf(this.lastHurt) },
       // 매 프레임 복사하지 않는다 — 스포너가 목록을 바꿀 때 새 배열로 갈아치운다
       words: this.spawner.words,
+      wordMarks: this.wordMarksFor(this.transport.selfId),
+      pairPulse: pairPulse(this.elapsed),
+      whiteboard: this.matchMode === 'duel' ? this.whiteboardWords : [],
+      activeWhiteboard: this.matchMode === 'duel'
+        ? this.whiteboardWords.filter((word) => this.spawner.words.some((falling) => (
+            falling.state === 'active' && falling.word === word
+          )))
+        : [],
+      heartReward: this.heartReward,
       aimNormalized: this.aimer.normalized,
       chat: this.chat.view,
       inputMode: this.inputMode(),
       ranked: this.ranked,
       matchMode: this.matchMode,
       standings: this.standingsView,
+      duelResults: this.duelRace?.results ?? [],
       feedback: this.feedback,
       winner: snapshot.winner,
       connectionLost: this.connectionLost,
@@ -1699,7 +2231,7 @@ class MatchEngine {
 export {
   MatchEngine,
   DROP_INTERVAL_SEC,
-  DUEL_WORD_INTERVAL_MULTIPLIER,
+  DUEL_WORD_RATE_MULTIPLIER,
   TURN_LIMIT_SEC,
   TURN_HURRY_SEC,
   DUEL_TARGET_STACK_TOP,

@@ -79,13 +79,24 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 
   return (
     <div style={rootStyle} onMouseDown={input.keepFocus}>
-      <ArenaBackdrop mode="match" nightfall={nightfall} />
+      <ArenaBackdrop
+        mode="match"
+        nightfall={nightfall}
+        whiteboard={state.whiteboard}
+        activeWhiteboard={state.activeWhiteboard}
+      />
       <Scoreboard state={state} onLeave={onLeave} />
 
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         <div style={fieldStyle}>
-          <TypingLane words={state.words} side="left" />
+          <TypingLane
+            words={state.words}
+            side="left"
+            wordMarks={state.wordMarks}
+            pairPulse={state.pairPulse}
+            recallWords={state.whiteboard}
+          />
           <div
             style={{ position: 'relative', minHeight: 0 }}
             data-aim={state.aimNormalized.toFixed(3)}
@@ -112,12 +123,66 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
               <HurtNotice state={state} hurt={state.hurt} />
             )}
           </div>
-          <TypingLane words={state.words} side="right" />
+          <TypingLane
+            words={state.words}
+            side="right"
+            wordMarks={state.wordMarks}
+            pairPulse={state.pairPulse}
+            recallWords={state.whiteboard}
+          />
         </div>
+        <HeartRewardFlight state={state} />
       </div>
 
       <InputRow input={input} state={state} nightfall={nightfall} />
     </div>
+  )
+}
+
+function HeartRewardFlight({ state }: { state: MatchViewState }) {
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const reward = state.heartReward
+  const seq = reward?.seq
+
+  useEffect(() => {
+    if (reward === null) return
+    const playerIndex = Math.max(0, state.players.findIndex((player) => player.id === reward.player))
+    const targetLeft = ((playerIndex + 0.5) / Math.max(state.players.length, 1)) * 100
+    const startLeft = [44, 50, 56][reward.index] ?? 50
+    play(
+      ref.current,
+      [
+        { left: `${startLeft}%`, top: '31%', transform: 'translate(-50%, -50%) scale(0.5)', opacity: 0 },
+        { left: `${startLeft}%`, top: '26%', transform: 'translate(-50%, -50%) scale(1.25)', opacity: 1, offset: 0.16 },
+        { left: `${(startLeft + targetLeft) / 2}%`, top: '15%', transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.46 },
+        { left: `${targetLeft}%`, top: '82%', transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
+      ],
+      { duration: 1050, easing: 'cubic-bezier(0.32, 0.04, 0.3, 1)' },
+    )
+  }, [reward, seq, state.players])
+
+  if (reward === null) return null
+  return (
+    <span
+      key={reward.seq}
+      ref={ref}
+      aria-hidden
+      data-heart-reward={reward.player}
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: '31%',
+        zIndex: 6,
+        color: '#ff6b78',
+        fontSize: 34,
+        lineHeight: 1,
+        opacity: 0,
+        pointerEvents: 'none',
+        textShadow: '0 2px 0 #fff0e1, 0 0 14px rgba(255, 107, 120, 0.72)',
+      }}
+    >
+      ♥
+    </span>
   )
 }
 
@@ -126,6 +191,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
   const livesOf = new Map(state.lives)
   const invulnerableOf = new Map(state.invulnerable)
   const winsOf = new Map(state.wins)
+  const duelResultOf = new Map(state.duelResults.map((result) => [result.id, result]))
   /*
    * 사람이 많으면 이름표를 좁힌다. 여덟이 다 붙으면 넓은 모양으로는 한 줄에 들어가지
    * 않는데, 줄이 두 개가 되면 아레나가 밀려 내려간다 — 조준 중에 화면이 움직이면 안 된다.
@@ -177,6 +243,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
          */
         const active = player.id === state.current
         const lives = livesOf.get(player.id) ?? 0
+        const duelResult = duelResultOf.get(player.id)
         return (
           <div
             key={player.id}
@@ -220,6 +287,21 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               {mine && !crowded && ' (나)'}
             </span>
             <PlayerLives lives={lives} invulnerable={invulnerableOf.get(player.id) ?? 0} />
+            {duelResult !== undefined && (
+              <span
+                data-placement={duelResult.placement}
+                style={{
+                  minWidth: 30,
+                  textAlign: 'center',
+                  fontSize: crowded ? 12 : 14,
+                  fontWeight: 800,
+                  color: duelResult.placement === 1 ? '#e4e68a' : '#b6bdd4',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {duelResult.placement}위
+              </span>
+            )}
             {/*
               남은 시간은 **차례인 사람 자리에만** 붙인다. 모두에게 띄우면 숫자가
               여덟 개 흐르는 셈이고, 정작 누구를 기다리는지는 그 숫자가 말해주지 않는다.

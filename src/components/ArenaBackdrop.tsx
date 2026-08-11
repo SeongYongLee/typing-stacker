@@ -18,6 +18,8 @@ type ArenaBackdropProps =
       mode: 'match'
       /** 현재 현지 시각에 따라 고정한 조명. 0은 낮, 1은 밤이다. */
       nightfall: 0 | 1
+      whiteboard?: readonly string[]
+      activeWhiteboard?: readonly string[]
     }
 
 /**
@@ -34,7 +36,13 @@ type ArenaBackdropProps =
  */
 function ArenaBackdrop(props: ArenaBackdropProps) {
   if (props.mode === 'match') {
-    return <BackdropLayers nightfall={props.nightfall} />
+    return (
+      <BackdropLayers
+        nightfall={props.nightfall}
+        whiteboard={props.whiteboard ?? []}
+        activeWhiteboard={props.activeWhiteboard ?? []}
+      />
+    )
   }
   return (
     <SoloArenaBackdrop
@@ -45,8 +53,15 @@ function ArenaBackdrop(props: ArenaBackdropProps) {
   )
 }
 
-/** 대전은 방만 쓴다. 판의 규칙이 없는 화이트보드와 국면 시계는 그리지 않는다. */
-function BackdropLayers({ nightfall }: { nightfall: number }) {
+function BackdropLayers({
+  nightfall,
+  whiteboard,
+  activeWhiteboard,
+}: {
+  nightfall: number
+  whiteboard: readonly string[]
+  activeWhiteboard: readonly string[]
+}) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wall = useWallBox(rootRef)
   return (
@@ -56,6 +71,7 @@ function BackdropLayers({ nightfall }: { nightfall: number }) {
       {wall !== null && (
         <div style={wall}>
           <WindowLight nightfall={nightfall} />
+          <Whiteboard words={whiteboard} activeWords={activeWhiteboard} nightfall={nightfall} />
         </div>
       )}
     </div>

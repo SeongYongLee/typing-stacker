@@ -207,17 +207,29 @@ interface ArenaRenderState {
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
   readonly duelTowers?: readonly DuelTowerRenderState[]
+  /** 대결 전체가 공유하는 골인 높이. */
+  readonly duelGoalY?: number
 }
 
 interface DuelTowerRenderState {
   readonly id: OwnerId
+  readonly nickname: string
+  readonly mine: boolean
   readonly bodies: readonly BodySnapshot[]
   readonly aimX: number
   readonly showAim: boolean
   readonly cameraY: number
   readonly stackTop: number
-  /** 이 월드 높이에 닿으면 승리한다. 카메라가 움직여도 선은 같은 곳을 가리킨다. */
-  readonly goalY: number
+  readonly lives?: number
+  readonly ledges?: readonly { readonly x: number; readonly y: number; readonly halfWidth: number }[]
+  readonly pairMarks?: ReadonlyMap<string, number>
+  readonly pairPulse?: number
+  readonly result: {
+    readonly placement: number
+    readonly outcome: 'goal' | 'out' | 'survived'
+  } | null
+  /** 0에서 1까지 진행하며 완료된 타워와 받침대를 함께 지운다. */
+  readonly exitProgress: number
   readonly ownerColors: ReadonlyMap<OwnerId, string> | null
 }
 
@@ -244,30 +256,97 @@ const WORLD_TOP = Math.max(ARENA.height, ARENA.spawnY + 0.8)
 const WORLD_HEIGHT = WORLD_TOP - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
 
-function drawDuelGoal(view: ArenaView, left: number, width: number, goalY: number): void {
+function drawDuelGoal(view: ArenaView, width: number, goalY: number): void {
   const { ctx } = view
   const y = view.toScreenY(goalY)
   if (y < 0 || y > view.cssHeight) {
     return
   }
 
-  const inset = Math.min(14, width * 0.08)
+  const inset = Math.min(22, width * 0.04)
   ctx.save()
   ctx.strokeStyle = 'rgba(228, 230, 138, 0.92)'
   ctx.lineWidth = 2
   ctx.setLineDash([8, 6])
   ctx.beginPath()
-  ctx.moveTo(left + inset, y)
-  ctx.lineTo(left + width - inset, y)
+  ctx.moveTo(inset, y)
+  ctx.lineTo(width - inset, y)
   ctx.stroke()
   ctx.setLineDash([])
   ctx.fillStyle = '#e4e68a'
-  ctx.font = '700 12px sans-serif'
+  ctx.font = '800 17px sans-serif'
   ctx.textAlign = 'right'
   ctx.textBaseline = 'bottom'
   ctx.shadowColor = 'rgba(5, 9, 17, 0.82)'
   ctx.shadowBlur = 4
-  ctx.fillText('목표', left + width - inset, y - 5)
+  ctx.fillText('골인', width - inset, y - 7)
+  ctx.restore()
+}
+
+function drawDuelIdentity(
+  view: ArenaView,
+  left: number,
+  width: number,
+  nickname: string,
+  mine: boolean,
+  lives: number,
+): void {
+  const { ctx } = view
+  const y = Math.min(view.cssHeight - 18, Math.max(20, view.toScreenY(ARENA.platformTop - 0.48)))
+  const label = mine ? `${nickname} · 나` : nickname
+  ctx.save()
+  ctx.font = `${mine ? 800 : 700} 14px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const labelWidth = ctx.measureText(label).width
+  const hearts = '♥'.repeat(Math.max(0, Math.floor(lives)))
+  ctx.font = '700 12px sans-serif'
+  const heartWidth = ctx.measureText(hearts).width
+  const contentWidth = labelWidth + (hearts.length > 0 ? heartWidth + 7 : 0)
+  const measured = Math.min(contentWidth + 22, width - 12)
+  const contentLeft = left + (width - contentWidth) / 2
+  ctx.fillStyle = mine ? 'rgba(107, 255, 176, 0.16)' : 'rgba(13, 15, 22, 0.68)'
+  ctx.beginPath()
+  ctx.roundRect(left + (width - measured) / 2, y - 14, measured, 28, 7)
+  ctx.fill()
+  ctx.fillStyle = mine ? '#9dffca' : '#f2f4fb'
+  ctx.font = `${mine ? 800 : 700} 14px sans-serif`
+  ctx.fillText(label, contentLeft + labelWidth / 2, y)
+  if (hearts.length > 0) {
+    ctx.fillStyle = '#ff6b78'
+    ctx.font = '700 12px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText(hearts, contentLeft + labelWidth + 7, y)
+  }
+  ctx.restore()
+}
+
+function drawDuelResult(
+  view: ArenaView,
+  left: number,
+  width: number,
+  result: NonNullable<DuelTowerRenderState['result']>,
+  progress: number,
+): void {
+  const { ctx } = view
+  const color = result.outcome === 'goal' ? '#6bffb0' : '#ff6b6b'
+  const label = result.outcome === 'goal' ? '골인' : result.outcome === 'out' ? '탈락' : '종료'
+  const alpha = Math.max(0, 1 - progress)
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.fillStyle = result.outcome === 'goal'
+    ? 'rgba(107, 255, 176, 0.14)'
+    : 'rgba(255, 107, 107, 0.14)'
+  ctx.fillRect(left, 0, width, view.cssHeight)
+  ctx.fillStyle = color
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.shadowColor = 'rgba(5, 9, 17, 0.9)'
+  ctx.shadowBlur = 14
+  ctx.font = '900 28px sans-serif'
+  ctx.fillText(`${result.placement}위`, left + width / 2, view.cssHeight * 0.28)
+  ctx.font = '800 16px sans-serif'
+  ctx.fillText(label, left + width / 2, view.cssHeight * 0.28 + 30)
   ctx.restore()
 }
 
@@ -315,7 +394,7 @@ class ArenaRenderer {
     const view = this.view()
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
     if (state.duelTowers !== undefined && state.duelTowers.length > 0) {
-      this.drawDuel(state.duelTowers)
+      this.drawDuel(state.duelTowers, state.duelGoalY)
       return
     }
 
@@ -409,11 +488,28 @@ class ArenaRenderer {
     ctx.restore()
   }
 
-  private drawDuel(towers: readonly DuelTowerRenderState[]): void {
+  private drawDuel(towers: readonly DuelTowerRenderState[], goalY?: number): void {
     const { ctx } = this
     const count = Math.max(1, towers.length)
     const gap = 12
     const width = (this.cssWidth - gap * (count - 1)) / count
+    const commonScale = Math.min(width / WORLD_WIDTH, this.cssHeight / WORLD_HEIGHT)
+    const commonCameraY = towers[0]?.cameraY ?? 0
+    if (goalY !== undefined) {
+      drawDuelGoal({
+        ctx,
+        scale: commonScale,
+        cssWidth: this.cssWidth,
+        cssHeight: this.cssHeight,
+        cameraY: commonCameraY,
+        nightfall: this.nightfall,
+        toScreenX: (worldX) => this.cssWidth / 2 + worldX * commonScale,
+        toScreenY: (worldY) => (
+          this.cssHeight - KILL_LINE_MARGIN * commonScale -
+          (worldY - ARENA.killY - commonCameraY) * commonScale
+        ),
+      }, this.cssWidth, goalY)
+    }
     for (let index = 0; index < towers.length; index += 1) {
       const tower = towers[index]
       if (tower === undefined) {
@@ -439,15 +535,37 @@ class ArenaRenderer {
       ctx.beginPath()
       ctx.rect(left, 0, width, this.cssHeight)
       ctx.clip()
+      if (tower.mine) {
+        ctx.fillStyle = 'rgba(107, 255, 176, 0.035)'
+        ctx.fillRect(left, 0, width, this.cssHeight)
+        ctx.strokeStyle = 'rgba(107, 255, 176, 0.52)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(left + 1, 1, width - 2, this.cssHeight - 2)
+      }
+      const towerAlpha = Math.max(0, 1 - tower.exitProgress * tower.exitProgress)
+      ctx.globalAlpha = towerAlpha
       drawPlatformBack(view)
-      drawDuelGoal(view, left, width, tower.goalY)
+      drawLedges(view, tower.ledges ?? NO_LEDGES)
       if (tower.showAim) {
         drawAim(view, tower.aimX, tower.stackTop)
       }
       for (const body of tower.bodies) {
-        drawBody(view, body, tower.ownerColors, undefined, 0, 1)
+        const mark = tower.pairMarks?.get(body.variant.id)
+        drawBody(
+          view,
+          body,
+          mark === undefined ? tower.ownerColors : null,
+          mark,
+          tower.pairPulse ?? 0,
+          1,
+        )
       }
       drawPlatformFront(view)
+      drawDuelIdentity(view, left, width, tower.nickname, tower.mine, tower.lives ?? 0)
+      ctx.globalAlpha = 1
+      if (tower.result !== null) {
+        drawDuelResult(view, left, width, tower.result, tower.exitProgress)
+      }
       ctx.restore()
     }
   }

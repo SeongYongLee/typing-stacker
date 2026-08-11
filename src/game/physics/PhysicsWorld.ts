@@ -655,7 +655,12 @@ class PhysicsWorld {
    * 속도를 물려주지 않는 것도 같은 이유다 — 합성이 스택을 흔드는 사건이 되면
    * 합치기가 보상이 아니라 위험이 된다.
    */
-  mergeItems(handles: readonly number[], result: ItemVariant, owner: OwnerId): number | null {
+  mergeItems(
+    handles: readonly number[],
+    result: ItemVariant,
+    owner: OwnerId,
+    itemId = 0,
+  ): number | null {
     const entries = handles
       .map((handle) => this.tracked.get(handle))
       .filter((entry): entry is TrackedBody => entry !== undefined)
@@ -679,7 +684,7 @@ class PhysicsWorld {
       this.world.removeRigidBody(entry.body)
     }
 
-    return this.spawnItemAt(result, x, y, owner)
+    return this.spawnItemAt(result, x, y, owner, itemId)
   }
 
   step(dt: number): StepResult {
@@ -1166,6 +1171,17 @@ class PhysicsWorld {
   /** 지금 서 있는 통나무들. 렌더러가 그리고, 다음 자리를 고를 때 피할 곳이 된다 */
   ledges(): readonly { x: number; y: number; halfWidth: number }[] {
     return this.ledgeList
+  }
+
+  /** 소유자가 보낸 대결 발판 목록으로 원격 예측 세계를 맞춘다. */
+  replaceLedges(ledges: readonly { x: number; y: number; halfWidth: number }[]): void {
+    for (const ledge of this.ledgeList) {
+      this.world.removeRigidBody(ledge.body)
+    }
+    this.ledgeList.length = 0
+    for (const ledge of ledges) {
+      this.addLedge(ledge.x, ledge.y, ledge.halfWidth)
+    }
   }
 
   /**

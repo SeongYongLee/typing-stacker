@@ -16,6 +16,12 @@ describe('화이트보드 — 무엇이 적히는가', () => {
     expect(board.words).toHaveLength(WHITEBOARD_SIZE)
   })
 
+  it('크기를 더 크게 요청해도 세 단어를 넘지 않는다', () => {
+    const board = new Whiteboard(createRng(1), WHITEBOARD_SIZE + 10)
+    board.refill(WORDS)
+    expect(board.words).toHaveLength(WHITEBOARD_SIZE)
+  })
+
   /** 밭 밖 단어를 적으면 영영 안 내려오는 항목이 보드 한 칸을 죽은 채 차지한다 */
   it('밭에 있는 단어만 적는다', () => {
     const board = new Whiteboard(createRng(2))

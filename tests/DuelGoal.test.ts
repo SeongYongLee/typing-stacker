@@ -70,7 +70,7 @@ afterEach(() => {
 })
 
 describe('대결 골인선', () => {
-  it('각 타워에 실제 승리 높이의 목표선을 그린다', () => {
+  it('모든 타워가 공유하는 실제 골인 높이의 선을 하나만 그린다', () => {
     const { canvas, texts, dashes } = makeCanvas()
     new ArenaRenderer(canvas).draw({
       bodies: [],
@@ -83,31 +83,40 @@ describe('대결 골인선', () => {
       time: 0,
       impacts: [],
       ownerColors: null,
+      duelGoalY: DUEL_TARGET_STACK_TOP,
       duelTowers: [
         {
           id: 'a',
+          nickname: '자두',
+          mine: true,
           bodies: [],
           aimX: 0,
           showAim: false,
           cameraY: 0,
           stackTop: ARENA.platformTop,
-          goalY: DUEL_TARGET_STACK_TOP,
+          result: null,
+          exitProgress: 0,
           ownerColors: null,
         },
         {
           id: 'b',
+          nickname: '매실',
+          mine: false,
           bodies: [],
           aimX: 0,
           showAim: false,
           cameraY: 0,
           stackTop: ARENA.platformTop,
-          goalY: DUEL_TARGET_STACK_TOP,
+          result: null,
+          exitProgress: 0,
           ownerColors: null,
         },
       ],
     })
 
-    expect(texts.filter((text) => text === '목표')).toHaveLength(2)
-    expect(dashes.filter((dash) => dash.join(',') === '8,6')).toHaveLength(2)
+    expect(texts.filter((text) => text === '골인')).toHaveLength(1)
+    expect(dashes.filter((dash) => dash.join(',') === '8,6')).toHaveLength(1)
+    expect(texts).toContain('자두 · 나')
+    expect(texts).toContain('매실')
   })
 })

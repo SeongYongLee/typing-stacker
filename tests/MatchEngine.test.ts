@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import {
   DROP_INTERVAL_SEC,
-  DUEL_WORD_INTERVAL_MULTIPLIER,
+  DUEL_WORD_RATE_MULTIPLIER,
   MatchEngine,
   difficultyForMatch,
   type MatchViewState,
 } from '../src/multi/MatchEngine.ts'
-import { OPENING } from '../src/game/systems/Difficulty.ts'
+import { MAX_ON_SCREEN, OPENING } from '../src/game/systems/Difficulty.ts'
 import type { PlayerInfo } from '../src/multi/protocol.ts'
 import type { MatchMode } from '../src/multi/matchModes.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
@@ -126,23 +126,26 @@ function dropSomething(current: Pair): string | null {
 }
 
 describe('MatchEngine — 대전', () => {
-  it('대결 모드는 인원 보정 뒤에도 단어 생성 간격을 3배로 둔다', () => {
+  it('대결 모드는 인원과 관계없이 단어 상한 10개와 3배 생성 속도를 쓴다', () => {
     const shared = difficultyForMatch(OPENING, 4, 'shared')
     const duel = difficultyForMatch(OPENING, 4, 'duel')
 
-    expect(duel.spawnInterval).toBe(shared.spawnInterval * DUEL_WORD_INTERVAL_MULTIPLIER)
-    expect(duel.maxConcurrent).toBe(shared.maxConcurrent)
+    expect(duel.spawnInterval).toBe(shared.spawnInterval / DUEL_WORD_RATE_MULTIPLIER)
+    expect(duel.maxConcurrent).toBe(MAX_ON_SCREEN)
     expect(duel.fallDuration).toBe(shared.fallDuration)
+    for (let players = 2; players <= 8; players += 1) {
+      expect(difficultyForMatch(OPENING, players, 'duel').maxConcurrent).toBe(MAX_ON_SCREEN)
+    }
   })
 
-  it('대결 모드는 첫 단어 뒤 3배 간격이 지나야 다음 단어를 낸다', async () => {
+  it('대결 모드는 첫 단어 뒤 3분의 1 간격이 지나면 다음 단어를 낸다', async () => {
     pair = await makePair(778, true, 'duel')
     await pair.clock.advance(0.1)
 
     const firstId = pair.hostState().words[0]?.id
     expect(firstId).toBeDefined()
 
-    const interval = OPENING.spawnInterval * DUEL_WORD_INTERVAL_MULTIPLIER
+    const interval = OPENING.spawnInterval / DUEL_WORD_RATE_MULTIPLIER
     await pair.clock.advance(interval - 0.3)
     expect(pair.hostState().words.every((word) => word.id === firstId)).toBe(true)
 
@@ -232,11 +235,45 @@ describe('MatchEngine — 대전', () => {
     expect(pair.guestState().canDrop).toBe(false)
 
     pair.host.debugEscape('guest-peer', 1)
+    await pair.clock.advance(0.2)
+    expect(new Map(pair.hostState().lives).get('guest-peer')).toBe(LIVES)
+
+    // 상대 판의 방장 측 예측이 아니라, 실제 판 주인이 감지한 이탈만 판정한다.
+    pair.guest.debugEscape('guest-peer', 1)
     await pair.clock.advance(0.1)
 
     const lives = new Map(pair.hostState().lives)
     expect(lives.get('host-peer')).toBe(LIVES)
     expect(lives.get('guest-peer')).toBe(LIVES - 1)
+  })
+
+  it('대결 게임판 상태는 판 주인이 직접 배포한다', async () => {
+    pair = await makePair(1517, true, 'duel')
+    await pair.clock.advance(0.3)
+
+    expect(pair.hostLink.sent.some((message) => (
+      message.t === 'duelBoardState' && message.owner === 'host-peer'
+    ))).toBe(true)
+    expect(pair.guestLink.sent.some((message) => (
+      message.t === 'duelBoardState' && message.owner === 'guest-peer'
+    ))).toBe(true)
+  })
+
+  it('친선 대결의 드롭 쿨타임은 채팅 시간이 아니다', async () => {
+    pair = await makePair(1516, true, 'duel')
+    await pair.clock.advance(1)
+    const word = pair.hostState().words.find((candidate) => candidate.state === 'active')?.word
+    expect(word).toBeDefined()
+    if (word === undefined) return
+
+    pair.host.submit(word)
+    await pair.clock.advance(0.1)
+
+    expect(pair.hostState().canDrop).toBe(false)
+    expect(pair.hostState().inputMode).toBe('idle')
+    pair.host.submit('쿨타임 채팅')
+    await pair.clock.advance(0.1)
+    expect(pair.hostState().chat).toHaveLength(0)
   })
 
   /*

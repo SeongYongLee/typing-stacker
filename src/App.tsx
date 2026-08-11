@@ -233,7 +233,6 @@ function App() {
           onOpen={match.open}
           onReady={match.setReady}
           onChat={match.sendChat}
-          onMatchMode={match.setMatchModeChoice}
           onBack={phase === null ? backToTitle : backToLobbyMenu}
           theme={titleTheme}
         />

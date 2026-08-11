@@ -63,7 +63,7 @@ class Whiteboard {
 
   constructor(rng: Rng, size: number = WHITEBOARD_SIZE) {
     this.rng = rng
-    this.size = size
+    this.size = Math.max(0, Math.min(Math.floor(size), WHITEBOARD_SIZE))
   }
 
   /** 지금 벽에 적혀 있는 단어들 */

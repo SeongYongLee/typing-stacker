@@ -123,6 +123,52 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     ])
   })
 
+  it('duelResults는 유효한 순위와 결과만 받는다', () => {
+    expect(parseMessage({
+      t: 'duelResults',
+      results: [
+        { id: 'a', placement: 1, outcome: 'goal' },
+        { id: 'b', placement: 4, outcome: 'out' },
+        { id: 'c', placement: 0, outcome: 'goal' },
+        { id: 'd', placement: 2, outcome: 'unknown' },
+      ],
+    })).toEqual({
+      t: 'duelResults',
+      results: [
+        { id: 'a', placement: 1, outcome: 'goal' },
+        { id: 'b', placement: 4, outcome: 'out' },
+      ],
+    })
+  })
+
+  it('duelBoardState는 주인 바디와 유효한 tick만 받는다', () => {
+    expect(parseMessage({
+      t: 'duelBoardState',
+      owner: 'a',
+      bodies: [],
+      welds: [],
+      tick: 12,
+      escaped: 1,
+      matchId: 'round-1',
+    })).toEqual({
+      t: 'duelBoardState',
+      owner: 'a',
+      bodies: [],
+      welds: [],
+      tick: 12,
+      escaped: 1,
+      matchId: 'round-1',
+    })
+    expect(parseMessage({
+      t: 'duelBoardState',
+      owner: 'a',
+      bodies: [{ itemId: 1, variantId: 'ball', owner: 'b', x: 0, y: 0, rotation: 0 }],
+      welds: [],
+      tick: 12,
+      escaped: 0,
+    })).toBeNull()
+  })
+
   it('sync는 망가진 바디가 하나라도 있으면 통째로 버린다', () => {
     const parsed = parseMessage({
       t: 'sync',

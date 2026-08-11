@@ -106,11 +106,11 @@ describe('MatchSession — 준비하고 시작한다', () => {
     }
   })
 
-  it('방장이 모드를 바꾸면 모두에게 보이고 준비가 풀린다', async () => {
+  it('친선전에서 모드 변경 요청을 무시하고 대결을 유지한다', async () => {
     open = pair()
     await tick()
     open.host.session.setReady()
-    open.host.session.setMatchModeChoice('duel')
+    open.host.session.setMatchModeChoice('shared')
     await tick()
     await tick()
 
@@ -118,9 +118,9 @@ describe('MatchSession — 준비하고 시작한다', () => {
       const phase = side.phase()
       expect(phase?.kind).toBe('ready')
       if (phase?.kind !== 'ready') return
-      expect(phase.ready).toHaveLength(0)
+      expect(phase.ready).toHaveLength(1)
       expect(phase.matchModeChoice).toBe('duel')
-      expect(phase.chat.some((line) => line.text.includes('모드가 대결로 바뀌었습니다'))).toBe(true)
+      expect(phase.canChangeMatchMode).toBe(false)
     }
   })
 
@@ -149,9 +149,11 @@ describe('MatchSession — 준비하고 시작한다', () => {
     const firstHost = open.host.phase()
     const firstGuest = open.guest.phase()
     if (firstHost?.kind !== 'playing' || firstGuest?.kind !== 'playing') return
-    const firstMatch = stateOf(firstHost.engine).matchId
+    const firstState = stateOf(firstHost.engine)
+    const firstMatch = firstState.matchId
+    const authority = firstState.matchMode === 'duel' ? firstGuest.engine : firstHost.engine
     for (let round = 0; round < LIVES; round += 1) {
-      firstHost.engine.debugEscape(firstGuest.engine.debugSelf(), 1)
+      authority.debugEscape(firstGuest.engine.debugSelf(), 1)
       await clock.advance(INVULNERABLE_SEC + 0.4)
     }
     firstHost.engine.requestRematch()

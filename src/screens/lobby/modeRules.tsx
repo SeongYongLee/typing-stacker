@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Key } from '../../components/SidePanel.tsx'
 import { MATCH_MODE_CHOICE_LABELS, type MatchModeChoice } from '../../multi/matchModes.ts'
 
-const MODE_CHOICES: readonly MatchModeChoice[] = ['roulette', 'shared', 'duel']
+const MODE_CHOICES: readonly MatchModeChoice[] = ['duel']
 
 const MODE_BLURBS: Record<MatchModeChoice, readonly ReactNode[]> = {
   roulette: [
@@ -34,7 +34,7 @@ const MODE_BLURBS: Record<MatchModeChoice, readonly ReactNode[]> = {
 
 function nextModeChoice(current: MatchModeChoice): MatchModeChoice {
   const index = MODE_CHOICES.indexOf(current)
-  return MODE_CHOICES[(index + 1) % MODE_CHOICES.length] ?? 'roulette'
+  return MODE_CHOICES[(index + 1) % MODE_CHOICES.length] ?? 'duel'
 }
 
 function modeLabel(choice: MatchModeChoice): string {

@@ -10,7 +10,7 @@ import type { ChatLine } from './ChatLog.ts'
 import { failure } from './Transport.ts'
 import type { Transport, TransportEvent, TransportFailure } from './Transport.ts'
 import {
-  MATCH_MODE_CHOICE_LABELS,
+  ACTIVE_MATCH_MODE,
   resolveMatchMode,
   type MatchMode,
   type MatchModeChoice,
@@ -153,8 +153,7 @@ class MatchSession {
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null
   /** 자동매칭으로 붙었는가. 준비 시한을 두는 것도, 코드를 감추는 것도 이 경우뿐이다 */
   private autoMatched = false
-  private matchModeChoice: MatchModeChoice = 'roulette'
-  private systemMessageSeq = 0
+  private matchModeChoice: MatchModeChoice = ACTIVE_MATCH_MODE
   /**
    * 말을 걸 수 있는 방인가.
    *
@@ -197,9 +196,7 @@ class MatchSession {
   static open(mode: OpenMode, options: SessionOptions): MatchSession {
     const session = new MatchSession(options)
     session.autoMatched = mode.kind === 'auto'
-    session.matchModeChoice = mode.kind === 'auto'
-      ? 'roulette'
-      : mode.matchModeChoice ?? 'roulette'
+    session.matchModeChoice = ACTIVE_MATCH_MODE
     session.onPhase({ kind: 'connecting' })
     void session.connect(mode)
     return session
@@ -259,7 +256,7 @@ class MatchSession {
                 kind: 'waiting',
                 roomCode: transport.roomCode ?? '',
                 matchModeChoice: this.matchModeChoice,
-                canChangeMatchMode: true,
+                canChangeMatchMode: false,
               },
         )
       } else {
@@ -409,7 +406,7 @@ class MatchSession {
     if (!transport.isHost && event.message.t === 'roster') {
       this.roster = event.message.players
       if (event.message.matchModeChoice !== undefined) {
-        this.matchModeChoice = event.message.matchModeChoice
+        this.matchModeChoice = ACTIVE_MATCH_MODE
       }
       this.clearHandshakeTimeout()
       this.emitReady()
@@ -417,7 +414,7 @@ class MatchSession {
     }
 
     if (!transport.isHost && event.message.t === 'mode') {
-      this.matchModeChoice = event.message.matchModeChoice
+      this.matchModeChoice = ACTIVE_MATCH_MODE
       this.ready.clear()
       this.emitReady()
       return
@@ -436,8 +433,8 @@ class MatchSession {
       this.revealThenStart(
         event.message.players,
         event.message.seed,
-        event.message.matchMode,
-        event.message.matchModeChoice ?? event.message.matchMode,
+        ACTIVE_MATCH_MODE,
+        ACTIVE_MATCH_MODE,
       )
     }
   }
@@ -475,28 +472,9 @@ class MatchSession {
     transport.broadcast({ t: 'chat', text })
   }
 
-  setMatchModeChoice(choice: MatchModeChoice): void {
-    const transport = this.transport
-    if (transport === null || this.started || this.autoMatched) {
-      return
-    }
-    if (!transport.isHost) {
-      transport.broadcast({ t: 'mode', matchModeChoice: choice })
-      return
-    }
-    if (choice === this.matchModeChoice) {
-      return
-    }
-    this.matchModeChoice = choice
-    this.ready.clear()
-    transport.broadcast({ t: 'mode', matchModeChoice: choice })
-    transport.broadcast({ t: 'readyList', ready: [] })
-    this.announceModeChange(choice)
-    if (this.joined.size === 0) {
-      this.emitWaiting()
-      return
-    }
-    this.emitReady()
+  setMatchModeChoice(_choice: MatchModeChoice): void {
+    // 함께 쌓기와 룰렛을 잠시 닫는 동안 친선전 모드는 대결로 고정한다.
+    this.matchModeChoice = ACTIVE_MATCH_MODE
   }
 
   /** 방장만 한다. 걸러 남은 말만 모두에게 돌린다 */
@@ -511,20 +489,6 @@ class MatchSession {
     }
     transport.broadcast({ t: 'chatted', from, text: line.text })
     this.emitReady()
-  }
-
-  private announceModeChange(choice: MatchModeChoice): void {
-    const transport = this.transport
-    if (transport === null || !transport.isHost || !this.chatEnabled) {
-      return
-    }
-    const from = `system:${this.systemMessageSeq += 1}`
-    const text = `모드가 ${MATCH_MODE_CHOICE_LABELS[choice]}로 바뀌었습니다. 준비가 해제되었습니다.`
-    const line = this.chat.add(from, '알림', text, this.chatClock())
-    if (line === null) {
-      return
-    }
-    transport.broadcast({ t: 'chatted', from, text: line.text })
   }
 
   private nameOf(id: PlayerId): string {
@@ -595,7 +559,7 @@ class MatchSession {
       chat: this.chat.view,
       chatEnabled: this.chatEnabled,
       matchModeChoice: this.matchModeChoice,
-      canChangeMatchMode: transport.isHost && this.chatEnabled,
+      canChangeMatchMode: false,
     })
   }
 
@@ -608,7 +572,7 @@ class MatchSession {
       kind: 'waiting',
       roomCode: transport.roomCode ?? '',
       matchModeChoice: this.matchModeChoice,
-      canChangeMatchMode: true,
+      canChangeMatchMode: false,
     })
   }
 
@@ -643,40 +607,14 @@ class MatchSession {
     players: readonly PlayerInfo[],
     seed: number,
     matchMode: MatchMode,
-    choice: MatchModeChoice,
+    _choice: MatchModeChoice,
   ): void {
     if (this.started || this.countdownTimer !== null || this.rouletteTimer !== null) {
       return
     }
+    matchMode = ACTIVE_MATCH_MODE
     this.clearReadyTimeout()
-    if (choice !== 'roulette' || this.countdownSec <= 0) {
-      this.countDown(players, seed, matchMode)
-      return
-    }
-
-    const transport = this.transport
-    if (transport === null) {
-      return
-    }
-    this.roster = players
-    this.onPhase({
-      kind: 'roulette',
-      players,
-      ready: [...this.ready],
-      selfId: transport.selfId,
-      chat: this.chat.view,
-      chatEnabled: this.chatEnabled,
-      matchModeChoice: choice,
-      canChangeMatchMode: false,
-      matchMode,
-    })
-    this.rouletteTimer = setTimeout(() => {
-      this.rouletteTimer = null
-      if (this.disposed || this.started) {
-        return
-      }
-      this.countDown(players, seed, matchMode)
-    }, ROULETTE_REVEAL_MS)
+    this.countDown(players, seed, matchMode)
   }
 
   /**

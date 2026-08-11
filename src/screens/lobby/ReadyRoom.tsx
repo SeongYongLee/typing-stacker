@@ -15,9 +15,10 @@ import { tierOf } from '../../rank/tiers.ts'
 import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
 import { LIVES } from '../../game/config.ts'
 import {
+  ACTIVE_MATCH_MODE,
   type MatchModeChoice,
 } from '../../multi/matchModes.ts'
-import { MODE_BLURBS, modeLabel, nextModeChoice } from './modeRules.tsx'
+import { MODE_BLURBS, modeLabel } from './modeRules.tsx'
 
 /**
  * 붙은 뒤 시작 전 — 명단·티어·채팅·준비.
@@ -73,14 +74,14 @@ function ReadyRoom({
   phase,
   onReady,
   onChat,
-  onMatchMode,
   onBack,
   interactive = true,
 }: {
   phase: Extract<SessionPhase, { kind: 'ready' }>
   onReady: () => void
   onChat: (text: string) => void
-  onMatchMode: (choice: MatchModeChoice) => void
+  /** 구형 호출부 호환용. 대결 고정 중에는 사용하지 않는다. */
+  onMatchMode?: (choice: MatchModeChoice) => void
   onBack: () => void
   /** 룰렛이 준비방 위에 떠 있는 동안 입력과 단축키를 잠근다. */
   interactive?: boolean
@@ -94,8 +95,7 @@ function ReadyRoom({
   const ratings = useRosterTiers(phase.players)
   const waitingFor = phase.players.filter((player) => !ready.has(player.id)).length
   const rulesKind = phase.chatEnabled ? 'manual' : 'auto'
-  const rules = readyRules(phase.matchModeChoice)
-  const changeMode = (): void => onMatchMode(nextModeChoice(phase.matchModeChoice))
+  const rules = readyRules(ACTIVE_MATCH_MODE)
 
   useMenuKeys({
     count: 1,
@@ -198,14 +198,12 @@ function ReadyRoom({
       <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
         모드 설정
       </p>
-      <MenuButton
-        selected={false}
-        onClick={changeMode}
-        disabled={!interactive || !phase.canChangeMatchMode}
-        style={{ fontSize: READY_TEXT_SIZE }}
+      <p
+        data-fixed-match-mode="duel"
+        style={{ margin: 0, color: '#f2f4fb', fontSize: READY_TEXT_SIZE, fontWeight: 700 }}
       >
-        모드 · {modeLabel(phase.matchModeChoice)}
-      </MenuButton>
+        모드 · {modeLabel(ACTIVE_MATCH_MODE)}
+      </p>
     </div>
   )
   const readyButton = (

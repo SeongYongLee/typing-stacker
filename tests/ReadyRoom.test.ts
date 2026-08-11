@@ -7,7 +7,7 @@ import { ReadyRoom } from '../src/screens/lobby/ReadyRoom.tsx'
 
 type ReadyPhase = Extract<SessionPhase, { kind: 'ready' }>
 
-function phase(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'shared'): ReadyPhase {
+function phase(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'duel'): ReadyPhase {
   return {
     kind: 'ready',
     players: [{ id: 'me', nickname: '나', icon: '', device: 'device-me' }],
@@ -22,7 +22,7 @@ function phase(chatEnabled: boolean, matchModeChoice: MatchModeChoice = 'shared'
 
 function markup(
   chatEnabled: boolean,
-  matchModeChoice: MatchModeChoice = 'shared',
+  matchModeChoice: MatchModeChoice = 'duel',
   canChangeMatchMode = chatEnabled,
 ): string {
   return renderToStaticMarkup(createElement(ReadyRoom, {
@@ -56,17 +56,16 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).toContain('white-space:nowrap')
   })
 
-  it('친선전 준비 화면에서 모드 규칙만 보여준다', () => {
+  it('친선전 준비 화면에서 대결 모드를 고정해 보여준다', () => {
     const html = markup(true)
 
     expect(html).toContain('data-ready-rules="manual"')
-    expect(html).toContain('모드:')
-    expect(html).toContain('함께 쌓기')
-    expect(html).toContain('모드 · 함께 쌓기')
-    expect(html).toContain('한 탑을 함께')
-    expect(html).toContain('한 번씩')
-    expect(html).toContain('그 물건 주인')
-    expect(html).toContain('마지막 생존자')
+    expect(html).toContain('data-fixed-match-mode="duel"')
+    expect(html).toContain('모드 · 대결')
+    expect(html).toContain('각자 자기 받침대')
+    expect(html).toContain('동시에 진행합니다.')
+    expect(html).not.toContain('함께 쌓기')
+    expect(html).not.toContain('룰렛')
     expect(html).not.toContain('방 참가 코드')
     expect(html).not.toContain('친선전에서는')
   })
@@ -82,10 +81,10 @@ describe('ReadyRoom 게임 규칙', () => {
     const html = markup(false)
 
     expect(html).toContain('data-ready-rules="auto"')
-    expect(html).toContain('한 탑을 함께')
-    expect(html).toContain('한 번씩')
-    expect(html).toContain('그 물건 주인')
-    expect(html).toContain('마지막 생존자')
+    expect(html).toContain('각자 자기 받침대')
+    expect(html).toContain('동시에 진행합니다.')
+    expect(html).not.toContain('함께 쌓기')
+    expect(html).not.toContain('룰렛')
     expect(html).toContain('준비 (Enter)')
     expect(html).not.toContain('모드 설정')
     expect(html).not.toContain('호스트만 변경')
@@ -101,11 +100,12 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).toContain('목표 높이')
   })
 
-  it('룰렛 준비 화면에서 자동 선택을 알려준다', () => {
+  it('이전 룰렛 상태가 들어와도 대결로 고정한다', () => {
     const html = markup(false, 'roulette')
 
-    expect(html).toContain('룰렛')
-    expect(html).toContain('자동으로 고릅니다')
-    expect(html).toContain('선택된 모드')
+    expect(html).toContain('모드:')
+    expect(html).toContain('대결')
+    expect(html).toContain('각자 자기 받침대')
+    expect(html).not.toContain('룰렛')
   })
 })

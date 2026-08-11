@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MatchSession,
-  ROULETTE_REVEAL_MS,
   type SessionPhase,
 } from '../src/multi/MatchSession.ts'
 import { Hub } from './helpers/hub.ts'
@@ -141,26 +140,17 @@ describe('시작 셈', () => {
     expect(seats[0]!.phase()?.kind).toBe('playing')
   })
 
-  it('룰렛이 끝난 뒤에야 카운트다운을 시작한다', async () => {
+  it('룰렛 요청이 들어와도 대결 카운트다운을 바로 시작한다', async () => {
     seats = seatsOf(2, 3)
     await settle()
     await readyAll('roulette')
 
     for (const seat of seats) {
-      expect(seat.phase()?.kind).toBe('roulette')
-    }
-
-    await vi.advanceTimersByTimeAsync(ROULETTE_REVEAL_MS - 1)
-    for (const seat of seats) {
-      expect(seat.phase()?.kind).toBe('roulette')
-    }
-
-    await vi.advanceTimersByTimeAsync(1)
-    for (const seat of seats) {
       const phase = seat.phase()
       expect(phase?.kind).toBe('countdown')
       if (phase?.kind === 'countdown') {
         expect(phase.secondsLeft).toBe(3)
+        expect(phase.matchMode).toBe('duel')
       }
     }
 

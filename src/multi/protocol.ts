@@ -10,6 +10,7 @@
  */
 
 import type { AuthorityBodyFrame, FallingWord } from '../game/types/game.ts'
+import type { DuelOutcome, DuelResult } from './DuelRace.ts'
 import { isMatchMode, isMatchModeChoice, type MatchMode, type MatchModeChoice } from './matchModes.ts'
 
 /**
@@ -28,6 +29,8 @@ const MAX_WORDS = 24
 const MAX_WELDS = 256
 /** 한 키프레임에 허용할 물건 수. 64KB 전송 상한보다 먼저 의미 범위를 제한한다. */
 const MAX_BODIES = 128
+const MAX_DUEL_LEDGES = 32
+const MAX_WHITEBOARD_WORDS = 3
 /** Rapier에 넘기기 전 클라이언트 안정성을 지키는 보수적인 물리 값 범위. */
 const MAX_POSITION = 100
 const MAX_SPEED = 100
@@ -72,6 +75,19 @@ interface PlayerInfo {
    * 있지만, 레이팅은 양쪽 보고가 일치할 때만 움직이므로 혼자 조작해서 얻을 것이 없다.
    */
   readonly device: string
+}
+
+interface DuelLedgeFrame {
+  readonly x: number
+  readonly y: number
+  readonly halfWidth: number
+}
+
+interface DuelHeartReward {
+  readonly seq: number
+  readonly player: PlayerId
+  readonly word: string
+  readonly index: number
 }
 
 /** 참가자 → 방장 */
@@ -168,6 +184,14 @@ type ToGuest =
    */
   | { readonly t: 'words'; readonly words: readonly FallingWord[]; readonly matchId?: string }
   | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[]; readonly matchId?: string }
+  | {
+      readonly t: 'duelWhiteboard'
+      readonly words: readonly string[]
+      readonly reward?: DuelHeartReward
+      readonly matchId?: string
+    }
+  /** 대결에서 이미 순위가 정해진 사람들. 방장이 전체 목록을 덮어써서 동기화한다. */
+  | { readonly t: 'duelResults'; readonly results: readonly DuelResult[]; readonly matchId?: string }
   /**
    * 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다.
    *
@@ -195,6 +219,19 @@ type ToGuest =
  * "일부러 나간 것"으로 구분해야 한다 — 안내가 달라진다.
  */
 type Either = { readonly t: 'bye' }
+  | {
+      /** 대결에서 이 참가자가 소유한 게임판의 권위 상태. */
+      readonly t: 'duelBoardState'
+      readonly owner: PlayerId
+      readonly bodies: readonly BodyFrame[]
+      readonly welds: readonly (readonly [number, number])[]
+      readonly ledges?: readonly DuelLedgeFrame[]
+      readonly mergedRecipes?: readonly string[]
+      readonly tick: number
+      /** 직전 상태 전송 뒤 게임판을 빠져나간 물건 수. */
+      readonly escaped: number
+      readonly matchId?: string
+    }
 
 type Message = ToHost | ToGuest | Either
 
@@ -380,48 +417,90 @@ function parseMessage(raw: unknown): Message | null {
       const matchId = optionalShortString(raw['matchId'], 96)
       return matchId === null ? null : { t: 'lives', lives, ...matchId }
     }
-    case 'sync': {
-      if (!Array.isArray(raw['bodies']) || raw['bodies'].length > MAX_BODIES) return null
-      const bodies: BodyFrame[] = []
-      const ids = new Set<number>()
-      for (const entry of raw['bodies']) {
-        const frame = parseBodyFrame(entry)
-        if (frame === null || ids.has(frame.itemId)) return null
-        ids.add(frame.itemId)
-        bodies.push(frame)
+    case 'duelWhiteboard': {
+      if (!Array.isArray(raw['words'])) return null
+      const words: string[] = []
+      for (const word of raw['words']) {
+        if (!isShortString(word, 20) || words.includes(word)) return null
+        words.push(word)
+        if (words.length > MAX_WHITEBOARD_WORDS) return null
       }
-      const welds: [number, number][] = []
-      const weldKeys = new Set<string>()
-      if (raw['welds'] !== undefined && !Array.isArray(raw['welds'])) return null
-      if (Array.isArray(raw['welds'])) {
-        if (raw['welds'].length > MAX_WELDS) return null
-        for (const entry of raw['welds']) {
-          if (!Array.isArray(entry) || entry.length !== 2) return null
-          const [rawA, rawB] = entry
-          if (!Number.isSafeInteger(rawA) || !Number.isSafeInteger(rawB)) return null
-          const a = rawA as number
-          const b = rawB as number
-          if (a <= 0 || b <= 0 || a === b || !ids.has(a) || !ids.has(b)) return null
-          const pair: [number, number] = a < b ? [a, b] : [b, a]
-          const key = `${pair[0]}:${pair[1]}`
-          if (weldKeys.has(key)) return null
-          weldKeys.add(key)
-          welds.push(pair)
+      let reward: DuelHeartReward | undefined
+      if (raw['reward'] !== undefined) {
+        const value = raw['reward']
+        if (
+          !isRecord(value) ||
+          !Number.isSafeInteger(value['seq']) ||
+          (value['seq'] as number) < 1 ||
+          !isShortString(value['player'], 64) ||
+          !isShortString(value['word'], 20) ||
+          !Number.isSafeInteger(value['index']) ||
+          (value['index'] as number) < 0 ||
+          (value['index'] as number) >= MAX_WHITEBOARD_WORDS
+        ) return null
+        reward = {
+          seq: value['seq'] as number,
+          player: value['player'],
+          word: value['word'],
+          index: value['index'] as number,
         }
       }
       const matchId = optionalShortString(raw['matchId'], 96)
-      if (matchId === null) return null
+      return matchId === null
+        ? null
+        : { t: 'duelWhiteboard', words, ...(reward === undefined ? {} : { reward }), ...matchId }
+    }
+    case 'duelResults': {
+      if (!Array.isArray(raw['results'])) return null
+      const results: DuelResult[] = []
+      const ids = new Set<PlayerId>()
+      for (const entry of raw['results']) {
+        if (!isRecord(entry) || !isShortString(entry['id'], 64) || ids.has(entry['id'])) continue
+        if (!Number.isSafeInteger(entry['placement'])) continue
+        const placement = entry['placement'] as number
+        if (placement < 1 || placement > MAX_PLAYERS) continue
+        const outcome = entry['outcome']
+        if (outcome !== 'goal' && outcome !== 'out' && outcome !== 'survived') continue
+        ids.add(entry['id'])
+        results.push({ id: entry['id'], placement, outcome: outcome as DuelOutcome })
+        if (results.length >= MAX_PLAYERS) break
+      }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'duelResults', results, ...matchId }
+    }
+    case 'sync': {
+      const state = parsePhysicsState(raw, false)
+      return state === null ? null : { t: 'sync', ...state }
+    }
+    case 'duelBoardState': {
+      if (!isShortString(raw['owner'], 64)) return null
       if (
-        raw['tick'] !== undefined &&
-        (!Number.isSafeInteger(raw['tick']) || (raw['tick'] as number) < 0)
-      )
-        return null
+        !Number.isSafeInteger(raw['escaped']) ||
+        (raw['escaped'] as number) < 0 ||
+        (raw['escaped'] as number) > MAX_BODIES
+      ) return null
+      const state = parsePhysicsState(raw, true)
+      if (state === null || state.tick === undefined) return null
+      if (state.bodies.some((body) => body.owner !== raw['owner'])) return null
+      const ledges = parseDuelLedges(raw['ledges'] ?? [])
+      const rawMergedRecipes = raw['mergedRecipes'] ?? []
+      if (ledges === null || !Array.isArray(rawMergedRecipes)) return null
+      const mergedRecipes: string[] = []
+      for (const id of rawMergedRecipes) {
+        if (!isShortString(id, 40)) return null
+        mergedRecipes.push(id)
+        if (mergedRecipes.length > MAX_BODIES) return null
+      }
       return {
-        t: 'sync',
-        bodies,
-        welds,
-        tick: raw['tick'] as number | undefined,
-        ...matchId,
+        t: 'duelBoardState',
+        owner: raw['owner'],
+        bodies: state.bodies,
+        welds: state.welds,
+        ...(raw['ledges'] === undefined ? {} : { ledges }),
+        ...(raw['mergedRecipes'] === undefined ? {} : { mergedRecipes }),
+        tick: state.tick,
+        escaped: raw['escaped'] as number,
+        ...(state.matchId === undefined ? {} : { matchId: state.matchId }),
       }
     }
     case 'over': {
@@ -432,6 +511,81 @@ function parseMessage(raw: unknown): Message | null {
     }
     default:
       return null
+  }
+}
+
+function parseDuelLedges(raw: unknown): DuelLedgeFrame[] | null {
+  if (!Array.isArray(raw) || raw.length > MAX_DUEL_LEDGES) return null
+  const ledges: DuelLedgeFrame[] = []
+  for (const entry of raw) {
+    if (
+      !isRecord(entry) ||
+      !isBoundedNumber(entry['x'], MAX_POSITION) ||
+      !isBoundedNumber(entry['y'], MAX_POSITION) ||
+      !isFiniteNumber(entry['halfWidth']) ||
+      (entry['halfWidth'] as number) <= 0 ||
+      (entry['halfWidth'] as number) > 4
+    ) return null
+    ledges.push({
+      x: entry['x'],
+      y: entry['y'],
+      halfWidth: entry['halfWidth'] as number,
+    })
+  }
+  return ledges
+}
+
+function parsePhysicsState(
+  raw: Record<string, unknown>,
+  tickRequired: boolean,
+): {
+  bodies: BodyFrame[]
+  welds: [number, number][]
+  tick?: number
+  matchId?: string
+} | null {
+  if (!Array.isArray(raw['bodies']) || raw['bodies'].length > MAX_BODIES) return null
+  const bodies: BodyFrame[] = []
+  const ids = new Set<number>()
+  for (const entry of raw['bodies']) {
+    const frame = parseBodyFrame(entry)
+    if (frame === null || ids.has(frame.itemId)) return null
+    ids.add(frame.itemId)
+    bodies.push(frame)
+  }
+
+  const welds: [number, number][] = []
+  const weldKeys = new Set<string>()
+  if (raw['welds'] !== undefined && !Array.isArray(raw['welds'])) return null
+  if (Array.isArray(raw['welds'])) {
+    if (raw['welds'].length > MAX_WELDS) return null
+    for (const entry of raw['welds']) {
+      if (!Array.isArray(entry) || entry.length !== 2) return null
+      const [rawA, rawB] = entry
+      if (!Number.isSafeInteger(rawA) || !Number.isSafeInteger(rawB)) return null
+      const a = rawA as number
+      const b = rawB as number
+      if (a <= 0 || b <= 0 || a === b || !ids.has(a) || !ids.has(b)) return null
+      const pair: [number, number] = a < b ? [a, b] : [b, a]
+      const key = `${pair[0]}:${pair[1]}`
+      if (weldKeys.has(key)) return null
+      weldKeys.add(key)
+      welds.push(pair)
+    }
+  }
+
+  const tick = raw['tick']
+  if (
+    (tickRequired && tick === undefined) ||
+    (tick !== undefined && (!Number.isSafeInteger(tick) || (tick as number) < 0))
+  ) return null
+  const matchId = optionalShortString(raw['matchId'], 96)
+  if (matchId === null) return null
+  return {
+    bodies,
+    welds,
+    ...(tick === undefined ? {} : { tick: tick as number }),
+    ...matchId,
   }
 }
 
@@ -592,4 +746,13 @@ export {
   createRoomCode,
   isRoomCode,
 }
-export type { PlayerId, PlayerInfo, ToHost, ToGuest, Message, BodyFrame }
+export type {
+  PlayerId,
+  PlayerInfo,
+  ToHost,
+  ToGuest,
+  Message,
+  BodyFrame,
+  DuelLedgeFrame,
+  DuelHeartReward,
+}

@@ -14,4 +14,11 @@ describe('ArenaClock 해·달 아이콘', () => {
     expect(markup).toContain('bottom:108%')
     expect(markup).toContain('width:25%')
   })
+
+  it('점수가 오를 때 바늘을 부드럽게 다음 각도로 옮긴다', () => {
+    const markup = renderToStaticMarkup(createElement(ArenaClock, { time: day }))
+
+    expect(markup).toContain('transition:transform 420ms')
+    expect(markup).toContain('will-change:transform')
+  })
 })

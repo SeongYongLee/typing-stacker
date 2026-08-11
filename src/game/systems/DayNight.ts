@@ -1,5 +1,3 @@
-import { DAY_SEC, NIGHT_SEC } from '../config.ts'
-
 /**
  * 판의 시간 — 낮과 Night Fever.
  *
@@ -20,29 +18,30 @@ interface TimeOfDay {
   readonly nightfall: number
 }
 
-/** 해가 지고 뜨는 데 걸리는 시간(초) */
-const TWILIGHT_SEC = 2.5
+/** 시계에서 낮과 밤이 차지하는 비율. 기존 눈금 구성을 유지한다. */
+const DAY_CLOCK_SHARE = 2 / 3
+/** 낮 점수 게이지의 마지막 12.5%에서 해가 진다. */
+const DUSK_PROGRESS = 0.125
+/** 밤의 마지막 25%에서 다시 밝아진다. */
+const DAWN_PROGRESS = 0.25
 
-/** 판을 낮에서 시작해 `DAY_SEC + NIGHT_SEC` 주기로 반복한다. */
-function timeOfDay(elapsedSec: number): TimeOfDay {
-  const cycle = DAY_SEC + NIGHT_SEC
-  const at = ((elapsedSec % cycle) + cycle) % cycle
-
-  if (at < DAY_SEC) {
+/** 엔진이 정한 국면과 진행도를 화면에서 쓸 낮·밤 상태로 바꾼다. */
+function timeOfDay(phase: Phase, progress: number): TimeOfDay {
+  const at = clamp01(progress)
+  if (phase === 'day') {
     return {
       phase: 'day',
-      progress: clamp01(at / DAY_SEC),
-      // 낮의 끝자락에서 미리 어두워지기 시작한다
-      nightfall: clamp01((at - (DAY_SEC - TWILIGHT_SEC)) / TWILIGHT_SEC),
+      progress: at,
+      // 다음 5,000점에 가까워지면 미리 어두워지기 시작한다.
+      nightfall: clamp01((at - (1 - DUSK_PROGRESS)) / DUSK_PROGRESS),
     }
   }
 
-  const intoNight = at - DAY_SEC
   return {
     phase: 'night',
-    progress: clamp01(intoNight / NIGHT_SEC),
+    progress: at,
     // 밤의 끝자락에서 다시 밝아진다
-    nightfall: clamp01((NIGHT_SEC - intoNight) / TWILIGHT_SEC),
+    nightfall: clamp01((1 - at) / DAWN_PROGRESS),
   }
 }
 
@@ -51,18 +50,17 @@ function clamp01(value: number): number {
 }
 
 /**
- * 한 주기 안에서 얼마나 왔는가(0 → 낮의 시작, 1 → 밤의 끝).
+ * 시계 한 바퀴 안에서 얼마나 왔는가(0 → 낮의 시작, 1 → 밤의 끝).
  *
- * 낮이 밤보다 길므로 눈금판에서도 낮이 더 넓은 각을 차지한다. 바늘은 판을 여는
- * 순간부터 등속으로 돌며, 한 바퀴가 정확히 낮 20초와 밤 10초다.
+ * 낮 구간에서는 5,000점까지 남은 양이, 밤 구간에서는 남은 시간이 바늘을 움직인다.
+ * 기존 눈금판처럼 낮은 3분의 2, 밤은 3분의 1을 차지한다.
  */
 function cycleOf(time: TimeOfDay): number {
-  const cycle = DAY_SEC + NIGHT_SEC
   if (time.phase === 'day') {
-    return clamp01((time.progress * DAY_SEC) / cycle)
+    return clamp01(time.progress * DAY_CLOCK_SHARE)
   }
-  return clamp01((DAY_SEC + time.progress * NIGHT_SEC) / cycle)
+  return clamp01(DAY_CLOCK_SHARE + time.progress * (1 - DAY_CLOCK_SHARE))
 }
 
-export { timeOfDay, cycleOf, TWILIGHT_SEC }
+export { timeOfDay, cycleOf, DAY_CLOCK_SHARE, DUSK_PROGRESS, DAWN_PROGRESS }
 export type { Phase, TimeOfDay }

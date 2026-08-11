@@ -78,7 +78,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   }, [focus])
 
   return (
-    <div style={rootStyle} onMouseDown={input.keepFocus}>
+    <div style={rootStyle} onMouseDown={input.keepFocus} data-match-screen>
       <ArenaBackdrop
         mode="match"
         nightfall={nightfall}
@@ -144,22 +144,37 @@ function HeartRewardFlight({ state }: { state: MatchViewState }) {
   const reward = state.heartReward
   const seq = reward?.seq
 
-  useEffect(() => {
-    if (reward === null) return
-    const playerIndex = Math.max(0, state.players.findIndex((player) => player.id === reward.player))
-    const targetLeft = ((playerIndex + 0.5) / Math.max(state.players.length, 1)) * 100
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (reward === null || element === null) return
+    const screen = element.closest<HTMLElement>('[data-match-screen]')
+    const player = [...(screen?.querySelectorAll<HTMLElement>('[data-player-id]') ?? [])]
+      .find((candidate) => candidate.dataset.playerId === reward.player)
+    const hearts = [...(player?.querySelectorAll<HTMLElement>('[data-heart-slot]') ?? [])]
+    const target = hearts.findLast((heart) => Number(heart.dataset.heart) > 0) ?? hearts[0]
+    const layer = element.offsetParent as HTMLElement | null
+    if (target === undefined || layer === null) return
+
+    const layerRect = layer.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
     const startLeft = [44, 50, 56][reward.index] ?? 50
-    play(
-      ref.current,
+    const startX = layerRect.width * startLeft / 100
+    const startY = layerRect.height * 0.31
+    const targetX = targetRect.left + targetRect.width / 2 - layerRect.left
+    const targetY = targetRect.top + targetRect.height / 2 - layerRect.top
+    const animation = play(
+      element,
       [
-        { left: `${startLeft}%`, top: '31%', transform: 'translate(-50%, -50%) scale(0.5)', opacity: 0 },
-        { left: `${startLeft}%`, top: '26%', transform: 'translate(-50%, -50%) scale(1.25)', opacity: 1, offset: 0.16 },
-        { left: `${(startLeft + targetLeft) / 2}%`, top: '15%', transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.46 },
-        { left: `${targetLeft}%`, top: '82%', transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
+        { left: `${startX}px`, top: `${startY}px`, transform: 'translate(-50%, -50%) scale(0.5)', opacity: 0 },
+        { left: `${startX}px`, top: `${startY - layerRect.height * 0.05}px`, transform: 'translate(-50%, -50%) scale(1.25)', opacity: 1, offset: 0.18 },
+        { left: `${(startX + targetX) / 2}px`, top: `${Math.min(startY, targetY) - layerRect.height * 0.14}px`, transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.54 },
+        { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -50%) scale(0.82)', opacity: 1, offset: 0.9 },
+        { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
       ],
-      { duration: 1050, easing: 'cubic-bezier(0.32, 0.04, 0.3, 1)' },
+      { duration: 2400, easing: 'cubic-bezier(0.32, 0.04, 0.3, 1)' },
     )
-  }, [reward, seq, state.players])
+    return () => animation?.cancel()
+  }, [reward, seq])
 
   if (reward === null) return null
   return (
@@ -248,6 +263,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
           <div
             key={player.id}
             data-player={mine ? 'me' : 'opponent'}
+            data-player-id={player.id}
             data-lives={lives}
             style={{
               position: 'relative',
@@ -742,6 +758,7 @@ function PlayerLives({ lives, invulnerable }: { lives: number; invulnerable: num
               slots.current[slot] = node
             }}
             data-heart={filled}
+            data-heart-slot={slot}
             style={{ position: 'relative', display: 'inline-block', color: LOST }}
           >
             ♡

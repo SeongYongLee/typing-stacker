@@ -160,6 +160,8 @@ interface EscapeEvent {
    * 그쪽은 `owner`·`variant`·`x`·`y`만 본다.
    */
   readonly recalled?: boolean
+  /** Night Fever 중 움직였던 물건인가. 낮에 뒤늦게 떨어져도 목숨을 깎지 않는다. */
+  readonly nightProtected?: boolean
   /** 벗어난 자리(월드 좌표) */
   readonly x: number
   readonly y: number
@@ -230,6 +232,8 @@ interface TrackedBody {
   readonly recalled: boolean
   /** Night Fever 자동 낙하인지. 물리에는 영향이 없고 렌더 스냅샷까지 전달한다. */
   readonly fever: boolean
+  /** Night Fever 중 한 번이라도 움직여 낮 이후 이탈까지 보호받는가. */
+  nightProtected: boolean
   /**
    * 한 번이라도 자리를 잃은 적이 있는지.
    * 되돌리지 않는다 — 흔들린 스택은 계속 불안정한 것으로 취급한다.
@@ -428,6 +432,7 @@ class PhysicsWorld {
     velocity: Vec2 = { x: 0, y: 0 },
     angularVelocity = 0,
     fever = false,
+    nightProtected = fever,
   ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)
@@ -476,6 +481,7 @@ class PhysicsWorld {
       itemId,
       recalled,
       fever,
+      nightProtected,
       // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
       heavy: body.mass() >= HEAVY_MASS,
       shakes:
@@ -677,6 +683,7 @@ class PhysicsWorld {
     }
     const x = sumX / entries.length
     const y = sumY / entries.length
+    const nightProtected = entries.some((entry) => entry.nightProtected)
 
     for (const entry of entries) {
       this.forgetWelds(entry.body.handle)
@@ -684,10 +691,13 @@ class PhysicsWorld {
       this.world.removeRigidBody(entry.body)
     }
 
-    return this.spawnItemAt(result, x, y, owner, itemId)
+    const created = this.spawnItemAt(result, x, y, owner, itemId)
+    const entry = this.tracked.get(created)
+    if (entry !== undefined) entry.nightProtected = nightProtected
+    return created
   }
 
-  step(dt: number): StepResult {
+  step(dt: number, protectNightMovement = false): StepResult {
     this.accumulator += dt
     let steps = 0
     while (this.accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
@@ -710,6 +720,14 @@ class PhysicsWorld {
 
     for (const [handle, entry] of this.tracked) {
       const { x, y } = entry.body.translation()
+      const velocity = entry.body.linvel()
+      const speed = Math.hypot(velocity.x, velocity.y)
+      if (
+        protectNightMovement &&
+        (!entry.settled || speed >= SETTLE_SPEED || Math.abs(entry.body.angvel()) >= 1)
+      ) {
+        entry.nightProtected = true
+      }
 
       // 화면 밖으로 완전히 나갔으면 이제 치운다
       if (isOutOfSight(x, y)) {
@@ -727,14 +745,18 @@ class PhysicsWorld {
          */
         if (!entry.lost) {
           entry.lost = true
-          escaped.push({ owner: entry.owner, variant: entry.variant, x, y, recalled: entry.recalled })
+          escaped.push({
+            owner: entry.owner,
+            variant: entry.variant,
+            x,
+            y,
+            recalled: entry.recalled,
+            nightProtected: entry.nightProtected,
+          })
           goneHandles.push(handle)
         }
         continue
       }
-
-      const velocity = entry.body.linvel()
-      const speed = Math.hypot(velocity.x, velocity.y)
 
       // 자리를 잡았던 물건이 이만큼 밀려났으면 스택이 무너지는 중이다.
       // 잠금을 풀어 실제로 굴러떨어지게 하고, 다음 충격에 다시 흔들릴 수 있게 되돌린다.
@@ -1170,7 +1192,9 @@ class PhysicsWorld {
 
   /** 지금 서 있는 통나무들. 렌더러가 그리고, 다음 자리를 고를 때 피할 곳이 된다 */
   ledges(): readonly { x: number; y: number; halfWidth: number }[] {
-    return this.ledgeList
+    // Rapier body는 순환 참조를 가진다. 대결 모드가 이 값을 그대로 전송하므로
+    // 물리 객체를 노출하지 않고 직렬화 가능한 좌표 스냅샷만 돌려준다.
+    return this.ledgeList.map(({ x, y, halfWidth }) => ({ x, y, halfWidth }))
   }
 
   /** 소유자가 보낸 대결 발판 목록으로 원격 예측 세계를 맞춘다. */

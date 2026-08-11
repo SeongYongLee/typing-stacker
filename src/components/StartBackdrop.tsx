@@ -29,9 +29,9 @@ import { timeOfDay } from '../game/systems/DayNight.ts'
  *
  * ## 판이 열리는 낮으로 깐다
  *
- * 값을 적어두지 않고 판이 열리는 시각(`timeOfDay(0)`)을 그대로 넘긴다. 국면 길이를
- * 손봐도 방과 벽시계가 실제 시작 자리로 함께 따라가야 준비 화면에서 판으로 넘어갈 때
- * 밝기나 바늘이 튀지 않는다.
+ * 값을 적어두지 않고 판이 열리는 상태(`timeOfDay('day', 0)`)를 그대로 넘긴다. 점수
+ * 기준을 손봐도 방과 벽시계가 실제 시작 자리로 함께 따라가야 준비 화면에서 판으로
+ * 넘어갈 때 밝기나 바늘이 튀지 않는다.
  */
 
 /**
@@ -97,7 +97,7 @@ function StartBackdrop({ children }: { children: ReactNode }) {
   return (
     <div style={rootStyle}>
       <div aria-hidden style={roomStyle}>
-        <ArenaBackdrop mode="solo" time={timeOfDay(0)} />
+        <ArenaBackdrop mode="solo" time={timeOfDay('day', 0)} />
       </div>
       <div aria-hidden ref={veil} style={veilStyle} />
       {/* 숫자·낱말은 어둠보다 앞에 온다 — 가려질 것은 방이지 글자가 아니다 */}

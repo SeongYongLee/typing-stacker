@@ -5,6 +5,8 @@ import {
   INVULNERABLE_SEC,
   CATCH,
   LEDGE,
+  NIGHT_SCORE_INTERVAL,
+  NIGHT_SEC,
   SOLO_LIVES,
   SOLO_OWNER,
   QUAKE_DURATION,
@@ -165,6 +167,7 @@ interface PendingCatThrow {
   readonly variant: ItemVariant
   readonly from: 'left' | 'right'
   readonly delay: number
+  readonly nightProtected: boolean
 }
 
 /**
@@ -250,6 +253,12 @@ class GameEngine {
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
   /** 지금 국면. 바뀔 때만 Fever와 레시피 흐름을 갈아끼우려고 들고 있는다 */
   private phaseNow: Phase = 'day'
+  /** 낮에 얻어 다음 Night Fever까지 쌓인 점수. 밤에 얻은 점수는 포함하지 않는다. */
+  private dayScore = 0
+  /** 현재 Night Fever에서 흐른 시간. 밤은 기존처럼 10초 동안 열린다. */
+  private nightElapsed = 0
+  /** 프레임 사이 새로 얻은 점수만 낮 게이지에 더하기 위한 기준값. */
+  private observedRawScore = 0
   /** 벽에 적힌 회수 목록. 여기 있는 단어를 치면 쌓지 않고 빼낸다 */
   private readonly whiteboard = new Whiteboard(createRng(0x5eed))
   /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
@@ -354,6 +363,9 @@ class GameEngine {
     )
     this.focusedRecipeWords = []
     this.phaseNow = 'day'
+    this.dayScore = 0
+    this.nightElapsed = 0
+    this.observedRawScore = 0
     this.whiteboard.clear()
     this.spawner.prefer(this.whiteboard.words)
     this.catcherLeft = 0
@@ -652,7 +664,12 @@ class GameEngine {
       difficultyProgress(this.physics.stackTop()),
     )
     this.frameSeq += 1
-    this.applyPhase(timeOfDay(this.elapsed).phase)
+    if (this.phaseNow === 'night') {
+      this.nightElapsed = Math.min(this.nightElapsed + dt, NIGHT_SEC)
+      if (this.nightElapsed >= NIGHT_SEC) {
+        this.applyPhase('day')
+      }
+    }
     const difficulty = difficultyAt(this.difficultyPeak)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
@@ -683,7 +700,10 @@ class GameEngine {
       this.discover(feverDrop.variant)
     }
 
-    const { settled, impacts, escaped, quake } = this.physics.step(dt)
+    const { settled, impacts, escaped, quake } = this.physics.step(
+      dt,
+      this.phaseNow === 'night',
+    )
     this.applyQuake(quake)
     this.handleImpacts(impacts, quake)
     for (const event of settled) {
@@ -691,6 +711,7 @@ class GameEngine {
     }
 
     this.tryMerge()
+    this.advanceDayScore()
 
     /*
      * 무너짐 한 번은 이탈 여러 개를 만든다. 그것을 각각 세면 목숨 3개가 한순간에
@@ -703,18 +724,23 @@ class GameEngine {
      * 무너졌을 때 그 이탈까지 함께 면제된다. 회수 하나가 붕괴 하나를 덮어주는 셈이라
      * 배출구가 아니라 방패가 된다.
      */
-    const costly = escaped.filter((event) => event.recalled !== true)
-    if (costly.length > 0 && this.phaseNow === 'night') {
+    const fallen = escaped.filter((event) => event.recalled !== true)
+    if (fallen.length > 0 && this.phaseNow === 'night') {
       /*
        * Night Fever는 방어 구간이다. 빠진 물건마다 고양이를 한 마리씩 보내고 전부
        * 되던진다. 여러 물건이 같은 프레임에 빠져도 첫 물건만 구하면 "우르르"가
        * 아니라 평소 회수와 같아지므로 배열 전체를 처리한다.
        */
-      for (const taken of costly) {
+      for (const taken of fallen) {
         this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY), true)
         this.queueCatThrow(taken.variant, taken.x < 0 ? 'left' : 'right')
       }
-    } else if (costly.length > 0 && !isLifeProtected(this.phaseNow, this.invulnerableLeft)) {
+    } else {
+      const costly = fallen.filter((event) => event.nightProtected !== true)
+      if (costly.length === 0 || isLifeProtected(this.phaseNow, this.invulnerableLeft)) {
+        this.emit()
+        return
+      }
       // 목숨을 깎을 뻔한 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
       const taken = costly[0]
       if (taken !== undefined) {
@@ -752,7 +778,12 @@ class GameEngine {
   }
 
   private queueCatThrow(variant: ItemVariant, from: 'left' | 'right'): void {
-    this.catThrowQueue.push({ variant, from, delay: CAT_RETHROW_DELAY_SEC })
+    this.catThrowQueue.push({
+      variant,
+      from,
+      delay: CAT_RETHROW_DELAY_SEC,
+      nightProtected: this.phaseNow === 'night',
+    })
   }
 
   private advanceCatThrows(dt: number): void {
@@ -770,7 +801,7 @@ class GameEngine {
         continue
       }
       this.catThrowQueue.splice(index, 1)
-      this.throwBackFromCat(pending.variant, pending.from)
+      this.throwBackFromCat(pending.variant, pending.from, pending.nightProtected)
     }
   }
 
@@ -784,7 +815,11 @@ class GameEngine {
     }
   }
 
-  private throwBackFromCat(variant: ItemVariant, from: 'left' | 'right'): void {
+  private throwBackFromCat(
+    variant: ItemVariant,
+    from: 'left' | 'right',
+    nightProtected = false,
+  ): void {
     const sign = from === 'left' ? -1 : 1
     this.physics.spawnItemMovingAt(
       variant,
@@ -798,6 +833,8 @@ class GameEngine {
         y: CAT_RETHROW_VELOCITY.vertical,
       },
       -sign * 1.8,
+      false,
+      nightProtected,
     )
     this.fire({
       kind: 'drop',
@@ -918,12 +955,35 @@ class GameEngine {
     this.recipeFlow.setPhase(next)
 
     if (next === 'night') {
+      this.nightElapsed = 0
       this.nightFever.start()
     } else if (previous === 'night') {
       this.nightFever.stop()
+      this.nightElapsed = 0
       this.invulnerableLeft = Math.max(this.invulnerableLeft, INVULNERABLE_SEC)
     }
     /* 낮·밤 보드는 같은 프레임의 `syncWhiteboardWithRecipe`가 레시피 확정 뒤 맞춘다. */
+  }
+
+  /** 낮에 실제로 얻은 점수만 모아 5,000점마다 Night Fever를 한 번 연다. */
+  private advanceDayScore(): void {
+    const rawScore = this.score.rawPoints
+    const gained = Math.max(rawScore - this.observedRawScore, 0)
+    this.observedRawScore = rawScore
+    if (this.phaseNow !== 'day' || gained === 0) {
+      return
+    }
+    this.dayScore += gained
+    if (this.dayScore >= NIGHT_SCORE_INTERVAL) {
+      this.dayScore -= NIGHT_SCORE_INTERVAL
+      this.applyPhase('night')
+    }
+  }
+
+  private timeView(): TimeOfDay {
+    return this.phaseNow === 'day'
+      ? timeOfDay('day', this.dayScore / NIGHT_SCORE_INTERVAL)
+      : timeOfDay('night', this.nightElapsed / NIGHT_SEC)
   }
 
   /**
@@ -1099,6 +1159,7 @@ class GameEngine {
   }
 
   private readonly render = (): void => {
+    const time = this.timeView()
     const reveal = this.hiddenReveal
     this.renderer?.draw({
       bodies: this.physics.snapshots(),
@@ -1130,7 +1191,7 @@ class GameEngine {
       quakePhase: this.quakePhase,
       cameraY: this.cameraY,
       stackTop: this.physics.stackTop(),
-      nightfall: timeOfDay(this.elapsed).nightfall,
+      nightfall: time.nightfall,
       ledges: this.physics.ledges(),
       formingLedge:
         this.formingLedge === null
@@ -1164,6 +1225,7 @@ class GameEngine {
   }
 
   private emit(): void {
+    const time = this.timeView()
     this.listener?.({
       phase: this.phase,
       elapsed: this.elapsed,
@@ -1184,7 +1246,7 @@ class GameEngine {
               progress: Math.min(this.whiteboardRecall.elapsed / WHITEBOARD_RECALL_SEC, 1),
             },
       pairPulse: pairPulse(this.elapsed),
-      timeOfDay: timeOfDay(this.elapsed),
+      timeOfDay: time,
       aimNormalized: this.aimer.normalized,
       stats: this.score.stats(
         Math.max(this.spawner.missedCount - this.feverForgivenMisses, 0),

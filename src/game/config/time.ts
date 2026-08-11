@@ -62,13 +62,13 @@ const SOLO_START_MS = 450
 const DIFFICULTY_FULL_HEIGHT = 1.6
 
 /**
- * 낮과 Night Fever의 길이(초).
+ * Night Fever 진입 점수와 밤의 길이.
  *
- * 판은 낮에서 시작하고, 밤에는 레시피 재료가 더 촘촘하게 나오면서 `NightFever`가
- * 여섯 개를 1.8초에 걸쳐 내리고 3초 쉬는 묶음을 직접 떨군다. 화면이 밤이면 하트도 함께 무적이 된다.
- * 낮:밤 = 2:1은 시계 눈금과 같고, 한 바퀴는 30초다.
+ * 판은 낮에서 시작하고, 낮에 이만큼 점수를 얻을 때마다 밤이 한 번 열린다.
+ * 밤에는 레시피 재료가 더 촘촘하게 나오면서 `NightFever`가 여섯 개를 1.8초에 걸쳐
+ * 내리고 3초 쉬는 묶음을 직접 떨군다. 화면이 밤이면 하트도 함께 무적이 된다.
  */
-const DAY_SEC = 20
+const NIGHT_SCORE_INTERVAL = 5_000
 
 const NIGHT_SEC = 10
 
@@ -101,4 +101,4 @@ const WORD = {
   slotsPerSide: 5,
 } as const
 
-export { COUNTDOWN_SEC, SOLO_READY_MS, SOLO_START_MS, DIFFICULTY_FULL_HEIGHT, DAY_SEC, NIGHT_SEC, NIGHT_FEVER, DROP_COOLDOWN_MS, WORD }
+export { COUNTDOWN_SEC, SOLO_READY_MS, SOLO_START_MS, DIFFICULTY_FULL_HEIGHT, NIGHT_SCORE_INTERVAL, NIGHT_SEC, NIGHT_FEVER, DROP_COOLDOWN_MS, WORD }

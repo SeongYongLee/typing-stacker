@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   ARENA,
-  DAY_SEC,
   NIGHT_FEVER,
+  NIGHT_SCORE_INTERVAL,
   NIGHT_SEC,
+  SCORE,
   SOLO_LIVES,
   SOLO_OWNER,
 } from '../src/game/config.ts'
@@ -24,6 +25,16 @@ function variant(id: string) {
   const found = VARIANT_BY_ID.get(id)
   if (found === undefined) throw new Error(`없는 물건: ${id}`)
   return found
+}
+
+function grantDayScore(engine: GameEngine, points = NIGHT_SCORE_INTERVAL): void {
+  const internals = engine as unknown as {
+    score: { onCrafted(item: ReturnType<typeof variant>): void }
+  }
+  internals.score.onCrafted({
+    ...variant('egg'),
+    scoreBonus: points - SCORE.craftBonus,
+  })
 }
 
 function stackItem(id: string, handle: number, x: number, y: number): FeverStackItem {
@@ -166,7 +177,7 @@ describe('GameEngine Night Fever 통합', () => {
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
 
-  it('첫 20초에는 자동 낙하가 없고 밤에는 두 묶음 12개를 내린다', async () => {
+  it('시간만 지나서는 밤이 되지 않고 낮에 5,000점을 얻으면 두 묶음 12개를 내린다', async () => {
     const engine = await GameEngine.create(20260810)
     const events: GameEvent[] = []
     const nightScores: number[] = []
@@ -195,11 +206,20 @@ describe('GameEngine Night Fever 통합', () => {
     })
     engine.startRun()
 
-    await clock.advance(DAY_SEC - 0.2)
+    await clock.advance(5)
     expect(events.filter((event) => event.kind === 'drop' && event.source === 'fever')).toHaveLength(0)
     expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
 
-    await clock.advance(NIGHT_SEC)
+    grantDayScore(engine, NIGHT_SCORE_INTERVAL / 2)
+    await clock.advance(0.05)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
+    expect((state as GameState | null)?.timeOfDay.progress).toBeCloseTo(0.5)
+
+    grantDayScore(engine, NIGHT_SCORE_INTERVAL / 2)
+    await clock.advance(0.05)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('night')
+
+    await clock.advance(NIGHT_SEC - 0.1)
     const feverDrops = events.filter((event) => event.kind === 'drop' && event.source === 'fever')
     expect(feverDrops).toHaveLength(EXPECTED_SETS * NIGHT_FEVER.itemsPerSet)
     expect((state as GameState | null)?.timeOfDay.phase).toBe('night')
@@ -213,9 +233,14 @@ describe('GameEngine Night Fever 통합', () => {
     ).toBe(true)
     expect(engine.debugLedges(), 'Fever 합성은 방어용 먼지구름을 만들지 않는다').toHaveLength(0)
 
-    await clock.advance(0.3)
+    await clock.advance(0.2)
     expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
     expect((state as GameState | null)?.invulnerable).toBeGreaterThan(0)
+    await clock.advance(0.3)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
+    grantDayScore(engine)
+    await clock.advance(0.05)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('night')
     engine.dispose()
   }, 60_000)
 
@@ -224,7 +249,8 @@ describe('GameEngine Night Fever 통합', () => {
     const drops: GameEvent[] = []
     engine.onEvent((event) => drops.push(event))
     engine.startRun()
-    await clock.advance(DAY_SEC + 0.05)
+    grantDayScore(engine)
+    await clock.advance(0.05)
 
     const internals = engine as unknown as {
       physics: {
@@ -260,6 +286,48 @@ describe('GameEngine Night Fever 통합', () => {
 
     await clock.advance(0.35)
     expect(catThrows()).toBe(beforeThrows + 2)
+    engine.dispose()
+  }, 60_000)
+
+  it('밤에 움직인 물건은 낮으로 돌아온 뒤 떨어져도 목숨을 깎지 않는다', async () => {
+    const engine = await GameEngine.create(20260813)
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun()
+    grantDayScore(engine)
+    await clock.advance(0.05)
+
+    const internals = engine as unknown as {
+      physics: {
+        spawnItemAt(
+          item: ReturnType<typeof variant>,
+          x: number,
+          y: number,
+          owner: typeof SOLO_OWNER,
+          itemId: number,
+        ): number
+        frames(): readonly { readonly itemId: number }[]
+      }
+    }
+    const protectedId = 777
+    internals.physics.spawnItemAt(
+      variant('egg'),
+      ARENA.platformHalfWidth + 0.9,
+      ARENA.platformTop + 70,
+      SOLO_OWNER,
+      protectedId,
+    )
+
+    await clock.advance(NIGHT_SEC - 0.15)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('night')
+    expect(internals.physics.frames().some((frame) => frame.itemId === protectedId)).toBe(true)
+
+    await clock.advance(0.2)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
+    await clock.advance(4)
+
+    expect(internals.physics.frames().some((frame) => frame.itemId === protectedId)).toBe(false)
+    expect((state as GameState | null)?.stats.lives).toBe(SOLO_LIVES)
     engine.dispose()
   }, 60_000)
 

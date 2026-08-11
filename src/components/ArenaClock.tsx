@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
@@ -14,18 +15,20 @@ interface ArenaClockProps {
  * 그래서 이제 벽의 시계는 **실제로 돈다** — 방의 물건 하나가 규칙을 말하는 계기판이
  * 된다. 어두워지는 것과 바늘이 밤 구간에 든 것이 같은 사실의 두 얼굴이다.
  *
- * ## 왜 국면 진행도로 돌리지 않는가
- *
- * `TimeOfDay.progress`는 **국면 안의** 값이라 낮이 끝나면 0으로 되돌아간다. 그것으로
- * 돌리면 바늘이 하루에 두 번 튄다. 한 바퀴가 한 주기이려면 주기 안의 자리가
- * 필요하고, 그것을 `cycleOf`가 준다.
- *
- * 낮 20초 · 밤 10초라 **낮이 눈금판의 3분의 2를 차지한다.** 등속이므로 바늘이
- * 빨라지거나 느려지지 않는다 — 눈금판에 숫자가 없어서 어색하지 않고, 오히려
- * "밤은 짧다"가 각도로 읽힌다.
+ * 낮에는 다음 Night Fever까지 남은 5,000점이 바늘을 움직이고, 밤에는 남은 10초가
+ * 이어서 바늘을 움직인다. `TimeOfDay.progress`는 각 국면 안의 값이므로 한 바퀴 안의
+ * 실제 각도는 `cycleOf`가 낮 3분의 2와 밤 3분의 1로 이어준다.
  */
 function ArenaClock({ time }: ArenaClockProps) {
-  const angle = cycleOf(time) * 360
+  const cycle = cycleOf(time)
+  const previousCycle = useRef(cycle)
+  const turns = useRef(0)
+  // 밤 끝(1)에서 다음 낮 시작(0)으로 넘어갈 때 역회전하지 않고 다음 바퀴로 잇는다.
+  if (cycle < previousCycle.current - 0.5) {
+    turns.current += 1
+  }
+  previousCycle.current = cycle
+  const angle = (turns.current + cycle) * 360
   return (
     <div aria-hidden style={rootStyle}>
       <div style={layer('timer-dial-day', 1)} />
@@ -104,6 +107,8 @@ function handStyle(angle: number): CSSProperties {
     transformOrigin: `${HAND_PIVOT_X}% ${HAND_PIVOT_Y}%`,
     // 둘 다 허브를 축으로 돈다 — 줄여도 축은 판 중심에 그대로 머문다
     transform: `rotate(${angle}deg) scale(${HAND_SCALE})`,
+    transition: 'transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1)',
+    willChange: 'transform',
   }
 }
 

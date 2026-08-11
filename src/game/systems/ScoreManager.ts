@@ -39,6 +39,11 @@ class ScoreManager {
     return Math.min(1 + this.combo * SCORE.comboStep, SCORE.comboMaxMultiplier)
   }
 
+  /** 정확도 패널티 전 누적 점수. 낮의 5,000점 게이지는 실제 획득량을 센다. */
+  get rawPoints(): number {
+    return this.score
+  }
+
   /**
    * 낙하 중인 단어를 맞췄을 때.
    * 타수는 **맞춘 단어만** 센다 — 오타를 쳐도 분모(경과 시간)는 흐르므로

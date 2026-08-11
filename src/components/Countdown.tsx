@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { play } from './animate.ts'
 
 /**
@@ -11,7 +11,8 @@ import { play } from './animate.ts'
  *
  * 혼자 하기는 그 이유가 없어 세지 않고 READY → START 두 박자로 연다(`SoloStart`).
  *
- * **숫자만 크게 둔다.** 명단이나 규칙을 같이 두면 그것을 읽다가 시작을 놓친다.
+ * **숫자를 가장 크게 둔다.** 대결에서는 그 아래에 위치만 짧게 미리 보여주되,
+ * 규칙 설명은 섞지 않아 시작 신호에서 시선이 벗어나지 않게 한다.
  */
 const rootStyle: CSSProperties = {
   height: '100%',
@@ -31,9 +32,11 @@ interface CountdownProps {
   secondsLeft: number
   /** 숫자 아래 크게 보여줄 시작 정보. 대전에서는 첫 타자를 적는다 */
   focus?: string
+  /** 대결처럼 시작 전에 공간 배치를 보여줘야 할 때 숫자 아래에 놓는다. */
+  children?: ReactNode
 }
 
-function Countdown({ secondsLeft, focus }: CountdownProps) {
+function Countdown({ secondsLeft, focus, children }: CountdownProps) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
@@ -92,6 +95,7 @@ function Countdown({ secondsLeft, focus }: CountdownProps) {
             </p>
           </div>
         )}
+        {children}
       </div>
     </div>
   )

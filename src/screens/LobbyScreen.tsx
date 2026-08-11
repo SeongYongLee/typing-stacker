@@ -216,7 +216,7 @@ function LobbyScreen({
   }
 
   if (phase?.kind === 'countdown') {
-    return <MatchCountdown phase={phase} />
+    return <MatchCountdown phase={phase} theme={theme} />
   }
 
   if (phase?.kind === 'roulette') {

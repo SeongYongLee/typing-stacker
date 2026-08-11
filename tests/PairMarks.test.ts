@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MARK_COUNT, pairMarks } from '../src/game/systems/PairMarks.ts'
+import { MARK_COUNT, pairMarks, pairPartners } from '../src/game/systems/PairMarks.ts'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import type { Recipe } from '../src/game/data/recipes.ts'
 import { VARIANT_BY_ID } from '../src/game/data/words.ts'
@@ -43,6 +43,21 @@ describe('pairMarks', () => {
     const one = new Map([[pizza.inputs[0]!, 1]])
     expect(pairMarks(one, [pizza]).size, '하나로는 못 합친다').toBe(0)
     expect(pairMarks(new Map([[pizza.inputs[0]!, 2]]), [pizza]).size).toBe(1)
+  })
+
+  it('단어 표식과 같은 받침대 물건을 대표 짝으로 고른다', () => {
+    const marks = new Map([['falling', 0], ['placed', 0], ['other', 1]])
+    const partners = pairPartners(marks, new Map([['placed', 1], ['other', 1]]))
+
+    expect(partners.get('falling')).toEqual(['placed'])
+    expect(partners.get('other')).toEqual(['other'])
+  })
+
+  it('같은 합성 표식의 받침대 물건이 여럿이면 모두 돌려준다', () => {
+    const marks = new Map([['falling', 0], ['placed-a', 0], ['placed-b', 0]])
+    const partners = pairPartners(marks, new Map([['placed-a', 1], ['placed-b', 1]]))
+
+    expect(partners.get('falling')).toEqual(['placed-a', 'placed-b'])
   })
 
   it('단어 히든은 기본형 짝 표식을 대신 받지 않는다', () => {

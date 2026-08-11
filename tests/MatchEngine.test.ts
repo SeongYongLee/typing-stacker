@@ -126,10 +126,11 @@ function dropSomething(current: Pair): string | null {
 }
 
 describe('MatchEngine — 대전', () => {
-  it('대결 모드는 인원과 관계없이 단어 상한 10개와 3배 생성 속도를 쓴다', () => {
+  it('대결 모드는 인원과 관계없이 단어 상한 10개와 2배 생성 속도를 쓴다', () => {
     const shared = difficultyForMatch(OPENING, 4, 'shared')
     const duel = difficultyForMatch(OPENING, 4, 'duel')
 
+    expect(DUEL_WORD_RATE_MULTIPLIER).toBe(2)
     expect(duel.spawnInterval).toBe(shared.spawnInterval / DUEL_WORD_RATE_MULTIPLIER)
     expect(duel.maxConcurrent).toBe(MAX_ON_SCREEN)
     expect(duel.fallDuration).toBe(shared.fallDuration)
@@ -138,7 +139,7 @@ describe('MatchEngine — 대전', () => {
     }
   })
 
-  it('대결 모드는 첫 단어 뒤 3분의 1 간격이 지나면 다음 단어를 낸다', async () => {
+  it('대결 모드는 첫 단어 뒤 절반 간격이 지나면 다음 단어를 낸다', async () => {
     pair = await makePair(778, true, 'duel')
     await pair.clock.advance(0.1)
 
@@ -247,6 +248,31 @@ describe('MatchEngine — 대전', () => {
     expect(lives.get('guest-peer')).toBe(LIVES - 1)
   })
 
+  it('대결에서 단어를 가져간 사람과 원래 자리를 양쪽에 잠시 보여준다', async () => {
+    pair = await makePair(1518, true, 'duel')
+    await pair.clock.advance(1)
+    const target = pair.guestState().words.find((candidate) => candidate.state === 'active')
+    expect(target).toBeDefined()
+    if (target === undefined) return
+
+    pair.guest.submit(target.word)
+    await pair.clock.advance(0.1)
+
+    for (const state of [pair.hostState(), pair.guestState()]) {
+      expect(state.wordClaims).toContainEqual(expect.objectContaining({
+        by: 'guest-peer',
+        word: target.word,
+        side: target.side,
+        slot: target.slot,
+        lifeReward: false,
+      }))
+    }
+
+    await pair.clock.advance(1.5)
+    expect(pair.hostState().wordClaims).toHaveLength(0)
+    expect(pair.guestState().wordClaims).toHaveLength(0)
+  })
+
   it('대결 게임판 상태는 판 주인이 직접 배포한다', async () => {
     pair = await makePair(1517, true, 'duel')
     await pair.clock.advance(0.3)
@@ -336,6 +362,29 @@ describe('MatchEngine — 대전', () => {
       expect(pair.hostState().wantRematch).toEqual(['host-peer'])
       expect(pair.guestState().wantRematch).toEqual(['host-peer'])
       expect(pair.hostState().phase).toBe('over')
+    })
+
+    it('친선전은 결과 화면에서도 이전 대화를 유지하고 채팅을 이어간다', async () => {
+      pair = await makePair(1520, true, 'shared')
+      await pair.clock.advance(1)
+      const chatter = pair.hostState().inputMode === 'chat' ? pair.host : pair.guest
+      chatter.submit('게임 중 대화')
+      await finish(pair, 'guest-peer')
+
+      expect(pair.hostState().phase).toBe('over')
+      expect(pair.hostState().inputMode).toBe('chat')
+      expect(pair.hostState().chat.map((line) => line.text)).toContain('게임 중 대화')
+
+      pair.host.submit('끝나고 대화')
+      await pair.clock.flush()
+      expect(pair.hostState().chat.map((line) => line.text)).toEqual([
+        '게임 중 대화',
+        '끝나고 대화',
+      ])
+      expect(pair.guestState().chat.map((line) => line.text)).toEqual([
+        '게임 중 대화',
+        '끝나고 대화',
+      ])
     })
 
     /*

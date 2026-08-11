@@ -47,6 +47,11 @@ interface MenuKeysOptions {
    * 로비에는 이름 칸과 방 코드 칸이 있어서, Tab을 가로채면 그리로 갈 길이 막힌다.
    */
   readonly useTab?: boolean
+  /**
+   * 입력칸에 포커스가 있어도 방향키와 Tab으로 메뉴를 움직인다. 빈 입력에서 누른
+   * Enter도 메뉴를 실행하지만, 글자가 있으면 입력칸의 제출을 우선한다.
+   */
+  readonly navigateFromInput?: boolean
 }
 
 function useMenuKeys({
@@ -56,6 +61,7 @@ function useMenuKeys({
   active = true,
   initialIndex = 0,
   useTab = true,
+  navigateFromInput = false,
 }: MenuKeysOptions): MenuKeys {
   const [index, setIndex] = useState(initialIndex)
 
@@ -104,9 +110,20 @@ function useMenuKeys({
         return
       }
 
-      // 글자를 치는 중에는 화살표도 Enter도 그쪽 것이다
-      if (isTypingTarget(event.target)) {
+      const typingTarget = isTypingTarget(event.target)
+      if (typingTarget && !navigateFromInput) {
         return
+      }
+
+      if (typingTarget) {
+        const input = event.target as HTMLInputElement | HTMLTextAreaElement
+        const navigationKey =
+          event.key === 'ArrowDown' || event.key === 'ArrowUp' ||
+          (useTab && event.key === 'Tab')
+        const activateKey = event.key === 'Enter' && input.value.trim().length === 0
+        if (!navigationKey && !activateKey) {
+          return
+        }
       }
 
       const tab = useTab && event.key === 'Tab'
@@ -134,7 +151,7 @@ function useMenuKeys({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, count, useTab, moveTo])
+  }, [active, count, navigateFromInput, useTab, moveTo])
 
   /** 마우스가 올라왔다. 자리가 실제로 바뀔 때만 소리를 낸다 */
   const select = useCallback(

@@ -104,6 +104,8 @@ type ToHost =
   | { readonly t: 'mode'; readonly matchModeChoice: MatchModeChoice }
   /** 판이 끝난 뒤 계속하기를 눌렀다 */
   | { readonly t: 'rematch'; readonly matchId?: string }
+  /** 친선전 결과 화면에서 같은 방의 준비 화면으로 돌아가기를 청한다 */
+  | { readonly t: 'room'; readonly matchId?: string }
   /** 내 턴에 물건을 떨군다. 방장이 단어와 조준 범위를 검증한다 */
   | { readonly t: 'drop'; readonly word: string; readonly aimX: number; readonly matchId?: string }
   /**
@@ -212,6 +214,8 @@ type ToGuest =
   | { readonly t: 'rematchList'; readonly ready: readonly PlayerId[]; readonly matchId?: string }
   /** 다음 판을 연다. 시드가 바뀌므로 단어도 새로 나온다 */
   | { readonly t: 'restart'; readonly seed: number; readonly matchId?: string }
+  /** 방장이 같은 방의 모든 참가자를 준비 화면으로 돌려보낸다 */
+  | { readonly t: 'room'; readonly matchId?: string }
 
 /**
  * 어느 쪽이든 보낼 수 있는 것.
@@ -308,6 +312,10 @@ function parseMessage(raw: unknown): Message | null {
     case 'rematch': {
       const matchId = optionalShortString(raw['matchId'], 96)
       return matchId === null ? null : { t: 'rematch', ...matchId }
+    }
+    case 'room': {
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'room', ...matchId }
     }
     case 'bye':
       return { t: 'bye' }

@@ -21,15 +21,7 @@ const MODE_BLURBS: Record<MatchModeChoice, readonly ReactNode[]> = {
     '상대 물건을 밀어내면 그 물건 주인의 하트가 줄어듭니다.',
     '마지막 생존자가 이깁니다.',
   ],
-  duel: [
-    <>
-      각자 자기 받침대와 <Key>자기 탑</Key>을 가집니다.
-    </>,
-    '같은 단어가 같은 순서로 나오고, 동시에 진행합니다.',
-    '화면에는 최대 4개의 타워가 보입니다.',
-    '5명 이상이면 내 타워와 무작위 타워 3개를 보여주고, 마지막 생존 타워는 계속 보여줍니다.',
-    '먼저 목표 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.',
-  ],
+  duel: ['먼저 골인 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.'],
 }
 
 function nextModeChoice(current: MatchModeChoice): MatchModeChoice {

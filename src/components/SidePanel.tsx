@@ -39,16 +39,19 @@ function Blurb({
   lines,
   kind,
   fontSize = 13,
+  bullets = true,
 }: {
   lines: readonly ReactNode[]
   kind: string
   fontSize?: number
+  bullets?: boolean
 }) {
   return (
     <ul
       style={{
         margin: 0,
-        padding: '0 0 0 16px',
+        padding: bullets ? '0 0 0 16px' : 0,
+        listStyle: bullets ? undefined : 'none',
         display: 'grid',
         gap: 8,
         fontSize,

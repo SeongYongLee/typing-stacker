@@ -215,6 +215,10 @@ interface DuelTowerRenderState {
   readonly id: OwnerId
   readonly nickname: string
   readonly mine: boolean
+  /** 카운트다운 미리보기에서만 내 게임판 전체를 둘러 강조한다. */
+  readonly previewHighlight?: boolean
+  /** 카운트다운 미리보기에서 다른 참가자의 판을 뒤로 물린다. */
+  readonly previewDimmed?: boolean
   readonly bodies: readonly BodySnapshot[]
   readonly aimX: number
   readonly showAim: boolean
@@ -265,21 +269,24 @@ function drawDuelGoal(view: ArenaView, width: number, goalY: number): void {
 
   const inset = Math.min(22, width * 0.04)
   ctx.save()
-  ctx.strokeStyle = 'rgba(228, 230, 138, 0.92)'
-  ctx.lineWidth = 2
-  ctx.setLineDash([8, 6])
+  ctx.fillStyle = 'rgba(228, 230, 138, 0.13)'
+  ctx.fillRect(inset, y - 9, width - inset * 2, 18)
+  ctx.strokeStyle = '#f3f59b'
+  ctx.lineWidth = 4
+  ctx.lineCap = 'round'
+  ctx.setLineDash([12, 7])
   ctx.beginPath()
   ctx.moveTo(inset, y)
   ctx.lineTo(width - inset, y)
   ctx.stroke()
   ctx.setLineDash([])
-  ctx.fillStyle = '#e4e68a'
-  ctx.font = '800 17px sans-serif'
+  ctx.fillStyle = '#f7f8ad'
+  ctx.font = '900 23px sans-serif'
   ctx.textAlign = 'right'
   ctx.textBaseline = 'bottom'
   ctx.shadowColor = 'rgba(5, 9, 17, 0.82)'
-  ctx.shadowBlur = 4
-  ctx.fillText('골인', width - inset, y - 7)
+  ctx.shadowBlur = 9
+  ctx.fillText('골인', width - inset, y - 11)
   ctx.restore()
 }
 
@@ -329,12 +336,13 @@ function drawDuelResult(
   progress: number,
 ): void {
   const { ctx } = view
-  const color = result.outcome === 'goal' ? '#6bffb0' : '#ff6b6b'
-  const label = result.outcome === 'goal' ? '골인' : result.outcome === 'out' ? '탈락' : '종료'
+  const succeeded = result.outcome !== 'out'
+  const color = succeeded ? '#6bffb0' : '#ff6b6b'
+  const label = result.outcome === 'goal' ? '골인' : result.outcome === 'out' ? '탈락' : '생존'
   const alpha = Math.max(0, 1 - progress)
   ctx.save()
   ctx.globalAlpha = alpha
-  ctx.fillStyle = result.outcome === 'goal'
+  ctx.fillStyle = succeeded
     ? 'rgba(107, 255, 176, 0.14)'
     : 'rgba(255, 107, 107, 0.14)'
   ctx.fillRect(left, 0, width, view.cssHeight)
@@ -495,8 +503,9 @@ class ArenaRenderer {
     const width = (this.cssWidth - gap * (count - 1)) / count
     const commonScale = Math.min(width / WORLD_WIDTH, this.cssHeight / WORLD_HEIGHT)
     const commonCameraY = towers[0]?.cameraY ?? 0
-    if (goalY !== undefined) {
-      drawDuelGoal({
+    const goalView: ArenaView | null = goalY === undefined
+      ? null
+      : {
         ctx,
         scale: commonScale,
         cssWidth: this.cssWidth,
@@ -508,8 +517,7 @@ class ArenaRenderer {
           this.cssHeight - KILL_LINE_MARGIN * commonScale -
           (worldY - ARENA.killY - commonCameraY) * commonScale
         ),
-      }, this.cssWidth, goalY)
-    }
+      }
     for (let index = 0; index < towers.length; index += 1) {
       const tower = towers[index]
       if (tower === undefined) {
@@ -535,15 +543,19 @@ class ArenaRenderer {
       ctx.beginPath()
       ctx.rect(left, 0, width, this.cssHeight)
       ctx.clip()
-      if (tower.mine) {
-        ctx.fillStyle = 'rgba(107, 255, 176, 0.035)'
+      if (tower.previewDimmed === true) {
+        ctx.fillStyle = 'rgba(5, 7, 12, 0.62)'
         ctx.fillRect(left, 0, width, this.cssHeight)
-        ctx.strokeStyle = 'rgba(107, 255, 176, 0.52)'
-        ctx.lineWidth = 2
-        ctx.strokeRect(left + 1, 1, width - 2, this.cssHeight - 2)
+      }
+      if (tower.previewHighlight === true) {
+        ctx.fillStyle = 'rgba(107, 255, 176, 0.07)'
+        ctx.fillRect(left, 0, width, this.cssHeight)
+        ctx.strokeStyle = 'rgba(107, 255, 176, 0.9)'
+        ctx.lineWidth = 5
+        ctx.strokeRect(left + 3, 3, width - 6, this.cssHeight - 6)
       }
       const towerAlpha = Math.max(0, 1 - tower.exitProgress * tower.exitProgress)
-      ctx.globalAlpha = towerAlpha
+      ctx.globalAlpha = towerAlpha * (tower.previewDimmed === true ? 0.24 : 1)
       drawPlatformBack(view)
       drawLedges(view, tower.ledges ?? NO_LEDGES)
       if (tower.showAim) {
@@ -567,6 +579,10 @@ class ArenaRenderer {
         drawDuelResult(view, left, width, tower.result, tower.exitProgress)
       }
       ctx.restore()
+    }
+    // 물건과 받침대 뒤에 그리면 목표 높이에 도달할수록 선이 가려진다.
+    if (goalView !== null && goalY !== undefined) {
+      drawDuelGoal(goalView, this.cssWidth, goalY)
     }
   }
 

@@ -92,6 +92,8 @@ type SessionPhase =
   | {
       readonly kind: 'countdown'
       readonly players: readonly PlayerInfo[]
+      readonly selfId: PlayerId
+      readonly seed: number
       readonly secondsLeft: number
       /** 판이 열리면 처음 떨굴 사람 */
       readonly starter: PlayerId | null
@@ -647,7 +649,8 @@ class MatchSession {
    * 셈이 되돌아가면 안 된다.
    */
   private countDown(players: readonly PlayerInfo[], seed: number, matchMode: MatchMode): void {
-    if (this.started || this.countdownTimer !== null) {
+    const transport = this.transport
+    if (transport === null || this.started || this.countdownTimer !== null) {
       return
     }
     // 다 준비했으므로 준비 시한은 여기서 끝난다
@@ -664,6 +667,8 @@ class MatchSession {
       this.onPhase({
         kind: 'countdown',
         players,
+        selfId: transport.selfId,
+        seed,
         secondsLeft: left,
         starter,
         matchMode,
@@ -715,6 +720,7 @@ class MatchSession {
         ranked: this.autoMatched,
         onFailure: (reason) => this.onPhase({ kind: 'failed', failure: reason }),
         onRestart: (next) => this.restart(next),
+        onReturnToRoom: () => this.returnToRoom(),
       })
     } catch (error) {
       if (!this.disposed && generation === this.engineGeneration) {
@@ -762,6 +768,19 @@ class MatchSession {
       resolveMatchMode(this.matchModeChoice, seed),
       this.matchModeChoice,
     )
+  }
+
+  /** 판만 닫고 연결·명단·채팅은 유지한 채 친선전 준비 화면으로 돌아간다. */
+  private returnToRoom(): void {
+    if (this.disposed) return
+    this.engineGeneration += 1
+    this.engine?.dispose()
+    this.engine = null
+    this.creatingEngine = false
+    this.pendingEngineEvents.length = 0
+    this.started = false
+    this.ready.clear()
+    this.emitReady()
   }
 
   dispose(): void {

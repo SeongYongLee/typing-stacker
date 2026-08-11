@@ -23,7 +23,7 @@ import { RECIPES } from '../data/recipes.ts'
 import { placeLedge } from '../systems/Ledge.ts'
 import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
-import { pairMarks, pairPulse } from '../systems/PairMarks.ts'
+import { pairMarks, pairPartners, pairPulse } from '../systems/PairMarks.ts'
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
 import { NightFever, isLifeProtected } from '../systems/NightFever.ts'
 import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
@@ -45,6 +45,7 @@ import { GameLoop } from './GameLoop.ts'
 
 /** 알릴 짝이 없을 때 돌려주는 빈 표. 프레임마다 빈 Map을 새로 만들지 않으려는 것 */
 const NO_MARKS: ReadonlyMap<string, number> = new Map()
+const NO_MERGE_HINTS: ReadonlyMap<string, readonly string[]> = new Map()
 
 /** 단어 → 그 단어의 기본 변형 id. 내려오는 단어가 무슨 재료인지 보려는 것이다 */
 const WORD_BASE_ID = new Map(
@@ -100,6 +101,8 @@ interface GameState {
    * 까닭은 `systems/PairMarks.ts`에.
    */
   readonly wordMarks: ReadonlyMap<string, number>
+  /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건의 스프라이트. */
+  readonly wordMergeHints: ReadonlyMap<string, readonly string[]>
   /**
    * 지금 벽에 적힌 회수 목록. 이 단어를 치면 쌓지 않고 빼낸다.
    *
@@ -1158,6 +1161,22 @@ class GameEngine {
     return byWord
   }
 
+  private wordMergeHints(marks: ReadonlyMap<string, number>): ReadonlyMap<string, readonly string[]> {
+    if (marks.size === 0) return NO_MERGE_HINTS
+    const partners = pairPartners(marks, new Map(this.physics.countsByVariant()))
+    const byWord = new Map<string, readonly string[]>()
+    for (const falling of this.spawner.words) {
+      const id = WORD_BASE_ID.get(falling.word)
+      const partnerIds = id === undefined ? undefined : partners.get(id)
+      const sprites = partnerIds?.flatMap((partner) => {
+        const sprite = VARIANT_BY_ID.get(partner)?.sprite
+        return sprite === undefined ? [] : [sprite]
+      })
+      if (sprites !== undefined && sprites.length > 0) byWord.set(falling.word, sprites)
+    }
+    return byWord
+  }
+
   private readonly render = (): void => {
     const time = this.timeView()
     const reveal = this.hiddenReveal
@@ -1226,13 +1245,15 @@ class GameEngine {
 
   private emit(): void {
     const time = this.timeView()
+    const marks = this.marks()
     this.listener?.({
       phase: this.phase,
       elapsed: this.elapsed,
       // 스포너가 목록을 바꿀 때 새 배열로 갈아치우므로 여기서 또 복사하지 않는다 —
       // 매 프레임 복사하면 GC가 주기적으로 돌아 화면이 살짝 멈춘다
       words: this.spawner.words,
-      wordMarks: this.wordMarks(this.marks()),
+      wordMarks: this.wordMarks(marks),
+      wordMergeHints: this.wordMergeHints(marks),
       whiteboard: this.whiteboard.words,
       whiteboardRecall:
         this.whiteboardRecall === null

@@ -3,7 +3,6 @@ import { Blurb, Danger, Key, SidePanel } from '../components/SidePanel.tsx'
 import { SoloRanking, VersusTier } from '../components/RankBoxes.tsx'
 import type { Leaderboard } from '../hooks/useLeaderboard.ts'
 import { LIVES } from '../game/config.ts'
-import { TURN_LIMIT_SEC } from '../multi/MatchEngine.ts'
 import { MAX_PLAYERS } from '../multi/protocol.ts'
 
 /** 시작 화면에서 고른 항목에 딸린 것을 옆에 보여준다 */
@@ -25,15 +24,15 @@ type BlurbPanelKind = Exclude<PanelKind, 'solo'>
 const BLURBS: Record<BlurbPanelKind, readonly ReactNode[]> = {
   name: ['순위표와 대전 상대에게 보이는 이름과 아이콘을 바꿉니다.'],
   versus: [
-    <>받침대 하나를 최대 {MAX_PLAYERS}명이 함께 씁니다. 목숨은 각자 {LIVES}개입니다.</>,
+    <>최대 {MAX_PLAYERS}명이 각자의 받침대에서 동시에 쌓습니다. 목숨은 각자 {LIVES}개입니다.</>,
     <>
       내가 쌓은 물건이 받침대를 벗어나면 <Danger>내 목숨</Danger>이 하나 깎입니다.
     </>,
     <>
-      <Key>차례</Key>가 돌아갑니다. {TURN_LIMIT_SEC}초 안에 치지 않으면 저절로 떨어집니다.
+      탑을 <Key>골인선</Key>까지 쌓거나 마지막까지 살아남으면 이깁니다.
     </>,
     <>
-      차례가 아닐 때 적는 말은 <Key>채팅</Key>이 됩니다.
+      골인하거나 탈락한 뒤에는 친선전 <Key>채팅</Key>을 이용할 수 있습니다.
     </>,
   ],
   // 도감·옵션·이름은 규칙이 아니라 자리다. 무엇이 있는 곳인지만 알면 들어가서 보면 된다

@@ -5,9 +5,15 @@ import { DUEL_TARGET_STACK_TOP } from '../src/multi/MatchEngine.ts'
 const CSS_WIDTH = 900
 const CSS_HEIGHT = 700
 
-function makeCanvas(): { canvas: HTMLCanvasElement; texts: string[]; dashes: number[][] } {
+function makeCanvas(): {
+  canvas: HTMLCanvasElement
+  texts: string[]
+  dashes: number[][]
+  strokeRects: number[]
+} {
   const texts: string[] = []
   const dashes: number[][] = []
+  const strokeRects: number[] = []
   const ctx = {
     fillStyle: '',
     strokeStyle: '',
@@ -36,7 +42,7 @@ function makeCanvas(): { canvas: HTMLCanvasElement; texts: string[]; dashes: num
     arc: () => {},
     stroke: () => {},
     fill: () => {},
-    strokeRect: () => {},
+    strokeRect: () => strokeRects.push(1),
     fillRect: () => {},
     drawImage: () => {},
     roundRect: () => {},
@@ -55,7 +61,7 @@ function makeCanvas(): { canvas: HTMLCanvasElement; texts: string[]; dashes: num
     getContext: () => ctx,
     getBoundingClientRect: () => ({ width: CSS_WIDTH, height: CSS_HEIGHT }),
   }
-  return { canvas: canvas as unknown as HTMLCanvasElement, texts, dashes }
+  return { canvas: canvas as unknown as HTMLCanvasElement, texts, dashes, strokeRects }
 }
 
 let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
@@ -71,7 +77,7 @@ afterEach(() => {
 
 describe('대결 골인선', () => {
   it('모든 타워가 공유하는 실제 골인 높이의 선을 하나만 그린다', () => {
-    const { canvas, texts, dashes } = makeCanvas()
+    const { canvas, texts, dashes, strokeRects } = makeCanvas()
     new ArenaRenderer(canvas).draw({
       bodies: [],
       aimX: 0,
@@ -115,8 +121,74 @@ describe('대결 골인선', () => {
     })
 
     expect(texts.filter((text) => text === '골인')).toHaveLength(1)
-    expect(dashes.filter((dash) => dash.join(',') === '8,6')).toHaveLength(1)
+    expect(dashes.filter((dash) => dash.join(',') === '12,7')).toHaveLength(1)
     expect(texts).toContain('자두 · 나')
     expect(texts).toContain('매실')
+    expect(strokeRects).toHaveLength(0)
+  })
+
+  it('하트가 남은 마지막 참가자는 탈락이 아니라 생존으로 표시한다', () => {
+    const { canvas, texts } = makeCanvas()
+    new ArenaRenderer(canvas).draw({
+      bodies: [],
+      aimX: 0,
+      showAim: false,
+      landing: null,
+      nightfall: 0,
+      cameraY: 0,
+      stackTop: ARENA.platformTop,
+      time: 0,
+      impacts: [],
+      ownerColors: null,
+      duelTowers: [{
+        id: 'a',
+        nickname: '자두',
+        mine: true,
+        bodies: [],
+        aimX: 0,
+        showAim: false,
+        cameraY: 0,
+        stackTop: ARENA.platformTop,
+        lives: 2,
+        result: { placement: 1, outcome: 'survived' },
+        exitProgress: 0,
+        ownerColors: null,
+      }],
+    })
+
+    expect(texts).toContain('생존')
+    expect(texts).not.toContain('탈락')
+  })
+
+  it('카운트다운 미리보기에서만 내 게임판 테두리를 그린다', () => {
+    const { canvas, strokeRects } = makeCanvas()
+    new ArenaRenderer(canvas).draw({
+      bodies: [],
+      aimX: 0,
+      showAim: false,
+      landing: null,
+      nightfall: 0,
+      cameraY: 0,
+      stackTop: ARENA.platformTop,
+      time: 0,
+      impacts: [],
+      ownerColors: null,
+      duelTowers: [{
+        id: 'a',
+        nickname: '자두',
+        mine: true,
+        previewHighlight: true,
+        bodies: [],
+        aimX: 0,
+        showAim: false,
+        cameraY: 0,
+        stackTop: ARENA.platformTop,
+        result: null,
+        exitProgress: 0,
+        ownerColors: null,
+      }],
+    })
+
+    expect(strokeRects).toHaveLength(1)
   })
 })

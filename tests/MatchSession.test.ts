@@ -175,6 +175,33 @@ describe('MatchSession — 준비하고 시작한다', () => {
       .toEqual(stateOf(nextHost.engine).words.map((word) => word.word))
   })
 
+  it('친선전 결과에서 같은 연결과 채팅을 유지한 채 양쪽이 준비방으로 돌아간다', async () => {
+    open = pair()
+    await tick()
+    open.host.session.sendChat('다음 판도 하자')
+    open.host.session.setReady()
+    open.guest.session.setReady()
+    for (let wait = 0; wait < 100 && open.host.phase()?.kind !== 'playing'; wait += 1) await tick()
+
+    const host = open.host.phase()
+    const guest = open.guest.phase()
+    if (host?.kind !== 'playing' || guest?.kind !== 'playing') return
+    for (let round = 0; round < LIVES; round += 1) {
+      guest.engine.debugEscape(guest.engine.debugSelf(), 1)
+      await clock.advance(INVULNERABLE_SEC + 0.4)
+    }
+    host.engine.requestRoomReturn()
+    await tick()
+
+    for (const side of [open.host, open.guest]) {
+      const phase = side.phase()
+      expect(phase?.kind).toBe('ready')
+      if (phase?.kind !== 'ready') return
+      expect(phase.ready).toEqual([])
+      expect(phase.chat.map((line) => line.text)).toContain('다음 판도 하자')
+    }
+  })
+
   it('같은 사람이 두 번 눌러도 혼자 시작되지 않는다', async () => {
     open = pair()
     await tick()

@@ -17,4 +17,19 @@ describe('화이트보드 상태 문구', () => {
     expect(markup).toContain('font-size:24.5px')
     expect(markup).toContain('font-size:35px')
   })
+
+  it('회수된 단어의 원래 자리에 가져간 사람을 표시한다', () => {
+    const markup = renderToStaticMarkup(
+      createElement(Whiteboard, {
+        words: ['새 단어'],
+        activeWords: [],
+        nightfall: 0,
+        claim: { seq: 1, word: '아메리카노', index: 2, label: '자두가 가져감' },
+      }),
+    )
+
+    expect(markup).toContain('data-whiteboard-claim="자두가 가져감"')
+    expect(markup).toContain('자두가 가져감')
+    expect(markup).toContain('whiteboard-claim-owner')
+  })
 })

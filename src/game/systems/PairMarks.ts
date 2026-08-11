@@ -133,6 +133,26 @@ function pairMarks(
 }
 
 /**
+ * 표식이 붙은 재료마다 받침대에 실제로 놓인 같은 표식의 짝들을 고른다.
+ * 다른 재료들을 모두 돌려주고, 같은 재료 둘짜리 레시피만 자기 자신을 짝으로 돌려준다.
+ */
+function pairPartners(
+  marks: ReadonlyMap<string, number>,
+  placed: ReadonlyMap<string, number>,
+): ReadonlyMap<string, readonly string[]> {
+  const partners = new Map<string, readonly string[]>()
+  for (const [id, mark] of marks) {
+    const candidates = [...placed]
+      .filter(([candidate, count]) => count > 0 && marks.get(candidate) === mark)
+      .map(([candidate]) => candidate)
+    const others = candidates.filter((candidate) => candidate !== id)
+    const group = others.length > 0 ? others : candidates.slice(0, 1)
+    if (group.length > 0) partners.set(id, group)
+  }
+  return partners
+}
+
+/**
  * 표식이 한 번 숨 쉬는 데 걸리는 시간(초).
  *
  * 단어 칩과 받침대의 물건이 **같은 값을 받아** 그린다. 각자 제 시계로 그리면 위상이
@@ -192,4 +212,4 @@ function ready(recipe: Recipe, available: ReadonlyMap<string, number>): boolean 
   return true
 }
 
-export { pairMarks, pairPulse, MARK_COUNT, PAIR_MARK_COLORS, PAIR_PULSE_SEC }
+export { pairMarks, pairPartners, pairPulse, MARK_COUNT, PAIR_MARK_COLORS, PAIR_PULSE_SEC }

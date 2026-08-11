@@ -149,8 +149,10 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             side="left"
             missSeq={state.stats.missedWords}
             wordMarks={state.wordMarks}
+            mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
+            recallMarker="hand"
           />
           {/* data-aim은 화살표 위치(-1~1). 자동화 테스트가 조준을 읽는 유일한 통로다 */}
           <div
@@ -164,8 +166,10 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             side="right"
             missSeq={state.stats.missedWords}
             wordMarks={state.wordMarks}
+            mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
+            recallMarker="hand"
           />
         </div>
       </div>

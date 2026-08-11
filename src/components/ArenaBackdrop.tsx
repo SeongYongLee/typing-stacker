@@ -20,7 +20,16 @@ type ArenaBackdropProps =
       nightfall: 0 | 1
       whiteboard?: readonly string[]
       activeWhiteboard?: readonly string[]
+      /** 대결에서 방금 화이트보드 단어를 회수한 사람과 원래 자리. */
+      whiteboardClaim?: WhiteboardClaimNotice | null
     }
+
+interface WhiteboardClaimNotice {
+  readonly seq: number
+  readonly word: string
+  readonly index: number
+  readonly label: string
+}
 
 /**
  * 판 뒤에 깔리는 분실물 보관소.
@@ -41,6 +50,7 @@ function ArenaBackdrop(props: ArenaBackdropProps) {
         nightfall={props.nightfall}
         whiteboard={props.whiteboard ?? []}
         activeWhiteboard={props.activeWhiteboard ?? []}
+        whiteboardClaim={props.whiteboardClaim ?? null}
       />
     )
   }
@@ -57,10 +67,12 @@ function BackdropLayers({
   nightfall,
   whiteboard,
   activeWhiteboard,
+  whiteboardClaim,
 }: {
   nightfall: number
   whiteboard: readonly string[]
   activeWhiteboard: readonly string[]
+  whiteboardClaim: WhiteboardClaimNotice | null
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wall = useWallBox(rootRef)
@@ -71,7 +83,12 @@ function BackdropLayers({
       {wall !== null && (
         <div style={wall}>
           <WindowLight nightfall={nightfall} />
-          <Whiteboard words={whiteboard} activeWords={activeWhiteboard} nightfall={nightfall} />
+          <Whiteboard
+            words={whiteboard}
+            activeWords={activeWhiteboard}
+            nightfall={nightfall}
+            claim={whiteboardClaim}
+          />
         </div>
       )}
     </div>
@@ -203,10 +220,12 @@ function Whiteboard({
   words,
   activeWords,
   nightfall,
+  claim = null,
 }: {
   words: readonly string[]
   activeWords: readonly string[]
   nightfall: number
+  claim?: WhiteboardClaimNotice | null
 }) {
   const { erasedWords, writingWords } = useWhiteboardTransitions(words)
   const active = new Set(activeWords)
@@ -257,6 +276,20 @@ function Whiteboard({
               <span style={eraserSwipeStyle(entry.word, entry.index)} />
             </span>
           ))}
+          {claim !== null && (
+            <span
+              key={claim.seq}
+              data-whiteboard-claim={claim.label}
+              style={{
+                ...wordStyle,
+                ...scribbleStyle(claim.word, claim.index),
+                zIndex: 4,
+                opacity: 1,
+              }}
+            >
+              <span style={whiteboardClaimStyle}>{claim.label}</span>
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -554,6 +587,16 @@ const eraseGhostStyle: CSSProperties = {
   zIndex: 1,
 }
 
+const whiteboardClaimStyle: CSSProperties = {
+  display: 'inline-block',
+  color: '#713f4b',
+  fontSize: 22,
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  textShadow: '0 0 1px rgba(255, 255, 255, 0.45)',
+  animation: 'whiteboard-claim-owner 1800ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards',
+}
+
 function writeWordStyle(delayMs: number): CSSProperties {
   return {
     display: 'inline-block',
@@ -612,6 +655,13 @@ const whiteboardAnimationCss = `
 @keyframes whiteboard-active-breathe {
   0%, 100% { filter: blur(0.05px); }
   50% { filter: blur(0) drop-shadow(0 0 2px rgba(31, 45, 41, 0.28)); }
+}
+
+@keyframes whiteboard-claim-owner {
+  0% { opacity: 0; transform: translateY(5px) scale(0.92); }
+  18% { opacity: 0.94; transform: translateY(0) scale(1); }
+  72% { opacity: 0.94; transform: translateY(-2px) scale(1); }
+  100% { opacity: 0; transform: translateY(-9px) scale(0.96); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -745,3 +795,4 @@ function layerStyle(name: 'background-day' | 'background-night', alpha: number):
  */
 
 export { ArenaBackdrop, Whiteboard }
+export type { WhiteboardClaimNotice }

@@ -1,24 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties } from 'react'
 import { MenuButton } from '../../components/MenuButton.tsx'
 import { Avatar } from '../../components/Avatar.tsx'
-import { Blurb, Key } from '../../components/SidePanel.tsx'
+import { Blurb } from '../../components/SidePanel.tsx'
 import { panelBoxStyle } from '../../components/sidePanelStyle.ts'
 import { useMenuKeys } from '../../hooks/useMenuKeys.ts'
 import { useRosterTiers } from '../../hooks/useRosterTiers.ts'
 import { ownerColorAt } from '../../multi/ownerColors.ts'
-import { MAX_TEXT } from '../../multi/ChatLog.ts'
-import type { ChatLine } from '../../multi/ChatLog.ts'
 import type { SessionPhase } from '../../multi/MatchSession.ts'
 import { MAX_PLAYERS } from '../../multi/protocol.ts'
 import { tierOf } from '../../rank/tiers.ts'
-import { fieldStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
-import { LIVES } from '../../game/config.ts'
+import { panelStyle, rootStyle } from './lobbyStyle.ts'
 import {
   ACTIVE_MATCH_MODE,
   type MatchModeChoice,
 } from '../../multi/matchModes.ts'
 import { MODE_BLURBS, modeLabel } from './modeRules.tsx'
+import { MATCH_CHAT_LOG_HEIGHT, MatchChatBox } from './MatchChatBox.tsx'
 
 /**
  * 붙은 뒤 시작 전 — 명단·티어·채팅·준비.
@@ -32,27 +29,16 @@ import { MODE_BLURBS, modeLabel } from './modeRules.tsx'
  * 상대가 들어오자마자 판이 열리면 누구와 붙는지 볼 겨를도, 손을 키보드에 올릴 겨를도
  * 없다 — 첫 단어가 이미 내려오고 있다. 양쪽이 준비를 눌러야 시작한다.
  */
-function readyRules(choice: MatchModeChoice): readonly ReactNode[] {
-  const modeTitle = (
-    <>
-      모드: <Key>{modeLabel(choice)}</Key>
-    </>
-  )
-  return [
-    modeTitle,
-    ...MODE_BLURBS[choice],
-    <>
-      하트 {LIVES}개를 잃으면 탈락합니다.
-    </>,
-  ]
+function readyRules(choice: MatchModeChoice) {
+  return MODE_BLURBS[choice]
 }
 
 // 혼자 하기 GAME RULES 본문과 같은 크기로 두 화면의 규칙을 한 체계로 읽게 한다
 const READY_TEXT_SIZE = 17
+const RULE_TEXT_SIZE = 22
 const PLAYER_ROW_HEIGHT = 58
 const PLAYER_ROW_GAP = 10
 const PLAYER_STATUS_WIDTH = 106
-const CHAT_LOG_HEIGHT = 360
 const playerListMaxHeight = MAX_PLAYERS * PLAYER_ROW_HEIGHT + (MAX_PLAYERS - 1) * PLAYER_ROW_GAP
 
 const roomLayoutStyle: CSSProperties = {
@@ -190,7 +176,7 @@ function ReadyRoom({
       aria-label="게임 규칙"
       data-ready-rules={rulesKind}
     >
-      <Blurb kind={rulesKind} lines={rules} fontSize={READY_TEXT_SIZE} />
+      <Blurb kind={rulesKind} lines={rules} fontSize={RULE_TEXT_SIZE} bullets={false} />
     </aside>
   )
   const modePanel = (
@@ -267,7 +253,7 @@ function ReadyRoom({
               style={{
                 ...panelStyle,
                 width: '100%',
-                minHeight: CHAT_LOG_HEIGHT + 112,
+                minHeight: MATCH_CHAT_LOG_HEIGHT + 112,
                 fontSize: READY_TEXT_SIZE,
               }}
             >
@@ -275,7 +261,7 @@ function ReadyRoom({
                 코드로 모인 방에서만 말이 오간다. 랭크 게임은 서로 모르는 사이라 말을 걸
                 자리가 아니고, 그 판단은 세션이 해서 여기로 내려온다.
               */}
-              <ChatBox
+              <MatchChatBox
                 lines={phase.chat}
                 selfId={phase.selfId}
                 onSend={onChat}
@@ -314,91 +300,6 @@ function ReadyRoom({
  * Enter만으로 보낸다. 이 화면에서 Enter는 준비를 뜻하기도 하는데, 칸에 글자가 있을
  * 때는 말이 먼저다 — 적어둔 것을 버리고 판이 시작되면 되돌릴 길이 없다.
  */
-function ChatBox({
-  lines,
-  selfId,
-  onSend,
-  disabled = false,
-}: {
-  lines: readonly ChatLine[]
-  selfId: string
-  onSend: (text: string) => void
-  disabled?: boolean
-}) {
-  const [text, setText] = useState('')
-  const endRef = useRef<HTMLDivElement | null>(null)
-
-  // 새 말이 오면 아래로 따라간다. 안 그러면 방금 온 말이 접힌 채로 남는다
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [lines.length])
-
-  const send = (): void => {
-    if (text.trim().length === 0) {
-      return
-    }
-    onSend(text)
-    setText('')
-  }
-
-  return (
-    <div style={{ display: 'grid', gap: 8 }} data-chat={lines.length}>
-      <div
-        style={{
-          height: CHAT_LOG_HEIGHT,
-          overflowY: 'auto',
-          textAlign: 'left',
-          padding: '8px 10px',
-          borderRadius: 10,
-          background: '#0d0f16',
-          border: '1px solid #2e3448',
-          display: 'grid',
-          gap: 4,
-          alignContent: 'start',
-        }}
-      >
-        {lines.length === 0 ? (
-          <span style={{ color: '#4a5171' }}>
-            시작 전에 한마디 나눌 수 있습니다.
-          </span>
-        ) : (
-          lines.map((line) => (
-            <span key={line.seq} style={{ color: '#b6bdd4', lineHeight: 1.5 }}>
-              <b style={{ color: line.from === selfId ? '#e4e68a' : '#8bd6ff' }}>
-                {line.nickname}
-              </b>{' '}
-              {line.text}
-            </span>
-          ))
-        )}
-        <div ref={endRef} />
-      </div>
-      <input
-        style={{ ...fieldStyle, fontSize: READY_TEXT_SIZE, textAlign: 'left', padding: '10px 12px' }}
-        value={text}
-        onChange={(event) => setText(event.currentTarget.value)}
-        placeholder="한마디 (Enter로 보냅니다)"
-        maxLength={MAX_TEXT}
-        aria-label="채팅 입력"
-        disabled={disabled}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter') {
-            return
-          }
-          /*
-           * 칸에 글자가 있으면 준비가 아니라 보내기다. 여기서 막지 않으면 적어둔 말이
-           * 사라지고 판이 시작된다 — 되돌릴 길이 없는 쪽을 먼저 막는다.
-           */
-          if (text.trim().length > 0) {
-            event.stopPropagation()
-            send()
-          }
-        }}
-      />
-    </div>
-  )
-}
-
 /**
  * 줄에 서서 상대를 기다리는 동안.
  *

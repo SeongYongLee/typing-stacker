@@ -7,6 +7,7 @@ import { ArenaBackdrop } from '../components/ArenaBackdrop.tsx'
 import { MemoInput } from '../components/InputBar.tsx'
 import { StackArena } from '../components/StackArena.tsx'
 import { TypingLane } from '../components/TypingLane.tsx'
+import type { WordClaimNotice } from '../components/TypingLane.tsx'
 import { LIVES } from '../game/config.ts'
 import { TURN_HURRY_SEC } from '../multi/MatchEngine.ts'
 import type { MatchEngine, MatchViewState } from '../multi/MatchEngine.ts'
@@ -20,6 +21,8 @@ import { useMatchRanking } from '../hooks/useMatchRanking.ts'
 import { tierOf, tierProgress } from '../rank/tiers.ts'
 import { useTypingSound } from '../hooks/useAudio.ts'
 import { titleThemeForHour } from './titleTheme.ts'
+import { duelStatusMessage } from '../multi/duelFeedback.ts'
+import { MatchChatBox } from './lobby/MatchChatBox.tsx'
 
 interface MatchScreenProps {
   engine: MatchEngine
@@ -53,12 +56,33 @@ const fieldStyle: CSSProperties = {
 function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   const submit = useCallback((text: string) => engine.submit(text), [engine])
   const rematch = useCallback(() => engine.requestRematch(), [engine])
+  const returnToRoom = useCallback(() => engine.requestRoomReturn(), [engine])
   const input = useHangulInput(submit)
   const { focus } = input
   // 판을 보는 동안 조명이 갑자기 갈리지 않도록 들어온 시각으로 낮/밤을 고정한다
   const [nightfall] = useState<0 | 1>(() =>
     titleThemeForHour(new Date().getHours()) === 'night' ? 1 : 0,
   )
+  const wordClaims = useMemo<readonly WordClaimNotice[]>(() => {
+    const names = new Map(state.players.map((player) => [player.id, player.nickname]))
+    return state.wordClaims.map((claim) => {
+      const nickname = names.get(claim.by) ?? '누군가'
+      const reward = claim.lifeReward ? ' · 생명 +1' : ''
+      return { ...claim, label: `${withSubject(nickname)} 가져감${reward}` }
+    })
+  }, [state.players, state.wordClaims])
+  const whiteboardClaim = useMemo(() => {
+    const reward = state.heartReward
+    if (reward === null) return null
+    const nickname = state.players.find((player) => player.id === reward.player)?.nickname
+      ?? '누군가'
+    return {
+      seq: reward.seq,
+      word: reward.word,
+      index: reward.index,
+      label: `${withSubject(nickname)} 가져감`,
+    }
+  }, [state.heartReward, state.players])
 
   useTypingSound(input.tapSeq)
 
@@ -84,6 +108,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
         nightfall={nightfall}
         whiteboard={state.whiteboard}
         activeWhiteboard={state.activeWhiteboard}
+        whiteboardClaim={whiteboardClaim}
       />
       <Scoreboard state={state} onLeave={onLeave} />
 
@@ -94,17 +119,17 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             words={state.words}
             side="left"
             wordMarks={state.wordMarks}
+            mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
+            recallMarker="heart"
+            claims={wordClaims}
           />
           <div
             style={{ position: 'relative', minHeight: 0 }}
             data-aim={state.aimNormalized.toFixed(3)}
             data-my-turn={state.canDrop ? 'yes' : 'no'}
           >
-            {state.phase === 'over' && (
-              <Verdict state={state} onRematch={rematch} onLeave={onLeave} />
-            )}
             {state.opponentLeft && state.phase !== 'over' && (
               <Banner text="상대가 로비로 나갔습니다" danger />
             )}
@@ -118,8 +143,9 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             {state.connectionLost && !state.opponentLeft && state.phase !== 'over' && (
               <Banner text="상대와의 연결이 끊겼습니다" danger />
             )}
+            {state.phase !== 'over' && <DuelPersonalStatus state={state} />}
             {state.phase !== 'over' && <TurnNotice state={state} />}
-            {state.hurt !== null && state.phase !== 'over' && (
+            {state.hurt !== null && state.phase !== 'over' && state.matchMode !== 'duel' && (
               <HurtNotice state={state} hurt={state.hurt} />
             )}
           </div>
@@ -127,16 +153,176 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             words={state.words}
             side="right"
             wordMarks={state.wordMarks}
+            mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
+            recallMarker="heart"
+            claims={wordClaims}
           />
         </div>
         <HeartRewardFlight state={state} />
+        <DuelMergeFeedback state={state} />
+        {state.phase === 'over' && (
+          <Verdict
+            state={state}
+            onChat={submit}
+            onRematch={rematch}
+            onReturnToRoom={returnToRoom}
+            onLeave={onLeave}
+          />
+        )}
       </div>
 
-      <InputRow input={input} state={state} nightfall={nightfall} />
+      {state.phase === 'playing' && <InputRow input={input} state={state} nightfall={nightfall} />}
     </div>
   )
+}
+
+function DuelPersonalStatus({ state }: { state: MatchViewState }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const result = state.duelResults.find((candidate) => candidate.id === state.selfId) ?? null
+  const placement = result?.placement
+  const outcome = result?.outcome
+
+  useEffect(() => {
+    if (result === null) return
+    const animation = play(
+      ref.current,
+      [
+        { transform: 'translateY(12px) scale(0.92)', opacity: 0 },
+        { transform: 'translateY(-2px) scale(1.04)', opacity: 1, offset: 0.42 },
+        { transform: 'translateY(0) scale(1)', opacity: 1 },
+      ],
+      { duration: 620, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+    )
+    return () => animation?.cancel()
+  }, [outcome, placement, result])
+
+  if (result === null) return null
+  const message = duelStatusMessage(result)
+  const color = message.tone === 'danger' ? '#ff7b7b' : '#79ffc0'
+
+  return (
+    <div
+      ref={ref}
+      data-duel-personal-status={result.outcome}
+      data-placement={result.placement}
+      aria-live="assertive"
+      style={{
+        position: 'absolute',
+        top: '8%',
+        left: 0,
+        right: 0,
+        zIndex: 4,
+        display: 'grid',
+        justifyItems: 'center',
+        gap: 5,
+        textAlign: 'center',
+        pointerEvents: 'none',
+        textShadow: '0 3px 16px rgba(5, 9, 17, 0.95)',
+      }}
+    >
+      <strong style={{ color, fontSize: 30, lineHeight: 1.05 }}>{message.title}</strong>
+      <span style={{ color: '#e2e7f2', fontSize: 14, fontWeight: 700 }}>{message.detail}</span>
+      {state.inputMode === 'chat' && (
+        <span
+          data-chat-available
+          style={{
+            marginTop: 3,
+            paddingTop: 5,
+            borderTop: '1px solid rgba(139, 214, 255, 0.48)',
+            color: '#8bd6ff',
+            fontSize: 13,
+            fontWeight: 800,
+          }}
+        >
+          채팅 가능
+        </span>
+      )}
+    </div>
+  )
+}
+
+function DuelMergeFeedback({ state }: { state: MatchViewState }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const firstRingRef = useRef<HTMLSpanElement | null>(null)
+  const secondRingRef = useRef<HTMLSpanElement | null>(null)
+  const feedback = state.mergeFeedback
+  const seq = feedback?.seq
+
+  useLayoutEffect(() => {
+    if (feedback === null) return
+    const labelAnimation = play(
+      ref.current,
+      [
+        { transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
+        { transform: 'translate(-50%, -50%) scale(1.08)', opacity: 1, offset: 0.28 },
+        { transform: 'translate(-50%, -56%) scale(1)', opacity: 1, offset: 0.68 },
+        { transform: 'translate(-50%, -72%) scale(0.96)', opacity: 0 },
+      ],
+      { duration: 1700, easing: 'cubic-bezier(0.2, 0.8, 0.28, 1)' },
+    )
+    const ringAnimations = [firstRingRef.current, secondRingRef.current].map((ring, index) => play(
+      ring,
+      [
+        { transform: 'translate(-50%, -50%) scale(0.35)', opacity: 0 },
+        { opacity: 0.72, offset: 0.18 },
+        { transform: 'translate(-50%, -50%) scale(1.45)', opacity: 0 },
+      ],
+      { duration: 1050, delay: index * 170, easing: 'ease-out' },
+    ))
+    return () => {
+      labelAnimation?.cancel()
+      for (const animation of ringAnimations) animation?.cancel()
+    }
+  }, [feedback, seq])
+
+  if (feedback === null || state.duelTowerIds.length === 0) return null
+  const towerIndex = Math.max(0, state.duelTowerIds.indexOf(state.selfId))
+  const left = ((towerIndex + 0.5) / state.duelTowerIds.length) * 100
+
+  return (
+    <div
+      ref={ref}
+      key={feedback.seq}
+      data-duel-merge-feedback={feedback.itemLabel}
+      aria-live="polite"
+      style={{
+        position: 'absolute',
+        left: `${left}%`,
+        top: '57%',
+        zIndex: 7,
+        color: '#fff6ae',
+        fontSize: 21,
+        fontWeight: 900,
+        lineHeight: 1.15,
+        textAlign: 'center',
+        whiteSpace: 'nowrap',
+        opacity: 0,
+        pointerEvents: 'none',
+        textShadow: '0 2px 1px rgba(34, 31, 20, 0.9), 0 0 12px rgba(107, 255, 176, 0.72)',
+      }}
+    >
+      <span ref={firstRingRef} aria-hidden style={mergeRingStyle} />
+      <span ref={secondRingRef} aria-hidden style={mergeRingStyle} />
+      <span style={{ display: 'block', fontSize: 12, color: '#9effc8', marginBottom: 3 }}>
+        내 합성
+      </span>
+      {feedback.itemLabel}
+    </div>
+  )
+}
+
+const mergeRingStyle: CSSProperties = {
+  position: 'absolute',
+  left: '50%',
+  top: '55%',
+  width: 84,
+  height: 84,
+  border: '3px solid rgba(107, 255, 176, 0.82)',
+  borderRadius: '50%',
+  opacity: 0,
+  pointerEvents: 'none',
 }
 
 function HeartRewardFlight({ state }: { state: MatchViewState }) {
@@ -218,13 +404,21 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
    * 내려가는데, 조준 중에 화면이 움직이면 안 된다.
    */
   const gone = useMemo(() => new Set(state.left), [state.left])
-  const lastSaid = useMemo(() => {
-    const latest = new Map<string, ChatLine>()
-    for (const line of state.chat) {
-      latest.set(line.from, line)
+  const bubbleBaseline = useRef({
+    matchId: state.matchId,
+    seq: state.chat.at(-1)?.seq ?? 0,
+  })
+  if (bubbleBaseline.current.matchId !== state.matchId) {
+    bubbleBaseline.current = {
+      matchId: state.matchId,
+      seq: state.chat.at(-1)?.seq ?? 0,
     }
-    return latest
-  }, [state.chat])
+  }
+  const lastSaid = new Map<string, ChatLine>()
+  for (const line of state.chat) {
+    if (line.seq <= bubbleBaseline.current.seq) continue
+    lastSaid.set(line.from, line)
+  }
 
   return (
     <div
@@ -282,10 +476,12 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               말인지 이름을 읽어야 알고, 판이 도는 동안에는 그럴 틈이 없다.
             */}
             {/* 꼬리가 가리킬 곳 = 아이콘 한가운데. 왼쪽 여백 + 아이콘 반지름 */}
-            <Bubble
-              line={lastSaid.get(player.id) ?? null}
-              tailX={crowded ? 8 + 9 : 12 + 12}
-            />
+            {state.phase === 'playing' && (
+              <Bubble
+                line={lastSaid.get(player.id) ?? null}
+                tailX={crowded ? 8 + 9 : 12 + 12}
+              />
+            )}
             {/* 판이 도는 중에는 이름을 읽을 틈이 없다. 아이콘이 더 빨리 읽힌다 */}
             <Avatar icon={player.icon} size={crowded ? 18 : 24} ring={ownerColorAt(index)} />
             <span
@@ -382,10 +578,10 @@ function InputRow({
    * 버튼을 고를 수 없다. 싱글에서도 같은 자리에서 같은 방법으로 풀었다.
    */
   useEffect(() => {
-    if (state.phase !== 'playing') {
+    if (state.phase !== 'playing' && state.inputMode !== 'chat') {
       input.ref.current?.blur()
     }
-  }, [state.phase, input.ref])
+  }, [state.phase, state.inputMode, input.ref])
 
   return (
     <div
@@ -426,7 +622,11 @@ function InputRow({
  */
 function ActionHint({ state }: { state: MatchViewState }) {
   if (state.phase === 'over') {
-    return <span style={{ fontSize: 14, color: '#6a7290' }}>판이 끝났습니다</span>
+    return (
+      <span style={{ fontSize: 14, color: state.inputMode === 'chat' ? '#8bd6ff' : '#6a7290' }}>
+        {state.inputMode === 'chat' ? '대화를 이어갈 수 있습니다' : '판이 끝났습니다'}
+      </span>
+    )
   }
   const ready = state.canDrop
   const soon = state.myTurn && !ready
@@ -486,6 +686,7 @@ function Bubble({ line, tailX }: { line: ChatLine | null; tailX: number }) {
   useEffect(() => {
     const next = lineRef.current
     if (next === null) {
+      setShown(null)
       return
     }
     setShown(next)
@@ -786,11 +987,15 @@ function PlayerLives({ lives, invulnerable }: { lives: number; invulnerable: num
 
 function Verdict({
   state,
+  onChat,
   onRematch,
+  onReturnToRoom,
   onLeave,
 }: {
   state: MatchViewState
+  onChat: (text: string) => void
   onRematch: () => void
+  onReturnToRoom: () => void
   onLeave: () => void
 }) {
   const won = state.winner === state.selfId
@@ -802,6 +1007,14 @@ function Verdict({
   const winsOf = new Map(state.wins)
   const nameOf = (id: string) =>
     state.players.find((player) => player.id === id)?.nickname ?? '이름없음'
+  const showChat = state.inputMode === 'chat'
+  const chatNotices = state.wantRematch.map((id) => {
+    const nickname = state.players.find((player) => player.id === id)?.nickname ?? '누군가'
+    return {
+      id: `rematch-${id}`,
+      text: `${withSubject(nickname)} 다음 판 준비를 마쳤습니다`,
+    }
+  })
 
   /*
    * 손이 키보드에 붙어 있는 게임이라 결과창도 키보드로 넘긴다. 여기서 마우스를 잡게
@@ -811,12 +1024,16 @@ function Verdict({
    * "왜 안 되지"가 생기므로, 목록에서도 빼서 화살표가 그 자리를 지나가지 않게 한다.
    */
   const canRematch = !state.opponentLeft
+  const canReturnToRoom = !state.ranked && !state.opponentLeft
+  const roomIndex = canRematch ? 1 : 0
   const items = [
     ...(canRematch ? [{ run: onRematch, disabled: iWantRematch }] : []),
+    ...(canReturnToRoom ? [{ run: onReturnToRoom, disabled: false }] : []),
     { run: onLeave, disabled: false },
   ]
   const menu = useMenuKeys({
     count: items.length,
+    navigateFromInput: showChat,
     onActivate: (index) => {
       const item = items[index]
       if (item !== undefined && !item.disabled) {
@@ -836,9 +1053,23 @@ function Verdict({
         display: 'grid',
         placeItems: 'center',
         background: 'rgba(13, 15, 22, 0.88)',
+        padding: 16,
+        overflow: 'auto',
+        zIndex: 8,
       }}
     >
-      <div style={{ textAlign: 'center', display: 'grid', gap: 14 }}>
+      <div
+        style={{
+          width: showChat ? 'min(860px, 100%)' : 'min(380px, 100%)',
+          display: 'grid',
+          gridTemplateColumns: showChat
+            ? 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))'
+            : 'minmax(0, 1fr)',
+          alignItems: 'center',
+          gap: 28,
+        }}
+      >
+        <div style={{ textAlign: 'center', display: 'grid', gap: 14, minWidth: 0 }}>
         <span
           style={{
             font: '700 46px/1.1 var(--sans)',
@@ -937,6 +1168,16 @@ function Verdict({
           </div>
         )}
 
+        {canReturnToRoom && (
+          <MenuButton
+            selected={menu.index === roomIndex}
+            onClick={onReturnToRoom}
+            onHover={() => menu.select(roomIndex)}
+          >
+            대기방으로 돌아가기
+          </MenuButton>
+        )}
+
         <MenuButton
           selected={menu.index === items.length - 1}
           onClick={onLeave}
@@ -948,6 +1189,27 @@ function Verdict({
         <span style={{ fontSize: 12, color: '#4a5171' }}>
           ↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다
         </span>
+        </div>
+        {showChat && (
+          <div
+            data-result-chat-panel
+            style={{
+              display: 'grid',
+              alignContent: 'center',
+              gap: 18,
+              minWidth: 0,
+              padding: '18px 0',
+            }}
+          >
+            <MatchChatBox
+              lines={state.chat}
+              selfId={state.selfId}
+              onSend={onChat}
+              notices={chatNotices}
+              autoFocus
+            />
+          </div>
+        )}
       </div>
     </div>
   )

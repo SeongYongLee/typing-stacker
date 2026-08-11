@@ -1023,8 +1023,9 @@ function Verdict({
    * 상대가 나갔으면 '계속하기'가 아예 없다. 누를 수 없는 버튼을 남겨두면
    * "왜 안 되지"가 생기므로, 목록에서도 빼서 화살표가 그 자리를 지나가지 않게 한다.
    */
-  const canRematch = !state.opponentLeft
-  const canReturnToRoom = !state.ranked && !state.opponentLeft
+  const peerUnavailable = state.opponentLeft || state.connectionLost
+  const canRematch = !peerUnavailable
+  const canReturnToRoom = !state.ranked && !peerUnavailable
   const roomIndex = canRematch ? 1 : 0
   const items = [
     ...(canRematch ? [{ run: onRematch, disabled: iWantRematch }] : []),
@@ -1150,9 +1151,9 @@ function Verdict({
           * 상대가 나갔으면 계속할 상대가 없다. 버튼을 남겨두고 눌리지 않게 하는 대신
           * 아예 치운다 — 누를 수 없는 버튼은 "왜 안 되지"를 만든다.
           */}
-        {state.opponentLeft ? (
+        {peerUnavailable ? (
           <span data-opponent-left style={{ color: '#ff6b6b', fontSize: 15 }}>
-            상대가 로비로 나갔습니다
+            {state.opponentLeft ? '상대가 로비로 나갔습니다' : '상대와의 연결이 끊겼습니다'}
           </span>
         ) : (
           <div data-rematch={iWantRematch ? 'waiting' : 'ready'}>

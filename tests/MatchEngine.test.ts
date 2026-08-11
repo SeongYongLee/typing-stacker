@@ -419,6 +419,19 @@ describe('MatchEngine — 대전', () => {
       expect(pair.hostState().opponentLeft).toBe(true)
       expect(pair.hostState().connectionLost).toBe(false)
     })
+
+    it('결과 화면에서 호스트 연결이 바로 닫혀도 참가자를 이탈 상태로 전환한다', async () => {
+      pair = await makePair()
+      await pair.clock.advance(1)
+      await finish(pair, 'guest-peer')
+
+      pair.hostLink.close()
+      await pair.clock.flush()
+
+      expect(pair.guestState().opponentLeft).toBe(true)
+      expect(pair.guestState().connectionLost).toBe(false)
+      expect(pair.guestState().reconnecting).toBe(false)
+    })
   })
 
   it('판이 끝나기 전에 온 구형 계속하기는 다음 판 동의로 쌓지 않는다', async () => {

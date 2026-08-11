@@ -357,7 +357,8 @@ interface ScheduledDrop {
 
 class MatchEngine {
   private readonly physics: PhysicsWorld
-  private readonly loop = new GameLoop()
+  /** 호스트 탭이 숨겨져도 단어·물리·판정의 권위 시계는 계속 흘러야 한다. */
+  private readonly loop = new GameLoop({ runWhenHidden: true })
   private readonly transport: Transport
   private readonly match: MatchState
   private readonly ownerColors: Map<OwnerId, string>
@@ -908,6 +909,19 @@ class MatchEngine {
         this.handleMessage(event.from, event.message)
         break
       case 'peerLeft':
+        /*
+         * 결과 화면에서는 다시 진행 중인 판으로 복구할 것이 없다. 특히 호스트가 탭을
+         * 닫으면 `bye`와 연결 종료가 경합해 `peerLeft`만 올 수 있는데, 이것을 연결 장애로
+         * 남기면 참가자에게 응답할 상대가 없는 계속하기 버튼이 열린 채로 남는다.
+         */
+        if (this.match.over && this.match.players.length <= 2) {
+          this.opponentLeft = true
+          this.reconnecting = false
+          this.connectionLost = false
+          this.loop.stop()
+          this.emit()
+          break
+        }
         // bye를 먼저 받았다면 사고가 아니라 상대가 나간 것이다. 안내를 실패로 덮지 않는다.
         if (this.opponentLeft && this.match.players.length <= 2) {
           this.loop.stop()

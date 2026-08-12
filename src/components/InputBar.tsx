@@ -424,7 +424,9 @@ function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: In
           gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
           alignItems: 'center',
           width: '100%',
-          minHeight: 22,
+          // 랭킹은 서버 응답 뒤에 붙는다. 빈 상태도 최종 줄 높이를 먼저 차지해야
+          // 나타나는 순간 입력창과 하단 바 전체가 위로 밀리지 않는다.
+          minHeight: 25,
         }}
       >
         <span />

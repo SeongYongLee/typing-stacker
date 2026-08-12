@@ -23,6 +23,7 @@ import {
   drawWhiteboardRecall,
 } from './effectPaint.ts'
 import type { ArenaView } from './arenaView.ts'
+import { canvasPixelRatio } from './canvasResolution.ts'
 
 interface HiddenReveal {
   readonly label: string
@@ -388,8 +389,8 @@ class ArenaRenderer {
   }
 
   resize(): void {
-    const dpr = window.devicePixelRatio || 1
     const rect = this.canvas.getBoundingClientRect()
+    const dpr = canvasPixelRatio(rect.width, rect.height, window.devicePixelRatio)
     this.cssWidth = rect.width
     this.cssHeight = rect.height
     this.canvas.width = Math.round(rect.width * dpr)

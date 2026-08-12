@@ -87,6 +87,17 @@ describe('difficultyAt — 쌓을수록 몰아친다', () => {
 })
 
 describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어진다', () => {
+  it('싱글은 첫 단어 다음부터 2.6초 간격으로 시작한다', () => {
+    expect(soloDifficultyAt(0, 0).spawnInterval).toBe(2.6)
+  })
+
+  it('높이 기준 주기는 2.6초에서 1.6초까지 줄어든다', () => {
+    const expected = [2.6, 2.35, 2.1, 1.85, 1.6]
+    for (const [index, interval] of expected.entries()) {
+      expect(soloDifficultyAt(index / 4, 0).spawnInterval).toBeCloseTo(interval)
+    }
+  })
+
   it('각 점수 이정표에서 정해둔 난이도에 도달한다', () => {
     for (const point of SOLO_SCORE_LEVELS) {
       expect(soloDifficultyAt(0, point.score)).toEqual(point.level)
@@ -110,7 +121,7 @@ describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어
   })
 
   it('높이와 점수 중 더 어려운 쪽을 유지한다', () => {
-    expect(soloDifficultyAt(1, 0)).toEqual(FULL)
+    expect(soloDifficultyAt(1, 0)).toEqual({ ...FULL, spawnInterval: 1.6 })
     expect(soloDifficultyAt(0, 50_000).maxConcurrent).toBe(5)
   })
 })

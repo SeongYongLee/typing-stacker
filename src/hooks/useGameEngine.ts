@@ -6,13 +6,15 @@ import { ARENA_ART_SOURCES } from '../game/renderer/ArenaRenderer.ts'
 import { preloadSprites } from '../game/renderer/spriteCache.ts'
 import { loadCollection, saveCollection } from '../storage/collection.ts'
 
-/** 게임에 나오는 모든 그림. 판이 시작되기 전에 이만큼을 받아둔다 */
-const SPRITE_SOURCES = [...ALL_VARIANTS.map((item) => item.sprite), ...ARENA_ART_SOURCES]
+/** 판의 배경과 받침대처럼 첫 프레임부터 필요한 그림. */
+const CRITICAL_SOURCES = ARENA_ART_SOURCES
+/** 어떤 것이 나올지 모르는 물건 그림. 없으면 렌더러가 도형으로 안전하게 대신한다. */
+const ITEM_SOURCES = ALL_VARIANTS.map((item) => item.sprite)
 
 interface UseGameEngine {
   readonly engine: GameEngine | null
   readonly state: GameState | null
-  /** 스프라이트를 받은 비율(0~1). 다 받기 전에는 판을 시작하지 않는다 */
+  /** 첫 게임 프레임에 필요한 아레나 그림을 받은 비율(0~1) */
   readonly assetProgress: number
 }
 
@@ -26,24 +28,33 @@ function useGameEngine(enabled: boolean): UseGameEngine {
   const [assetProgress, setAssetProgress] = useState(0)
 
   /*
-   * 그림을 미리 다 받아둔다.
+   * 첫 프레임에 필요한 아레나 그림을 먼저 받고, 물건은 그 뒤에 조용히 채운다.
    *
    * 렌더러는 그리려는 순간에 이미지를 불러오므로, 미리 받지 않으면 그 물건이
    * 처음 나오는 판에서 도형 색만 칠해진 채로 떨어진다. 물건이 57종이 되면서
-   * 판마다 처음 보는 물건이 여럿 나온다.
+   * 판마다 처음 보는 물건이 여럿 나온다. 그래도 185장을 전부 기다리게 하면 첫 화면의
+   * 대가가 너무 크다. 아직 못 받은 물건은 기존 도형 대체 경로로 그린다.
    */
   useEffect(() => {
     if (!enabled) {
       return
     }
     let disposed = false
-    void preloadSprites(SPRITE_SOURCES, (ratio) => {
+    let itemTimer: number | null = null
+    void preloadSprites(CRITICAL_SOURCES, (ratio) => {
       if (!disposed) {
         setAssetProgress(ratio)
       }
+    }).then(() => {
+      if (disposed) return
+      // 준비 완료를 먼저 칠한 다음 낮은 동시성으로 나머지를 채운다.
+      itemTimer = window.setTimeout(() => {
+        void preloadSprites(ITEM_SOURCES, undefined, 4)
+      }, 0)
     })
     return () => {
       disposed = true
+      if (itemTimer !== null) window.clearTimeout(itemTimer)
     }
   }, [enabled])
 

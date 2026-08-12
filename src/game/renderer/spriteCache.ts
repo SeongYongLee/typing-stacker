@@ -53,12 +53,15 @@ function load(src: string): Promise<void> {
 }
 
 /**
- * 전부 미리 받는다. 진행도를 0~1로 알려준다.
- * 순서대로가 아니라 한꺼번에 시작한다 — 브라우저가 알아서 동시 연결 수를 조절한다.
+ * 그림을 미리 받는다. 진행도를 0~1로 알려준다.
+ *
+ * 동시에 수백 장을 `Image`로 만들면 브라우저의 우선순위 큐가 타이틀과 폰트까지
+ * 함께 밀어낸다. 연결 수뿐 아니라 **요청을 큐에 넣는 수**도 여기서 제한한다.
  */
 async function preloadSprites(
   sources: readonly string[],
   onProgress?: (ratio: number) => void,
+  concurrency = 6,
 ): Promise<void> {
   const unique = [...new Set(sources)]
   if (unique.length === 0) {
@@ -67,15 +70,20 @@ async function preloadSprites(
   }
 
   let done = 0
+  let cursor = 0
   onProgress?.(0)
-  await Promise.all(
-    unique.map((src) =>
-      load(src).then(() => {
-        done += 1
-        onProgress?.(done / unique.length)
-      }),
-    ),
-  )
+  const worker = async (): Promise<void> => {
+    while (cursor < unique.length) {
+      const src = unique[cursor]
+      cursor += 1
+      if (src === undefined) continue
+      await load(src)
+      done += 1
+      onProgress?.(done / unique.length)
+    }
+  }
+  const workerCount = Math.min(unique.length, Math.max(1, Math.floor(concurrency)))
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
 }
 
 export { sprite, preloadSprites }

@@ -20,7 +20,7 @@ interface UseGameEngine {
  * React는 껍데기이고 게임은 GameEngine이 소유한다.
  * 엔진이 프레임마다 onStateChange로 스냅샷을 밀어주고, React는 그것만 그린다.
  */
-function useGameEngine(): UseGameEngine {
+function useGameEngine(enabled: boolean): UseGameEngine {
   const [engine, setEngine] = useState<GameEngine | null>(null)
   const [state, setState] = useState<GameState | null>(null)
   const [assetProgress, setAssetProgress] = useState(0)
@@ -33,6 +33,9 @@ function useGameEngine(): UseGameEngine {
    * 판마다 처음 보는 물건이 여럿 나온다.
    */
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
     let disposed = false
     void preloadSprites(SPRITE_SOURCES, (ratio) => {
       if (!disposed) {
@@ -42,9 +45,12 @@ function useGameEngine(): UseGameEngine {
     return () => {
       disposed = true
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
     let disposed = false
     let created: GameEngine | null = null
 
@@ -69,7 +75,7 @@ function useGameEngine(): UseGameEngine {
       created?.dispose()
       setEngine(null)
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     if (engine === null) {

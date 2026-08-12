@@ -54,7 +54,10 @@ function App() {
   /** 규칙 확인부터 시작 신호까지. null이면 판이 이미 돌고 있거나 다른 화면이다 */
   const [soloStage, setSoloStage] = useState<SoloStage | null>(null)
   const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
-  const { engine, state, assetProgress } = useGameEngine()
+  /** 타이틀의 핵심 그림보다 게임 자산 요청이 먼저 대역폭을 차지하지 않게 한다. */
+  const [titleReady, setTitleReady] = useState(false)
+  const enableGameLoading = useCallback(() => setTitleReady(true), [])
+  const { engine, state, assetProgress } = useGameEngine(titleReady)
   const match = useMatchSession()
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
@@ -252,6 +255,7 @@ function App() {
           ready={engine !== null && state !== null && assetProgress >= 1}
           progress={assetProgress}
           theme={titleTheme}
+          onReady={enableGameLoading}
         />
         <SplashTransition phase={splashTransition} />
       </>

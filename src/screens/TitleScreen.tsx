@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import titleDay from '../assets/splash/title-day.png'
 import titleNight from '../assets/splash/title-night.png'
 import { MenuButton } from '../components/MenuButton.tsx'
@@ -22,6 +22,8 @@ interface TitleScreenProps {
   ready: boolean
   /** 배경 그림과 스플래시 음악이 함께 쓰는 낮·밤 */
   theme: TitleTheme
+  /** 타이틀의 배경과 로고가 모두 도착해 첫 화면을 열 수 있게 된 순간 */
+  onReady?: () => void
 }
 
 const SPLASH_TITLES: Record<TitleTheme, string> = {
@@ -38,6 +40,7 @@ function TitleScreen({
   ready,
   progress,
   theme,
+  onReady,
 }: TitleScreenProps) {
   const board = useLeaderboard()
   const [loadedAssets, setLoadedAssets] = useState(0)
@@ -84,6 +87,12 @@ function TitleScreen({
   const markAssetLoaded = () => {
     setLoadedAssets((count) => Math.min(count + 1, 2))
   }
+
+  useEffect(() => {
+    if (loadedAssets === 2) {
+      onReady?.()
+    }
+  }, [loadedAssets, onReady])
 
   return (
     <SplashBackdrop

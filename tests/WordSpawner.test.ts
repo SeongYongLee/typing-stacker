@@ -19,6 +19,16 @@ describe('WordSpawner', () => {
     expect(spawner.words).toHaveLength(1)
   })
 
+  it('지연 시작 옵션이면 첫 단어도 생성 주기를 기다린다', () => {
+    const spawner = new WordSpawner(createRng(1), WORDS, null, { startImmediately: false })
+    const difficulty = { ...DIFFICULTY, spawnInterval: 2.5 }
+
+    spawner.update(2.49, difficulty)
+    expect(spawner.words).toHaveLength(0)
+    spawner.update(0.02, difficulty)
+    expect(spawner.words).toHaveLength(1)
+  })
+
   it('활성 단어에 같은 글자가 둘 이상 있지 않다', () => {
     const spawner = new WordSpawner(createRng(42), WORDS)
     const dt = 1 / 60

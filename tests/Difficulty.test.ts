@@ -87,12 +87,12 @@ describe('difficultyAt — 쌓을수록 몰아친다', () => {
 })
 
 describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어진다', () => {
-  it('싱글은 첫 단어 다음부터 2초 간격으로 시작한다', () => {
-    expect(soloDifficultyAt(0, 0)).toMatchObject({ spawnInterval: 2, fallDuration: 10 })
+  it('싱글은 첫 단어 다음부터 2.5초 간격으로 시작한다', () => {
+    expect(soloDifficultyAt(0, 0)).toMatchObject({ spawnInterval: 2.5, fallDuration: 10 })
   })
 
-  it('높이 기준은 주기 2→1초, 낙하 10→5초로 줄어든다', () => {
-    const expected = [[2, 10], [1.75, 8.75], [1.5, 7.5], [1.25, 6.25], [1, 5]]
+  it('높이 기준은 주기 2.5→1초, 낙하 10→5초로 줄어든다', () => {
+    const expected = [[2.5, 10], [2.125, 8.75], [1.75, 7.5], [1.375, 6.25], [1, 5]]
     for (const [index, [interval, duration]] of expected.entries()) {
       expect(soloDifficultyAt(index / 4, 0)).toMatchObject({
         spawnInterval: interval,

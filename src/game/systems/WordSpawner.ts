@@ -6,6 +6,11 @@ const FADE_SECONDS = 0.6
 const SIDES: readonly Side[] = ['left', 'right']
 const PREFERRED_WEIGHT = 4
 
+interface WordSpawnerOptions {
+  /** 첫 단어도 일반 생성 주기를 기다릴지 여부. 기본값은 기존처럼 즉시 생성이다. */
+  readonly startImmediately?: boolean
+}
+
 class WordSpawner {
   private readonly rng: Rng
   private readonly entries: readonly WordEntry[]
@@ -15,6 +20,7 @@ class WordSpawner {
   private preferred = new Set<string>()
   /** 단어 선택 규칙. 없으면 대전이 쓰는 기존 전체 랜덤으로 뽑는다. */
   private readonly pickEntry: ((candidates: readonly WordEntry[]) => WordEntry) | null
+  private readonly startImmediately: boolean
   private list: FallingWord[] = []
   private timer = 0
   private nextId = 1
@@ -37,13 +43,15 @@ class WordSpawner {
     rng: Rng,
     entries: readonly WordEntry[],
     pickEntry: ((candidates: readonly WordEntry[]) => WordEntry) | null = null,
+    options: WordSpawnerOptions = {},
   ) {
     this.rng = rng
     this.entries = entries
     this.pool = entries
     this.pickEntry = pickEntry
-    // 시작하자마자 첫 단어가 나오도록 타이머를 채워둔다
-    this.timer = Number.POSITIVE_INFINITY
+    this.startImmediately = options.startImmediately ?? true
+    // 대전과 기존 호출부는 즉시 시작하고, 싱글만 첫 생성 주기를 기다린다.
+    this.timer = this.startImmediately ? Number.POSITIVE_INFINITY : 0
   }
 
   get words(): readonly FallingWord[] {
@@ -162,7 +170,7 @@ class WordSpawner {
 
   reset(): void {
     this.list = []
-    this.timer = Number.POSITIVE_INFINITY
+    this.timer = this.startImmediately ? Number.POSITIVE_INFINITY : 0
     this.missed = 0
     this.revision += 1
   }

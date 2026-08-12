@@ -329,6 +329,7 @@ class GameEngine {
     this.nightFever = new NightFever(createRng(seed ^ 0x66657672), RECIPES, VARIANT_BY_ID)
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
+      { startImmediately: false },
     )
     this.loop.setCallbacks(this.update, this.render)
   }
@@ -400,6 +401,7 @@ class GameEngine {
     )
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
+      { startImmediately: false },
     )
     this.focusedRecipeWords = []
     this.phaseNow = 'day'

@@ -117,6 +117,7 @@ describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어
   })
 
   it('15만점 뒤에는 더 어려워지지 않는다', () => {
+    expect(soloDifficultyAt(0, 150_000).spawnInterval).toBe(1.6)
     expect(soloDifficultyAt(1, 150_000)).toEqual(soloDifficultyAt(1, 500_000))
   })
 

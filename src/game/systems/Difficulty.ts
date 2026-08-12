@@ -119,7 +119,7 @@ const SOLO_SCORE_LEVELS: readonly { readonly score: number; readonly level: Diff
   },
   {
     score: 150_000,
-    level: { spawnInterval: 2, fallDuration: 8.5, aimSpeed: 0.54, maxConcurrent: 5 },
+    level: { spawnInterval: 1.6, fallDuration: 8.5, aimSpeed: 0.54, maxConcurrent: 5 },
   },
 ]
 

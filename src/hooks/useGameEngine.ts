@@ -17,9 +17,28 @@ async function loadAssetModules() {
 
 interface UseGameEngine {
   readonly engine: GameEngine | null
-  readonly state: GameState | null
+  readonly stateStore: EngineStateStore | null
+  readonly ready: boolean
   /** 첫 게임 프레임에 필요한 아레나 그림을 받은 비율(0~1) */
   readonly assetProgress: number
+}
+
+/** 엔진의 고빈도 스냅샷을 게임 화면에만 전달한다. */
+class EngineStateStore {
+  private state: GameState | null = null
+  private readonly listeners = new Set<() => void>()
+
+  readonly getSnapshot = (): GameState | null => this.state
+
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  readonly update = (state: GameState): void => {
+    this.state = state
+    for (const listener of this.listeners) listener()
+  }
 }
 
 /**
@@ -28,7 +47,8 @@ interface UseGameEngine {
  */
 function useGameEngine(enabled: boolean): UseGameEngine {
   const [engine, setEngine] = useState<GameEngine | null>(null)
-  const [state, setState] = useState<GameState | null>(null)
+  const [stateStore, setStateStore] = useState<EngineStateStore | null>(null)
+  const [ready, setReady] = useState(false)
   const [assetProgress, setAssetProgress] = useState(0)
 
   /*
@@ -87,16 +107,21 @@ function useGameEngine(enabled: boolean): UseGameEngine {
           return
         }
         created = instance
-        instance.onStateChange(setState)
+        const store = new EngineStateStore()
+        instance.onStateChange(store.update)
         instance.onCollectionChange(saveCollection)
         // 엔진은 소리를 모른다. 사건을 소리로 바꾸는 것은 이 경계의 일이다
         instance.onEvent((event) => soundBoard().handle(event))
+        setStateStore(store)
         setEngine(instance)
+        setReady(true)
       })
 
     return () => {
       disposed = true
       created?.dispose()
+      setReady(false)
+      setStateStore(null)
       setEngine(null)
     }
   }, [enabled])
@@ -110,7 +135,8 @@ function useGameEngine(enabled: boolean): UseGameEngine {
     return () => window.removeEventListener('resize', onResize)
   }, [engine])
 
-  return { engine, state, assetProgress }
+  return { engine, stateStore, ready, assetProgress }
 }
 
 export { useGameEngine }
+export type { EngineStateStore }

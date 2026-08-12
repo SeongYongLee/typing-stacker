@@ -17,14 +17,15 @@ import { useGameEngine } from './hooks/useGameEngine.ts'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 import { titleThemeForHour, type TitleTheme } from './screens/titleTheme.ts'
 import { displaySettings, updateDisplaySettings } from './game/renderer/displayPrefs.ts'
+import type { GamePhase } from './game/types/game.ts'
+import type { Phase } from './game/systems/DayNight.ts'
 
 const loadCollectionScreen = () => import('./screens/CollectionScreen.tsx')
 const loadNameScreen = () => import('./screens/NameScreen.tsx')
 const loadOptionsScreen = () => import('./screens/OptionsScreen.tsx')
-const loadGameScreen = () => import('./screens/GameScreen.tsx')
+const loadSoloGameScreen = () => import('./screens/SoloGameScreen.tsx')
 const loadLoopbackScreen = () => import('./screens/LoopbackScreen.tsx')
 const loadMultiplayerScreen = () => import('./screens/MultiplayerScreen.tsx')
-const loadResultScreen = () => import('./screens/ResultScreen.tsx')
 const loadSoloRulesScreen = () => import('./screens/SoloRulesScreen.tsx')
 
 const CollectionScreen = lazy(() => loadCollectionScreen().then((module) => ({
@@ -34,15 +35,14 @@ const NameScreen = lazy(() => loadNameScreen().then((module) => ({ default: modu
 const OptionsScreen = lazy(() => loadOptionsScreen().then((module) => ({
   default: module.OptionsScreen,
 })))
-const GameScreen = lazy(() => loadGameScreen().then((module) => ({ default: module.GameScreen })))
+const SoloGameScreen = lazy(() => loadSoloGameScreen().then((module) => ({
+  default: module.SoloGameScreen,
+})))
 const LoopbackScreen = lazy(() => loadLoopbackScreen().then((module) => ({
   default: module.LoopbackScreen,
 })))
 const MultiplayerScreen = lazy(() => loadMultiplayerScreen().then((module) => ({
   default: module.MultiplayerScreen,
-})))
-const ResultScreen = lazy(() => loadResultScreen().then((module) => ({
-  default: module.ResultScreen,
 })))
 const SoloRulesScreen = lazy(() => loadSoloRulesScreen().then((module) => ({
   default: module.SoloRulesScreen,
@@ -93,8 +93,12 @@ function App() {
   /** 타이틀의 핵심 그림보다 게임 자산 요청이 먼저 대역폭을 차지하지 않게 한다. */
   const [titleReady, setTitleReady] = useState(false)
   const [matchPhase, setMatchPhase] = useState<'playing' | 'over' | null>(null)
+  const [soloMusic, setSoloMusic] = useState<{
+    phase: GamePhase | null
+    timeOfDay: Phase | null
+  }>({ phase: null, timeOfDay: null })
   const enableGameLoading = useCallback(() => setTitleReady(true), [])
-  const { engine, state, assetProgress } = useGameEngine(titleReady)
+  const { engine, stateStore, ready, assetProgress } = useGameEngine(titleReady)
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
   useAudioBoot()
@@ -110,8 +114,8 @@ function App() {
   useMusic(musicFor({
     route,
     titleTheme,
-    soloPhase: state?.phase ?? null,
-    soloTimeOfDay: state?.timeOfDay.phase ?? null,
+    soloPhase: soloMusic.phase,
+    soloTimeOfDay: soloMusic.timeOfDay,
     matchPhase,
   }))
 
@@ -128,7 +132,7 @@ function App() {
     if (engine === null || splashTransition !== 'idle') {
       return
     }
-    void Promise.all([loadGameScreen(), loadResultScreen(), loadSoloRulesScreen()])
+    void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()])
     if (route === 'title') {
       // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
       setSplashTransition('darkening')
@@ -238,6 +242,14 @@ function App() {
     setRoute('lobby')
   }, [])
 
+  const updateSoloMusic = useCallback((phase: GamePhase, timeOfDay: Phase) => {
+    setSoloMusic((before) => (
+      before.phase === phase && before.timeOfDay === timeOfDay
+        ? before
+        : { phase, timeOfDay }
+    ))
+  }, [])
+
   if (route === 'loopback') {
     return (
       <DeferredRoute theme={titleTheme}>
@@ -266,7 +278,7 @@ function App() {
     return (
       <DeferredRoute theme={titleTheme}>
         <CollectionScreen
-          collected={state?.collected ?? []}
+          collected={stateStore?.getSnapshot()?.collected ?? []}
           onBack={openTitle}
         />
       </DeferredRoute>
@@ -285,7 +297,7 @@ function App() {
     )
   }
 
-  if (route === 'title' || engine === null || state === null) {
+  if (route === 'title' || engine === null || stateStore === null) {
     return (
       <>
         <TitleScreen
@@ -294,7 +306,7 @@ function App() {
           onMultiplayer={openMultiplayer}
           onCollection={() => setRoute('collection')}
           onOptions={() => setRoute('options')}
-          ready={engine !== null && state !== null && assetProgress >= 1}
+          ready={ready && assetProgress >= 1}
           progress={assetProgress}
           theme={titleTheme}
           onReady={enableGameLoading}
@@ -333,22 +345,15 @@ function App() {
   return (
     <Suspense fallback={<StartBackdrop><span /></StartBackdrop>}>
       <div style={{ position: 'relative', height: '100%' }}>
-        <GameScreen
+        <SoloGameScreen
           engine={engine}
-          state={state}
+          stateStore={stateStore}
           onRestart={startSolo}
           onHome={backToTitle}
+          onSceneChange={updateSoloMusic}
         />
         {/* 시작 박자의 어둠을 이어받아 걷고, 다 걷히면 떼어낸다 */}
         {lifting && <StartCurtain key={liftSeq} onDone={() => setLifting(false)} />}
-        {state.phase === 'over' && (
-          <ResultScreen
-            stats={state.stats}
-            freshlyCollected={state.freshlyCollected}
-            onRestart={startSolo}
-            onHome={openTitle}
-          />
-        )}
       </div>
     </Suspense>
   )

@@ -51,7 +51,7 @@ import { judgeInput } from '../systems/TypingJudge.ts'
 import { impactEventOf, quakeEventOf, trailHitOf } from '../systems/ImpactFeel.ts'
 import { WordSpawner } from '../systems/WordSpawner.ts'
 import type { GameEvent, GameEventSink } from '../types/events.ts'
-import type { FallingWord, GamePhase, ItemVariant, RunStats } from '../types/game.ts'
+import type { FallingWord, GamePhase, ItemVariant, MergeHint, RunStats } from '../types/game.ts'
 import { LandingGlow } from '../systems/LandingGlow.ts'
 import { CatPickup, catPickupY } from '../systems/CatPickup.ts'
 import type { TrailHit } from '../systems/TrailField.ts'
@@ -59,7 +59,7 @@ import { GameLoop } from './GameLoop.ts'
 
 /** 알릴 짝이 없을 때 돌려주는 빈 표. 프레임마다 빈 Map을 새로 만들지 않으려는 것 */
 const NO_MARKS: ReadonlyMap<string, number> = new Map()
-const NO_MERGE_HINTS: ReadonlyMap<string, readonly string[]> = new Map()
+const NO_MERGE_HINTS: ReadonlyMap<string, readonly MergeHint[]> = new Map()
 const NO_MERGE_SIZES: ReadonlyMap<string, number> = new Map()
 const NO_BODIES: readonly never[] = []
 
@@ -126,8 +126,8 @@ interface GameState {
   readonly wordMarks: ReadonlyMap<string, number>
   /** 합성 가능한 단어 → 현재 표식이 가리키는 레시피의 총 재료 수. */
   readonly wordMergeSizes: ReadonlyMap<string, number>
-  /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건의 스프라이트. */
-  readonly wordMergeHints: ReadonlyMap<string, readonly string[]>
+  /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건. */
+  readonly wordMergeHints: ReadonlyMap<string, readonly MergeHint[]>
   /**
    * 지금 벽에 적힌 회수 목록. 이 단어를 치면 쌓지 않고 빼낸다.
    *
@@ -1239,18 +1239,20 @@ class GameEngine {
     return byWord
   }
 
-  private wordMergeHints(marks: ReadonlyMap<string, number>): ReadonlyMap<string, readonly string[]> {
+  private wordMergeHints(marks: ReadonlyMap<string, number>): ReadonlyMap<string, readonly MergeHint[]> {
     if (marks.size === 0) return NO_MERGE_HINTS
     const partners = pairPartners(marks, new Map(this.physics.countsByVariant()))
-    const byWord = new Map<string, readonly string[]>()
+    const byWord = new Map<string, readonly MergeHint[]>()
     for (const falling of this.spawner.words) {
       const id = WORD_BASE_ID.get(falling.word)
       const partnerIds = id === undefined ? undefined : partners.get(id)
-      const sprites = partnerIds?.flatMap((partner) => {
-        const sprite = VARIANT_BY_ID.get(partner)?.sprite
-        return sprite === undefined ? [] : [sprite]
+      const hints = partnerIds?.flatMap((partner) => {
+        const variant = VARIANT_BY_ID.get(partner)
+        return variant === undefined
+          ? []
+          : [{ id: variant.id, sprite: variant.sprite, hidden: variant.hidden }]
       })
-      if (sprites !== undefined && sprites.length > 0) byWord.set(falling.word, sprites)
+      if (hints !== undefined && hints.length > 0) byWord.set(falling.word, hints)
     }
     return byWord
   }

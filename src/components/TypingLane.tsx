@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
 import { WORD } from '../game/config.ts'
-import type { FallingWord, Side } from '../game/types/game.ts'
+import type { FallingWord, MergeHint, Side } from '../game/types/game.ts'
 import { play } from './animate.ts'
 import { PAIR_MARK_COLORS } from '../game/systems/PairMarks.ts'
 
@@ -23,8 +23,8 @@ interface TypingLaneProps {
   wordMarks?: ReadonlyMap<string, number>
   /** 합성 표식이 가리키는 레시피의 총 재료 수. 3개 이상이면 다중 합성으로 강조한다. */
   mergeSizes?: ReadonlyMap<string, number>
-  /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건의 이미지 URL. */
-  mergeHints?: ReadonlyMap<string, readonly string[]>
+  /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건. */
+  mergeHints?: ReadonlyMap<string, readonly MergeHint[]>
   /**
    * 짝 표식의 밝기(0~1). 엔진이 계산한 값을 그대로 받는다.
    *
@@ -95,7 +95,7 @@ const chipBase: CSSProperties = {
 
 const NO_MARKS: ReadonlyMap<string, number> = new Map()
 const NO_MERGE_SIZES: ReadonlyMap<string, number> = new Map()
-const NO_MERGE_HINTS: ReadonlyMap<string, readonly string[]> = new Map()
+const NO_MERGE_HINTS: ReadonlyMap<string, readonly MergeHint[]> = new Map()
 
 /** 16진 색에 투명도를 얹는다. 밝기를 색 자체에 실어야 어두울 때 배경에 녹는다 */
 function alpha(color: string, amount: number): string {
@@ -217,7 +217,7 @@ function Chip({
   word: FallingWord
   mark: number | undefined
   mergeSize: number | undefined
-  mergeHint: readonly string[] | undefined
+  mergeHint: readonly MergeHint[] | undefined
   pulse: number
   recall: boolean
   recallMarker: 'hand' | 'heart' | undefined
@@ -318,14 +318,11 @@ function Chip({
       )}
       {paired && !recalled && mergeHint !== undefined && mergeHint.length > 0 && (
         <span aria-hidden data-merge-hints={mergeHint.length} style={mergeHintRowStyle}>
-          {mergeHint.map((sprite, index) => (
-            <img
-              key={`${sprite}-${index}`}
-              data-merge-hint
-              src={sprite}
-              alt=""
-              style={mergeHintStyle}
-            />
+          {mergeHint.map((hint, index) => (
+            <span key={`${hint.id}-${index}`} data-merge-hint={hint.hidden ? 'hidden' : 'normal'} style={mergeHintWrapStyle}>
+              <img src={hint.sprite} alt="" style={mergeHintStyle} />
+              {hint.hidden && <i aria-hidden style={hiddenHintMarkStyle}>★</i>}
+            </span>
           ))}
         </span>
       )}
@@ -394,6 +391,25 @@ const mergeHintStyle: CSSProperties = {
   flex: '0 0 31px',
   objectFit: 'contain',
   filter: 'drop-shadow(0 2px 2px rgba(47, 39, 24, 0.5))',
+}
+
+const mergeHintWrapStyle: CSSProperties = {
+  position: 'relative',
+  width: 31,
+  height: 31,
+  flex: '0 0 31px',
+}
+
+const hiddenHintMarkStyle: CSSProperties = {
+  position: 'absolute',
+  right: -4,
+  top: -7,
+  color: '#f7d56f',
+  fontFamily: 'var(--sans)',
+  fontSize: 12,
+  fontStyle: 'normal',
+  lineHeight: 1,
+  textShadow: '0 1px 2px rgba(13, 15, 22, 0.9)',
 }
 
 const complexMergeMarkerStyle: CSSProperties = {

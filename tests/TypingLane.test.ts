@@ -40,7 +40,10 @@ describe('TypingLane 글꼴', () => {
       words: [word],
       side: 'left',
       wordMarks: new Map([[word.word, 0]]),
-      mergeHints: new Map([[word.word, ['/items/clover.webp', '/items/leaf.webp']]]),
+      mergeHints: new Map([[word.word, [
+        { id: 'clover', sprite: '/items/clover.webp', hidden: false },
+        { id: 'leaf-hidden', sprite: '/items/leaf.webp', hidden: true },
+      ]]]),
       pairPulse: 0,
     }))
 
@@ -49,7 +52,9 @@ describe('TypingLane 글꼴', () => {
     expect(markup).not.toContain('outline:')
     expect(markup).toContain('inset 0 0 5px')
     expect(markup).toContain('data-merge-hints="2"')
-    expect(markup.match(/data-merge-hint="true"/g)).toHaveLength(2)
+    expect(markup).toContain('data-merge-hint="normal"')
+    expect(markup).toContain('data-merge-hint="hidden"')
+    expect(markup).toContain('★')
     expect(markup).toContain('/items/clover.webp')
     expect(markup).toContain('/items/leaf.webp')
   })

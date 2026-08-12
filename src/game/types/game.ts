@@ -125,6 +125,13 @@ interface FallingWord {
   fade: number
 }
 
+/** 단어 옆에 보이는 합성 파트너. 같은 그림이어도 히든 여부를 구분해 보여준다. */
+interface MergeHint {
+  readonly id: string
+  readonly sprite: string
+  readonly hidden: boolean
+}
+
 interface DifficultyLevel {
   readonly spawnInterval: number
   readonly fallDuration: number
@@ -230,6 +237,7 @@ export type {
   WordEntry,
   Side,
   FallingWord,
+  MergeHint,
   DifficultyLevel,
   JudgeResult,
   OwnerId,

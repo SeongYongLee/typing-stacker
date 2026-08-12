@@ -1,7 +1,5 @@
-import { useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { ArenaBackdrop } from './ArenaBackdrop.tsx'
-import { play } from './animate.ts'
 import { timeOfDay } from '../game/systems/DayNight.ts'
 
 /**
@@ -34,9 +32,6 @@ import { timeOfDay } from '../game/systems/DayNight.ts'
  * 넘어갈 때 밝기나 바늘이 튀지 않는다.
  */
 
-/** 준비 화면에 들어올 때만 검은 화면에서 방을 드러내는 시간(ms). */
-const SETTLE_MS = 500
-
 const rootStyle: CSSProperties = {
   position: 'relative',
   height: '100%',
@@ -48,50 +43,13 @@ const roomStyle: CSSProperties = {
   pointerEvents: 'none',
 }
 
-/**
- * 어둠의 색. `--bg`(`#0d0f16`)와 같은 색을 알파로 쓴다.
- *
- * **`opacity`가 아니라 배경색의 알파를 움직인다.** 화면 전체를 덮는 요소의 `opacity`를
- * 애니메이션하면 브라우저가 별도 합성 레이어로 올렸다가 정리하는데, 그때 한 프레임이
- * 새하얗게 그려졌다 — 까닭과 실측은 `StartCurtain`에.
- */
-function veilColor(alpha: number): string {
-  return `rgba(13, 15, 22, ${alpha})`
-}
-
-const veilStyle: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  backgroundColor: veilColor(0),
-  pointerEvents: 'none',
-}
-
 function StartBackdrop({ children }: { children: ReactNode }) {
-  const veil = useRef<HTMLDivElement | null>(null)
-
-  /*
-   * 방이 켜지듯 들어온다. 완전히 가린 데서 실제 판과 같은 밝기까지 걷는다.
-   *
-   * **`useLayoutEffect`여야 한다.** 그려진 뒤에 돌면 방이 제 밝기로 한 프레임 먼저
-   * 보이고 그다음에 어둠이 덮으므로, 켜지는 것이 아니라 한 번 번쩍이는 것이 된다.
-   * `SoloStart`가 낱말에서 같은 자리를 밟았다.
-   */
-  useLayoutEffect(() => {
-    play(
-      veil.current,
-      [{ backgroundColor: veilColor(1) }, { backgroundColor: veilColor(0) }],
-      { duration: SETTLE_MS, easing: 'ease-out' },
-    )
-  }, [])
-
   return (
     <div style={rootStyle}>
       <div aria-hidden style={roomStyle}>
         <ArenaBackdrop mode="solo" time={timeOfDay('day', 0)} />
       </div>
-      <div aria-hidden ref={veil} style={veilStyle} />
-      {/* 숫자·낱말은 어둠보다 앞에 온다 — 가려질 것은 방이지 글자가 아니다 */}
-      <div style={{ position: 'relative', height: '100%', zIndex: 1 }}>{children}</div>
+      <div style={{ position: 'relative', height: '100%' }}>{children}</div>
     </div>
   )
 }

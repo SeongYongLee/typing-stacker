@@ -3,14 +3,7 @@ import { SOLO_READY_MS, SOLO_START_MS } from './game/config/time.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { SplashBackdrop } from './components/SplashBackdrop.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'
-import {
-  SplashTransition,
-  SPLASH_COVERED_MS,
-  SPLASH_DARKEN_MS,
-  SPLASH_REVEAL_MS,
-  type SplashTransitionPhase,
-} from './components/SplashTransition.tsx'
-import { useAudioBoot, useMusic, useSplashDoor } from './hooks/useAudio.ts'
+import { useAudioBoot, useMusic } from './hooks/useAudio.ts'
 import { musicFor, type Route } from './screenMusic.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
 import { TitleScreen } from './screens/TitleScreen.tsx'
@@ -86,7 +79,6 @@ function App() {
   ))
   /** 규칙 확인부터 시작 신호까지. null이면 판이 이미 돌고 있거나 다른 화면이다 */
   const [soloStage, setSoloStage] = useState<SoloStage | null>(null)
-  const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
   /** 타이틀의 핵심 그림보다 게임 자산 요청이 먼저 대역폭을 차지하지 않게 한다. */
   const [titleReady, setTitleReady] = useState(false)
   const [matchPhase, setMatchPhase] = useState<'playing' | 'over' | null>(null)
@@ -105,8 +97,6 @@ function App() {
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
   useAudioBoot()
-  // 검어지는 동안 문을 열고, 완전히 가려 화면을 바꾸는 순간 쿵 닫는다
-  useSplashDoor(splashTransition === 'darkening' || splashTransition === 'covered')
   /*
    * 어느 화면에서 무엇이 흐르는지를 여기 한 곳에 모은다.
    *
@@ -132,44 +122,15 @@ function App() {
    * 단어가 내려오고 시간이 흐른다 — 기다려주는 것이 아니라 눈만 가리는 것이 된다.
    */
   const startSolo = useCallback(() => {
-    if (engine === null || splashTransition !== 'idle') {
+    if (engine === null) {
       return
     }
     void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()]).then(([module]) => {
       setLoadedSoloGameScreen(() => module.SoloGameScreen)
     })
-    if (route === 'title') {
-      // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
-      setSplashTransition('darkening')
-      return
-    }
     setRoute('solo')
     setSoloStage(openingSoloStage())
-  }, [engine, route, splashTransition])
-
-  useEffect(() => {
-    if (splashTransition === 'idle') {
-      return
-    }
-    const timer = setTimeout(() => {
-      if (splashTransition === 'darkening') {
-        setSplashTransition('covered')
-        return
-      }
-      if (splashTransition === 'covered') {
-        setRoute('solo')
-        setSoloStage(openingSoloStage())
-        setSplashTransition('revealing')
-        return
-      }
-      setSplashTransition('idle')
-    }, splashTransition === 'darkening'
-      ? SPLASH_DARKEN_MS
-      : splashTransition === 'covered'
-        ? SPLASH_COVERED_MS
-        : SPLASH_REVEAL_MS)
-    return () => clearTimeout(timer)
-  }, [splashTransition])
+  }, [engine])
 
   const beginSolo = useCallback(() => {
     setSoloStage('ready')
@@ -208,7 +169,6 @@ function App() {
   const openTitle = useCallback(() => {
     // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
     setTitleTheme(titleThemeForHour(new Date().getHours()))
-    setSplashTransition('idle')
     setMatchPhase(null)
     setRoute('title')
   }, [])
@@ -281,20 +241,17 @@ function App() {
 
   if (route === 'title' || engine === null || stateStore === null) {
     return (
-      <>
-        <TitleScreen
-          onStart={startSolo}
-          onName={() => setRoute('name')}
-          onMultiplayer={openMultiplayer}
-          onCollection={() => setRoute('collection')}
-          onOptions={() => setRoute('options')}
-          ready={ready && assetProgress >= 1}
-          progress={assetProgress}
-          theme={titleTheme}
-          onReady={enableGameLoading}
-        />
-        <SplashTransition phase={splashTransition} />
-      </>
+      <TitleScreen
+        onStart={startSolo}
+        onName={() => setRoute('name')}
+        onMultiplayer={openMultiplayer}
+        onCollection={() => setRoute('collection')}
+        onOptions={() => setRoute('options')}
+        ready={ready && assetProgress >= 1}
+        progress={assetProgress}
+        theme={titleTheme}
+        onReady={enableGameLoading}
+      />
     )
   }
 
@@ -309,18 +266,15 @@ function App() {
    */
   if (soloStage !== null) {
     return (
-      <>
-        <StartBackdrop>
-          {soloStage === 'rules' ? (
-            <Suspense fallback={null}>
-              <SoloRulesScreen onStart={beginSolo} onHideAndStart={hideRulesAndBeginSolo} />
-            </Suspense>
-          ) : (
-            <SoloStart step={soloStage} />
-          )}
-        </StartBackdrop>
-        <SplashTransition phase={splashTransition} />
-      </>
+      <StartBackdrop>
+        {soloStage === 'rules' ? (
+          <Suspense fallback={null}>
+            <SoloRulesScreen onStart={beginSolo} onHideAndStart={hideRulesAndBeginSolo} />
+          </Suspense>
+        ) : (
+          <SoloStart step={soloStage} />
+        )}
+      </StartBackdrop>
     )
   }
 

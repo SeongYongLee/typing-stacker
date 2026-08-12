@@ -3,7 +3,6 @@ import { SOLO_READY_MS, SOLO_START_MS } from './game/config/time.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { SplashBackdrop } from './components/SplashBackdrop.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'
-import { StartCurtain } from './components/StartCurtain.tsx'
 import {
   SplashTransition,
   SPLASH_COVERED_MS,
@@ -204,34 +203,6 @@ function App() {
     return () => clearTimeout(timer)
   }, [soloStage, engine, soloScreenReady])
 
-  /*
-   * 시작 박자에서 판으로 넘어온 순간마다 오른다.
-   *
-   * 그때 `StartBackdrop`이 덮고 있던 어둠을 `StartCurtain`이 이어받아 걷는다. 넘어가는
-   * 것은 **화면이 갈리는 순간**이지 판의 상태가 아니라서, `state.phase`로는 잡을 수
-   * 없다 — 다시 하기든 첫 판이든 여기가 유일하게 한 번씩만 지나는 자리다.
-   *
-   * **이펙트가 아니라 렌더 중에 판단한다.** `useEffect`로 미뤘더니 판이 열린 첫
-   * 프레임이 어둠 없이 한 번 그려지고 그다음에 0.7이 덮였다 — 밝게 번쩍였다가
-   * 어두워졌다가 다시 밝아지는 것이라 이으려고 만든 것이 가장 심하게 끊었다. 브라우저가
-   * 그 프레임을 그리느냐 마느냐가 타이밍에 달려 있어서 **가끔만** 나타났다.
-   *
-   * 렌더 중에 값을 바꾸면 React가 화면에 그리기 전에 이 컴포넌트를 다시 돌린다 —
-   * 어둠 없는 프레임이 아예 생기지 않는다. `useLayoutEffect`도 그리기 전이지만
-   * 자식까지 한 번 붙였다 떼므로, 여기서는 더 이른 이 자리가 맞다.
-   */
-  const [lastSolo, setLastSolo] = useState<SoloStage | null>(soloStage)
-  const [liftSeq, setLiftSeq] = useState(0)
-  /** 걷는 중인가. 다 걷히면 덮개를 뗀다 — 판 내내 남겨둘 이유가 없다 */
-  const [lifting, setLifting] = useState(false)
-  if (soloStage !== lastSolo) {
-    setLastSolo(soloStage)
-    if (soloStage === null && lastSolo !== null) {
-      setLifting(true)
-      setLiftSeq((seq) => seq + 1)
-    }
-  }
-
   const openTitle = useCallback(() => {
     // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
     setTitleTheme(titleThemeForHour(new Date().getHours()))
@@ -361,8 +332,6 @@ function App() {
           onHome={backToTitle}
           onSceneChange={updateSoloMusic}
         />
-        {/* 시작 박자의 어둠을 이어받아 걷고, 다 걷히면 떼어낸다 */}
-        {lifting && <StartCurtain key={liftSeq} onDone={() => setLifting(false)} />}
       </div>
     </Suspense>
   )

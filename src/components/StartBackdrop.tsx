@@ -12,9 +12,9 @@ import { timeOfDay } from '../game/systems/DayNight.ts'
  * 나타나서, 손을 올릴 틈을 주려고 만든 그 몇 초가 오히려 "아무것도 없다가 갑자기
  * 시작하는" 구간이 됐다.
  *
- * 방을 어둡게 깔면 그 몇 초가 **들어가는 구간**이 된다. 여기서 이미 또렷하면
- * 시작하는 순간에 달라지는 것이 없어서 판이 열렸다는 신호가 낱말 하나에만 남는다 —
- * **방이 밝아지는 것이 곧 시작이다**(`StartCurtain`).
+ * 방은 실제 판과 같은 밝기로 유지한다. 준비 화면이 끝날 때 전체 밝기를 바꾸면
+ * 캔버스와 HUD가 붙는 순간의 페이드가 깜빡임으로 읽힌다. 시작 신호는 READY·START
+ * 낱말이 맡고, 방은 두 화면 사이에서 변하지 않는 기준점으로 남는다.
  *
  * ## 판이 아니라 방만 깐다
  *
@@ -34,17 +34,7 @@ import { timeOfDay } from '../game/systems/DayNight.ts'
  * 넘어갈 때 밝기나 바늘이 튀지 않는다.
  */
 
-/**
- * 방 위에 덮는 어둠. 0이면 판이 도는 밝기, 1이면 완전히 가려진다.
- *
- * **방을 흐리게 두는 대신 어둠을 덮는다.** 두 방법이 같은 그림을 만들지만(덮는
- * 색이 페이지 바탕과 같으므로) 다음이 다르다 — 이어받는 쪽(`StartCurtain`)은
- * `GameScreen`이 그리는 **다른 방**을 물려받아야 하는데, 흐리기로 하면 넘겨줄
- * 것이 그 방의 투명도라 손댈 수 없다. 어둠은 방과 무관해서 그대로 이어진다.
- */
-const START_DIM = 0.7
-
-/** 어둠이 내려앉는 시간(ms). READY 박자(750ms) 안에 끝나야 한다 */
+/** 준비 화면에 들어올 때만 검은 화면에서 방을 드러내는 시간(ms). */
 const SETTLE_MS = 500
 
 const rootStyle: CSSProperties = {
@@ -72,7 +62,7 @@ function veilColor(alpha: number): string {
 const veilStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  backgroundColor: veilColor(START_DIM),
+  backgroundColor: veilColor(0),
   pointerEvents: 'none',
 }
 
@@ -80,7 +70,7 @@ function StartBackdrop({ children }: { children: ReactNode }) {
   const veil = useRef<HTMLDivElement | null>(null)
 
   /*
-   * 방이 켜지듯 들어온다. 완전히 가린 데서 시작해 `START_DIM`까지만 걷는다.
+   * 방이 켜지듯 들어온다. 완전히 가린 데서 실제 판과 같은 밝기까지 걷는다.
    *
    * **`useLayoutEffect`여야 한다.** 그려진 뒤에 돌면 방이 제 밝기로 한 프레임 먼저
    * 보이고 그다음에 어둠이 덮으므로, 켜지는 것이 아니라 한 번 번쩍이는 것이 된다.
@@ -89,7 +79,7 @@ function StartBackdrop({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     play(
       veil.current,
-      [{ backgroundColor: veilColor(1) }, { backgroundColor: veilColor(START_DIM) }],
+      [{ backgroundColor: veilColor(1) }, { backgroundColor: veilColor(0) }],
       { duration: SETTLE_MS, easing: 'ease-out' },
     )
   }, [])
@@ -106,4 +96,4 @@ function StartBackdrop({ children }: { children: ReactNode }) {
   )
 }
 
-export { StartBackdrop, START_DIM }
+export { StartBackdrop }

@@ -39,7 +39,12 @@ import {
 import { Whiteboard } from '../systems/Whiteboard.ts'
 import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
-import { followCameraY, spawnYFor, targetCameraY } from '../systems/Camera.ts'
+import {
+  followCameraY,
+  renderVerticalBounds,
+  spawnYFor,
+  targetCameraY,
+} from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
@@ -1262,10 +1267,9 @@ class GameEngine {
   private readonly render = (): void => {
     const time = this.timeView()
     const reveal = this.hiddenReveal
-    const renderBottom = this.cameraY + ARENA.killY - RENDER_VERTICAL_MARGIN
-    const renderTop = this.cameraY + ARENA.killY + ARENA.height + RENDER_VERTICAL_MARGIN
+    const renderBounds = renderVerticalBounds(this.cameraY, RENDER_VERTICAL_MARGIN)
     this.renderer?.draw({
-      bodies: this.physics.snapshots(renderBottom, renderTop),
+      bodies: this.physics.snapshots(renderBounds.bottom, renderBounds.top),
       aimX: this.aimer.worldX,
       showAim: this.phase === 'playing',
       hiddenReveal:

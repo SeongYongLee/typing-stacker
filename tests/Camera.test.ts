@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ARENA, CAMERA_FOLLOW, CAMERA_START_TOP } from '../src/game/config.ts'
-import { followCameraY, spawnYFor, targetCameraY } from '../src/game/systems/Camera.ts'
+import {
+  followCameraY,
+  renderVerticalBounds,
+  spawnYFor,
+  targetCameraY,
+} from '../src/game/systems/Camera.ts'
 
 describe('targetCameraY', () => {
   it('낮은 탑에서는 움직이지 않는다', () => {
@@ -28,6 +33,14 @@ describe('targetCameraY', () => {
   it('아무리 높아도 물건은 탑 위에서 생긴다 — 탑 속에 생기면 서로를 밀어낸다', () => {
     for (const top of [CAMERA_START_TOP, 5, 12, 50]) {
       expect(spawnYFor(targetCameraY(top))).toBeGreaterThan(top)
+    }
+  })
+
+  it('렌더 범위가 카메라를 따라간 스폰 위치를 처음부터 포함한다', () => {
+    for (const camera of [0, 4, 20]) {
+      const bounds = renderVerticalBounds(camera, 1.5)
+      expect(bounds.top).toBeGreaterThan(spawnYFor(camera))
+      expect(bounds.bottom).toBeLessThan(camera + ARENA.killY)
     }
   })
 })

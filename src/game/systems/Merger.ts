@@ -1,4 +1,4 @@
-import { craftKeyOf, type Recipe } from '../data/recipes.ts'
+import { craftKeyOf, ingredientCountForRecipe, type Recipe } from '../data/recipes.ts'
 
 interface TouchNode {
   readonly itemId: number
@@ -71,8 +71,7 @@ function needCount(recipe: Recipe): ReadonlyMap<string, number> {
 function countVariants(graph: ContactGraph): Map<string, number> {
   const counts = new Map<string, number>()
   for (const node of graph.nodes) {
-    const key = craftKeyOf(node.variantId)
-    counts.set(key, (counts.get(key) ?? 0) + 1)
+    counts.set(node.variantId, (counts.get(node.variantId) ?? 0) + 1)
   }
   return counts
 }
@@ -93,16 +92,17 @@ function normalizeCounts(counts: ReadonlyMap<string, number>): ReadonlyMap<strin
  */
 function satisfiable(
   recipes: readonly Recipe[],
-  present: ReadonlyMap<string, number>,
+  rawCounts: ReadonlyMap<string, number>,
 ): readonly Recipe[] {
   let ordered = orderedCache.get(recipes)
   if (ordered === undefined) {
     ordered = [...recipes].sort((a, b) => a.inputs.length - b.inputs.length)
     orderedCache.set(recipes, ordered)
   }
+  const craftCounts = normalizeCounts(rawCounts)
   return ordered.filter((recipe) => {
     for (const [id, need] of needCount(recipe)) {
-      if ((present.get(id) ?? 0) < need) {
+      if (ingredientCountForRecipe(recipe, id, rawCounts, craftCounts) < need) {
         return false
       }
     }
@@ -237,7 +237,7 @@ function canMergeAnything(
   recipes: readonly Recipe[],
   counts: ReadonlyMap<string, number>,
 ): boolean {
-  return satisfiable(recipes, normalizeCounts(counts)).length > 0
+  return satisfiable(recipes, counts).length > 0
 }
 
 /**
@@ -249,7 +249,7 @@ function mergeCandidateKeys(
   counts: ReadonlyMap<string, number>,
 ): ReadonlySet<string> {
   const keys = new Set<string>()
-  for (const recipe of satisfiable(recipes, normalizeCounts(counts))) {
+  for (const recipe of satisfiable(recipes, counts)) {
     for (const input of recipe.inputs) {
       keys.add(craftKeyOf(input))
     }

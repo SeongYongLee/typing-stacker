@@ -44,4 +44,21 @@ function spawnYFor(cameraY: number): number {
   return ARENA.spawnY + cameraY
 }
 
-export { CAMERA_START_TOP, targetCameraY, followCameraY, spawnYFor }
+/** 렌더 사전 컬링 범위. 상단은 반드시 현재 스폰 위치를 포함해야 한다. */
+function renderVerticalBounds(
+  cameraY: number,
+  margin: number,
+): { readonly bottom: number; readonly top: number } {
+  return {
+    bottom: cameraY + ARENA.killY - margin,
+    top: spawnYFor(cameraY) + margin,
+  }
+}
+
+export {
+  CAMERA_START_TOP,
+  targetCameraY,
+  followCameraY,
+  spawnYFor,
+  renderVerticalBounds,
+}

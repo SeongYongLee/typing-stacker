@@ -1,4 +1,4 @@
-import { craftKeyOf, type Recipe } from '../data/recipes.ts'
+import { craftKeyOf, ingredientCountForRecipe, type Recipe } from '../data/recipes.ts'
 
 /**
  * 지금 **서로 합칠 수 있는 것들**에 같은 표식을 붙인다 — 받침대에 놓인 물건과
@@ -88,7 +88,7 @@ function pairMarks(
   previous: ReadonlyMap<string, number> = NONE,
 ): ReadonlyMap<string, number> {
   const { counts, rawIds } = normalizeAvailable(available)
-  const groups = recipes.filter((recipe) => ready(recipe, counts))
+  const groups = recipes.filter((recipe) => ready(recipe, available, counts))
   const marks = new Map<string, number>()
   const taken = new Set<number>()
 
@@ -168,7 +168,7 @@ function pairSizes(
   const { counts, rawIds } = normalizeAvailable(available)
   const sizes = new Map<string, number>()
 
-  for (const recipe of recipes.filter((candidate) => ready(candidate, counts))) {
+  for (const recipe of recipes.filter((candidate) => ready(candidate, available, counts))) {
     const ids = [...new Set(recipe.inputs.map(craftKeyOf))]
     const mark = marks.get(ids[0] ?? '')
     if (mark === undefined || !ids.every((id) => marks.get(id) === mark)) continue
@@ -228,14 +228,18 @@ function normalizeAvailable(
 }
 
 /** 이 레시피의 재료가 지금 다 있는가. 같은 재료 둘짜리는 둘이 있어야 한다 */
-function ready(recipe: Recipe, available: ReadonlyMap<string, number>): boolean {
+function ready(
+  recipe: Recipe,
+  available: ReadonlyMap<string, number>,
+  craftCounts: ReadonlyMap<string, number>,
+): boolean {
   const need = new Map<string, number>()
   for (const id of recipe.inputs) {
     const key = craftKeyOf(id)
     need.set(key, (need.get(key) ?? 0) + 1)
   }
   for (const [id, count] of need) {
-    if ((available.get(id) ?? 0) < count) {
+    if (ingredientCountForRecipe(recipe, id, available, craftCounts) < count) {
       return false
     }
   }

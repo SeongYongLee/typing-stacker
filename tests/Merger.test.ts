@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { RECIPES, craftKeyOf } from '../src/game/data/recipes.ts'
 import { VARIANT_BY_ID, WORDS } from '../src/game/data/words.ts'
-import { canMergeAnything, findMerge, type ContactGraph } from '../src/game/systems/Merger.ts'
+import {
+  canMergeAnything,
+  findMerge,
+  mergeCandidateKeys,
+  type ContactGraph,
+} from '../src/game/systems/Merger.ts'
 import type { Recipe } from '../src/game/data/recipes.ts'
 
 function variant(id: string) {
@@ -237,7 +242,7 @@ describe('RECIPES — 실제 데이터', () => {
     }
   })
 
-  it('단어 히든은 기본형 조합 속성으로 접히지 않는다', () => {
+  it('단어 기본형 둘로 만든 히든은 이후 조합에서 기본형을 대신한다', () => {
     for (const entry of WORDS) {
       const base = entry.variants[0]
       if (base === undefined) {
@@ -245,9 +250,26 @@ describe('RECIPES — 실제 데이터', () => {
       }
       expect(craftKeyOf(base.id), base.id).toBe(base.id)
       for (const variant of entry.variants.filter((item) => item.hidden)) {
-        expect(craftKeyOf(variant.id), variant.id).not.toBe(base.id)
+        expect(craftKeyOf(variant.id), variant.id).toBe(base.id)
       }
     }
+  })
+
+  it('바다거북은 거북이를 대신해 토끼와 합성할 수 있다', () => {
+    const racing = RECIPES.find((item) => item.result.id === 'racing-flag')
+    expect(racing).toBeDefined()
+    const counts = new Map([['turtle-sea-turtle', 1], ['rabbit', 1]])
+    const candidates = mergeCandidateKeys(RECIPES, counts)
+
+    expect(canMergeAnything(RECIPES, counts)).toBe(true)
+    expect(candidates.has('turtle')).toBe(true)
+    expect(candidates.has('rabbit')).toBe(true)
+    expect(
+      findMerge(
+        graph([[1, 'turtle-sea-turtle'], [2, 'rabbit']], [[1, 2]]),
+        RECIPES,
+      )?.recipe.id,
+    ).toBe(racing!.id)
   })
 
   it('합성 결과의 다른 형태는 기본 결과와 같은 조합 속성이다', () => {

@@ -224,14 +224,16 @@ describe('싱글 후반 발판 폭', () => {
     }
   })
 
-  it('0점에는 전체 1.60~1.90m, 5만점에는 1.20~1.40m 범위다', () => {
+  it('0점 폭은 유지하고 이후 구간부터 전체적으로 좁아진다', () => {
     expect(soloLedgeWidthAt(0)).toEqual({ minHalfWidth: 0.8, maxHalfWidth: 0.95 })
-    expect(soloLedgeWidthAt(50_000)).toEqual({ minHalfWidth: 0.6, maxHalfWidth: 0.7 })
+    expect(soloLedgeWidthAt(5_000)).toEqual({ minHalfWidth: 0.65, maxHalfWidth: 0.8 })
+    expect(soloLedgeWidthAt(25_000)).toEqual({ minHalfWidth: 0.45, maxHalfWidth: 0.55 })
+    expect(soloLedgeWidthAt(50_000)).toEqual({ minHalfWidth: 0.3, maxHalfWidth: 0.35 })
     expect(soloLedgeWidthAt(500_000)).toEqual(soloLedgeWidthAt(50_000))
   })
 
-  it('가장 어려운 발판도 가장 큰 물건의 반폭보다 넓다', () => {
-    expect(soloLedgeWidthAt(50_000).minHalfWidth).toBeGreaterThan(MAX_ITEM_HALF_WIDTH)
+  it('가장 어려운 발판은 큰 물건보다 좁아 정밀한 조준을 요구한다', () => {
+    expect(soloLedgeWidthAt(50_000).maxHalfWidth).toBeLessThan(MAX_ITEM_HALF_WIDTH)
   })
 
   it('자리 생성이 전달받은 난이도 폭 안에서 발판을 만든다', () => {

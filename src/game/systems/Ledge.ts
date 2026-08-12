@@ -54,9 +54,9 @@ const DEFAULT_WIDTH: LedgeWidthRange = {
 /** 점수가 높을수록 이후 합성으로 생기는 발판만 짧아진다. */
 const SOLO_LEDGE_WIDTHS: readonly { readonly score: number; readonly width: LedgeWidthRange }[] = [
   { score: 0, width: { minHalfWidth: 0.8, maxHalfWidth: 0.95 } },
-  { score: 5_000, width: { minHalfWidth: 0.72, maxHalfWidth: 0.88 } },
-  { score: 25_000, width: { minHalfWidth: 0.66, maxHalfWidth: 0.78 } },
-  { score: 50_000, width: { minHalfWidth: 0.6, maxHalfWidth: 0.7 } },
+  { score: 5_000, width: { minHalfWidth: 0.65, maxHalfWidth: 0.8 } },
+  { score: 25_000, width: { minHalfWidth: 0.45, maxHalfWidth: 0.55 } },
+  { score: 50_000, width: { minHalfWidth: 0.3, maxHalfWidth: 0.35 } },
 ]
 
 /**

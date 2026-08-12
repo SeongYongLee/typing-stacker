@@ -161,6 +161,26 @@ describe('레시피 흐름', () => {
     expect(['airplane', 'treasure-map', 'camera']).toContain(picked)
   })
 
+  it('단어 히든 결과물이 있으면 다른 레시피의 남은 재료를 집중한다', () => {
+    const racing = RECIPES.find((recipe) => recipe.result.id === 'racing-flag')
+    expect(racing).toBeDefined()
+    const flow = new RecipeFlow(createRng(8), WORDS, [racing!])
+    flow.setPhase('day')
+    flow.observe(new Map([['turtle-sea-turtle', 1]]))
+
+    expect(flow.pick(WORDS).word).toBe('토끼')
+  })
+
+  it('단어 히든 결과물은 자신을 만든 레시피의 재료로 되돌리지 않는다', () => {
+    const turtle = RECIPES.find((recipe) => recipe.result.id === 'turtle-sea-turtle')
+    expect(turtle).toBeDefined()
+    const flow = new RecipeFlow(createRng(8), WORDS, [turtle!])
+    flow.setPhase('day')
+    flow.observe(new Map([['turtle-sea-turtle', 1]]))
+
+    expect(flow.pick(WORDS).word).toBe('거북이')
+  })
+
   it('같은 시드와 관측값이면 같은 순서를 낸다', () => {
     const sequence = (seed: number): string[] => {
       const flow = new RecipeFlow(createRng(seed), WORDS, RECIPES)

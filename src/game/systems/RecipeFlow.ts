@@ -1,4 +1,4 @@
-import { craftKeyOf, type Recipe } from '../data/recipes.ts'
+import { craftKeyOf, ingredientCountForRecipe, type Recipe } from '../data/recipes.ts'
 import type { WordEntry } from '../types/game.ts'
 import type { Phase } from './DayNight.ts'
 import type { Rng } from './Rng.ts'
@@ -74,6 +74,7 @@ class RecipeFlow {
   private readonly rng: Rng
   private readonly groups: RecipeGroups
   private phase: Phase = 'day'
+  private availableRaw: ReadonlyMap<string, number> = EMPTY_COUNTS
   private available: ReadonlyMap<string, number> = EMPTY_COUNTS
   private focus: Recipe | null = null
   private focusOffers = 0
@@ -102,7 +103,8 @@ class RecipeFlow {
 
   /** 지금 판에 존재하거나 곧 떨어질 재료 개수다. 호출부가 매 프레임 갱신한다. */
   observe(available: ReadonlyMap<string, number>): void {
-    this.available = normalizeCounts(available)
+    this.availableRaw = new Map(available)
+    this.available = normalizeCounts(this.availableRaw)
   }
 
   /**
@@ -294,7 +296,7 @@ class RecipeFlow {
       }
       const need = (used.get(key) ?? 0) + 1
       used.set(key, need)
-      if ((this.available.get(key) ?? 0) < need) {
+      if (ingredientCountForRecipe(recipe, key, this.availableRaw, this.available) < need) {
         return false
       }
     }
@@ -302,7 +304,7 @@ class RecipeFlow {
   }
 
   private missingEntries(recipe: Recipe): WordEntry[] {
-    const remaining = new Map(this.available)
+    const used = new Map<string, number>()
     const missing: WordEntry[] = []
     for (const id of recipe.inputs) {
       const key = craftKeyOf(id)
@@ -310,10 +312,10 @@ class RecipeFlow {
       if (entry === undefined) {
         continue
       }
-      const count = remaining.get(key) ?? 0
-      if (count > 0) {
-        remaining.set(key, count - 1)
-      } else {
+      const need = (used.get(key) ?? 0) + 1
+      used.set(key, need)
+      const count = ingredientCountForRecipe(recipe, key, this.availableRaw, this.available)
+      if (count < need) {
         missing.push(entry)
       }
     }

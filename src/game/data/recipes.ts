@@ -177,12 +177,27 @@ function buildCraftKeys(): ReadonlyMap<string, string> {
   const keys = new Map<string, string>()
 
   /*
+   * 단어 기본형 둘로 만든 히든은 이후 레시피에서 그 기본형을 대신한다.
+   * 거북이 둘로 만든 바다거북도 `거북이 + 토끼`의 거북이 자리에 쓸 수 있어야
+   * 합성 단계가 끊기지 않는다.
+   */
+  for (const item of WORD_HIDDEN_RECIPES) {
+    const base = item.inputs[0]
+    if (base === undefined) continue
+    keys.set(item.result.id, base)
+    for (const variant of item.hiddenResults) {
+      keys.set(variant.id, base)
+    }
+  }
+
+  /*
    * 합성 결과물의 다른 형태도 같은 속성이다. `vintage-trunk`는 다음 단계 레시피에서
    * `travel-suitcase` 자리에 쓸 수 있어야 한다.
    */
   for (const item of RECIPES) {
+    const resultKey = keys.get(item.result.id) ?? item.result.id
     for (const variant of item.hiddenResults) {
-      keys.set(variant.id, item.result.id)
+      keys.set(variant.id, resultKey)
     }
   }
   return keys
@@ -194,6 +209,29 @@ function craftKeyOf(id: string): string {
   return CRAFT_KEY_BY_ID.get(id) ?? id
 }
 
+/**
+ * 한 레시피에서 실제 재료로 쓸 수 있는 개수다.
+ *
+ * 단어 히든 결과물은 다른 레시피에서 기본형을 대신하지만, 자신을 만든 레시피로
+ * 되돌아가지는 않는다. 예를 들어 바다거북은 `거북이 + 토끼`에는 거북이로 쓰이고,
+ * `거북이 + 거북이 → 바다거북`에는 다시 쓰이지 않는다.
+ */
+function ingredientCountForRecipe(
+  recipe: Recipe,
+  ingredientKey: string,
+  rawCounts: ReadonlyMap<string, number>,
+  craftCounts: ReadonlyMap<string, number>,
+): number {
+  let count = craftCounts.get(ingredientKey) ?? 0
+  const outputs = [recipe.result, ...recipe.hiddenResults]
+  for (const output of outputs) {
+    if (craftKeyOf(output.id) === ingredientKey) {
+      count -= rawCounts.get(output.id) ?? 0
+    }
+  }
+  return Math.max(count, 0)
+}
+
 /** 합성으로 만들 수 있는 물건들. 도감이 "아직 못 만든 것"을 세는 데 쓴다 */
 const CRAFTABLE_IDS: readonly string[] = [
   ...new Set(RECIPES.flatMap((r) => [r.result.id, ...r.hiddenResults.map((v) => v.id)])),
@@ -202,5 +240,5 @@ const CRAFTABLE_IDS: readonly string[] = [
 /** 재료로 쓰이는 물건인지. 화면이 "이건 합칠 수 있다"고 귀띔하는 데 쓴다 */
 const INGREDIENT_IDS: ReadonlySet<string> = new Set(RECIPES.flatMap((r) => r.inputs))
 
-export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS, craftKeyOf }
+export { RECIPES, CRAFTABLE_IDS, INGREDIENT_IDS, craftKeyOf, ingredientCountForRecipe }
 export type { Recipe }

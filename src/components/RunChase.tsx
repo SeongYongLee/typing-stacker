@@ -25,6 +25,7 @@ const wrapStyle: CSSProperties = {
 function RunChase({ score }: { score: number }) {
   const board = useLeaderboard()
   const ref = useRef<HTMLDivElement | null>(null)
+  const previousLabel = useRef<string | null>(null)
 
   const view = board.view
   const chase = view === null ? null : chaseOf(score, view.best, view.top)
@@ -33,7 +34,11 @@ function RunChase({ score }: { score: number }) {
   const label = chase?.label ?? crown
 
   useLayoutEffect(() => {
-    if (label === null) {
+    const previous = previousLabel.current
+    previousLabel.current = label
+    // 서버 응답 뒤 처음 나타날 때는 자리에 고정한다. 첫 표시부터 확대·이동하면
+    // 입력창 옆의 기준 UI가 뒤늦게 흔들리는 것처럼 보인다.
+    if (label === null || previous === null) {
       return
     }
     play(

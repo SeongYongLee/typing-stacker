@@ -95,31 +95,30 @@ const FULL: DifficultyLevel = {
  *
  * 높이 난이도는 판 초반을 맡고, 점수 난이도는 탑이 한 번 무너진 뒤에도 이어지는
  * 장기 압박을 맡는다. 15만점 뒤에는 더 빨라지지 않게 상한을 둔다.
- * 싱글은 첫 단어 다음부터 바로 2.6초 간격으로 시작한다. 공통 OPENING을 바꾸지 않는
+ * 싱글은 첫 단어 다음부터 바로 2초 간격으로 시작한다. 공통 OPENING을 바꾸지 않는
  * 이유는 대결 모드가 여기에 인원·모드 배율을 다시 적용하기 때문이다.
  */
-const SOLO_OPENING: DifficultyLevel = { ...OPENING, spawnInterval: 2.6 }
-/** 싱글 높이 난이도는 공통 높이 곡선보다 단어를 정확히 1초 더 자주 낸다. */
-const SOLO_HEIGHT_INTERVAL_REDUCTION = 1
+const SOLO_OPENING: DifficultyLevel = { ...OPENING, spawnInterval: 2, fallDuration: 10 }
+const SOLO_FULL: DifficultyLevel = { ...FULL, spawnInterval: 1, fallDuration: 5 }
 
 const SOLO_SCORE_LEVELS: readonly { readonly score: number; readonly level: DifficultyLevel }[] = [
   { score: 0, level: SOLO_OPENING },
-  { score: 5_000, level: FULL },
+  { score: 5_000, level: { ...FULL, spawnInterval: 1.9, fallDuration: 9.5 } },
   {
     score: 25_000,
-    level: { spawnInterval: 2.45, fallDuration: 9.6, aimSpeed: 0.42, maxConcurrent: 4 },
+    level: { spawnInterval: 1.75, fallDuration: 8.75, aimSpeed: 0.42, maxConcurrent: 4 },
   },
   {
     score: 50_000,
-    level: { spawnInterval: 2.3, fallDuration: 9.2, aimSpeed: 0.46, maxConcurrent: 5 },
+    level: { spawnInterval: 1.5, fallDuration: 7.5, aimSpeed: 0.46, maxConcurrent: 5 },
   },
   {
     score: 100_000,
-    level: { spawnInterval: 2.15, fallDuration: 8.8, aimSpeed: 0.5, maxConcurrent: 5 },
+    level: { spawnInterval: 1.25, fallDuration: 6.25, aimSpeed: 0.5, maxConcurrent: 5 },
   },
   {
     score: 150_000,
-    level: { spawnInterval: 1.6, fallDuration: 8.5, aimSpeed: 0.54, maxConcurrent: 5 },
+    level: { spawnInterval: 1, fallDuration: 5, aimSpeed: 0.54, maxConcurrent: 5 },
   },
 ]
 
@@ -156,15 +155,11 @@ function difficultyAt(progress: number): DifficultyLevel {
 }
 
 /**
- * 싱글은 높이 곡선의 단어 주기를 1초 줄인 뒤 누적 점수 곡선과 더 어려운 쪽을 따른다.
- * 따라서 빈 받침대에서 2.6초로 시작해 최대 높이에서 1.6초까지 자연스럽게 줄어든다.
+ * 싱글은 높이와 누적 점수 모두 같은 범위(주기 2→1초, 낙하 10→5초)를 쓰며,
+ * 두 곡선 중 더 어려운 쪽을 따른다.
  */
 function soloDifficultyAt(heightProgress: number, score: number): DifficultyLevel {
-  const heightBase = difficultyAt(heightProgress)
-  const height = {
-    ...heightBase,
-    spawnInterval: heightBase.spawnInterval - SOLO_HEIGHT_INTERVAL_REDUCTION,
-  }
+  const height = interpolateLevel(SOLO_OPENING, SOLO_FULL, heightProgress)
   const points = difficultyForScore(score)
   return {
     spawnInterval: Math.min(height.spawnInterval, points.spawnInterval),

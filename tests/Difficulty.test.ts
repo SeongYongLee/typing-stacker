@@ -87,14 +87,17 @@ describe('difficultyAt — 쌓을수록 몰아친다', () => {
 })
 
 describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어진다', () => {
-  it('싱글은 첫 단어 다음부터 2.6초 간격으로 시작한다', () => {
-    expect(soloDifficultyAt(0, 0).spawnInterval).toBe(2.6)
+  it('싱글은 첫 단어 다음부터 2초 간격으로 시작한다', () => {
+    expect(soloDifficultyAt(0, 0)).toMatchObject({ spawnInterval: 2, fallDuration: 10 })
   })
 
-  it('높이 기준 주기는 2.6초에서 1.6초까지 줄어든다', () => {
-    const expected = [2.6, 2.35, 2.1, 1.85, 1.6]
-    for (const [index, interval] of expected.entries()) {
-      expect(soloDifficultyAt(index / 4, 0).spawnInterval).toBeCloseTo(interval)
+  it('높이 기준은 주기 2→1초, 낙하 10→5초로 줄어든다', () => {
+    const expected = [[2, 10], [1.75, 8.75], [1.5, 7.5], [1.25, 6.25], [1, 5]]
+    for (const [index, [interval, duration]] of expected.entries()) {
+      expect(soloDifficultyAt(index / 4, 0)).toMatchObject({
+        spawnInterval: interval,
+        fallDuration: duration,
+      })
     }
   })
 
@@ -117,12 +120,12 @@ describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어
   })
 
   it('15만점 뒤에는 더 어려워지지 않는다', () => {
-    expect(soloDifficultyAt(0, 150_000).spawnInterval).toBe(1.6)
+    expect(soloDifficultyAt(0, 150_000)).toMatchObject({ spawnInterval: 1, fallDuration: 5 })
     expect(soloDifficultyAt(1, 150_000)).toEqual(soloDifficultyAt(1, 500_000))
   })
 
   it('높이와 점수 중 더 어려운 쪽을 유지한다', () => {
-    expect(soloDifficultyAt(1, 0)).toEqual({ ...FULL, spawnInterval: 1.6 })
+    expect(soloDifficultyAt(1, 0)).toEqual({ ...FULL, spawnInterval: 1, fallDuration: 5 })
     expect(soloDifficultyAt(0, 50_000).maxConcurrent).toBe(5)
   })
 })

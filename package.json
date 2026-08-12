@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:measure": "MEASURE=1 vitest run tests/*.measure.test.ts",
     "assets:catalog": "node scripts/prepare-item-catalog.cjs",
+    "assets:splash": "node scripts/prepare-splash.cjs",
+    "assets:font": "node scripts/prepare-font.cjs",
     "preview": "vite preview",
     "relay:dev": "pnpm dlx wrangler dev --config worker/wrangler.toml --port 8787",
     "relay:deploy": "pnpm dlx wrangler deploy --config worker/wrangler.toml",

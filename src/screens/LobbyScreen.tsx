@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import titleDay from '../assets/splash/title-day.png'
-import titleNight from '../assets/splash/title-night.png'
+import titleDay from '../assets/splash/title-day.webp'
+import titleNight from '../assets/splash/title-night.webp'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'
 import { Blurb, Key, SidePanel } from '../components/SidePanel.tsx'

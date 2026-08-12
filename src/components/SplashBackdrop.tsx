@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import backgroundDay from '../assets/splash/background-day.png'
-import backgroundNight from '../assets/splash/background-night.png'
+import backgroundDay from '../assets/splash/background-day.webp'
+import backgroundNight from '../assets/splash/background-night.webp'
 import { titleThemeForHour, type TitleTheme } from '../screens/titleTheme.ts'
 import '../screens/TitleScreen.css'
 

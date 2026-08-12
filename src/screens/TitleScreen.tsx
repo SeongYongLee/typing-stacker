@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import titleDay from '../assets/splash/title-day.png'
-import titleNight from '../assets/splash/title-night.png'
+import titleDay from '../assets/splash/title-day.webp'
+import titleNight from '../assets/splash/title-night.webp'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { SplashBackdrop } from '../components/SplashBackdrop.tsx'
 import { NameGreeting } from '../components/NameGreeting.tsx'

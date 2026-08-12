@@ -99,7 +99,6 @@ const FULL: DifficultyLevel = {
  * 이유는 대결 모드가 여기에 인원·모드 배율을 다시 적용하기 때문이다.
  */
 const SOLO_OPENING: DifficultyLevel = { ...OPENING, spawnInterval: 2.5, fallDuration: 10 }
-const SOLO_FULL: DifficultyLevel = { ...FULL, spawnInterval: 1, fallDuration: 5 }
 
 const SOLO_SCORE_LEVELS: readonly { readonly score: number; readonly level: DifficultyLevel }[] = [
   { score: 0, level: SOLO_OPENING },
@@ -155,18 +154,10 @@ function difficultyAt(progress: number): DifficultyLevel {
 }
 
 /**
- * 싱글은 높이와 누적 점수 모두 같은 범위(주기 2.5→1초, 낙하 10→5초)를 쓰며,
- * 두 곡선 중 더 어려운 쪽을 따른다.
+ * 싱글 난이도는 누적 점수만 따른다. 탑 높이가 바뀌어도 단어 주기와 낙하 시간은 바뀌지 않는다.
  */
-function soloDifficultyAt(heightProgress: number, score: number): DifficultyLevel {
-  const height = interpolateLevel(SOLO_OPENING, SOLO_FULL, heightProgress)
-  const points = difficultyForScore(score)
-  return {
-    spawnInterval: Math.min(height.spawnInterval, points.spawnInterval),
-    fallDuration: Math.min(height.fallDuration, points.fallDuration),
-    aimSpeed: Math.max(height.aimSpeed, points.aimSpeed),
-    maxConcurrent: Math.max(height.maxConcurrent, points.maxConcurrent),
-  }
+function soloDifficultyAt(score: number): DifficultyLevel {
+  return difficultyForScore(score)
 }
 
 function difficultyForScore(score: number): DifficultyLevel {

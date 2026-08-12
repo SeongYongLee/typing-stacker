@@ -88,29 +88,19 @@ describe('difficultyAt — 쌓을수록 몰아친다', () => {
 
 describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어진다', () => {
   it('싱글은 첫 단어 다음부터 2.5초 간격으로 시작한다', () => {
-    expect(soloDifficultyAt(0, 0)).toMatchObject({ spawnInterval: 2.5, fallDuration: 10 })
-  })
-
-  it('높이 기준은 주기 2.5→1초, 낙하 10→5초로 줄어든다', () => {
-    const expected = [[2.5, 10], [2.125, 8.75], [1.75, 7.5], [1.375, 6.25], [1, 5]]
-    for (const [index, [interval, duration]] of expected.entries()) {
-      expect(soloDifficultyAt(index / 4, 0)).toMatchObject({
-        spawnInterval: interval,
-        fallDuration: duration,
-      })
-    }
+    expect(soloDifficultyAt(0)).toMatchObject({ spawnInterval: 2.5, fallDuration: 10 })
   })
 
   it('각 점수 이정표에서 정해둔 난이도에 도달한다', () => {
     for (const point of SOLO_SCORE_LEVELS) {
-      expect(soloDifficultyAt(0, point.score)).toEqual(point.level)
+      expect(soloDifficultyAt(point.score)).toEqual(point.level)
     }
   })
 
   it('점수가 오르면 더 자주 나오고, 더 빨리 떨어지고, 조준도 빨라진다', () => {
-    let previous = soloDifficultyAt(0, 0)
+    let previous = soloDifficultyAt(0)
     for (let score = 5_000; score <= 150_000; score += 5_000) {
-      const current = soloDifficultyAt(0, score)
+      const current = soloDifficultyAt(score)
       expect(current.spawnInterval).toBeLessThanOrEqual(previous.spawnInterval)
       expect(current.fallDuration).toBeLessThanOrEqual(previous.fallDuration)
       expect(current.aimSpeed).toBeGreaterThanOrEqual(previous.aimSpeed)
@@ -120,13 +110,8 @@ describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어
   })
 
   it('15만점 뒤에는 더 어려워지지 않는다', () => {
-    expect(soloDifficultyAt(0, 150_000)).toMatchObject({ spawnInterval: 1, fallDuration: 5 })
-    expect(soloDifficultyAt(1, 150_000)).toEqual(soloDifficultyAt(1, 500_000))
-  })
-
-  it('높이와 점수 중 더 어려운 쪽을 유지한다', () => {
-    expect(soloDifficultyAt(1, 0)).toEqual({ ...FULL, spawnInterval: 1, fallDuration: 5 })
-    expect(soloDifficultyAt(0, 50_000).maxConcurrent).toBe(5)
+    expect(soloDifficultyAt(150_000)).toMatchObject({ spawnInterval: 1, fallDuration: 5 })
+    expect(soloDifficultyAt(150_000)).toEqual(soloDifficultyAt(500_000))
   })
 })
 

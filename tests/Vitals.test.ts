@@ -9,7 +9,7 @@ describe('Night Fever 점수', () => {
 
     expect(markup).toContain('data-fever-score="true"')
     expect(markup).toContain(FEVER)
-    expect(markup).toContain('+420')
+    expect(markup).toContain('aria-label="+420"')
   })
 
   it('밤이어도 내려간 점수는 위험 신호인 빨강을 유지한다', () => {
@@ -17,7 +17,7 @@ describe('Night Fever 점수', () => {
 
     expect(markup).not.toContain('data-fever-score')
     expect(markup).not.toContain(FEVER)
-    expect(markup).toContain('−80')
+    expect(markup).toContain('aria-label="−80"')
   })
 })
 

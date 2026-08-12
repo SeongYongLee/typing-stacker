@@ -256,10 +256,41 @@ function Lives({
 
 function Combo({ combo, size = 'regular' }: { combo: number; size?: VitalSize }) {
   const active = combo > 0
+  const valueRef = useRef<HTMLSpanElement | null>(null)
+  const previous = useRef(combo)
+
+  useEffect(() => {
+    const before = previous.current
+    previous.current = combo
+    if (combo === before) {
+      return
+    }
+
+    const increased = combo > before
+    play(
+      valueRef.current,
+      increased
+        ? [
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.18)', offset: 0.3 },
+            { transform: 'scale(1)' },
+          ]
+        : [
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-4px)', offset: 0.25 },
+            { transform: 'translateX(3px)', offset: 0.6 },
+            { transform: 'translateX(0)' },
+          ],
+      { duration: increased ? 320 : 260, easing: 'ease-out' },
+    )
+  }, [combo])
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: gapFor(size) }}>
       <span style={labelStyleFor(size)}>콤보</span>
       <span
+        ref={valueRef}
+        data-combo={combo}
         style={{
           ...valueChipStyleFor(size),
           minWidth: size === 'regular' ? 86 : size === 'bar' ? 64 : 44,
@@ -339,23 +370,25 @@ function Score({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: gapFor(size) }}>
       <span style={labelStyleFor(size)}>점수</span>
-      {/* 기준을 숫자로 잡는다. 바깥 상자에 붙이면 "점수" 라벨 위에 뜬다 */}
-      <span style={{ position: 'relative', display: 'inline-block' }}>
-        <span
-          ref={valueRef}
-          data-score={score}
-          style={{
-            ...valueChipStyleFor(size),
-            minWidth: size === 'regular' ? 190 : size === 'bar' ? 136 : 92,
-            textAlign: 'right',
-            background: SCORE_BACKGROUND,
-          }}
-        >
+      <span
+        ref={valueRef}
+        style={{
+          ...valueChipStyleFor(size),
+          minWidth: size === 'regular' ? 190 : size === 'bar' ? 136 : 92,
+          textAlign: 'right',
+          background: SCORE_BACKGROUND,
+        }}
+      >
+        {/*
+         * 칩 전체가 아니라 실제 숫자 폭을 기준으로 둔다. 최소 폭은 자릿수 변화에도
+         * UI가 흔들리지 않게 할 뿐, 증감 효과의 x축 기준이 되면 안 된다.
+         */}
+        <span data-score={score} style={{ position: 'relative', display: 'inline-block' }}>
           {score.toLocaleString('ko-KR')}
+          {delta !== null && (
+            <Delta key={delta.seq} amount={delta.amount} fever={delta.fever} size={size} />
+          )}
         </span>
-        {delta !== null && (
-          <Delta key={delta.seq} amount={delta.amount} fever={delta.fever} size={size} />
-        )}
       </span>
     </div>
   )
@@ -408,14 +441,15 @@ function Delta({
       ref={ref}
       data-score-delta={amount}
       data-fever-score={feverGain || undefined}
+      aria-label={`${up ? '+' : '−'}${Math.abs(amount).toLocaleString('ko-KR')}`}
       style={{
         /*
-         * 점수 **위쪽**에 띄운다. 오른쪽에 두면 바로 옆 콤보 글자를 덮는다.
-         * 위는 아레나라 가릴 것이 없고, 값이 오르내리는 방향과도 맞는다.
+         * 점수와 같은 오른쪽 축(마지막 자릿수)에 고정한다. 점수는 오른쪽 정렬이라
+         * 중앙을 기준으로 잡으면 자릿수가 늘 때마다 효과가 옆으로 밀린다.
          */
         position: 'absolute',
         bottom: '100%',
-        left: 0,
+        right: 0,
         marginBottom: 2,
         whiteSpace: 'nowrap',
         // 오르는 값은 현재 점수와 같은 크기다. 깎이는 값도 기존 비율대로 두 배로 키운다
@@ -441,13 +475,20 @@ function Delta({
           : up
             ? undefined
             : '0 2px 8px #0d0f16, 0 0 3px #0d0f16',
-        // 커진 글자가 왼쪽 끝에 매달리면 숫자에서 멀어져 어디서 나온 값인지 흐려진다
-        transformOrigin: 'left bottom',
+        transformOrigin: 'right bottom',
         pointerEvents: 'none',
       }}
     >
-      {up ? '+' : '−'}
-      {Math.abs(amount).toLocaleString('ko-KR')}
+      <span style={{ position: 'relative', display: 'inline-block' }}>
+        {/* 부호는 폭에 넣지 않아 +와 − 모두 숫자 자릿수의 축을 그대로 지킨다. */}
+        <span
+          aria-hidden
+          style={{ position: 'absolute', right: '100%', marginRight: '0.08em' }}
+        >
+          {up ? '+' : '−'}
+        </span>
+        {Math.abs(amount).toLocaleString('ko-KR')}
+      </span>
     </span>
   )
 }

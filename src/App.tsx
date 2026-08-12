@@ -34,9 +34,6 @@ const NameScreen = lazy(() => loadNameScreen().then((module) => ({ default: modu
 const OptionsScreen = lazy(() => loadOptionsScreen().then((module) => ({
   default: module.OptionsScreen,
 })))
-const SoloGameScreen = lazy(() => loadSoloGameScreen().then((module) => ({
-  default: module.SoloGameScreen,
-})))
 const LoopbackScreen = lazy(() => loadLoopbackScreen().then((module) => ({
   default: module.LoopbackScreen,
 })))
@@ -59,6 +56,7 @@ function initialRoute(): Route {
 }
 
 type SoloStage = 'rules' | SoloStep
+type SoloGameScreenComponent = typeof import('./screens/SoloGameScreen.tsx')['SoloGameScreen']
 
 function openingSoloStage(): SoloStage {
   return displaySettings().soloRules ? 'rules' : 'ready'
@@ -96,8 +94,12 @@ function App() {
     phase: GamePhase | null
     timeOfDay: Phase | null
   }>({ phase: null, timeOfDay: null })
-  /** START가 끝날 때 Suspense fallback으로 되돌아가지 않도록 게임 화면 준비를 기억한다. */
-  const [soloScreenReady, setSoloScreenReady] = useState(false)
+  /**
+   * 미리 받은 컴포넌트 자체를 보관한다.
+   * import 완료 여부만 기억하면 React.lazy가 첫 렌더에서 별도 Promise로 다시 suspend한다.
+   */
+  const [LoadedSoloGameScreen, setLoadedSoloGameScreen] =
+    useState<SoloGameScreenComponent | null>(null)
   const enableGameLoading = useCallback(() => setTitleReady(true), [])
   const { engine, stateStore, ready, assetProgress } = useGameEngine(titleReady)
 
@@ -133,8 +135,8 @@ function App() {
     if (engine === null || splashTransition !== 'idle') {
       return
     }
-    void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()]).then(() => {
-      setSoloScreenReady(true)
+    void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()]).then(([module]) => {
+      setLoadedSoloGameScreen(() => module.SoloGameScreen)
     })
     if (route === 'title') {
       // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
@@ -184,7 +186,7 @@ function App() {
     }
     // START 뒤에 지연 청크의 fallback이 잠깐 끼면 StartBackdrop이 다시 어두워져 깜빡인다.
     // 화면이 준비될 때까지 START를 그대로 유지하면 판도 그 뒤에 정확히 시작한다.
-    if (soloStage === 'start' && !soloScreenReady) {
+    if (soloStage === 'start' && LoadedSoloGameScreen === null) {
       return
     }
     const timer = setTimeout(
@@ -201,7 +203,7 @@ function App() {
       soloStage === 'ready' ? SOLO_READY_MS : SOLO_START_MS,
     )
     return () => clearTimeout(timer)
-  }, [soloStage, engine, soloScreenReady])
+  }, [soloStage, engine, LoadedSoloGameScreen])
 
   const openTitle = useCallback(() => {
     // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
@@ -322,18 +324,18 @@ function App() {
     )
   }
 
+  if (LoadedSoloGameScreen === null) return null
+
   return (
-    <Suspense fallback={<StartBackdrop><span /></StartBackdrop>}>
-      <div style={{ position: 'relative', height: '100%' }}>
-        <SoloGameScreen
-          engine={engine}
-          stateStore={stateStore}
-          onRestart={startSolo}
-          onHome={backToTitle}
-          onSceneChange={updateSoloMusic}
-        />
-      </div>
-    </Suspense>
+    <div style={{ position: 'relative', height: '100%' }}>
+      <LoadedSoloGameScreen
+        engine={engine}
+        stateStore={stateStore}
+        onRestart={startSolo}
+        onHome={backToTitle}
+        onSceneChange={updateSoloMusic}
+      />
+    </div>
   )
 }
 

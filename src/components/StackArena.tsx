@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 /**
  * 캔버스를 붙이고 크기를 알려주는 것만 필요하다.
  * 싱글(GameEngine)과 대전(MatchEngine)이 같은 아레나를 쓰므로 구조로만 받는다.
@@ -21,7 +21,8 @@ interface StackArenaProps {
 function StackArena({ engine }: StackArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  useEffect(() => {
+  // 첫 페인트 뒤에 붙이면 준비 화면이 사라진 직후 빈 캔버스가 한 프레임 보인다.
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (canvas === null) {
       return

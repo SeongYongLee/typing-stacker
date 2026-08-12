@@ -19,10 +19,14 @@ import { PhysicsWorld, type ImpactEvent } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
 import { difficultyProgress, soloDifficultyAt } from '../systems/Difficulty.ts'
-import { RECIPES } from '../data/recipes.ts'
+import { craftKeyOf, RECIPES } from '../data/recipes.ts'
 import { placeLedge, soloLedgeWidthAt } from '../systems/Ledge.ts'
 import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
-import { canMergeAnything, findMerge } from '../systems/Merger.ts'
+import {
+  findMerge,
+  mergeCandidateKeys,
+  MERGE_CHECK_INTERVAL_SEC,
+} from '../systems/Merger.ts'
 import { pairMarks, pairPartners, pairPulse, pairSizes } from '../systems/PairMarks.ts'
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
 import { NightFever, isLifeProtected } from '../systems/NightFever.ts'
@@ -89,6 +93,10 @@ const MERGE_REVEAL_SEC = 3
 /** 3개 이상 합성 직후 세계가 거의 멈춘 듯 보이는 시간과 속도 */
 const COMPLEX_MERGE_SLOW_SEC = 0.45
 const COMPLEX_MERGE_TIME_SCALE = 0.06
+/** 회전한 큰 물체와 화면 경계 연출까지 남겨두는 렌더 월드 여백. */
+const RENDER_VERTICAL_MARGIN = 1.5
+/** 점수를 나눠 더했을 때 생기는 부동소수점 경계 오차. */
+const SCORE_TARGET_EPSILON = 1e-6
 
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
@@ -236,6 +244,8 @@ class GameEngine {
     | null = null
   /** 3개 이상 합성의 짧은 슬로모션. 연출 시간은 이 값과 무관하게 정상 속도로 흐른다. */
   private complexMergeSlowLeft = 0
+  /** 접촉 그래프를 매 렌더 프레임 만들지 않기 위한 합성 검사 시계. */
+  private mergeCheckElapsed = 0
   /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
   private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
   /** 낮에 합성이 연달아 일어나도 통나무 보상을 덮어쓰지 않도록 기다리는 횟수 */
@@ -288,10 +298,9 @@ class GameEngine {
   private catcherView: CatchPlank | null = null
   /** 보드 단어가 물건으로 바뀌는 짧은 연결 연출 */
   private whiteboardRecall: WhiteboardRecall | null = null
-  /** 표식을 계산한 프레임. 한 프레임에 두 번 세지 않으려는 것 */
-  private markFrame = -1
-  /** 프레임 번호. 늘어나기만 하면 되므로 update에서 한 번 올린다 */
-  private frameSeq = 0
+  /** 물건이나 단어 구성이 그대로면 합성 표식을 다시 세지 않는다. */
+  private markPhysicsVersion = -1
+  private markWordVersion = -1
   private runSeq = 0
   private readonly dropQueue: PendingDrop[] = []
   private readonly catThrowQueue: PendingCatThrow[] = []
@@ -364,8 +373,11 @@ class GameEngine {
     this.invulnerableLeft = 0
     this.lastMarks = NO_MARKS
     this.lastMergeSizes = NO_MERGE_SIZES
+    this.markPhysicsVersion = -1
+    this.markWordVersion = -1
     this.hiddenReveal = null
     this.complexMergeSlowLeft = 0
+    this.mergeCheckElapsed = 0
     this.formingLedge = null
     this.pendingLedgeRewards = 0
     this.quakeLeft = 0
@@ -695,7 +707,6 @@ class GameEngine {
       this.difficultyPeak,
       difficultyProgress(this.physics.stackTop()),
     )
-    this.frameSeq += 1
     if (this.phaseNow === 'night') {
       this.nightElapsed = Math.min(this.nightElapsed + dt, NIGHT_SEC)
       if (this.nightElapsed >= NIGHT_SEC) {
@@ -745,7 +756,11 @@ class GameEngine {
       this.score.onSettled(event.variant, event.topY)
     }
 
-    this.tryMerge()
+    this.mergeCheckElapsed += frameDt
+    if (this.mergeCheckElapsed >= MERGE_CHECK_INTERVAL_SEC) {
+      this.mergeCheckElapsed %= MERGE_CHECK_INTERVAL_SEC
+      this.tryMerge()
+    }
     this.advanceDayScore()
 
     /*
@@ -937,10 +952,14 @@ class GameEngine {
      * 개수만 세어보면 그 일을 통째로 건너뛸 수 있고, 걸러지는 경우는 어차피
      * `findMerge`가 null을 주던 경우이므로 결과는 달라지지 않는다.
      */
-    if (!canMergeAnything(RECIPES, this.physics.countsByVariant())) {
+    const candidateKeys = mergeCandidateKeys(RECIPES, this.physics.countsByVariant())
+    if (candidateKeys.size === 0) {
       return
     }
-    const match = findMerge(this.physics.contactGraph(), RECIPES)
+    const match = findMerge(
+      this.physics.contactGraph((variantId) => candidateKeys.has(craftKeyOf(variantId))),
+      RECIPES,
+    )
     if (match === null) {
       return
     }
@@ -1013,7 +1032,7 @@ class GameEngine {
       return
     }
     this.dayScore += gained
-    if (this.dayScore >= this.dayScoreTarget) {
+    if (this.dayScore + SCORE_TARGET_EPSILON >= this.dayScoreTarget) {
       this.dayScore -= this.dayScoreTarget
       this.applyPhase('night')
     }
@@ -1159,7 +1178,10 @@ class GameEngine {
      * 한 프레임에 두 번 부른다(그리는 쪽과 상태를 미는 쪽). 같은 프레임에서는 같은
      * 답이어야 하고, 두 번 세는 것도 헛일이다 — 프레임 번호로 한 번만 세고 나눠 쓴다.
      */
-    if (this.markFrame === this.frameSeq) {
+    if (
+      this.markPhysicsVersion === this.physics.version &&
+      this.markWordVersion === this.spawner.version
+    ) {
       return this.lastMarks
     }
     const counts = this.availableVariantCounts()
@@ -1169,7 +1191,8 @@ class GameEngine {
      */
     this.lastMarks = pairMarks(counts, RECIPES, this.lastMarks)
     this.lastMergeSizes = pairSizes(counts, RECIPES, this.lastMarks)
-    this.markFrame = this.frameSeq
+    this.markPhysicsVersion = this.physics.version
+    this.markWordVersion = this.spawner.version
     return this.lastMarks
   }
 
@@ -1239,8 +1262,10 @@ class GameEngine {
   private readonly render = (): void => {
     const time = this.timeView()
     const reveal = this.hiddenReveal
+    const renderBottom = this.cameraY + ARENA.killY - RENDER_VERTICAL_MARGIN
+    const renderTop = this.cameraY + ARENA.killY + ARENA.height + RENDER_VERTICAL_MARGIN
     this.renderer?.draw({
-      bodies: this.physics.snapshots(),
+      bodies: this.physics.snapshots(renderBottom, renderTop),
       aimX: this.aimer.worldX,
       showAim: this.phase === 'playing',
       hiddenReveal:
@@ -1342,6 +1367,7 @@ class GameEngine {
       freshlyCollected: this.collection.freshIds,
     })
   }
+
 }
 
 export { GameEngine }

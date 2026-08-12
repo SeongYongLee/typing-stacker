@@ -7,7 +7,7 @@ import {
 } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
-import { RECIPES } from '../game/data/recipes.ts'
+import { craftKeyOf, RECIPES } from '../game/data/recipes.ts'
 import { shapeBounds } from '../game/shapes.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
@@ -20,7 +20,11 @@ import {
   forPlayers,
 } from '../game/systems/Difficulty.ts'
 import { resolveCrafted, resolveItem } from '../game/systems/ItemResolver.ts'
-import { canMergeAnything, findMerge } from '../game/systems/Merger.ts'
+import {
+  findMerge,
+  mergeCandidateKeys,
+  MERGE_CHECK_INTERVAL_SEC,
+} from '../game/systems/Merger.ts'
 import { placeLedge } from '../game/systems/Ledge.ts'
 import { pairMarks, pairPartners, pairPulse, pairSizes } from '../game/systems/PairMarks.ts'
 import { RecipeFlow } from '../game/systems/RecipeFlow.ts'
@@ -418,6 +422,8 @@ class MatchEngine {
   private readonly pendingMergedRecipes: string[] = []
   private readonly duelMarks = new Map<PlayerId, ReadonlyMap<string, number>>()
   private readonly duelMergeSizes = new Map<PlayerId, ReadonlyMap<string, number>>()
+  private readonly duelMarkPhysicsVersions = new Map<PlayerId, number>()
+  private readonly duelMarkWordVersions = new Map<PlayerId, number>()
   private aimer = new Aimer(AIM_HALF_RANGE)
   /** 빛나는 물건이 얹힐 때 번지는 색. 싱글과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
@@ -426,6 +432,8 @@ class MatchEngine {
   /** 표시 보정 중인 물건의 충돌만 걷어낸 렌더용 버퍼 */
   private readonly visibleImpacts: TrailHit[] = []
   private elapsed = 0
+  /** 자기 대결판의 접촉 그래프를 다시 검사하기까지 누적한 시간. */
+  private duelMergeCheckElapsed = 0
 
   /** 사람별로 다음에 떨굴 수 있을 때까지 남은 시간(초) */
   /**
@@ -1802,7 +1810,11 @@ class MatchEngine {
         this.transport.selfId,
         this.worldFor(this.transport.selfId).stackTop(),
       )
-      this.tryDuelMerge()
+      this.duelMergeCheckElapsed += dt
+      if (this.duelMergeCheckElapsed >= MERGE_CHECK_INTERVAL_SEC) {
+        this.duelMergeCheckElapsed %= MERGE_CHECK_INTERVAL_SEC
+        this.tryDuelMerge()
+      }
     }
     let quake = 0
     for (const result of stepped) {
@@ -1865,8 +1877,12 @@ class MatchEngine {
     if (this.duelWorlds === null || !this.isDuelActive(this.transport.selfId)) return
     const owner = this.transport.selfId
     const world = this.worldFor(owner)
-    if (!canMergeAnything(RECIPES, world.countsByVariant())) return
-    const match = findMerge(world.contactGraph(), RECIPES)
+    const candidateKeys = mergeCandidateKeys(RECIPES, world.countsByVariant())
+    if (candidateKeys.size === 0) return
+    const match = findMerge(
+      world.contactGraph((variantId) => candidateKeys.has(craftKeyOf(variantId))),
+      RECIPES,
+    )
     if (match === null) return
 
     const result = resolveCrafted(match.recipe, this.duelRng)
@@ -1903,7 +1919,14 @@ class MatchEngine {
 
   private marksFor(owner: PlayerId): ReadonlyMap<string, number> {
     if (this.matchMode !== 'duel') return NO_MARKS
-    const counts = new Map(this.worldFor(owner).countsByVariant())
+    const world = this.worldFor(owner)
+    if (
+      this.duelMarkPhysicsVersions.get(owner) === world.version &&
+      this.duelMarkWordVersions.get(owner) === this.spawner.version
+    ) {
+      return this.duelMarks.get(owner) ?? NO_MARKS
+    }
+    const counts = new Map(world.countsByVariant())
     for (const falling of this.spawner.words) {
       if (falling.state !== 'active') continue
       const id = WORD_BASE_ID.get(falling.word)
@@ -1912,6 +1935,8 @@ class MatchEngine {
     const marks = pairMarks(counts, RECIPES, this.duelMarks.get(owner) ?? NO_MARKS)
     this.duelMarks.set(owner, marks)
     this.duelMergeSizes.set(owner, pairSizes(counts, RECIPES, marks))
+    this.duelMarkPhysicsVersions.set(owner, world.version)
+    this.duelMarkWordVersions.set(owner, this.spawner.version)
     return marks
   }
 

@@ -97,6 +97,8 @@ function App() {
     phase: GamePhase | null
     timeOfDay: Phase | null
   }>({ phase: null, timeOfDay: null })
+  /** START가 끝날 때 Suspense fallback으로 되돌아가지 않도록 게임 화면 준비를 기억한다. */
+  const [soloScreenReady, setSoloScreenReady] = useState(false)
   const enableGameLoading = useCallback(() => setTitleReady(true), [])
   const { engine, stateStore, ready, assetProgress } = useGameEngine(titleReady)
 
@@ -132,7 +134,9 @@ function App() {
     if (engine === null || splashTransition !== 'idle') {
       return
     }
-    void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()])
+    void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()]).then(() => {
+      setSoloScreenReady(true)
+    })
     if (route === 'title') {
       // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
       setSplashTransition('darkening')
@@ -179,6 +183,11 @@ function App() {
     if (soloStage === null || soloStage === 'rules' || engine === null) {
       return
     }
+    // START 뒤에 지연 청크의 fallback이 잠깐 끼면 StartBackdrop이 다시 어두워져 깜빡인다.
+    // 화면이 준비될 때까지 START를 그대로 유지하면 판도 그 뒤에 정확히 시작한다.
+    if (soloStage === 'start' && !soloScreenReady) {
+      return
+    }
     const timer = setTimeout(
       () => {
         if (soloStage === 'ready') {
@@ -193,7 +202,7 @@ function App() {
       soloStage === 'ready' ? SOLO_READY_MS : SOLO_START_MS,
     )
     return () => clearTimeout(timer)
-  }, [soloStage, engine])
+  }, [soloStage, engine, soloScreenReady])
 
   /*
    * 시작 박자에서 판으로 넘어온 순간마다 오른다.

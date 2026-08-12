@@ -18,6 +18,9 @@ interface MergeMatch {
   readonly itemIds: readonly number[]
 }
 
+/** 접촉 그래프는 비싸므로 이보다 자주 다시 만들지 않는다. */
+const MERGE_CHECK_INTERVAL_SEC = 0.08
+
 /**
  * 재료가 **서로 붙어 있는 한 덩어리**여야 한다.
  *
@@ -237,5 +240,22 @@ function canMergeAnything(
   return satisfiable(recipes, normalizeCounts(counts)).length > 0
 }
 
-export { findMerge, canMergeAnything }
+/**
+ * 현재 개수로 완성 가능한 레시피에 실제로 쓰이는 재료 키.
+ * 접촉 그래프가 무관한 물건의 콜라이더까지 훑지 않도록 물리 계층에 넘긴다.
+ */
+function mergeCandidateKeys(
+  recipes: readonly Recipe[],
+  counts: ReadonlyMap<string, number>,
+): ReadonlySet<string> {
+  const keys = new Set<string>()
+  for (const recipe of satisfiable(recipes, normalizeCounts(counts))) {
+    for (const input of recipe.inputs) {
+      keys.add(craftKeyOf(input))
+    }
+  }
+  return keys
+}
+
+export { findMerge, canMergeAnything, mergeCandidateKeys, MERGE_CHECK_INTERVAL_SEC }
 export type { ContactGraph, MergeMatch, TouchNode }

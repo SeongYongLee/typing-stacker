@@ -242,6 +242,12 @@ interface TrackedBody {
   /** 마지막으로 자리를 잡은 지점. 여기서 QUAKE_REARM_DISTANCE만큼 벗어나면 자리를 잃는다 */
   restX: number
   restY: number
+  /** 잠든 바디는 WASM에서 좌표를 다시 읽지 않고 이 마지막 표시 좌표를 쓴다. */
+  lastX: number
+  lastY: number
+  lastRotation: number
+  /** 잠든 뒤의 최종 좌표를 캐시에 한 번 확정했는가. */
+  sleepCached: boolean
   /** 권위 교정 직후의 속도 변화가 가짜 충격으로 읽히지 않게 한 스텝 쉰다 */
   suppressImpactSteps: number
 }
@@ -288,6 +294,10 @@ function shortestAngle(value: number): number {
 function place(entry: TrackedBody, frame: AuthorityBodyFrame): void {
   entry.body.setTranslation({ x: frame.x, y: frame.y }, false)
   entry.body.setRotation(frame.rotation, false)
+  entry.lastX = frame.x
+  entry.lastY = frame.y
+  entry.lastRotation = frame.rotation
+  entry.sleepCached = frame.stateVersion === 1 && frame.sleeping
   entry.suppressImpactSteps = 1
 
   // 구형 프레임은 위치만 권위였다. 새 상태가 없다고 로컬 정착·앵커를 지우면 안 된다.
@@ -353,6 +363,9 @@ class PhysicsWorld {
   private readonly snapshotBuffer: Mutable<BodySnapshot>[] = []
   /** countsByVariant()가 다시 채워 쓰는 Map. 같은 이유로 매 프레임 새로 만들지 않는다 */
   private readonly variantCounts = new Map<string, number>()
+  /** 물건 구성이 바뀌기 전에는 변형별 개수도 바뀌지 않는다. */
+  private variantCountsDirty = true
+  private compositionRevision = 0
   /**
    * 붙어버린 짝과 그 관절. 열쇠는 두 핸들을 작은 것부터 이어붙인 문자열이다.
    * 같은 짝에 관절을 두 번 걸면 서로 당겨 물건이 떨리므로 반드시 한 번만 건다.
@@ -379,6 +392,16 @@ class PhysicsWorld {
 
   get itemCount(): number {
     return this.tracked.size
+  }
+
+  /** 물건이 추가·삭제될 때만 바뀐다. 합성 표식 캐시의 키로 쓴다. */
+  get version(): number {
+    return this.compositionRevision
+  }
+
+  private noteCompositionChanged(): void {
+    this.variantCountsDirty = true
+    this.compositionRevision += 1
   }
 
   /**
@@ -498,8 +521,13 @@ class PhysicsWorld {
       lost: false,
       restX: x,
       restY: y,
+      lastX: x,
+      lastY: y,
+      lastRotation: 0,
+      sleepCached: false,
       suppressImpactSteps: 0,
     })
+    this.noteCompositionChanged()
     return body.handle
   }
 
@@ -598,6 +626,9 @@ class PhysicsWorld {
    */
   countsByVariant(): ReadonlyMap<string, number> {
     const counts = this.variantCounts
+    if (!this.variantCountsDirty) {
+      return counts
+    }
     counts.clear()
     for (const entry of this.tracked.values()) {
       if (entry.lost) {
@@ -605,6 +636,7 @@ class PhysicsWorld {
       }
       counts.set(entry.variant.id, (counts.get(entry.variant.id) ?? 0) + 1)
     }
+    this.variantCountsDirty = false
     return counts
   }
 
@@ -616,13 +648,13 @@ class PhysicsWorld {
    * 이탈이 확정된 물건은 뺀다 — 떨어져 나가는 중에 스쳤다고 합쳐지면
    * 플레이어가 이유를 알 수 없다.
    */
-  contactGraph(): ContactGraph {
+  contactGraph(includeVariant: (variantId: string) => boolean = () => true): ContactGraph {
     const nodes: TouchNode[] = []
     const seen = new Set<string>()
     const edges: [number, number][] = []
 
     for (const [handle, entry] of this.tracked) {
-      if (entry.lost) {
+      if (entry.lost || !includeVariant(entry.variant.id)) {
         continue
       }
       nodes.push({ itemId: handle, variantId: entry.variant.id })
@@ -691,6 +723,7 @@ class PhysicsWorld {
       this.tracked.delete(entry.body.handle)
       this.world.removeRigidBody(entry.body)
     }
+    this.noteCompositionChanged()
 
     const created = this.spawnItemAt(result, x, y, owner, itemId)
     const entry = this.tracked.get(created)
@@ -722,7 +755,24 @@ class PhysicsWorld {
     let quake = 0
 
     for (const [handle, entry] of this.tracked) {
+      /*
+       * 잠든 정착 물체는 위치·속도·회전이 바뀌지 않는다. Rapier는 새 충돌이 생기면
+       * 바디를 깨우므로, 그때부터 아래의 전체 판정을 다시 수행하면 된다.
+       */
+      if (entry.settled && entry.body.isSleeping()) {
+        if (!entry.sleepCached) {
+          const position = entry.body.translation()
+          entry.lastX = position.x
+          entry.lastY = position.y
+          entry.lastRotation = entry.body.rotation()
+          entry.sleepCached = true
+        }
+        continue
+      }
+      entry.sleepCached = false
       const { x, y } = entry.body.translation()
+      entry.lastX = x
+      entry.lastY = y
       const velocity = entry.body.linvel()
       const speed = Math.hypot(velocity.x, velocity.y)
       if (
@@ -858,6 +908,7 @@ class PhysicsWorld {
         this.forgetWelds(handle)
         this.world.removeRigidBody(entry.body)
         this.tracked.delete(handle)
+        this.noteCompositionChanged()
       }
     }
 
@@ -884,11 +935,33 @@ class PhysicsWorld {
    * GC가 돌고, 그것이 "중간중간 살짝 멈춤"으로 느껴진다. 렌더러는 받은 즉시 그리고 버리므로
    * 버퍼를 재사용해도 안전하다 — 대신 붙들어 두려면 그 자리에서 복사해야 한다.
    */
-  snapshots(): readonly BodySnapshot[] {
+  snapshots(
+    minY = Number.NEGATIVE_INFINITY,
+    maxY = Number.POSITIVE_INFINITY,
+  ): readonly BodySnapshot[] {
     const buffer = this.snapshotBuffer
     let count = 0
     for (const [handle, entry] of this.tracked) {
-      const { x, y } = entry.body.translation()
+      const sleeping = entry.body.isSleeping()
+      const position = sleeping && entry.sleepCached ? null : entry.body.translation()
+      const x = position?.x ?? entry.lastX
+      const y = position?.y ?? entry.lastY
+      const radius = Math.hypot(entry.variant.artBounds.hw, entry.variant.artBounds.hh)
+      if (!entry.recalled && (y + radius < minY || y - radius > maxY)) {
+        if (!sleeping) {
+          entry.lastX = x
+          entry.lastY = y
+          entry.sleepCached = false
+        }
+        continue
+      }
+      const rotation = sleeping && entry.sleepCached ? entry.lastRotation : entry.body.rotation()
+      if (!sleeping || !entry.sleepCached) {
+        entry.lastX = x
+        entry.lastY = y
+        entry.lastRotation = rotation
+        entry.sleepCached = sleeping
+      }
       const slot = (buffer[count] ??= {
         handle,
         variant: entry.variant,
@@ -905,7 +978,7 @@ class PhysicsWorld {
       slot.owner = entry.owner
       slot.x = x
       slot.y = y
-      slot.rotation = entry.body.rotation()
+      slot.rotation = rotation
       slot.settled = entry.settled
       slot.recalled = entry.recalled
       slot.fever = entry.fever
@@ -939,7 +1012,10 @@ class PhysicsWorld {
       if (entry.lost || entry.recalled || !entry.settled) {
         continue
       }
-      const height = entry.body.translation().y + halfExtentY(entry.variant.shape)
+      const sleeping = entry.body.isSleeping()
+      const y = sleeping ? entry.lastY : entry.body.translation().y
+      if (!sleeping) entry.lastY = y
+      const height = y + halfExtentY(entry.variant.shape)
       if (height > top) {
         top = height
       }
@@ -1074,6 +1150,7 @@ class PhysicsWorld {
         this.forgetWelds(handle)
         this.world.removeRigidBody(entry.body)
         this.tracked.delete(handle)
+        this.noteCompositionChanged()
       }
     }
 
@@ -1092,6 +1169,7 @@ class PhysicsWorld {
         this.forgetWelds(handle)
         this.world.removeRigidBody(existing.body)
         this.tracked.delete(handle)
+        this.noteCompositionChanged()
         existing = undefined
       }
       if (existing !== undefined) {
@@ -1164,6 +1242,9 @@ class PhysicsWorld {
     this.ledgeList.length = 0
     this.clearCatcher()
     this.tracked.clear()
+    this.variantCounts.clear()
+    this.variantCountsDirty = false
+    this.compositionRevision += 1
     this.welds.clear()
     this.accumulator = 0
     this.escapeY = ARENA.killY
@@ -1259,6 +1340,7 @@ class PhysicsWorld {
       this.forgetWelds(handle)
       this.world.removeRigidBody(entry.body)
       this.tracked.delete(handle)
+      this.noteCompositionChanged()
     }
   }
 

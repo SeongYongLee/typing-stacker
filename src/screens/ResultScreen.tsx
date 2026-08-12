@@ -57,7 +57,10 @@ function verdictOf(stats: RunStats, ranking: RunRanking): string | null {
     return '기록을 보내는 중…'
   }
   if (ranking.status === 'offline') {
-    return '순위를 받지 못했다'
+    return '연결되지 않아 기록을 보관했다'
+  }
+  if (ranking.status === 'rejected') {
+    return '서버가 기록값을 확인하지 못했다'
   }
   const view = ranking.view
   if (view === null) {
@@ -122,6 +125,11 @@ function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScre
             >
               {verdict}
             </p>
+          )}
+          {ranking.status === 'offline' && (
+            <button type="button" onClick={ranking.retry} style={retryRankStyle}>
+              기록 다시 보내기
+            </button>
           )}
         </div>
 
@@ -240,6 +248,17 @@ const rowStyle: CSSProperties = {
   justifyContent: 'center',
   gap: 20,
   flexWrap: 'wrap',
+}
+
+const retryRankStyle: CSSProperties = {
+  margin: '-10px 0 18px',
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  color: '#aeb8dc',
+  font: '600 13px var(--sans)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
 }
 
 /**

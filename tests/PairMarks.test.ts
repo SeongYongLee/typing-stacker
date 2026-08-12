@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MARK_COUNT, pairMarks, pairPartners } from '../src/game/systems/PairMarks.ts'
+import { MARK_COUNT, pairMarks, pairPartners, pairSizes } from '../src/game/systems/PairMarks.ts'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import type { Recipe } from '../src/game/data/recipes.ts'
 import { VARIANT_BY_ID } from '../src/game/data/words.ts'
@@ -58,6 +58,29 @@ describe('pairMarks', () => {
     const partners = pairPartners(marks, new Map([['placed-a', 1], ['placed-b', 1]]))
 
     expect(partners.get('falling')).toEqual(['placed-a', 'placed-b'])
+  })
+
+  it('표식에 선택된 조합의 총 재료 수를 함께 돌려준다', () => {
+    const three = recipe(['a', 'b', 'c'], cross.result.id)
+    const available = new Map([['a', 1], ['b', 1], ['c', 1]])
+    const marks = pairMarks(available, [three])
+    const sizes = pairSizes(available, [three], marks)
+
+    expect(sizes.get('a')).toBe(3)
+    expect(sizes.get('b')).toBe(3)
+    expect(sizes.get('c')).toBe(3)
+  })
+
+  it('작은 조합이 먼저 선택되면 겹친 큰 조합으로 표시하지 않는다', () => {
+    const pair = recipe(['a', 'b'], cross.result.id)
+    const three = recipe(['a', 'b', 'c'], cross.result.id)
+    const available = new Map([['a', 1], ['b', 1], ['c', 1]])
+    const marks = pairMarks(available, [pair, three])
+    const sizes = pairSizes(available, [pair, three], marks)
+
+    expect(sizes.get('a')).toBe(2)
+    expect(sizes.get('b')).toBe(2)
+    expect(sizes.has('c')).toBe(false)
   })
 
   it('단어 히든은 기본형 짝 표식을 대신 받지 않는다', () => {

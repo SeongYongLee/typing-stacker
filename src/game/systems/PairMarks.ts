@@ -153,6 +153,36 @@ function pairPartners(
 }
 
 /**
+ * 표식이 가리키는 레시피의 총 재료 수.
+ *
+ * `pairMarks`가 실제로 선택한 조합만 돌려준다. 같은 재료가 둘짜리와 셋짜리 조합에
+ * 동시에 걸리면 Merger가 먼저 처리하는 작은 조합의 표식을 따르므로, 화면도 그것을
+ * 3개 조합이라고 과장하지 않는다.
+ */
+function pairSizes(
+  available: ReadonlyMap<string, number>,
+  recipes: readonly Recipe[],
+  marks: ReadonlyMap<string, number>,
+): ReadonlyMap<string, number> {
+  if (marks.size === 0) return NONE
+  const { counts, rawIds } = normalizeAvailable(available)
+  const sizes = new Map<string, number>()
+
+  for (const recipe of recipes.filter((candidate) => ready(candidate, counts))) {
+    const ids = [...new Set(recipe.inputs.map(craftKeyOf))]
+    const mark = marks.get(ids[0] ?? '')
+    if (mark === undefined || !ids.every((id) => marks.get(id) === mark)) continue
+    for (const id of ids) {
+      if (!sizes.has(id)) sizes.set(id, recipe.inputs.length)
+      for (const raw of rawIds.get(id) ?? []) {
+        if (!sizes.has(raw)) sizes.set(raw, recipe.inputs.length)
+      }
+    }
+  }
+  return sizes
+}
+
+/**
  * 표식이 한 번 숨 쉬는 데 걸리는 시간(초).
  *
  * 단어 칩과 받침대의 물건이 **같은 값을 받아** 그린다. 각자 제 시계로 그리면 위상이
@@ -212,4 +242,12 @@ function ready(recipe: Recipe, available: ReadonlyMap<string, number>): boolean 
   return true
 }
 
-export { pairMarks, pairPartners, pairPulse, MARK_COUNT, PAIR_MARK_COLORS, PAIR_PULSE_SEC }
+export {
+  pairMarks,
+  pairPartners,
+  pairSizes,
+  pairPulse,
+  MARK_COUNT,
+  PAIR_MARK_COLORS,
+  PAIR_PULSE_SEC,
+}

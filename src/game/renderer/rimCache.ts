@@ -12,13 +12,16 @@
 /** 번짐이 잘리지 않게 둘 여백 (원본 픽셀 기준) */
 const NORMAL_PAD = 22
 const PAIR_PAD = 38
+const COMPLEX_PAD = 52
 const NORMAL_BLUR = 12
 const PAIR_BLUR = 20
+const COMPLEX_BLUR = 28
 /** 겹칠수록 진해진다. 미리 만들어 두므로 몇 번을 겹쳐도 프레임 비용은 같다 */
 const NORMAL_PASSES = 6
 const PAIR_PASSES = 12
+const COMPLEX_PASSES = 18
 
-type RimWeight = 'normal' | 'pair'
+type RimWeight = 'normal' | 'pair' | 'complex'
 
 const cache = new Map<string, HTMLCanvasElement | null>()
 
@@ -42,7 +45,7 @@ function rim(image: HTMLImageElement, color: string, weight: RimWeight = 'normal
 
 /** 테두리 canvas가 원본보다 얼마나 큰지 (한쪽 기준 비율) */
 function padRatio(image: HTMLImageElement, weight: RimWeight = 'normal'): { x: number; y: number } {
-  const pad = weight === 'pair' ? PAIR_PAD : NORMAL_PAD
+  const pad = weight === 'complex' ? COMPLEX_PAD : weight === 'pair' ? PAIR_PAD : NORMAL_PAD
   return { x: pad / image.naturalWidth, y: pad / image.naturalHeight }
 }
 
@@ -53,9 +56,11 @@ function build(image: HTMLImageElement, color: string, weight: RimWeight): HTMLC
     return null
   }
 
-  const pad = weight === 'pair' ? PAIR_PAD : NORMAL_PAD
-  const blur = weight === 'pair' ? PAIR_BLUR : NORMAL_BLUR
-  const passes = weight === 'pair' ? PAIR_PASSES : NORMAL_PASSES
+  const pad = weight === 'complex' ? COMPLEX_PAD : weight === 'pair' ? PAIR_PAD : NORMAL_PAD
+  const blur = weight === 'complex' ? COMPLEX_BLUR : weight === 'pair' ? PAIR_BLUR : NORMAL_BLUR
+  const passes = weight === 'complex'
+    ? COMPLEX_PASSES
+    : weight === 'pair' ? PAIR_PASSES : NORMAL_PASSES
 
   const canvas = document.createElement('canvas')
   canvas.width = width + pad * 2

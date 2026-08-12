@@ -517,7 +517,8 @@ class PhysicsWorld {
    */
   private weldSticky(): void {
     for (const [handle, entry] of this.tracked) {
-      if (!entry.sticky || entry.lost) {
+      // 잠든 바디의 기존 접촉은 이미 검사했다. 새 충돌이 생기면 Rapier가 다시 깨운다.
+      if (!entry.sticky || entry.lost || entry.body.isSleeping()) {
         continue
       }
       for (let i = 0; i < entry.body.numColliders(); i += 1) {
@@ -710,7 +711,9 @@ class PhysicsWorld {
       this.accumulator = 0
     }
 
-    this.weldSticky()
+    if (steps > 0) {
+      this.weldSticky()
+    }
 
     const settled: SettleEvent[] = []
     const impacts: ImpactEvent[] = []

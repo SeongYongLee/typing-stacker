@@ -70,8 +70,15 @@ describe('회수된 물건은 목숨을 깎지 않는다', () => {
         }
 
         const before = now.stats.lives
+        const scoreBeforeRecall = now.stats.rawScore
         engine.submit(target.word)
         recalls += 1
+
+        const rewarded = state as GameState | null
+        expect(
+          rewarded?.stats.rawScore,
+          `${target.word}을 회수했는데 점수가 오르지 않았다`,
+        ).toBeGreaterThan(scoreBeforeRecall)
 
         /*
          * 물건이 판을 타고 나갈 시간을 준다. 판은 1.4초 뒤 사라지므로 그보다 넉넉히

@@ -120,6 +120,7 @@ function drawTrails(
   trails: TrailField,
   state: TrailRenderState,
   trailTime: number,
+  bodies: TrailRenderState['bodies'] = state.bodies,
 ): number {
   const scale = trailScale()
   if (scale <= 0) {
@@ -132,7 +133,7 @@ function drawTrails(
     trails.reset()
     return state.time
   }
-  trails.update(state.bodies, dt, state.impacts, state.suppressTrails)
+  trails.update(bodies, dt, state.impacts, state.suppressTrails)
 
   const { ctx } = view
   ctx.save()
@@ -276,6 +277,7 @@ function drawFormingLedge(
 function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   const { ctx } = view
   const t = Math.min(Math.max(reveal.progress, 0), 1)
+  const complexMerge = reveal.from.length >= 3
   // 앞의 12%는 밝아지고, 뒤의 40%는 사라진다
   const alpha = t < 0.12 ? t / 0.12 : t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1
   if (alpha <= 0) {
@@ -310,11 +312,25 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   const flash = Math.max(0, 1 - (t - MERGE_GATHER) / 0.1)
   if (flash > 0) {
     // 결과물을 덮어버리지 않을 만큼만. 가리면 번쩍임이 아니라 빈칸으로 보인다
-    ctx.globalAlpha = alpha * flash * 0.55
+    ctx.globalAlpha = alpha * flash * (complexMerge ? 0.78 : 0.55)
     ctx.fillStyle = COLORS.hidden
     ctx.beginPath()
     ctx.arc(cx, cy, unit * (0.5 + (1 - flash) * 1.1), 0, Math.PI * 2)
     ctx.fill()
+    if (complexMerge) {
+      // 다중 합성은 결과가 나오는 순간 여덟 방향으로 짧게 터져 일반 합성과 구분된다.
+      ctx.strokeStyle = '#fff4bd'
+      ctx.lineWidth = 3
+      for (let index = 0; index < 8; index += 1) {
+        const angle = (index / 8) * Math.PI * 2
+        const inner = unit * (0.62 + (1 - flash) * 0.25)
+        const outer = unit * (1.02 + (1 - flash) * 0.55)
+        ctx.beginPath()
+        ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner)
+        ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer)
+        ctx.stroke()
+      }
+    }
   }
 
   /*
@@ -322,14 +338,15 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    * 재료가 모이는 동안 링이 이미 다 퍼져서, 정작 결과가 나올 때는 아무 일도 없다.
    */
   const ringBase = Math.max(0, (t - MERGE_GATHER) / (1 - MERGE_GATHER))
-  for (let i = 0; i < 2; i += 1) {
-    const ringT = Math.min(ringBase * 1.6 - i * 0.18, 1)
+  const ringCount = complexMerge ? 3 : 2
+  for (let i = 0; i < ringCount; i += 1) {
+    const ringT = Math.min(ringBase * (complexMerge ? 1.35 : 1.6) - i * 0.18, 1)
     if (ringT <= 0) continue
     ctx.beginPath()
-    ctx.arc(cx, cy, unit * (0.3 + ringT * 1.7), 0, Math.PI * 2)
-    ctx.strokeStyle = COLORS.hidden
-    ctx.globalAlpha = alpha * (1 - ringT) * 0.5
-    ctx.lineWidth = 2
+    ctx.arc(cx, cy, unit * (0.3 + ringT * (complexMerge ? 2.25 : 1.7)), 0, Math.PI * 2)
+    ctx.strokeStyle = complexMerge && i === 1 ? '#fff4bd' : COLORS.hidden
+    ctx.globalAlpha = alpha * (1 - ringT) * (complexMerge ? 0.72 : 0.5)
+    ctx.lineWidth = complexMerge ? 3 : 2
     ctx.stroke()
   }
 
@@ -382,7 +399,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    * 낮/밤 그림이 한 쌍이라 조명도 방을 따라간다.
    */
   ctx.font = `700 ${labelSize}px ${UI_FONT}`
-  const textWidth = Math.max(ctx.measureText(reveal.label).width, tagSize * 5)
+  const textWidth = Math.max(ctx.measureText(reveal.label).width, tagSize * (complexMerge ? 6 : 5))
 
   /*
    * **한 값이 네 변을 다 정한다.**
@@ -416,7 +433,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   ctx.fillText(reveal.label, cx, labelY)
   ctx.font = `${tagSize}px ${UI_FONT}`
   ctx.globalAlpha = alpha * 0.7
-  ctx.fillText('합성', cx, tagY)
+  ctx.fillText(complexMerge ? '다중 합성' : '합성', cx, tagY)
 
   ctx.restore()
 }

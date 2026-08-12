@@ -63,7 +63,7 @@ interface LandingGlow {
 
 /** 빠진 것을 채운 뒤의 모양. 그리는 코드는 이것만 본다 */
 type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
-  'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks'>> & {
+  'quake' | 'quakePhase' | 'nightfall' | 'pairPulse' | 'ledges' | 'pairMarks' | 'pairSizes'>> & {
   readonly hiddenReveal: HiddenReveal | null
   readonly whiteboardRecall: WhiteboardRecall | null
   readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
@@ -84,6 +84,7 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
     formingLedge: state.formingLedge ?? null,
     catcher: state.catcher ?? null,
     pairMarks: state.pairMarks ?? NO_PAIR_MARKS,
+    pairSizes: state.pairSizes ?? NO_PAIR_SIZES,
     pairPulse: state.pairPulse ?? 0,
     cats: state.cats ?? NO_CATS,
   }
@@ -93,6 +94,7 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
 const NO_LEDGES: readonly never[] = []
 const NO_CATS: readonly CatView[] = []
 const NO_PAIR_MARKS: ReadonlyMap<string, number> = new Map()
+const NO_PAIR_SIZES: ReadonlyMap<string, number> = new Map()
 
 /**
  * 그릴 것 한 장.
@@ -131,6 +133,8 @@ interface ArenaRenderState {
    * 그러면 합성은 손으로 만드는 것이 아니라 운으로 얻는 것이 된다. 까닭은 `PairMarks.ts`에.
    */
   readonly pairMarks?: ReadonlyMap<string, number>
+  /** 합성 표식이 가리키는 레시피의 총 재료 수. */
+  readonly pairSizes?: ReadonlyMap<string, number>
   /** 짝 표식의 밝기(0~1). 단어 칩과 **같은 값**이어야 둘이 함께 뛴다 */
   readonly pairPulse?: number
   /**
@@ -227,6 +231,7 @@ interface DuelTowerRenderState {
   readonly lives?: number
   readonly ledges?: readonly { readonly x: number; readonly y: number; readonly halfWidth: number }[]
   readonly pairMarks?: ReadonlyMap<string, number>
+  readonly pairSizes?: ReadonlyMap<string, number>
   readonly pairPulse?: number
   readonly result: {
     readonly placement: number
@@ -366,6 +371,8 @@ class ArenaRenderer {
   private cssHeight = 0
   /** 흘린 부스러기들. 렌더러가 소유한다 — 판의 결과에 닿지 않는 연출이다 */
   private readonly trails = new TrailField()
+  /** 카메라 안에 있는 바디 참조만 담아 매 프레임 재사용한다. */
+  private readonly visibleBodies: BodySnapshot[] = []
   private trailTime = 0
   /** 밤이 얼마나 왔는가. 프레임마다 상태에서 받아 낮/밤 그림을 겹치는 데 쓴다 */
   private nightfall = 0
@@ -441,11 +448,12 @@ class ArenaRenderer {
     if (state.showAim) {
       drawAim(view, state.aimX, state.stackTop)
     }
+    const visibleBodies = this.collectVisibleBodies(view, state.bodies)
     /*
      * 부스러기는 물건보다 **뒤에** 그린다. 위에 그리면 흘린 것이 흘린 물건을 가려
      * 무엇이 떨어지는지가 오히려 안 보인다 — 꼬리를 붙인 이유와 반대가 된다.
      */
-    this.trailTime = drawTrails(view, this.trails, state, this.trailTime)
+    this.trailTime = drawTrails(view, this.trails, state, this.trailTime, visibleBodies)
     /*
      * 회수 손은 물건보다 먼저 그린다. 손이 물건을 받는 연출이므로 손바닥이 물건을
      * 덮으면 들어 올린 것이 아니라 물건 앞을 가로막은 것처럼 보인다.
@@ -456,7 +464,7 @@ class ArenaRenderer {
     if (state.whiteboardRecall !== null && state.catcher !== null) {
       drawWhiteboardRecall(view, state.whiteboardRecall, state.catcher)
     }
-    for (const body of state.bodies) {
+    for (const body of visibleBodies) {
       const recalled = body.recalled === true && state.catcher !== null
       const bodyAlpha = recalled ? catcherAlpha(state.catcher.progress) : 1
       if (recalled) {
@@ -469,6 +477,7 @@ class ArenaRenderer {
         body,
         state.ownerColors,
         state.pairMarks.get(body.variant.id),
+        state.pairSizes.get(body.variant.id),
         state.pairPulse,
         bodyAlpha,
       )
@@ -568,6 +577,7 @@ class ArenaRenderer {
           body,
           mark === undefined ? tower.ownerColors : null,
           mark,
+          tower.pairSizes?.get(body.variant.id),
           tower.pairPulse ?? 0,
           1,
         )
@@ -589,6 +599,20 @@ class ArenaRenderer {
 
   private toScreenX(worldX: number): number {
     return this.cssWidth / 2 + worldX * this.scale
+  }
+
+  private collectVisibleBodies(
+    view: ArenaView,
+    bodies: readonly BodySnapshot[],
+  ): readonly BodySnapshot[] {
+    const visible = this.visibleBodies
+    visible.length = 0
+    for (const body of bodies) {
+      if (body.recalled === true || bodyVisible(view, body)) {
+        visible.push(body)
+      }
+    }
+    return visible
   }
 
   private cameraY = 0
@@ -616,5 +640,19 @@ class ArenaRenderer {
   }
 }
 
-export { ArenaRenderer, ARENA_ART_SOURCES }
+/** 회전해도 잘리지 않도록 그림 외접원의 반지름으로 화면 교차 여부를 본다. */
+function bodyVisible(view: ArenaView, body: BodySnapshot): boolean {
+  const margin = 36
+  const radius = Math.hypot(body.variant.artBounds.hw, body.variant.artBounds.hh) * view.scale
+  const x = view.toScreenX(body.x)
+  const y = view.toScreenY(body.y)
+  return (
+    x + radius >= -margin &&
+    x - radius <= view.cssWidth + margin &&
+    y + radius >= -margin &&
+    y - radius <= view.cssHeight + margin
+  )
+}
+
+export { ArenaRenderer, ARENA_ART_SOURCES, bodyVisible }
 export type { ArenaRenderState, HiddenReveal, LandingGlow, WhiteboardRecall, DuelTowerRenderState }

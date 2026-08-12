@@ -22,7 +22,7 @@ import {
 import { resolveCrafted, resolveItem } from '../game/systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../game/systems/Merger.ts'
 import { placeLedge } from '../game/systems/Ledge.ts'
-import { pairMarks, pairPartners, pairPulse } from '../game/systems/PairMarks.ts'
+import { pairMarks, pairPartners, pairPulse, pairSizes } from '../game/systems/PairMarks.ts'
 import { RecipeFlow } from '../game/systems/RecipeFlow.ts'
 import { Whiteboard } from '../game/systems/Whiteboard.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
@@ -208,6 +208,7 @@ interface MatchViewState {
   readonly words: readonly FallingWord[]
   readonly wordClaims: readonly DuelWordClaim[]
   readonly wordMarks: ReadonlyMap<string, number>
+  readonly wordMergeSizes: ReadonlyMap<string, number>
   /** 합성 가능한 단어 → 내 받침대에서 붙일 짝 물건의 스프라이트. */
   readonly wordMergeHints: ReadonlyMap<string, readonly string[]>
   readonly pairPulse: number
@@ -283,6 +284,7 @@ interface DuelWordClaim {
 interface DuelMergeFeedback {
   readonly seq: number
   readonly itemLabel: string
+  readonly ingredientCount: number
 }
 
 interface TimedDuelWordClaim extends DuelWordClaim {
@@ -415,6 +417,7 @@ class MatchEngine {
   private nextMergedItemId: number
   private readonly pendingMergedRecipes: string[] = []
   private readonly duelMarks = new Map<PlayerId, ReadonlyMap<string, number>>()
+  private readonly duelMergeSizes = new Map<PlayerId, ReadonlyMap<string, number>>()
   private aimer = new Aimer(AIM_HALF_RANGE)
   /** 빛나는 물건이 얹힐 때 번지는 색. 싱글과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
@@ -1875,6 +1878,7 @@ class MatchEngine {
     this.mergeFeedback = {
       seq: ++this.mergeFeedbackSeq,
       itemLabel: result.label,
+      ingredientCount: match.recipe.inputs.length,
     }
     this.growDuelLedge(world)
     this.fire({ kind: 'merge' })
@@ -1907,7 +1911,13 @@ class MatchEngine {
     }
     const marks = pairMarks(counts, RECIPES, this.duelMarks.get(owner) ?? NO_MARKS)
     this.duelMarks.set(owner, marks)
+    this.duelMergeSizes.set(owner, pairSizes(counts, RECIPES, marks))
     return marks
+  }
+
+  private mergeSizesFor(owner: PlayerId): ReadonlyMap<string, number> {
+    this.marksFor(owner)
+    return this.duelMergeSizes.get(owner) ?? NO_MARKS
   }
 
   private wordMarksFor(owner: PlayerId): ReadonlyMap<string, number> {
@@ -1918,6 +1928,18 @@ class MatchEngine {
       const id = WORD_BASE_ID.get(falling.word)
       const mark = id === undefined ? undefined : marks.get(id)
       if (mark !== undefined) byWord.set(falling.word, mark)
+    }
+    return byWord
+  }
+
+  private wordMergeSizesFor(owner: PlayerId): ReadonlyMap<string, number> {
+    const sizes = this.mergeSizesFor(owner)
+    if (sizes.size === 0) return NO_MARKS
+    const byWord = new Map<string, number>()
+    for (const falling of this.spawner.words) {
+      const id = WORD_BASE_ID.get(falling.word)
+      const size = id === undefined ? undefined : sizes.get(id)
+      if (size !== undefined) byWord.set(falling.word, size)
     }
     return byWord
   }
@@ -2244,6 +2266,7 @@ class MatchEngine {
           lives: this.match.livesOf(id),
           ledges: world.ledges(),
           pairMarks: this.marksFor(id),
+          pairSizes: this.mergeSizesFor(id),
           pairPulse: pairPulse(this.elapsed),
           result,
           exitProgress: finishedAt === undefined
@@ -2344,6 +2367,7 @@ class MatchEngine {
       words: this.spawner.words,
       wordClaims: this.wordClaims,
       wordMarks: this.wordMarksFor(this.transport.selfId),
+      wordMergeSizes: this.wordMergeSizesFor(this.transport.selfId),
       wordMergeHints: this.wordMergeHintsFor(this.transport.selfId),
       pairPulse: pairPulse(this.elapsed),
       whiteboard: this.matchMode === 'duel' ? this.whiteboardWords : [],

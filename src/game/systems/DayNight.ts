@@ -1,3 +1,5 @@
+import { NIGHT_SCORE_TARGETS } from '../config.ts'
+
 /**
  * 판의 시간 — 낮과 Night Fever.
  *
@@ -32,7 +34,7 @@ function timeOfDay(phase: Phase, progress: number): TimeOfDay {
     return {
       phase: 'day',
       progress: at,
-      // 다음 5,000점에 가까워지면 미리 어두워지기 시작한다.
+      // 이번 낮의 점수 목표에 가까워지면 미리 어두워지기 시작한다.
       nightfall: clamp01((at - (1 - DUSK_PROGRESS)) / DUSK_PROGRESS),
     }
   }
@@ -49,10 +51,27 @@ function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1)
 }
 
+/** 각 낮이 시작될 때 누적 점수에 맞는 목표를 정한다. 사이 값은 부드럽게 이어진다. */
+function nightScoreTargetAt(score: number): number {
+  const safe = Math.max(0, score)
+  const last = NIGHT_SCORE_TARGETS.at(-1)!
+  if (safe >= last.score) return last.target
+
+  for (let index = 1; index < NIGHT_SCORE_TARGETS.length; index += 1) {
+    const right = NIGHT_SCORE_TARGETS[index]!
+    if (safe > right.score) continue
+    const left = NIGHT_SCORE_TARGETS[index - 1]!
+    const progress = (safe - left.score) / (right.score - left.score)
+    return left.target + (right.target - left.target) * progress
+  }
+  return last.target
+}
+
 /**
  * 시계 한 바퀴 안에서 얼마나 왔는가(0 → 낮의 시작, 1 → 밤의 끝).
  *
- * 낮 구간에서는 5,000점까지 남은 양이, 밤 구간에서는 남은 시간이 바늘을 움직인다.
+ * 낮 구간에서는 그 낮에 정한 점수 목표까지 남은 양이, 밤 구간에서는 남은 시간이
+ * 바늘을 움직인다.
  * 기존 눈금판처럼 낮은 3분의 2, 밤은 3분의 1을 차지한다.
  */
 function cycleOf(time: TimeOfDay): number {
@@ -62,5 +81,12 @@ function cycleOf(time: TimeOfDay): number {
   return clamp01(DAY_CLOCK_SHARE + time.progress * (1 - DAY_CLOCK_SHARE))
 }
 
-export { timeOfDay, cycleOf, DAY_CLOCK_SHARE, DUSK_PROGRESS, DAWN_PROGRESS }
+export {
+  timeOfDay,
+  nightScoreTargetAt,
+  cycleOf,
+  DAY_CLOCK_SHARE,
+  DUSK_PROGRESS,
+  DAWN_PROGRESS,
+}
 export type { Phase, TimeOfDay }

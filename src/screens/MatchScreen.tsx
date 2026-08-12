@@ -119,6 +119,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             words={state.words}
             side="left"
             wordMarks={state.wordMarks}
+            mergeSizes={state.wordMergeSizes}
             mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
@@ -153,6 +154,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             words={state.words}
             side="right"
             wordMarks={state.wordMarks}
+            mergeSizes={state.wordMergeSizes}
             mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
@@ -247,35 +249,57 @@ function DuelMergeFeedback({ state }: { state: MatchViewState }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const firstRingRef = useRef<HTMLSpanElement | null>(null)
   const secondRingRef = useRef<HTMLSpanElement | null>(null)
+  const thirdRingRef = useRef<HTMLSpanElement | null>(null)
   const feedback = state.mergeFeedback
   const seq = feedback?.seq
+  const complexMerge = (feedback?.ingredientCount ?? 0) >= 3
 
   useLayoutEffect(() => {
     if (feedback === null) return
     const labelAnimation = play(
       ref.current,
-      [
-        { transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
-        { transform: 'translate(-50%, -50%) scale(1.08)', opacity: 1, offset: 0.28 },
-        { transform: 'translate(-50%, -56%) scale(1)', opacity: 1, offset: 0.68 },
-        { transform: 'translate(-50%, -72%) scale(0.96)', opacity: 0 },
-      ],
-      { duration: 1700, easing: 'cubic-bezier(0.2, 0.8, 0.28, 1)' },
+      complexMerge
+        ? [
+            { transform: 'translate(-50%, -50%) scale(0.68)', opacity: 0 },
+            { transform: 'translate(-50%, -50%) scale(1.14)', opacity: 1, offset: 0.18 },
+            { transform: 'translate(-50%, -50%) scale(1.04)', opacity: 1, offset: 0.68 },
+            { transform: 'translate(-50%, -72%) scale(0.98)', opacity: 0 },
+          ]
+        : [
+            { transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
+            { transform: 'translate(-50%, -50%) scale(1.08)', opacity: 1, offset: 0.28 },
+            { transform: 'translate(-50%, -56%) scale(1)', opacity: 1, offset: 0.68 },
+            { transform: 'translate(-50%, -72%) scale(0.96)', opacity: 0 },
+          ],
+      {
+        duration: complexMerge ? 2200 : 1700,
+        easing: 'cubic-bezier(0.2, 0.8, 0.28, 1)',
+      },
     )
-    const ringAnimations = [firstRingRef.current, secondRingRef.current].map((ring, index) => play(
+    const rings = complexMerge
+      ? [firstRingRef.current, secondRingRef.current, thirdRingRef.current]
+      : [firstRingRef.current, secondRingRef.current]
+    const ringAnimations = rings.map((ring, index) => play(
       ring,
       [
         { transform: 'translate(-50%, -50%) scale(0.35)', opacity: 0 },
-        { opacity: 0.72, offset: 0.18 },
-        { transform: 'translate(-50%, -50%) scale(1.45)', opacity: 0 },
+        { opacity: complexMerge ? 0.9 : 0.72, offset: 0.18 },
+        {
+          transform: `translate(-50%, -50%) scale(${complexMerge ? 1.9 : 1.45})`,
+          opacity: 0,
+        },
       ],
-      { duration: 1050, delay: index * 170, easing: 'ease-out' },
+      {
+        duration: complexMerge ? 1450 : 1050,
+        delay: index * 170,
+        easing: 'ease-out',
+      },
     ))
     return () => {
       labelAnimation?.cancel()
       for (const animation of ringAnimations) animation?.cancel()
     }
-  }, [feedback, seq])
+  }, [complexMerge, feedback, seq])
 
   if (feedback === null || state.duelTowerIds.length === 0) return null
   const towerIndex = Math.max(0, state.duelTowerIds.indexOf(state.selfId))
@@ -286,27 +310,36 @@ function DuelMergeFeedback({ state }: { state: MatchViewState }) {
       ref={ref}
       key={feedback.seq}
       data-duel-merge-feedback={feedback.itemLabel}
+      data-merge-size={feedback.ingredientCount}
       aria-live="polite"
       style={{
         position: 'absolute',
         left: `${left}%`,
         top: '57%',
         zIndex: 7,
-        color: '#fff6ae',
-        fontSize: 21,
+        color: complexMerge ? '#fff4bd' : '#fff6ae',
+        fontSize: complexMerge ? 25 : 21,
         fontWeight: 900,
         lineHeight: 1.15,
         textAlign: 'center',
         whiteSpace: 'nowrap',
         opacity: 0,
         pointerEvents: 'none',
-        textShadow: '0 2px 1px rgba(34, 31, 20, 0.9), 0 0 12px rgba(107, 255, 176, 0.72)',
+        textShadow: complexMerge
+          ? '0 2px 1px rgba(34, 31, 20, 0.9), 0 0 18px rgba(255, 207, 92, 0.92)'
+          : '0 2px 1px rgba(34, 31, 20, 0.9), 0 0 12px rgba(107, 255, 176, 0.72)',
       }}
     >
-      <span ref={firstRingRef} aria-hidden style={mergeRingStyle} />
-      <span ref={secondRingRef} aria-hidden style={mergeRingStyle} />
-      <span style={{ display: 'block', fontSize: 12, color: '#9effc8', marginBottom: 3 }}>
-        내 합성
+      <span ref={firstRingRef} aria-hidden style={complexMerge ? complexMergeRingStyle : mergeRingStyle} />
+      <span ref={secondRingRef} aria-hidden style={complexMerge ? complexMergeRingStyle : mergeRingStyle} />
+      {complexMerge && <span ref={thirdRingRef} aria-hidden style={complexMergeRingStyle} />}
+      <span style={{
+        display: 'block',
+        fontSize: complexMerge ? 14 : 12,
+        color: complexMerge ? '#ffcf5c' : '#9effc8',
+        marginBottom: 3,
+      }}>
+        {complexMerge ? '다중 합성' : '내 합성'}
       </span>
       {feedback.itemLabel}
     </div>
@@ -323,6 +356,13 @@ const mergeRingStyle: CSSProperties = {
   borderRadius: '50%',
   opacity: 0,
   pointerEvents: 'none',
+}
+
+const complexMergeRingStyle: CSSProperties = {
+  ...mergeRingStyle,
+  width: 104,
+  height: 104,
+  border: '4px solid rgba(255, 207, 92, 0.9)',
 }
 
 function HeartRewardFlight({ state }: { state: MatchViewState }) {

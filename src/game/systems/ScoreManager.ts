@@ -5,8 +5,7 @@ import { countKeystrokes, keystrokesPerMinute } from './TypingSpeed.ts'
 /**
  * 점수와 콤보.
  *
- * 콤보는 단어를 맞출 때마다 오르고, **놓치거나 목숨을 잃으면** 초기화된다.
- * 오타로는 끊기지 않는다 — 고쳐 치면 되는 것이고, 그 사이 단어는 계속 내려온다.
+ * 콤보는 단어를 맞출 때마다 오르고, **오타·놓침·목숨 손실**에 초기화된다.
  *
  * 한때는 목숨을 잃을 때만 끊었다. 지키는 것을 하나로 두려던 것인데, 그러면 **타자를
  * 놓쳐도 콤보가 남아** 손을 멈추고 쌓기만 봐도 배수가 유지됐다. 타자 게임에서
@@ -39,7 +38,7 @@ class ScoreManager {
     return Math.min(1 + this.combo * SCORE.comboStep, SCORE.comboMaxMultiplier)
   }
 
-  /** 정확도 패널티 전 누적 점수. 낮의 5,000점 게이지는 실제 획득량을 센다. */
+  /** 정확도 패널티 전 누적 점수. 낮의 가변 목표 게이지는 실제 획득량을 센다. */
   get rawPoints(): number {
     return this.score
   }
@@ -64,6 +63,19 @@ class ScoreManager {
   onCrafted(variant: ItemVariant): void {
     this.remember(variant.label)
     this.score += SCORE.craftBonus + variant.scoreBonus
+  }
+
+  /** 화이트보드 물건은 정착하지 않으므로 회수 성공 순간 일반 안착 점수를 준다. */
+  onRecalled(variant: ItemVariant): void {
+    this.score += Math.round((SCORE.perItem + variant.scoreBonus) * this.multiplier)
+    if (variant.hidden) {
+      this.remember(variant.label)
+    }
+  }
+
+  /** 존재하지 않는 단어를 제출하면 현재 콤보를 끊는다. */
+  onInputMissed(): void {
+    this.combo = 0
   }
 
   /**

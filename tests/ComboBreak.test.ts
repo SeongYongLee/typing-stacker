@@ -48,4 +48,25 @@ describe('싱글 — 단어를 놓치면 콤보가 끊긴다', () => {
 
     engine.dispose()
   })
+
+  it('맞춰서 올린 콤보가 오타를 제출하는 순간 0이 된다', async () => {
+    const engine = await GameEngine.create(20260812)
+    let state: GameState | null = null
+    engine.onStateChange((next) => {
+      state = next
+    })
+
+    engine.startRun()
+    await clock.advance(1.5)
+    const word = (state as GameState | null)?.words[0]
+    if (word === undefined) throw new Error('낙하 중인 단어가 없다')
+
+    engine.submit(word.word)
+    expect((state as GameState | null)?.stats.combo).toBe(1)
+    engine.submit('존재하지않는오타')
+    expect((state as GameState | null)?.stats.combo).toBe(0)
+    expect((state as GameState | null)?.stats.maxCombo).toBe(1)
+
+    engine.dispose()
+  })
 })

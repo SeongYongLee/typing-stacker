@@ -68,6 +68,9 @@ function platformRect(view: ArenaView): { left: number; top: number; width: numb
 function drawPlatformBack(view: ArenaView): void {
   const { ctx } = view
   const box = platformRect(view)
+  if (box.top > view.cssHeight || box.top + box.height < 0) {
+    return
+  }
   const drawn = drawDayNight(view, 'platform-back-day', 'platform-back-night', (image) => {
     ctx.drawImage(image, box.left, box.top, box.width, box.height)
   })
@@ -93,6 +96,9 @@ function drawPlatformBack(view: ArenaView): void {
 function drawPlatformFront(view: ArenaView): void {
   const { ctx } = view
   const box = platformRect(view)
+  if (box.top > view.cssHeight || box.top + box.height < 0) {
+    return
+  }
   drawDayNight(view, 'platform-front-day', 'platform-front-night', (image) => {
     ctx.drawImage(image, box.left, box.top, box.width, box.height)
   })
@@ -119,6 +125,9 @@ function drawLedges(
     const width = ledge.halfWidth * 2 * view.scale
     const left = view.toScreenX(ledge.x - ledge.halfWidth)
     const top = view.toScreenY(ledge.y)
+    if (top > view.cssHeight || top + height < 0) {
+      continue
+    }
     /*
      * 먼지 뭉치는 **콜라이더 높이에 맞춰 눌러 그린다.** 받침대처럼 그림 비율대로
      * 늘리면 보이는 두께와 부딪히는 두께가 어긋나 허공에 걸린 것처럼 보인다.
@@ -358,6 +367,7 @@ function drawBody(
   body: BodySnapshot,
   ownerColors: ReadonlyMap<OwnerId, string> | null,
   mark: number | undefined,
+  mergeSize: number | undefined,
   pulse: number,
   alpha = 1,
 ): void {
@@ -378,6 +388,7 @@ function drawBody(
    * 둘이 겹칠 일은 없다. 주인 색은 대전에만, 짝 표식은 싱글에만 있다.
    */
   const ownerColor = ownerColors?.get(body.owner) ?? null
+  const complexMerge = ownerColor === null && mark !== undefined && (mergeSize ?? 0) >= 3
   const rimColor =
     ownerColor ??
     (mark === undefined
@@ -388,8 +399,12 @@ function drawBody(
    * 둘이 함께 뛰는 것으로 보여 "이 둘이 한 쌍"이 색보다 먼저 읽힌다.
    * 주인 색은 신원이라 흔들리면 안 되므로 그대로 둔다.
    */
-  const rimAlpha = ownerColor === null && mark !== undefined ? pulse : 1
-  const rimWeight = ownerColor === null && mark !== undefined ? 'pair' : 'normal'
+  const rimAlpha = ownerColor === null && mark !== undefined
+    ? complexMerge ? Math.min(1, 0.45 + pulse * 0.7) : pulse
+    : 1
+  const rimWeight = ownerColor === null && mark !== undefined
+    ? complexMerge ? 'complex' : 'pair'
+    : 'normal'
   const drawn = drawSprite(
     view,
     body.variant.sprite,
@@ -404,7 +419,7 @@ function drawBody(
   if (!drawn) {
     ctx.fillStyle = body.variant.color
     ctx.strokeStyle = rimColor ?? 'rgba(0, 0, 0, 0.4)'
-    ctx.lineWidth = mark === undefined ? 1.5 : 5
+    ctx.lineWidth = mark === undefined ? 1.5 : complexMerge ? 7 : 5
     ctx.globalAlpha = 0.55 * alpha
     for (const part of partsOf(shape)) {
       tracePart(view, part)
@@ -427,7 +442,7 @@ function drawSprite(
   ownerColor: string | null,
   rimAlpha = 1,
   alpha = 1,
-  rimWeight: 'normal' | 'pair' = 'normal',
+  rimWeight: 'normal' | 'pair' | 'complex' = 'normal',
 ): boolean {
   const img = sprite(src)
   if (img === null) {

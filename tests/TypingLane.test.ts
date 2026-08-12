@@ -54,6 +54,22 @@ describe('TypingLane 글꼴', () => {
     expect(markup).toContain('/items/leaf.webp')
   })
 
+  it('재료 3개 이상 조합은 더 강한 단일 테두리와 세 점 광원으로 구분한다', () => {
+    const markup = renderToStaticMarkup(createElement(TypingLane, {
+      words: [word],
+      side: 'left',
+      wordMarks: new Map([[word.word, 0]]),
+      mergeSizes: new Map([[word.word, 3]]),
+      pairPulse: 1,
+    }))
+
+    expect(markup).toContain('data-merge-size="3"')
+    expect(markup).toContain('data-complex-merge="true"')
+    expect(markup).toContain('border-width:4px')
+    expect(markup).not.toContain('outline:')
+    expect(markup.match(/border-radius:50%/g)).toHaveLength(3)
+  })
+
   it('대결에서만 화이트보드와 이어진 단어 왼쪽 위에 하트를 표시한다', () => {
     const duel = renderToStaticMarkup(createElement(TypingLane, {
       words: [word],

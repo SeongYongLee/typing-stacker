@@ -5,8 +5,10 @@ import { targetCameraY } from '../src/game/systems/Camera.ts'
 import {
   FULL,
   OPENING,
+  SOLO_SCORE_LEVELS,
   difficultyAt,
   difficultyProgress,
+  soloDifficultyAt,
 } from '../src/game/systems/Difficulty.ts'
 
 /**
@@ -81,6 +83,35 @@ describe('difficultyAt — 쌓을수록 몰아친다', () => {
     for (let t = 0; t <= 1; t += 0.05) {
       expect(Number.isInteger(difficultyAt(t).maxConcurrent)).toBe(true)
     }
+  })
+})
+
+describe('soloDifficultyAt — 점수가 쌓일수록 후반 난이도가 이어진다', () => {
+  it('각 점수 이정표에서 정해둔 난이도에 도달한다', () => {
+    for (const point of SOLO_SCORE_LEVELS) {
+      expect(soloDifficultyAt(0, point.score)).toEqual(point.level)
+    }
+  })
+
+  it('점수가 오르면 더 자주 나오고, 더 빨리 떨어지고, 조준도 빨라진다', () => {
+    let previous = soloDifficultyAt(0, 0)
+    for (let score = 5_000; score <= 150_000; score += 5_000) {
+      const current = soloDifficultyAt(0, score)
+      expect(current.spawnInterval).toBeLessThanOrEqual(previous.spawnInterval)
+      expect(current.fallDuration).toBeLessThanOrEqual(previous.fallDuration)
+      expect(current.aimSpeed).toBeGreaterThanOrEqual(previous.aimSpeed)
+      expect(current.maxConcurrent).toBeGreaterThanOrEqual(previous.maxConcurrent)
+      previous = current
+    }
+  })
+
+  it('15만점 뒤에는 더 어려워지지 않는다', () => {
+    expect(soloDifficultyAt(1, 150_000)).toEqual(soloDifficultyAt(1, 500_000))
+  })
+
+  it('높이와 점수 중 더 어려운 쪽을 유지한다', () => {
+    expect(soloDifficultyAt(1, 0)).toEqual(FULL)
+    expect(soloDifficultyAt(0, 50_000).maxConcurrent).toBe(5)
   })
 })
 

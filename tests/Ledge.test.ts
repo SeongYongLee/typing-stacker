@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { AIM_HALF_RANGE, ARENA, LEDGE, MAX_ITEM_HALF_WIDTH } from '../src/game/config.ts'
-import { placeLedge, type Occupied } from '../src/game/systems/Ledge.ts'
+import {
+  placeLedge,
+  soloLedgeWidthAt,
+  type Occupied,
+} from '../src/game/systems/Ledge.ts'
 import { createRng } from '../src/game/systems/Rng.ts'
 
 function item(x: number, y: number, hw = 0.3, hh = 0.3): Occupied {
@@ -206,5 +210,38 @@ describe('통나무를 놓을 자리', () => {
     const a = placeLedge([], [], EMPTY_TOP, createRng(99))
     const b = placeLedge([], [], EMPTY_TOP, createRng(99))
     expect(a).toEqual(b)
+  })
+})
+
+describe('싱글 후반 발판 폭', () => {
+  it('점수가 오를수록 새 발판의 최소·최대 폭이 줄어든다', () => {
+    let previous = soloLedgeWidthAt(0)
+    for (let score = 5_000; score <= 50_000; score += 5_000) {
+      const current = soloLedgeWidthAt(score)
+      expect(current.minHalfWidth).toBeLessThanOrEqual(previous.minHalfWidth)
+      expect(current.maxHalfWidth).toBeLessThanOrEqual(previous.maxHalfWidth)
+      previous = current
+    }
+  })
+
+  it('0점에는 전체 1.60~1.90m, 5만점에는 1.20~1.40m 범위다', () => {
+    expect(soloLedgeWidthAt(0)).toEqual({ minHalfWidth: 0.8, maxHalfWidth: 0.95 })
+    expect(soloLedgeWidthAt(50_000)).toEqual({ minHalfWidth: 0.6, maxHalfWidth: 0.7 })
+    expect(soloLedgeWidthAt(500_000)).toEqual(soloLedgeWidthAt(50_000))
+  })
+
+  it('가장 어려운 발판도 가장 큰 물건의 반폭보다 넓다', () => {
+    expect(soloLedgeWidthAt(50_000).minHalfWidth).toBeGreaterThan(MAX_ITEM_HALF_WIDTH)
+  })
+
+  it('자리 생성이 전달받은 난이도 폭 안에서 발판을 만든다', () => {
+    const width = soloLedgeWidthAt(50_000)
+    const rng = createRng(2026)
+    for (let index = 0; index < 30; index += 1) {
+      const spot = placeLedge([], [], EMPTY_TOP, rng, width)
+      expect(spot).not.toBeNull()
+      expect(spot!.halfWidth).toBeGreaterThanOrEqual(width.minHalfWidth)
+      expect(spot!.halfWidth).toBeLessThanOrEqual(width.maxHalfWidth)
+    }
   })
 })

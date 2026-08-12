@@ -2,7 +2,7 @@ import { ARENA, DIFFICULTY_FULL_HEIGHT, WORD } from '../config.ts'
 import type { DifficultyLevel } from '../types/game.ts'
 
 /**
- * 난이도는 **시간이 아니라 탑 높이**를 따라간다.
+ * 기본 난이도는 **시간이 아니라 탑 높이**를 따라간다.
  *
  * 예전에는 12초마다 한 단계씩 올랐다. 그것을 없앤 이유는 압박의 축이 겹쳤기 때문이다 —
  * 이 게임은 스택이 높아질수록 저절로 어려워지므로(무게중심이 높아지고 얹을 자리가
@@ -13,7 +13,11 @@ import type { DifficultyLevel } from '../types/game.ts'
  * 살펴볼 틈 없이 손부터 급해진다. 그래서 **쌓은 만큼** 몰아치게 한다.
  * 잘 쌓는 사람에게 더 많은 단어가 오고, 아직 못 쌓은 사람은 여유를 갖는다.
  *
- * 어디서 최대치에 닿는지는 `DIFFICULTY_FULL_HEIGHT`가 정한다. 한때 카메라가 움직이기
+ * 싱글에서는 이 높이 곡선과 누적 점수 곡선 중 더 어려운 쪽을 쓴다. 높이 곡선은
+ * 판 초반의 쌓기 성과를 반영하고, 점수 곡선은 탑이 무너져도 장기 플레이의 압박이
+ * 초기화되지 않게 한다. 대전은 기존처럼 높이 곡선만 쓴다.
+ *
+ * 높이 곡선이 어디서 최대치에 닿는지는 `DIFFICULTY_FULL_HEIGHT`가 정한다. 한때 카메라가 움직이기
  * 시작하는 높이를 그대로 썼는데, 재보니 그 지점이 **판의 절반**이라 나머지 절반을 내내
  * 최대 밀도로 보내고 있었다 — 실측과 근거는 그 상수에.
  *
@@ -87,6 +91,33 @@ const FULL: DifficultyLevel = {
 }
 
 /**
+ * 싱글 장기 플레이의 점수 이정표.
+ *
+ * 높이 난이도는 판 초반을 맡고, 점수 난이도는 탑이 한 번 무너진 뒤에도 이어지는
+ * 장기 압박을 맡는다. 15만점 뒤에는 더 빨라지지 않게 상한을 둔다.
+ */
+const SOLO_SCORE_LEVELS: readonly { readonly score: number; readonly level: DifficultyLevel }[] = [
+  { score: 0, level: OPENING },
+  { score: 5_000, level: FULL },
+  {
+    score: 25_000,
+    level: { spawnInterval: 2.45, fallDuration: 9.6, aimSpeed: 0.42, maxConcurrent: 4 },
+  },
+  {
+    score: 50_000,
+    level: { spawnInterval: 2.3, fallDuration: 9.2, aimSpeed: 0.46, maxConcurrent: 5 },
+  },
+  {
+    score: 100_000,
+    level: { spawnInterval: 2.15, fallDuration: 8.8, aimSpeed: 0.5, maxConcurrent: 5 },
+  },
+  {
+    score: 150_000,
+    level: { spawnInterval: 2, fallDuration: 8.5, aimSpeed: 0.54, maxConcurrent: 5 },
+  },
+]
+
+/**
  * 탑 높이를 0~1 진행도로 옮긴다.
  * 받침대 윗면에서 시작해 `DIFFICULTY_FULL_HEIGHT`만큼 쌓으면 1이 된다.
  */
@@ -115,6 +146,48 @@ function difficultyAt(progress: number): DifficultyLevel {
     fallDuration: lerp(OPENING.fallDuration, FULL.fallDuration),
     aimSpeed: lerp(OPENING.aimSpeed, FULL.aimSpeed),
     maxConcurrent: Math.round(lerp(OPENING.maxConcurrent, FULL.maxConcurrent)),
+  }
+}
+
+/** 싱글은 기존 높이 곡선과 누적 점수 곡선 중 더 어려운 쪽을 따른다. */
+function soloDifficultyAt(heightProgress: number, score: number): DifficultyLevel {
+  const height = difficultyAt(heightProgress)
+  const points = difficultyForScore(score)
+  return {
+    spawnInterval: Math.min(height.spawnInterval, points.spawnInterval),
+    fallDuration: Math.min(height.fallDuration, points.fallDuration),
+    aimSpeed: Math.max(height.aimSpeed, points.aimSpeed),
+    maxConcurrent: Math.max(height.maxConcurrent, points.maxConcurrent),
+  }
+}
+
+function difficultyForScore(score: number): DifficultyLevel {
+  const safe = Math.max(0, score)
+  const last = SOLO_SCORE_LEVELS.at(-1)!
+  if (safe >= last.score) return last.level
+
+  for (let index = 1; index < SOLO_SCORE_LEVELS.length; index += 1) {
+    const right = SOLO_SCORE_LEVELS[index]!
+    if (safe > right.score) continue
+    const left = SOLO_SCORE_LEVELS[index - 1]!
+    const progress = (safe - left.score) / (right.score - left.score)
+    return interpolateLevel(left.level, right.level, progress)
+  }
+  return last.level
+}
+
+function interpolateLevel(
+  from: DifficultyLevel,
+  to: DifficultyLevel,
+  progress: number,
+): DifficultyLevel {
+  const t = Math.min(1, Math.max(0, progress))
+  const lerp = (left: number, right: number): number => left + (right - left) * t
+  return {
+    spawnInterval: lerp(from.spawnInterval, to.spawnInterval),
+    fallDuration: lerp(from.fallDuration, to.fallDuration),
+    aimSpeed: lerp(from.aimSpeed, to.aimSpeed),
+    maxConcurrent: Math.round(lerp(from.maxConcurrent, to.maxConcurrent)),
   }
 }
 
@@ -154,4 +227,13 @@ function forPlayers(level: DifficultyLevel, players: number): DifficultyLevel {
 /** 아무리 사람이 많아도 이보다 자주 내보내지는 않는다 */
 const MIN_SPAWN_INTERVAL = 0.55
 
-export { OPENING, FULL, MAX_ON_SCREEN, difficultyAt, difficultyProgress, forPlayers }
+export {
+  OPENING,
+  FULL,
+  SOLO_SCORE_LEVELS,
+  MAX_ON_SCREEN,
+  difficultyAt,
+  soloDifficultyAt,
+  difficultyProgress,
+  forPlayers,
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { SOLO_READY_MS, SOLO_START_MS } from './game/config.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { SplashBackdrop } from './components/SplashBackdrop.tsx'
@@ -14,19 +14,39 @@ import {
 import { useAudioBoot, useMusic, useSplashDoor } from './hooks/useAudio.ts'
 import { musicFor, type Route } from './screenMusic.ts'
 import { useGameEngine } from './hooks/useGameEngine.ts'
-import { useMatchSession } from './hooks/useMatchSession.ts'
-import { CollectionScreen } from './screens/CollectionScreen.tsx'
-import { NameScreen } from './screens/NameScreen.tsx'
-import { OptionsScreen } from './screens/OptionsScreen.tsx'
-import { GameScreen } from './screens/GameScreen.tsx'
-import { LobbyScreen } from './screens/LobbyScreen.tsx'
-import { LoopbackScreen } from './screens/LoopbackScreen.tsx'
-import { MatchScreen } from './screens/MatchScreen.tsx'
-import { ResultScreen } from './screens/ResultScreen.tsx'
-import { SoloRulesScreen } from './screens/SoloRulesScreen.tsx'
 import { TitleScreen } from './screens/TitleScreen.tsx'
 import { titleThemeForHour, type TitleTheme } from './screens/titleTheme.ts'
 import { displaySettings, updateDisplaySettings } from './game/renderer/displayPrefs.ts'
+
+const loadCollectionScreen = () => import('./screens/CollectionScreen.tsx')
+const loadNameScreen = () => import('./screens/NameScreen.tsx')
+const loadOptionsScreen = () => import('./screens/OptionsScreen.tsx')
+const loadGameScreen = () => import('./screens/GameScreen.tsx')
+const loadLoopbackScreen = () => import('./screens/LoopbackScreen.tsx')
+const loadMultiplayerScreen = () => import('./screens/MultiplayerScreen.tsx')
+const loadResultScreen = () => import('./screens/ResultScreen.tsx')
+const loadSoloRulesScreen = () => import('./screens/SoloRulesScreen.tsx')
+
+const CollectionScreen = lazy(() => loadCollectionScreen().then((module) => ({
+  default: module.CollectionScreen,
+})))
+const NameScreen = lazy(() => loadNameScreen().then((module) => ({ default: module.NameScreen })))
+const OptionsScreen = lazy(() => loadOptionsScreen().then((module) => ({
+  default: module.OptionsScreen,
+})))
+const GameScreen = lazy(() => loadGameScreen().then((module) => ({ default: module.GameScreen })))
+const LoopbackScreen = lazy(() => loadLoopbackScreen().then((module) => ({
+  default: module.LoopbackScreen,
+})))
+const MultiplayerScreen = lazy(() => loadMultiplayerScreen().then((module) => ({
+  default: module.MultiplayerScreen,
+})))
+const ResultScreen = lazy(() => loadResultScreen().then((module) => ({
+  default: module.ResultScreen,
+})))
+const SoloRulesScreen = lazy(() => loadSoloRulesScreen().then((module) => ({
+  default: module.SoloRulesScreen,
+})))
 
 /**
  * 개발 중에만 열리는 입구. `?loopback=1`이면 한 화면에서 방장과 참가자를 함께 돌린다.
@@ -45,6 +65,22 @@ function openingSoloStage(): SoloStage {
   return displaySettings().soloRules ? 'rules' : 'ready'
 }
 
+function DeferredRoute({ children, theme }: { children: ReactNode; theme: TitleTheme }) {
+  return (
+    <Suspense fallback={<RouteLoading theme={theme} />}>
+      {children}
+    </Suspense>
+  )
+}
+
+function RouteLoading({ theme }: { theme: TitleTheme }) {
+  return (
+    <SplashBackdrop theme={theme} animated={false}>
+      <span className="sr-only">화면을 불러오는 중입니다</span>
+    </SplashBackdrop>
+  )
+}
+
 function App() {
   const [route, setRoute] = useState<Route>(initialRoute)
   // 스플래시 그림과 음악이 같은 낮·밤을 쓰고, 머무는 동안 갑자기 바뀌지 않게 고정한다
@@ -56,9 +92,9 @@ function App() {
   const [splashTransition, setSplashTransition] = useState<SplashTransitionPhase>('idle')
   /** 타이틀의 핵심 그림보다 게임 자산 요청이 먼저 대역폭을 차지하지 않게 한다. */
   const [titleReady, setTitleReady] = useState(false)
+  const [matchPhase, setMatchPhase] = useState<'playing' | 'over' | null>(null)
   const enableGameLoading = useCallback(() => setTitleReady(true), [])
   const { engine, state, assetProgress } = useGameEngine(titleReady)
-  const match = useMatchSession()
 
   // 첫 제스처를 기다렸다 소리를 연다. 브라우저가 그 전에는 내주지 않는다
   useAudioBoot()
@@ -76,7 +112,7 @@ function App() {
     titleTheme,
     soloPhase: state?.phase ?? null,
     soloTimeOfDay: state?.timeOfDay.phase ?? null,
-    matchPhase: match.state?.phase ?? null,
+    matchPhase,
   }))
 
   /*
@@ -92,6 +128,7 @@ function App() {
     if (engine === null || splashTransition !== 'idle') {
       return
     }
+    void Promise.all([loadGameScreen(), loadResultScreen(), loadSoloRulesScreen()])
     if (route === 'title') {
       // 문이 끼익 열리는 동안 스플래시를 검게 가린 뒤, 검은 틈에서 화면을 바꾼다
       setSplashTransition('darkening')
@@ -186,60 +223,65 @@ function App() {
     // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
     setTitleTheme(titleThemeForHour(new Date().getHours()))
     setSplashTransition('idle')
+    setMatchPhase(null)
     setRoute('title')
   }, [])
 
   const backToTitle = useCallback(() => {
-    match.leave()
     // 이걸 끄지 않으면 타이틀로 나온 뒤에 판이 저 혼자 열린다
     setSoloStage(null)
     openTitle()
-  }, [match, openTitle])
+  }, [openTitle])
 
-  const backToLobbyMenu = useCallback(() => {
-    match.leave()
-    setSoloStage(null)
-  }, [match])
+  const openMultiplayer = useCallback(() => {
+    void loadMultiplayerScreen()
+    setRoute('lobby')
+  }, [])
 
   if (route === 'loopback') {
-    return <LoopbackScreen onBack={openTitle} />
+    return (
+      <DeferredRoute theme={titleTheme}>
+        <LoopbackScreen onBack={openTitle} />
+      </DeferredRoute>
+    )
   }
 
   if (route === 'name') {
-    return <NameScreen onBack={openTitle} />
+    return (
+      <DeferredRoute theme={titleTheme}>
+        <NameScreen onBack={openTitle} />
+      </DeferredRoute>
+    )
   }
 
   if (route === 'options') {
-    return <OptionsScreen onBack={openTitle} />
+    return (
+      <DeferredRoute theme={titleTheme}>
+        <OptionsScreen onBack={openTitle} />
+      </DeferredRoute>
+    )
   }
 
   if (route === 'collection') {
     return (
-      <CollectionScreen
-        collected={state?.collected ?? []}
-        onBack={openTitle}
-      />
+      <DeferredRoute theme={titleTheme}>
+        <CollectionScreen
+          collected={state?.collected ?? []}
+          onBack={openTitle}
+        />
+      </DeferredRoute>
     )
   }
 
   if (route === 'lobby') {
-    const phase = match.phase
-    if (phase?.kind === 'playing' && match.state !== null) {
-      return (
-        <MatchScreen engine={phase.engine} state={match.state} onLeave={backToTitle} />
-      )
-    }
     return (
-      <SplashBackdrop theme={titleTheme} animated={false}>
-        <LobbyScreen
-          phase={phase}
-          onOpen={match.open}
-          onReady={match.setReady}
-          onChat={match.sendChat}
-          onBack={phase === null ? backToTitle : backToLobbyMenu}
+      <DeferredRoute theme={titleTheme}>
+        <MultiplayerScreen
           theme={titleTheme}
+          onBack={backToTitle}
+          onPhaseChange={setMatchPhase}
         />
-      </SplashBackdrop>
+      </DeferredRoute>
     )
   }
 
@@ -249,7 +291,7 @@ function App() {
         <TitleScreen
           onStart={startSolo}
           onName={() => setRoute('name')}
-          onMultiplayer={() => setRoute('lobby')}
+          onMultiplayer={openMultiplayer}
           onCollection={() => setRoute('collection')}
           onOptions={() => setRoute('options')}
           ready={engine !== null && state !== null && assetProgress >= 1}
@@ -276,7 +318,9 @@ function App() {
       <>
         <StartBackdrop>
           {soloStage === 'rules' ? (
-            <SoloRulesScreen onStart={beginSolo} onHideAndStart={hideRulesAndBeginSolo} />
+            <Suspense fallback={null}>
+              <SoloRulesScreen onStart={beginSolo} onHideAndStart={hideRulesAndBeginSolo} />
+            </Suspense>
           ) : (
             <SoloStart step={soloStage} />
           )}
@@ -287,24 +331,26 @@ function App() {
   }
 
   return (
-    <div style={{ position: 'relative', height: '100%' }}>
-      <GameScreen
-        engine={engine}
-        state={state}
-        onRestart={startSolo}
-        onHome={backToTitle}
-      />
-      {/* 시작 박자의 어둠을 이어받아 걷고, 다 걷히면 떼어낸다 */}
-      {lifting && <StartCurtain key={liftSeq} onDone={() => setLifting(false)} />}
-      {state.phase === 'over' && (
-        <ResultScreen
-          stats={state.stats}
-          freshlyCollected={state.freshlyCollected}
+    <Suspense fallback={<StartBackdrop><span /></StartBackdrop>}>
+      <div style={{ position: 'relative', height: '100%' }}>
+        <GameScreen
+          engine={engine}
+          state={state}
           onRestart={startSolo}
-          onHome={openTitle}
+          onHome={backToTitle}
         />
-      )}
-    </div>
+        {/* 시작 박자의 어둠을 이어받아 걷고, 다 걷히면 떼어낸다 */}
+        {lifting && <StartCurtain key={liftSeq} onDone={() => setLifting(false)} />}
+        {state.phase === 'over' && (
+          <ResultScreen
+            stats={state.stats}
+            freshlyCollected={state.freshlyCollected}
+            onRestart={startSolo}
+            onHome={openTitle}
+          />
+        )}
+      </div>
+    </Suspense>
   )
 }
 

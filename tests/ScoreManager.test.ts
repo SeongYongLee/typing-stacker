@@ -65,6 +65,19 @@ describe('ScoreManager', () => {
     expect(score.stats(0, 3, 60).score).toBe(SCORE.craftBonus + crafted.scoreBonus)
   })
 
+  it('화이트보드 회수는 콤보 배수를 적용해 즉시 점수를 주되 쌓은 개수는 늘리지 않는다', () => {
+    const score = new ScoreManager()
+    const recalled = anyVariant(false)
+    score.onWordMatched('사과')
+    score.onRecalled(recalled)
+
+    const stats = score.stats(0, 3, 60)
+    expect(stats.rawScore).toBe(
+      Math.round((SCORE.perItem + recalled.scoreBonus) * (1 + SCORE.comboStep)),
+    )
+    expect(stats.stackCount).toBe(0)
+  })
+
   it('같은 히든을 또 찾아도 목록에는 한 번만 남는다', () => {
     const score = new ScoreManager()
     const hidden = anyVariant(true)
@@ -140,6 +153,17 @@ describe('ScoreManager', () => {
     expect(after.rawScore).toBe(before.rawScore)
     // 최고 기록은 남는다
     expect(after.maxCombo).toBe(2)
+  })
+
+  it('오타는 현재 콤보를 끊고 최고 콤보는 유지한다', () => {
+    const score = new ScoreManager()
+    score.onWordMatched('사과')
+    score.onWordMatched('번개')
+    score.onInputMissed()
+
+    const stats = score.stats(0, 3, 60)
+    expect(stats.combo).toBe(0)
+    expect(stats.maxCombo).toBe(2)
   })
 
   it('콤보 배수가 착지 점수에 곱해진다', () => {

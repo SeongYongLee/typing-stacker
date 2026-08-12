@@ -149,6 +149,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             side="left"
             missSeq={state.stats.missedWords}
             wordMarks={state.wordMarks}
+            mergeSizes={state.wordMergeSizes}
             mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}
@@ -166,6 +167,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             side="right"
             missSeq={state.stats.missedWords}
             wordMarks={state.wordMarks}
+            mergeSizes={state.wordMergeSizes}
             mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
             recallWords={state.whiteboard}

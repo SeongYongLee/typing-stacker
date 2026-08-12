@@ -1,6 +1,12 @@
 import { RELAY_URL } from '../multi/relayUrl.ts'
 import type { RunStats } from '../game/types/game.ts'
 import { loadProfile } from '../storage/profile.ts'
+import {
+  clearPendingRun,
+  loadPendingRun,
+  queuePendingRun,
+  type PendingRun,
+} from '../storage/pendingRun.ts'
 import { START_RATING } from './tiers.ts'
 
 /**
@@ -76,7 +82,7 @@ const EMPTY: RankView = {
 /** 판이 끝나면 기록을 보내고 순위를 받는다 */
 async function submitRun(stats: RunStats): Promise<RankView | null> {
   const profile = loadProfile()
-  return post('/rank/run', {
+  const pending = queuePendingRun({
     id: profile.id,
     name: profile.name,
     icon: profile.icon,
@@ -87,6 +93,22 @@ async function submitRun(stats: RunStats): Promise<RankView | null> {
     kpm: stats.kpm,
     durationSec: stats.durationSec,
   })
+  return sendPendingRun(pending)
+}
+
+/** 타이틀 재진입이나 온라인 복귀 때 남아 있는 기록을 다시 보낸다. */
+async function flushPendingRun(): Promise<RankView | null> {
+  const pending = loadPendingRun()
+  return pending === null ? null : sendPendingRun(pending)
+}
+
+async function sendPendingRun(pending: PendingRun): Promise<RankView | null> {
+  const result = await post('/rank/run', pending)
+  if (result !== null) {
+    // 서버가 값 자체를 거절한 경우도 재전송으로 나아지지 않으므로 대기열에서 치운다.
+    clearPendingRun(pending)
+  }
+  return result
 }
 
 /**
@@ -138,7 +160,8 @@ async function fetchRatings(
 /** 지금 내 기록과 상위 목록 */
 async function fetchRank(): Promise<RankView | null> {
   const profile = loadProfile()
-  const [me, top] = await Promise.all([
+  const [, me, top] = await Promise.all([
+    flushPendingRun(),
     get(`/rank/me?id=${encodeURIComponent(profile.id)}`),
     get('/rank/top'),
   ])
@@ -179,5 +202,5 @@ async function request(path: string, init: RequestInit): Promise<Partial<RankVie
   }
 }
 
-export { submitRun, reportMatch, fetchRank, fetchRatings, EMPTY }
+export { submitRun, flushPendingRun, reportMatch, fetchRank, fetchRatings, EMPTY }
 export type { RankView, RunRecord, LadderRecord }

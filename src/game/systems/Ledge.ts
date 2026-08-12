@@ -41,6 +41,24 @@ interface Occupied {
   readonly hh: number
 }
 
+interface LedgeWidthRange {
+  readonly minHalfWidth: number
+  readonly maxHalfWidth: number
+}
+
+const DEFAULT_WIDTH: LedgeWidthRange = {
+  minHalfWidth: LEDGE.minHalfWidth,
+  maxHalfWidth: LEDGE.maxHalfWidth,
+}
+
+/** 점수가 높을수록 이후 합성으로 생기는 발판만 짧아진다. */
+const SOLO_LEDGE_WIDTHS: readonly { readonly score: number; readonly width: LedgeWidthRange }[] = [
+  { score: 0, width: { minHalfWidth: 0.8, maxHalfWidth: 0.95 } },
+  { score: 5_000, width: { minHalfWidth: 0.72, maxHalfWidth: 0.88 } },
+  { score: 25_000, width: { minHalfWidth: 0.66, maxHalfWidth: 0.78 } },
+  { score: 50_000, width: { minHalfWidth: 0.6, maxHalfWidth: 0.7 } },
+]
+
 /**
  * 통나무 **중심**이 갈 수 있는 x의 한계.
  *
@@ -128,6 +146,7 @@ function placeLedge(
   ledges: readonly Occupied[],
   stackTop: number,
   rng: Rng,
+  width: LedgeWidthRange = DEFAULT_WIDTH,
 ): { x: number; y: number; halfWidth: number } | null {
   const floor = ARENA.platformTop
   /*
@@ -172,7 +191,7 @@ function placeLedge(
 
   // 길이는 판마다 다르다. 같은 것만 서면 "같은 것이 세 번"이지 새 자리로 안 읽힌다
   const halfWidth =
-    LEDGE.minHalfWidth + (LEDGE.maxHalfWidth - LEDGE.minHalfWidth) * rng.next()
+    width.minHalfWidth + (width.maxHalfWidth - width.minHalfWidth) * rng.next()
 
   const taken = [PLATFORM, ...items, ...ledges]
   const { outer, inner, step: slotStep } = candidates()
@@ -202,5 +221,24 @@ function placeLedge(
   return null
 }
 
-export { placeLedge, REACH }
-export type { Occupied }
+function soloLedgeWidthAt(score: number): LedgeWidthRange {
+  const safe = Math.max(0, score)
+  const last = SOLO_LEDGE_WIDTHS.at(-1)!
+  if (safe >= last.score) return last.width
+
+  for (let index = 1; index < SOLO_LEDGE_WIDTHS.length; index += 1) {
+    const right = SOLO_LEDGE_WIDTHS[index]!
+    if (safe > right.score) continue
+    const left = SOLO_LEDGE_WIDTHS[index - 1]!
+    const progress = (safe - left.score) / (right.score - left.score)
+    const lerp = (from: number, to: number): number => from + (to - from) * progress
+    return {
+      minHalfWidth: lerp(left.width.minHalfWidth, right.width.minHalfWidth),
+      maxHalfWidth: lerp(left.width.maxHalfWidth, right.width.maxHalfWidth),
+    }
+  }
+  return last.width
+}
+
+export { placeLedge, soloLedgeWidthAt, SOLO_LEDGE_WIDTHS, REACH }
+export type { Occupied, LedgeWidthRange }

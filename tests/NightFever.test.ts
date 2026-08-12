@@ -17,6 +17,7 @@ import {
   type FeverDrop,
   type FeverStackItem,
 } from '../src/game/systems/NightFever.ts'
+import { nightScoreTargetAt } from '../src/game/systems/DayNight.ts'
 import { createRng } from '../src/game/systems/Rng.ts'
 import type { GameEvent } from '../src/game/types/events.ts'
 import { FrameClock } from './helpers/frameClock.ts'
@@ -177,7 +178,7 @@ describe('GameEngine Night Fever 통합', () => {
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
 
-  it('시간만 지나서는 밤이 되지 않고 낮에 5,000점을 얻으면 두 묶음 12개를 내린다', async () => {
+  it('첫 낮 5,000점 뒤 밤이 열리고 다음 낮부터 누적 난이도 목표를 쓴다', async () => {
     const engine = await GameEngine.create(20260810)
     const events: GameEvent[] = []
     const nightScores: number[] = []
@@ -238,7 +239,22 @@ describe('GameEngine Night Fever 통합', () => {
     expect((state as GameState | null)?.invulnerable).toBeGreaterThan(0)
     await clock.advance(0.3)
     expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
-    grantDayScore(engine)
+    const dayInternals = engine as unknown as {
+      readonly dayScore: number
+      readonly dayScoreTarget: number
+    }
+    const rawScore = (state as GameState | null)?.stats.rawScore
+    if (rawScore === undefined) throw new Error('낮 상태가 방출되지 않았다')
+    expect(dayInternals.dayScoreTarget).toBeGreaterThan(NIGHT_SCORE_INTERVAL)
+    expect(dayInternals.dayScoreTarget).toBeLessThanOrEqual(
+      nightScoreTargetAt(rawScore),
+    )
+    const remaining = dayInternals.dayScoreTarget - dayInternals.dayScore
+    grantDayScore(engine, remaining / 2)
+    await clock.advance(0.05)
+    expect((state as GameState | null)?.timeOfDay.phase).toBe('day')
+    expect((state as GameState | null)?.timeOfDay.progress).toBeCloseTo(0.5)
+    grantDayScore(engine, dayInternals.dayScoreTarget - dayInternals.dayScore)
     await clock.advance(0.05)
     expect((state as GameState | null)?.timeOfDay.phase).toBe('night')
     engine.dispose()

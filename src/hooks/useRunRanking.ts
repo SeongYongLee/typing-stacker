@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RunStats } from '../game/types/game.ts'
 import { submitRun, type RankView } from '../rank/client.ts'
 
-type RankingStatus = 'sending' | 'ready' | 'offline'
+type RankingStatus = 'sending' | 'ready' | 'offline' | 'rejected'
 
 interface RunRanking {
   readonly status: RankingStatus
   readonly view: RankView | null
   /** 이번 판이 내 최고 기록을 갈아치웠는지 */
   readonly isBest: boolean
+  readonly retry: () => void
 }
 
 /**
@@ -28,11 +29,14 @@ function useRunRanking(stats: RunStats): RunRanking {
   const [status, setStatus] = useState<RankingStatus>('sending')
   const [view, setView] = useState<RankView | null>(null)
   const [isBest, setIsBest] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const latest = useRef(stats)
   latest.current = stats
 
   // 판이 끝나면 더 이상 바뀌지 않는 값들이다. 경과 시간은 넣지 않는다 — 흐르는 값이다
   const key = `${Math.round(stats.score)}|${stats.stackCount}|${stats.maxCombo}|${stats.kpm}`
+
+  const retry = useCallback(() => setAttempt((value) => value + 1), [])
 
   useEffect(() => {
     let alive = true
@@ -44,8 +48,12 @@ function useRunRanking(stats: RunStats): RunRanking {
       if (!alive) {
         return
       }
-      if (next === null || next.error !== undefined) {
+      if (next === null) {
         setStatus('offline')
+        return
+      }
+      if (next.error !== undefined) {
+        setStatus('rejected')
         return
       }
       setStatus('ready')
@@ -56,9 +64,15 @@ function useRunRanking(stats: RunStats): RunRanking {
     return () => {
       alive = false
     }
-  }, [key])
+  }, [key, attempt])
 
-  return { status, view, isBest }
+  useEffect(() => {
+    if (status !== 'offline') return
+    window.addEventListener('online', retry)
+    return () => window.removeEventListener('online', retry)
+  }, [retry, status])
+
+  return { status, view, isBest, retry }
 }
 
 export { useRunRanking }

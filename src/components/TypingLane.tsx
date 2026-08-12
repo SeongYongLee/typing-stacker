@@ -21,6 +21,8 @@ interface TypingLaneProps {
    * 대결에서는 각자 자기 판에 있는 물건을 기준으로 표식을 넘긴다.
    */
   wordMarks?: ReadonlyMap<string, number>
+  /** 합성 표식이 가리키는 레시피의 총 재료 수. 3개 이상이면 다중 합성으로 강조한다. */
+  mergeSizes?: ReadonlyMap<string, number>
   /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건의 이미지 URL. */
   mergeHints?: ReadonlyMap<string, readonly string[]>
   /**
@@ -92,6 +94,7 @@ const chipBase: CSSProperties = {
 }
 
 const NO_MARKS: ReadonlyMap<string, number> = new Map()
+const NO_MERGE_SIZES: ReadonlyMap<string, number> = new Map()
 const NO_MERGE_HINTS: ReadonlyMap<string, readonly string[]> = new Map()
 
 /** 16진 색에 투명도를 얹는다. 밝기를 색 자체에 실어야 어두울 때 배경에 녹는다 */
@@ -107,6 +110,7 @@ function TypingLane({
   side,
   missSeq = 0,
   wordMarks = NO_MARKS,
+  mergeSizes = NO_MERGE_SIZES,
   mergeHints = NO_MERGE_HINTS,
   pairPulse = 1,
   recallWords = [],
@@ -139,6 +143,7 @@ function TypingLane({
           key={word.id}
           word={word}
           mark={wordMarks.get(word.word)}
+          mergeSize={mergeSizes.get(word.word)}
           mergeHint={mergeHints.get(word.word)}
           pulse={pairPulse}
           recall={recallSet.has(word.word)}
@@ -203,6 +208,7 @@ function ClaimMarker({ claim }: { claim: WordClaimNotice }) {
 function Chip({
   word,
   mark,
+  mergeSize,
   mergeHint,
   pulse,
   recall,
@@ -210,6 +216,7 @@ function Chip({
 }: {
   word: FallingWord
   mark: number | undefined
+  mergeSize: number | undefined
   mergeHint: readonly string[] | undefined
   pulse: number
   recall: boolean
@@ -218,16 +225,24 @@ function Chip({
   const missed = word.state === 'missed'
   // 놓친 단어에는 붙이지 않는다 — 이미 칠 수 없는 것에 "붙일 수 있다"고 알리는 셈이다
   const paired = mark !== undefined && !missed
+  const complexMerge = paired && (mergeSize ?? 0) >= 3
   const recalled = recall && !missed
   const color = paired ? (PAIR_MARK_COLORS[mark % PAIR_MARK_COLORS.length] ?? null) : null
   const borderColor = recalled ? PAPER_EDGE : color ?? (missed ? 'rgba(160, 146, 118, 0.4)' : PAPER_EDGE)
   const glow = color === null
     ? 'none'
-    : [
-        `0 0 ${8 + pulse * 12}px ${alpha(color, 0.46 + pulse * 0.42)}`,
-        `0 0 ${16 + pulse * 18}px ${alpha(color, 0.22 + pulse * 0.28)}`,
-        `inset 0 0 ${5 + pulse * 5}px ${alpha(color, 0.2 + pulse * 0.18)}`,
-      ].join(', ')
+    : complexMerge
+      ? [
+          `0 0 ${13 + pulse * 17}px ${alpha(color, 0.58 + pulse * 0.4)}`,
+          `0 0 ${27 + pulse * 24}px ${alpha(color, 0.3 + pulse * 0.32)}`,
+          `0 0 ${38 + pulse * 30}px ${alpha('#fff4bd', 0.16 + pulse * 0.2)}`,
+          `inset 0 0 ${7 + pulse * 8}px ${alpha(color, 0.3 + pulse * 0.24)}`,
+        ].join(', ')
+      : [
+          `0 0 ${8 + pulse * 12}px ${alpha(color, 0.46 + pulse * 0.42)}`,
+          `0 0 ${16 + pulse * 18}px ${alpha(color, 0.22 + pulse * 0.28)}`,
+          `inset 0 0 ${5 + pulse * 5}px ${alpha(color, 0.2 + pulse * 0.18)}`,
+        ].join(', ')
   const recallGlow = recalled
     ? [
         `0 0 ${10 + pulse * 10}px rgba(255, 248, 213, ${0.52 + pulse * 0.38})`,
@@ -241,6 +256,7 @@ function Chip({
       data-word={word.word}
       data-state={word.state}
       data-pair-mark={paired ? mark : undefined}
+      data-merge-size={paired ? mergeSize : undefined}
       data-recall={recalled ? 'true' : undefined}
       style={{
         ...chipBase,
@@ -276,7 +292,7 @@ function Chip({
          * 값으로 그리면 그 다시 그리는 일에 그냥 얹힌다.
          */
         boxShadow: [glow, recallGlow].filter((shadow) => shadow !== null && shadow !== 'none').join(', ') || 'none',
-        borderWidth: paired ? 3 : 1,
+        borderWidth: complexMerge ? 4 : paired ? 3 : 1,
         textDecoration: missed ? 'line-through' : 'none',
       }}
     >
@@ -284,6 +300,22 @@ function Chip({
         <span aria-hidden data-recall-heart style={recallHeartStyle}>♥</span>
       )}
       {recalled && recallMarker === 'hand' && <RecallHand />}
+      {complexMerge && color !== null && (
+        <span aria-hidden data-complex-merge style={complexMergeMarkerStyle}>
+          {[0, 1, 2].map((index) => (
+            <i
+              key={index}
+              style={{
+                ...complexMergeSparkStyle,
+                left: index * 8,
+                top: index === 1 ? 0 : 6,
+                background: color,
+                boxShadow: `0 0 ${5 + pulse * 5}px ${alpha(color, 0.72 + pulse * 0.24)}`,
+              }}
+            />
+          ))}
+        </span>
+      )}
       {paired && !recalled && mergeHint !== undefined && mergeHint.length > 0 && (
         <span aria-hidden data-merge-hints={mergeHint.length} style={mergeHintRowStyle}>
           {mergeHint.map((sprite, index) => (
@@ -362,6 +394,22 @@ const mergeHintStyle: CSSProperties = {
   flex: '0 0 31px',
   objectFit: 'contain',
   filter: 'drop-shadow(0 2px 2px rgba(47, 39, 24, 0.5))',
+}
+
+const complexMergeMarkerStyle: CSSProperties = {
+  position: 'absolute',
+  right: -9,
+  top: -16,
+  width: 21,
+  height: 14,
+  pointerEvents: 'none',
+}
+
+const complexMergeSparkStyle: CSSProperties = {
+  position: 'absolute',
+  width: 6,
+  height: 6,
+  borderRadius: '50%',
 }
 
 export { TypingLane }

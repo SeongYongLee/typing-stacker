@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
-import { GameEngine, type GameState } from '../game/core/GameEngine.ts'
-import { ALL_VARIANTS } from '../game/data/words.ts'
-import { ARENA_ART_SOURCES } from '../game/renderer/ArenaRenderer.ts'
-import { preloadSprites } from '../game/renderer/spriteCache.ts'
+import type { GameEngine, GameState } from '../game/core/GameEngine.ts'
 import { loadCollection, saveCollection } from '../storage/collection.ts'
 
-/** 판의 배경과 받침대처럼 첫 프레임부터 필요한 그림. */
-const CRITICAL_SOURCES = ARENA_ART_SOURCES
-/** 어떤 것이 나올지 모르는 물건 그림. 없으면 렌더러가 도형으로 안전하게 대신한다. */
-const ITEM_SOURCES = ALL_VARIANTS.map((item) => item.sprite)
+async function loadAssetModules() {
+  const [words, arena, cache] = await Promise.all([
+    import('../game/data/words.ts'),
+    import('../game/renderer/ArenaRenderer.ts'),
+    import('../game/renderer/spriteCache.ts'),
+  ])
+  return {
+    criticalSources: arena.ARENA_ART_SOURCES,
+    itemSources: words.ALL_VARIANTS.map((item) => item.sprite),
+    preloadSprites: cache.preloadSprites,
+  }
+}
 
 interface UseGameEngine {
   readonly engine: GameEngine | null
@@ -41,15 +46,16 @@ function useGameEngine(enabled: boolean): UseGameEngine {
     }
     let disposed = false
     let itemTimer: number | null = null
-    void preloadSprites(CRITICAL_SOURCES, (ratio) => {
-      if (!disposed) {
-        setAssetProgress(ratio)
-      }
-    }).then(() => {
+    void loadAssetModules().then(async ({ criticalSources, itemSources, preloadSprites }) => {
+      await preloadSprites(criticalSources, (ratio) => {
+        if (!disposed) {
+          setAssetProgress(ratio)
+        }
+      })
       if (disposed) return
       // 준비 완료를 먼저 칠한 다음 낮은 동시성으로 나머지를 채운다.
       itemTimer = window.setTimeout(() => {
-        void preloadSprites(ITEM_SOURCES, undefined, 4)
+        void preloadSprites(itemSources, undefined, 4)
       }, 0)
     })
     return () => {
@@ -68,18 +74,20 @@ function useGameEngine(enabled: boolean): UseGameEngine {
     // 시드 자체는 매 세션 달라야 하므로 경계에서만 시간을 쓴다.
     // 시드가 정해진 뒤로는 모든 난수가 재현 가능하다 (1대1 멀티 대비).
     // 도감은 판을 넘어 남는다. 저장소를 아는 것은 이 경계뿐이다
-    void GameEngine.create(Date.now() >>> 0, loadCollection()).then((instance) => {
-      if (disposed) {
-        instance.dispose()
-        return
-      }
-      created = instance
-      instance.onStateChange(setState)
-      instance.onCollectionChange(saveCollection)
-      // 엔진은 소리를 모른다. 사건을 소리로 바꾸는 것은 이 경계의 일이다
-      instance.onEvent((event) => soundBoard().handle(event))
-      setEngine(instance)
-    })
+    void import('../game/core/GameEngine.ts')
+      .then(({ GameEngine }) => GameEngine.create(Date.now() >>> 0, loadCollection()))
+      .then((instance) => {
+        if (disposed) {
+          instance.dispose()
+          return
+        }
+        created = instance
+        instance.onStateChange(setState)
+        instance.onCollectionChange(saveCollection)
+        // 엔진은 소리를 모른다. 사건을 소리로 바꾸는 것은 이 경계의 일이다
+        instance.onEvent((event) => soundBoard().handle(event))
+        setEngine(instance)
+      })
 
     return () => {
       disposed = true

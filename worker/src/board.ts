@@ -23,6 +23,7 @@
 
 import { findPair, waitedSecOf, bandOf, type Waiting } from './matching.ts'
 import { START_RATING, TIERS, tierIndexOf } from './tiers.ts'
+import { LIMITS, withinRunLimits } from './runLimits.ts'
 
 /** 기기 id의 최대 길이. UUID가 36자다 */
 const MAX_ID = 64
@@ -60,25 +61,6 @@ interface QueueRow {
   seen: number
   code: string | null
 }
-
-/**
- * 사람이 낼 수 있는 값의 한계.
- *
- * 넉넉하게 잡는다 — 성실한 사람이 걸리는 쪽이 조작을 놓치는 쪽보다 훨씬 나쁘다.
- * 한계에 닿는 기록이 실제로 나오기 시작하면 그때 올린다.
- */
-const LIMITS = {
-  /** 두벌식 기준 분당 키 수. 세계 기록권이 700~900타다 */
-  kpm: 1500,
-  /** 물건 하나를 떨궈 자리 잡기까지 최소로 걸리는 시간(초) */
-  secondsPerItem: 0.8,
-  /** 물건 하나가 벌 수 있는 점수의 상한 (기본 + 높이 + 콤보 배수 + 히든) */
-  scorePerItem: 3000,
-  /** 한 판에 쌓을 수 있다고 보는 개수 */
-  stackCount: 500,
-  /** 받침대 위로 쌓을 수 있다고 보는 높이(m) */
-  height: 40,
-} as const
 
 interface RunRow {
   id: string
@@ -679,12 +661,14 @@ function parseRun(raw: unknown): RunRow | null {
    * 여기가 타당성 검사다. 점수가 맞는지가 아니라 **사람이 낼 수 있는 값인지**를 본다.
    * 하나하나가 물리적으로 불가능한 것만 고른 것이라, 성실한 판이 걸릴 일은 없다.
    */
-  if (kpm > LIMITS.kpm) return null
-  if (stackCount > LIMITS.stackCount) return null
-  if (maxHeight > LIMITS.height) return null
-  if (maxCombo > stackCount) return null
-  if (score > stackCount * LIMITS.scorePerItem) return null
-  if (duration < stackCount * LIMITS.secondsPerItem) return null
+  if (!withinRunLimits({
+    score,
+    stackCount,
+    maxHeight,
+    maxCombo,
+    kpm,
+    durationSec: duration,
+  })) return null
 
   return { id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at: 0 }
 }

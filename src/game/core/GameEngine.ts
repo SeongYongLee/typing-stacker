@@ -18,15 +18,20 @@ import { shapeBounds } from '../shapes.ts'
 import { PhysicsWorld, type ImpactEvent } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
-import { difficultyAt, difficultyProgress } from '../systems/Difficulty.ts'
+import { difficultyProgress, soloDifficultyAt } from '../systems/Difficulty.ts'
 import { RECIPES } from '../data/recipes.ts'
-import { placeLedge } from '../systems/Ledge.ts'
+import { placeLedge, soloLedgeWidthAt } from '../systems/Ledge.ts'
 import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import { canMergeAnything, findMerge } from '../systems/Merger.ts'
-import { pairMarks, pairPartners, pairPulse } from '../systems/PairMarks.ts'
+import { pairMarks, pairPartners, pairPulse, pairSizes } from '../systems/PairMarks.ts'
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
 import { NightFever, isLifeProtected } from '../systems/NightFever.ts'
-import { timeOfDay, type Phase, type TimeOfDay } from '../systems/DayNight.ts'
+import {
+  nightScoreTargetAt,
+  timeOfDay,
+  type Phase,
+  type TimeOfDay,
+} from '../systems/DayNight.ts'
 import { Whiteboard } from '../systems/Whiteboard.ts'
 import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
@@ -46,6 +51,8 @@ import { GameLoop } from './GameLoop.ts'
 /** 알릴 짝이 없을 때 돌려주는 빈 표. 프레임마다 빈 Map을 새로 만들지 않으려는 것 */
 const NO_MARKS: ReadonlyMap<string, number> = new Map()
 const NO_MERGE_HINTS: ReadonlyMap<string, readonly string[]> = new Map()
+const NO_MERGE_SIZES: ReadonlyMap<string, number> = new Map()
+const NO_BODIES: readonly never[] = []
 
 /** 단어 → 그 단어의 기본 변형 id. 내려오는 단어가 무슨 재료인지 보려는 것이다 */
 const WORD_BASE_ID = new Map(
@@ -79,6 +86,9 @@ const WHITEBOARD_RECALL_SEC = CATCH.holdSec
  * 알리는 것)가 사라진다.
  */
 const MERGE_REVEAL_SEC = 3
+/** 3개 이상 합성 직후 세계가 거의 멈춘 듯 보이는 시간과 속도 */
+const COMPLEX_MERGE_SLOW_SEC = 0.45
+const COMPLEX_MERGE_TIME_SCALE = 0.06
 
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
@@ -101,6 +111,8 @@ interface GameState {
    * 까닭은 `systems/PairMarks.ts`에.
    */
   readonly wordMarks: ReadonlyMap<string, number>
+  /** 합성 가능한 단어 → 현재 표식이 가리키는 레시피의 총 재료 수. */
+  readonly wordMergeSizes: ReadonlyMap<string, number>
   /** 합성 가능한 단어 → 지금 받침대에서 붙일 짝 물건의 스프라이트. */
   readonly wordMergeHints: ReadonlyMap<string, readonly string[]>
   /**
@@ -222,6 +234,8 @@ class GameEngine {
         duration: number
       }
     | null = null
+  /** 3개 이상 합성의 짧은 슬로모션. 연출 시간은 이 값과 무관하게 정상 속도로 흐른다. */
+  private complexMergeSlowLeft = 0
   /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
   private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
   /** 낮에 합성이 연달아 일어나도 통나무 보상을 덮어쓰지 않도록 기다리는 횟수 */
@@ -254,10 +268,14 @@ class GameEngine {
   private invulnerableLeft = 0
   /** 직전에 매긴 짝 표식. 색을 이어 쓰려면 지난 판정을 들고 있어야 한다 */
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
+  /** `lastMarks`가 선택한 레시피의 총 재료 수. */
+  private lastMergeSizes: ReadonlyMap<string, number> = NO_MERGE_SIZES
   /** 지금 국면. 바뀔 때만 Fever와 레시피 흐름을 갈아끼우려고 들고 있는다 */
   private phaseNow: Phase = 'day'
   /** 낮에 얻어 다음 Night Fever까지 쌓인 점수. 밤에 얻은 점수는 포함하지 않는다. */
   private dayScore = 0
+  /** 이번 낮에 채워야 하는 점수. 낮이 시작된 뒤에는 바꾸지 않아 시계가 역행하지 않는다. */
+  private dayScoreTarget = NIGHT_SCORE_INTERVAL
   /** 현재 Night Fever에서 흐른 시간. 밤은 기존처럼 10초 동안 열린다. */
   private nightElapsed = 0
   /** 프레임 사이 새로 얻은 점수만 낮 게이지에 더하기 위한 기준값. */
@@ -345,7 +363,9 @@ class GameEngine {
     this.lives = SOLO_LIVES
     this.invulnerableLeft = 0
     this.lastMarks = NO_MARKS
+    this.lastMergeSizes = NO_MERGE_SIZES
     this.hiddenReveal = null
+    this.complexMergeSlowLeft = 0
     this.formingLedge = null
     this.pendingLedgeRewards = 0
     this.quakeLeft = 0
@@ -367,6 +387,7 @@ class GameEngine {
     this.focusedRecipeWords = []
     this.phaseNow = 'day'
     this.dayScore = 0
+    this.dayScoreTarget = NIGHT_SCORE_INTERVAL
     this.nightElapsed = 0
     this.observedRawScore = 0
     this.whiteboard.clear()
@@ -413,6 +434,7 @@ class GameEngine {
     const result = judgeInput(this.spawner.words, text)
 
     if (result.kind === 'miss') {
+      this.score.onInputMissed()
       this.feedback = {
         seq: this.feedbackSeq,
         text: result.input,
@@ -445,6 +467,7 @@ class GameEngine {
     )
     this.spawner.prefer(this.whiteboard.words)
     if (recalled) {
+      this.score.onRecalled(variant)
       const side = result.word.side
       const dropX = recallDropX(side)
       const catcher = plankOf(catchSpot(dropX, side, this.physics.stackTop()))
@@ -609,7 +632,12 @@ class GameEngine {
     })
   }
 
-  private readonly update = (dt: number): void => {
+  private readonly update = (frameDt: number): void => {
+    const slowingComplexMerge = this.phase === 'playing' && this.complexMergeSlowLeft > 0
+    if (slowingComplexMerge) {
+      this.complexMergeSlowLeft = Math.max(this.complexMergeSlowLeft - frameDt, 0)
+    }
+    const dt = slowingComplexMerge ? frameDt * COMPLEX_MERGE_TIME_SCALE : frameDt
     this.advanceQuake(dt)
     // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
     this.landing.advance(dt)
@@ -650,7 +678,8 @@ class GameEngine {
     }
 
     if (this.hiddenReveal !== null) {
-      this.hiddenReveal.elapsed += dt
+      // 다중 합성 슬로모션 중에도 합성 자막은 정상 속도로 움직여 정지 이유를 보여준다.
+      this.hiddenReveal.elapsed += frameDt
       if (this.hiddenReveal.elapsed >= this.hiddenReveal.duration) {
         this.hiddenReveal = null
       }
@@ -673,7 +702,7 @@ class GameEngine {
         this.applyPhase('day')
       }
     }
-    const difficulty = difficultyAt(this.difficultyPeak)
+    const difficulty = soloDifficultyAt(this.difficultyPeak, this.score.rawPoints)
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
      * 놓친 단어는 판을 방해하지 않고 사라진다. 낮의 대가는 **콤보와 점수**다.
@@ -697,7 +726,10 @@ class GameEngine {
       }
     }
 
-    const feverDrop = this.nightFever.update(dt, this.physics.snapshots())
+    const feverDrop = this.nightFever.update(
+      dt,
+      this.phaseNow === 'night' ? this.physics.snapshots() : NO_BODIES,
+    )
     if (feverDrop !== null) {
       this.dropNow(feverDrop.variant, feverDrop.x, false, 'fever')
       this.discover(feverDrop.variant)
@@ -934,6 +966,9 @@ class GameEngine {
       elapsed: 0,
       duration: MERGE_REVEAL_SEC,
     }
+    if (match.recipe.inputs.length >= 3) {
+      this.complexMergeSlowLeft = COMPLEX_MERGE_SLOW_SEC
+    }
     this.fire({ kind: 'merge' })
     this.score.onCrafted(result)
     this.discover(result)
@@ -963,12 +998,13 @@ class GameEngine {
     } else if (previous === 'night') {
       this.nightFever.stop()
       this.nightElapsed = 0
+      this.dayScoreTarget = nightScoreTargetAt(this.score.rawPoints)
       this.invulnerableLeft = Math.max(this.invulnerableLeft, INVULNERABLE_SEC)
     }
     /* 낮·밤 보드는 같은 프레임의 `syncWhiteboardWithRecipe`가 레시피 확정 뒤 맞춘다. */
   }
 
-  /** 낮에 실제로 얻은 점수만 모아 5,000점마다 Night Fever를 한 번 연다. */
+  /** 낮에 실제로 얻은 점수를 이번 낮의 목표까지 모으면 Night Fever를 한 번 연다. */
   private advanceDayScore(): void {
     const rawScore = this.score.rawPoints
     const gained = Math.max(rawScore - this.observedRawScore, 0)
@@ -977,15 +1013,15 @@ class GameEngine {
       return
     }
     this.dayScore += gained
-    if (this.dayScore >= NIGHT_SCORE_INTERVAL) {
-      this.dayScore -= NIGHT_SCORE_INTERVAL
+    if (this.dayScore >= this.dayScoreTarget) {
+      this.dayScore -= this.dayScoreTarget
       this.applyPhase('night')
     }
   }
 
   private timeView(): TimeOfDay {
     return this.phaseNow === 'day'
-      ? timeOfDay('day', this.dayScore / NIGHT_SCORE_INTERVAL)
+      ? timeOfDay('day', this.dayScore / this.dayScoreTarget)
       : timeOfDay('night', this.nightElapsed / NIGHT_SEC)
   }
 
@@ -1054,7 +1090,13 @@ class GameEngine {
       .ledges()
       .map((spot) => ({ ...spot, hw: spot.halfWidth, hh: LEDGE.halfHeight }))
 
-    const spot = placeLedge(items, ledges, this.physics.stackTop(), this.rng)
+    const spot = placeLedge(
+      items,
+      ledges,
+      this.physics.stackTop(),
+      this.rng,
+      soloLedgeWidthAt(this.score.rawPoints),
+    )
     if (spot !== null) {
       // 아직 세우지 않는다. 연출이 뭉쳐 다 앉은 뒤에 실제 통나무가 된다
       this.formingLedge = { ...spot, elapsed: 0 }
@@ -1126,8 +1168,14 @@ class GameEngine {
      * 내 색이 바뀐다 — 까닭은 `PairMarks.ts`에.
      */
     this.lastMarks = pairMarks(counts, RECIPES, this.lastMarks)
+    this.lastMergeSizes = pairSizes(counts, RECIPES, this.lastMarks)
     this.markFrame = this.frameSeq
     return this.lastMarks
+  }
+
+  private mergeSizes(): ReadonlyMap<string, number> {
+    this.marks()
+    return this.lastMergeSizes
   }
 
   private availableVariantCounts(): Map<string, number> {
@@ -1157,6 +1205,17 @@ class GameEngine {
       if (mark !== undefined) {
         byWord.set(falling.word, mark)
       }
+    }
+    return byWord
+  }
+
+  private wordMergeSizes(sizes: ReadonlyMap<string, number>): ReadonlyMap<string, number> {
+    if (sizes.size === 0) return NO_MERGE_SIZES
+    const byWord = new Map<string, number>()
+    for (const falling of this.spawner.words) {
+      const id = WORD_BASE_ID.get(falling.word)
+      const size = id === undefined ? undefined : sizes.get(id)
+      if (size !== undefined) byWord.set(falling.word, size)
     }
     return byWord
   }
@@ -1238,6 +1297,7 @@ class GameEngine {
       // 싱글은 주인이 하나뿐이라 구분해 그릴 것이 없다
       ownerColors: null,
       pairMarks: this.marks(),
+      pairSizes: this.mergeSizes(),
       // 단어 칩과 같은 값을 쓴다. 계산이 한 곳에 있어야 위상이 어긋나지 않는다
       pairPulse: pairPulse(this.elapsed),
     })
@@ -1253,6 +1313,7 @@ class GameEngine {
       // 매 프레임 복사하면 GC가 주기적으로 돌아 화면이 살짝 멈춘다
       words: this.spawner.words,
       wordMarks: this.wordMarks(marks),
+      wordMergeSizes: this.wordMergeSizes(this.mergeSizes()),
       wordMergeHints: this.wordMergeHints(marks),
       whiteboard: this.whiteboard.words,
       whiteboardRecall:

@@ -1,5 +1,5 @@
 import { NICKNAME_MAX } from '../../multi/protocol.ts'
-import { ALL_VARIANTS } from './words.ts'
+import { ITEM_LABELS } from './itemCatalog.generated.ts'
 
 /**
  * 이름은 **짓는 것이 아니라 고르는 것**이다.
@@ -64,7 +64,7 @@ const NOUN_MAX = NICKNAME_MAX - Math.max(...ADJECTIVES.map((word) => word.length
  */
 function nouns(): readonly string[] {
   // 같은 이름을 가진 변형이 있어 중복을 걷어낸다
-  return [...new Set(ALL_VARIANTS.map((item) => item.label))].filter(
+  return ITEM_LABELS.filter(
     (label) => label.length <= NOUN_MAX,
   )
 }

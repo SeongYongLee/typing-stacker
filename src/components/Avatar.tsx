@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { VARIANT_BY_ID } from '../game/data/words.ts'
+import { itemSprite } from '../game/data/itemCatalog.generated.ts'
 
 /**
  * 사람을 가리키는 아이콘 — 도감에서 고른 물건 그림.
@@ -21,7 +21,7 @@ interface AvatarProps {
 }
 
 function Avatar({ icon, size, ring }: AvatarProps) {
-  const sprite = VARIANT_BY_ID.get(icon)?.sprite ?? null
+  const sprite = itemSprite(icon)
 
   const base: CSSProperties = {
     width: size,

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import type { GameEngine, GameState } from '../game/core/GameEngine.ts'
-import { loadCollection, saveCollection } from '../storage/collection.ts'
 
 async function loadAssetModules() {
   const [words, arena, cache] = await Promise.all([
@@ -74,9 +73,15 @@ function useGameEngine(enabled: boolean): UseGameEngine {
     // 시드 자체는 매 세션 달라야 하므로 경계에서만 시간을 쓴다.
     // 시드가 정해진 뒤로는 모든 난수가 재현 가능하다 (1대1 멀티 대비).
     // 도감은 판을 넘어 남는다. 저장소를 아는 것은 이 경계뿐이다
-    void import('../game/core/GameEngine.ts')
-      .then(({ GameEngine }) => GameEngine.create(Date.now() >>> 0, loadCollection()))
-      .then((instance) => {
+    void Promise.all([
+      import('../game/core/GameEngine.ts'),
+      import('../storage/collection.ts'),
+    ])
+      .then(async ([{ GameEngine }, collection]) => ({
+        instance: await GameEngine.create(Date.now() >>> 0, collection.loadCollection()),
+        saveCollection: collection.saveCollection,
+      }))
+      .then(({ instance, saveCollection }) => {
         if (disposed) {
           instance.dispose()
           return

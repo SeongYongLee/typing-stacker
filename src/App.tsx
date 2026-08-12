@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
-import { SOLO_READY_MS, SOLO_START_MS } from './game/config.ts'
+import { SOLO_READY_MS, SOLO_START_MS } from './game/config/time.ts'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { SplashBackdrop } from './components/SplashBackdrop.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'

@@ -101,7 +101,7 @@ class RecipeFlow {
     this.recipePicksSinceAmbient = 0
   }
 
-  /** 지금 판에 존재하거나 곧 떨어질 재료 개수다. 호출부가 매 프레임 갱신한다. */
+  /** 지금 판에 존재하거나 곧 떨어질 재료 개수다. 호출부가 재료 구성이 바뀔 때 갱신한다. */
   observe(available: ReadonlyMap<string, number>): void {
     this.availableRaw = new Map(available)
     this.available = normalizeCounts(this.availableRaw)

@@ -83,6 +83,27 @@ describe('GameEngine이 사건을 흘린다', () => {
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
 
+  it('싱글은 물건 하나가 밖으로 나가면 즉시 게임오버 흐름으로 들어간다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as { physics: PhysicsWorld }
+    let state: GameState | null = null
+    engine.onStateChange((next) => {
+      state = next
+    })
+    engine.startRun(false)
+    await clock.advance(1.4)
+
+    internals.physics.spawnItemAt(anyVariant(), ARENA.halfWidth, ARENA.platformTop + 1, SOLO_OWNER)
+    await clock.advance(0.1)
+
+    expect((state as unknown as GameState).phase).toBe('collapsing')
+    expect((state as unknown as GameState).stats.lives).toBe(0)
+
+    await clock.advance(3)
+    expect((state as unknown as GameState).phase).toBe('over')
+    engine.dispose()
+  })
+
   it('판을 시작하고 단어를 맞추고 놓치는 흐름에서 사건이 나온다', async () => {
     const engine = await GameEngine.create(20260808)
     const events: GameEvent[] = []

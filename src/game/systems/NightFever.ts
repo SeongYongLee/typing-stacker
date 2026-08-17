@@ -52,6 +52,7 @@ class NightFever {
   private nextSetAt = 0
   private nextSetIndex = 0
   private queue: ScheduledDrop[] = []
+  private revision = 0
 
   constructor(
     rng: Rng,
@@ -67,21 +68,30 @@ class NightFever {
   }
 
   start(): void {
+    const hadPending = this.queue.length > 0
     this.active = true
     this.elapsed = 0
     this.nextSetAt = 0
     this.nextSetIndex = 0
     this.queue = []
+    if (hadPending) this.revision += 1
   }
 
   stop(): void {
+    const hadPending = this.queue.length > 0
     this.active = false
     this.queue = []
+    if (hadPending) this.revision += 1
   }
 
   /** 아직 떨어지지 않은 재료. RecipeFlow가 이미 올 재료를 다시 부르지 않게 센다. */
   get pending(): readonly FeverDrop[] {
     return this.queue
+  }
+
+  /** 예약된 재료 구성이 바뀔 때만 증가한다. */
+  get version(): number {
+    return this.revision
   }
 
   get remaining(): number {
@@ -120,6 +130,7 @@ class NightFever {
       return null
     }
     this.queue.shift()
+    this.revision += 1
     return next
   }
 
@@ -140,6 +151,7 @@ class NightFever {
         at: setAt + NIGHT_FEVER.firstDropSec + index * NIGHT_FEVER.itemGapSec,
       })
     }
+    this.revision += 1
   }
 
   /** 스택 꼭대기 띠 안에서 2재료 레시피의 나머지 한쪽을 찾는다. */

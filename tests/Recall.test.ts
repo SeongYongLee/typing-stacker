@@ -178,6 +178,75 @@ describe('화이트보드 상자 회수', () => {
     engine.dispose()
   })
 
+  it('엔딩 뒤 계속 정리하기에서는 회수 목표를 숨기고 다시 크레딧으로 돌아가지 않는다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      stageId: 5
+      stageReturns: number
+      phase: GamePhase
+      advanceStageIfTargetReached(): void
+      emit(): void
+    }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(false)
+
+    internals.stageId = 5
+    internals.stageReturns = 60
+    internals.phase = 'playing'
+    internals.advanceStageIfTargetReached()
+    internals.emit()
+    expect((state as unknown as GameState).phase).toBe('stageTransition')
+
+    await clock.advance(2.2)
+    expect((state as unknown as GameState).phase).toBe('credits')
+
+    engine.continueEndless()
+    expect((state as unknown as GameState).stage).toMatchObject({
+      id: 5,
+      returns: 0,
+      target: null,
+      endlessUnlocked: true,
+    })
+
+    internals.stageReturns = 60
+    internals.advanceStageIfTargetReached()
+    internals.emit()
+    expect((state as unknown as GameState).phase).toBe('playing')
+    expect((state as unknown as GameState).stage).toMatchObject({
+      id: 5,
+      returns: 60,
+      target: null,
+      notice: null,
+    })
+    engine.dispose()
+  })
+
+  it('정상 입력으로 혼잡 경보가 줄면 회복 테두리 연출 신호를 보낸다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      loop: { stop(): void }
+      phase: GamePhase
+      congestion: number
+      spawner: { spawnScripted(word: string): void }
+    }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(false)
+    internals.loop.stop()
+    internals.phase = 'playing'
+    internals.congestion = 40
+    internals.spawner.spawnScripted('책')
+
+    engine.submit('책')
+
+    expect((state as unknown as GameState).stage).toMatchObject({
+      congestion: 38,
+      congestionRecoverySeq: 1,
+    })
+    engine.dispose()
+  })
+
   it('4/4 회수 뒤에는 같은 판에서 멈춘 경보 데모로 이어진다', async () => {
     const engine = await GameEngine.create(20260817)
     const internals = engine as unknown as { advanceStage(): void; emit(): void; phase: GamePhase }
@@ -302,6 +371,7 @@ describe('화이트보드 상자 회수', () => {
     internals.update(0.3)
     expect((state as unknown as GameState).phase).toBe('playing')
     expect((state as unknown as GameState).stage.congestionDemo).toBe('gameOverIntro')
+    expect((state as unknown as GameState).stats.lives).toBe(0)
     internals.update(0.7)
     expect((state as unknown as GameState).stage.congestionDemo).toBe('gameOverPrompt')
     engine.submit('')

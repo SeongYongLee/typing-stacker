@@ -27,12 +27,23 @@ describe('싱글 스테이지', () => {
     }
   })
 
-  it('정식 스테이지는 한 단계마다 낙하 시간이 1초씩 짧아진다', () => {
+  it('정식 스테이지는 한 단계마다 낙하 시간이 0.5초씩 짧아진다', () => {
     const stages = SOLO_STAGES.filter((stage) => stage.id > 0)
     for (let index = 1; index < stages.length; index += 1) {
       const previous = stages[index - 1]!
       const stage = stages[index]!
-      expect(stage.difficulty.fallDuration).toBe(previous.difficulty.fallDuration - 1)
+      expect(stage.difficulty.fallDuration).toBe(previous.difficulty.fallDuration - 0.5)
+    }
+  })
+
+  it('정식 스테이지의 생성 간격은 2초에서 1.5초까지 일정하게 빨라진다', () => {
+    const stages = SOLO_STAGES.filter((stage) => stage.id > 0)
+    expect(stages[0]?.difficulty.spawnInterval).toBe(2)
+    expect(stages.at(-1)?.difficulty.spawnInterval).toBe(1.5)
+    for (let index = 1; index < stages.length; index += 1) {
+      const previous = stages[index - 1]!
+      const stage = stages[index]!
+      expect(stage.difficulty.spawnInterval).toBe(previous.difficulty.spawnInterval - 0.125)
     }
   })
 

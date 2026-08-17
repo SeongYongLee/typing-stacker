@@ -195,7 +195,11 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         {tutorialBoxGuide && <TutorialBoxSpotlight />}
         {tutorialWhiteboardGuide && <TutorialWhiteboardSpotlight />}
         {state.stage.congestionBurst > 0 && <CongestionBurst />}
-        <StageStatus stage={state.stage} missSeq={state.stats.missedWords} />
+        <StageStatus
+          stage={state.stage}
+          missSeq={state.stats.missedWords}
+          congestionRecoverySeq={state.stage.congestionRecoverySeq}
+        />
         {state.stage.notice !== null && <StageNotice notice={state.stage.notice} />}
         <div style={fieldStyle}>
           <TypingLane
@@ -510,7 +514,15 @@ function StageNotice({ notice }: { notice: NonNullable<GameState['stage']['notic
   )
 }
 
-function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: number }) {
+function StageStatus({
+  stage,
+  missSeq,
+  congestionRecoverySeq,
+}: {
+  stage: GameState['stage']
+  missSeq: number
+  congestionRecoverySeq: number
+}) {
   const remaining = stage.target === null ? null : Math.max(stage.target - stage.returns, 0)
   // 경보를 처음 설명할 때 게이지와 행동 안내는 하나의 정보다. 딤보다 위에 함께 둔다.
   const tutorialGuideActive =
@@ -523,6 +535,7 @@ function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: n
   const tutorialProgress = stage.tutorialStep === null || stage.tutorialTotal === null
     ? null
     : `${stage.tutorialStep + 1} / ${stage.tutorialTotal}`
+  const congestionGaugeRef = useRef<HTMLDivElement | null>(null)
   const congestionRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -538,6 +551,35 @@ function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: n
     )
     return () => animation?.cancel()
   }, [missSeq, stage.id, stage.congestionRush])
+
+  useEffect(() => {
+    if (congestionRecoverySeq === 0 || stage.id === 0 || stage.congestionRush) return
+    const animation = play(
+      congestionGaugeRef.current,
+      [
+        {
+          borderColor: 'rgba(255, 221, 145, 0.82)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
+        },
+        {
+          borderColor: 'rgba(91, 239, 151, 1)',
+          boxShadow: '0 0 12px rgba(69, 235, 137, .9), inset 0 0 7px rgba(69, 235, 137, .5)',
+          offset: 0.18,
+        },
+        {
+          borderColor: 'rgba(91, 239, 151, 1)',
+          boxShadow: '0 0 9px rgba(69, 235, 137, .7), inset 0 0 5px rgba(69, 235, 137, .35)',
+          offset: 0.72,
+        },
+        {
+          borderColor: 'rgba(255, 221, 145, 0.82)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
+        },
+      ],
+      { duration: 1350, easing: 'cubic-bezier(.18,.78,.28,1)' },
+    )
+    return () => animation?.cancel()
+  }, [congestionRecoverySeq, stage.id, stage.congestionRush])
 
   return (
     <div
@@ -604,7 +646,9 @@ function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: n
       </div>
       {(stage.id > 0 || stage.congestionDemo !== null) && (
         <div
+          ref={congestionGaugeRef}
           data-congestion-gauge
+          data-congestion-recovery-seq={congestionRecoverySeq}
           aria-label={`혼잡 경보 ${Math.round(stage.congestion)}%`}
           style={{
             width: 250,

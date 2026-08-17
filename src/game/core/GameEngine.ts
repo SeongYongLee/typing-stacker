@@ -2,7 +2,6 @@ import {
   AIM_HALF_RANGE,
   ARENA,
   DROP_COOLDOWN_MS,
-  INVULNERABLE_SEC,
   CATCH,
   SOLO_LIVES,
   SOLO_OWNER,
@@ -11,7 +10,12 @@ import {
   QUAKE_MAX_AMPLITUDE,
 } from '../config.ts'
 import { VARIANT_BY_ID, WORDS } from '../data/words.ts'
-import { featuredEntries, soloStage, type SoloStageId } from '../data/soloStages.ts'
+import {
+  featuredEntries,
+  soloStage,
+  type SoloStage,
+  type SoloStageId,
+} from '../data/soloStages.ts'
 import { PhysicsWorld, type ImpactEvent } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
@@ -57,10 +61,27 @@ function isVariant(item: ItemVariant | undefined): item is ItemVariant {
   return item !== undefined
 }
 
+/** 스테이지가 바뀔 때 한 번만 회수 후보를 만든다. */
+function whiteboardCandidatesFor(stage: SoloStage): readonly ItemVariant[] {
+  const candidates = new Map<string, ItemVariant>()
+  for (const entry of featuredEntries(stage)) {
+    for (const variant of entry.variants) {
+      candidates.set(variant.id, variant)
+    }
+  }
+  for (const id of stage.hiddenResults) {
+    const variant = VARIANT_BY_ID.get(id)
+    if (variant !== undefined) {
+      candidates.set(variant.id, variant)
+    }
+  }
+  return [...candidates.values()]
+}
+
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
 const COLLAPSE_VIEW_SEC = 2.8
 
-/** 목숨을 잃을 상황에서 고양이가 가끔 같은 물건을 다시 던져준다 */
+/** 게임오버가 될 상황에서 고양이가 물건을 물고 달려간다. */
 /** 탑 중앙 부근에서 포물선 정점을 지나도록 맞춘 재투척 속도 */
 const CAT_RETHROW_VELOCITY = { horizontal: 1.5, vertical: 8.2 } as const
 /** 받을 곳이 없는 물건은 화면 아래까지 완전히 내려가기 전에 고양이가 낚아챈다 */
@@ -198,11 +219,6 @@ interface GameState {
   readonly complexMergeFocus: number | null
   /** 판이 새로 시작될 때마다 올라간다. UI가 입력창을 초기화하는 신호 */
   readonly runSeq: number
-  /**
-   * 남은 무적 시간의 비율(1 → 방금 깎였다, 0 → 무적 아님).
-   * 하트에 씌우는 베리어가 이 값으로 옅어진다.
-   */
-  readonly invulnerable: number
   /** 지금까지 도감에 모은 히든 물건 id */
   readonly collected: readonly string[]
   /** 그중 이번 판에 처음 만난 것 */
@@ -216,6 +232,8 @@ interface GameState {
     readonly totalReturns: number
     readonly target: number | null
     readonly congestion: number
+    /** 정상 입력으로 혼잡 경보가 줄어들 때마다 증가하는 테두리 연출 신호. */
+    readonly congestionRecoverySeq: number
     /** 경보 반입이 막 시작된 짧은 상단 보관함 연출. */
     readonly congestionBurst: number
     /** 혼잡 반입 물건이 아직 떨어지고 있는가. */
@@ -295,8 +313,14 @@ class GameEngine {
   private spawner: WordSpawner
   /** 화이트보드보다 먼저 확정한 현재 집중 레시피의 단어들 */
   private focusedRecipeWords: readonly string[] = []
-  /** RecipeFlow에 넘길 개수표. 매 프레임 새 Map을 만들지 않고 비워 쓴다. */
+  /** RecipeFlow에 넘길 개수표. 구성이 바뀐 때만 비워 다시 쓴다. */
   private readonly recipeCounts = new Map<string, number>()
+  private recipePhysicsVersion = -1
+  private recipeWordVersion = -1
+  private recipeDropQueueVersion = -1
+  private recipeFeverVersion = -1
+  private recipeStageId: SoloStageId | null = null
+  private dropQueueVersion = 0
   private aimer = new Aimer(AIM_HALF_RANGE)
 
   private phase: GamePhase = 'title'
@@ -351,8 +375,6 @@ class GameEngine {
   private quakePhase = 0
   /** 지금 화면이 올려다보는 높이. 탑을 따라 부드럽게 올라간다 */
   private lives = SOLO_LIVES
-  /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
-  private invulnerableLeft = 0
   /** 직전에 매긴 짝 표식. 색을 이어 쓰려면 지난 판정을 들고 있어야 한다 */
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
   /** `lastMarks`가 선택한 레시피의 총 재료 수. */
@@ -365,6 +387,7 @@ class GameEngine {
   private readonly whiteboard = new Whiteboard(createRng(0x5eed))
   /** 화이트보드는 단어 레인이 아니라 상자 안의 실제 변형을 가리킨다. */
   private whiteboardTargets: ItemVariant[] = []
+  private whiteboardCandidates: readonly ItemVariant[] = []
   /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
   private catcherLeft = 0
   /** 렌더러가 물리 회수 판과 같은 자리에 손 그림을 그리기 위한 값 */
@@ -375,6 +398,7 @@ class GameEngine {
   private stageReturns = 0
   private totalReturns = 0
   private congestion = 0
+  private congestionRecoverySeq = 0
   private congestionRushLeft = 0
   private congestionRushTimer = 0
   private congestionBurstLeft = 0
@@ -467,7 +491,6 @@ class GameEngine {
     this.collapseTimer = 0
     this.collapseFocus = null
     this.lives = SOLO_LIVES
-    this.invulnerableLeft = 0
     this.lastMarks = NO_MARKS
     this.lastMergeSizes = NO_MERGE_SIZES
     this.markPhysicsVersion = -1
@@ -478,6 +501,7 @@ class GameEngine {
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
+    this.dropQueueVersion += 1
     this.catThrowQueue.length = 0
     this.runSeq += 1
     this.rng = createRng(this.seed)
@@ -496,6 +520,7 @@ class GameEngine {
     this.stageReturns = 0
     this.totalReturns = 0
     this.congestion = 0
+    this.congestionRecoverySeq = 0
     this.congestionRushLeft = 0
     this.congestionRushTimer = 0
     this.congestionBurstLeft = 0
@@ -524,7 +549,7 @@ class GameEngine {
     this.physics.reset()
     this.configureStage()
     this.openStageNotice()
-    this.observeRecipeFlow()
+    this.refreshRecipeFlow()
     this.loop.start()
     this.fire({ kind: 'runStart' })
     this.emit()
@@ -549,6 +574,7 @@ class GameEngine {
     this.spawner.restrict(featuredEntries(stage))
     this.whiteboard.clear()
     this.whiteboardTargets = []
+    this.whiteboardCandidates = whiteboardCandidatesFor(stage)
     this.focusedRecipeWords = []
     if (stage.id === 0) {
       this.spawner.setScripted(true)
@@ -556,7 +582,8 @@ class GameEngine {
       return
     }
     this.spawner.setScripted(false)
-    this.syncWhiteboardWithRecipe()
+    this.syncRecipeFocus()
+    this.refillWhiteboard()
   }
 
   private showTutorialStep(): void {
@@ -639,6 +666,7 @@ class GameEngine {
     this.stageId = stageId
     this.stageReturns = 0
     this.congestion = 0
+    this.congestionRecoverySeq = 0
     this.congestionRushLeft = 0
     this.congestionRushTimer = 0
     this.congestionBurstLeft = 0
@@ -692,6 +720,7 @@ class GameEngine {
      */
     if (this.congestionDemo === 'gameOverPrompt' && text.trim() === '') {
       this.congestionDemo = 'over'
+      this.lives = 0
       this.phase = 'over'
       this.loop.stop()
       this.fire({ kind: 'gameOver', won: null })
@@ -765,17 +794,14 @@ class GameEngine {
         this.score.onRecalled(recalled)
         this.discover(recalled)
         this.whiteboardTargets.splice(targetIndex, 1)
-        this.syncWhiteboardWithRecipe()
+        this.refillWhiteboard()
         this.stageReturns += 1
         this.totalReturns += 1
         if (this.stageId === 0) {
           this.tutorialStep += 1
           this.advanceStage()
         } else {
-          const stageTarget = soloStage(this.stageId).returnTarget
-          if (stageTarget !== null && this.stageReturns >= stageTarget) {
-            this.advanceStage()
-          }
+          this.advanceStageIfTargetReached()
         }
         this.feedback = {
           seq: this.feedbackSeq,
@@ -808,7 +834,10 @@ class GameEngine {
 
     this.spawner.remove(result.word.id)
     this.score.onWordMatched(result.word.word)
-    this.congestion = Math.max(0, this.congestion - CONGESTION_RECOVERY_PER_HIT)
+    if (this.congestion > 0) {
+      this.congestion = Math.max(0, this.congestion - CONGESTION_RECOVERY_PER_HIT)
+      this.congestionRecoverySeq += 1
+    }
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
     const entry = WORDS.find((candidate) => candidate.word === result.word.word)
@@ -871,6 +900,23 @@ class GameEngine {
     this.stageReturns = 0
     this.phase = 'playing'
     this.emit()
+  }
+
+  /** 엔딩 뒤 계속 정리하기를 선택했다면 마지막 스테이지의 목표를 다시 판정하지 않는다. */
+  private advanceStageIfTargetReached(): void {
+    const stage = soloStage(this.stageId)
+    if (
+      stage.returnTarget === null ||
+      this.stageReturns < stage.returnTarget ||
+      (stage.endless && this.endlessUnlocked)
+    ) {
+      return
+    }
+    this.advanceStage()
+  }
+
+  private isEndlessMode(): boolean {
+    return soloStage(this.stageId).endless && this.endlessUnlocked
   }
 
   dispose(): void {
@@ -950,6 +996,7 @@ class GameEngine {
     }
     // 쿨다운 중이면 조준한 x를 그대로 들고 대기한다. 입력을 버리지는 않는다.
     this.dropQueue.push({ variant, x, recalled })
+    this.dropQueueVersion += 1
   }
 
   /**
@@ -1076,6 +1123,7 @@ class GameEngine {
           this.cats.take(taken.variant, taken.x, pickupY)
           this.collapseFocus = { x: taken.x, y: pickupY }
         }
+        this.lives = 0
         this.congestionDemo = 'gameOverIntro'
         this.congestionDemoElapsed = 0
       }
@@ -1100,10 +1148,6 @@ class GameEngine {
 
     this.elapsed += dt
     this.sinceLastDrop += dt
-    if (this.invulnerableLeft > 0) {
-      this.invulnerableLeft = Math.max(this.invulnerableLeft - dt, 0)
-    }
-
     if (this.hiddenReveal !== null) {
       // 다중 합성 슬로모션 중에도 합성 자막은 정상 속도로 움직여 정지 이유를 보여준다.
       this.hiddenReveal.elapsed += frameDt
@@ -1118,8 +1162,7 @@ class GameEngine {
      * Night Fever에는 자동 낙하를 지켜보는 동안 점수가 되감기지 않도록 정확도 패널티를
      * 면제하되, 타자 콤보는 놓친 순간 그대로 끊는다.
      */
-    this.observeRecipeFlow()
-    this.syncWhiteboardWithRecipe()
+    this.refreshRecipeFlow()
     const missedWords = this.spawner.update(dt, difficulty)
     if (missedWords.length > 0) {
       this.score.onWordMissed()
@@ -1139,6 +1182,7 @@ class GameEngine {
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
       const next = this.dropQueue.shift()
       if (next !== undefined) {
+        this.dropQueueVersion += 1
         this.dropNow(next.variant, next.x, next.recalled)
       }
     }
@@ -1160,11 +1204,7 @@ class GameEngine {
     }
 
     /*
-     * 무너짐 한 번은 이탈 여러 개를 만든다. 그것을 각각 세면 목숨 3개가 한순간에
-     * 사라지므로, 한 번 깎인 뒤에는 잠깐 무적으로 둔다 — 개수가 아니라 **사건**을 센다.
-     */
-    /*
-     * **회수로 나간 것은 목숨을 깎지 않는다.** 그것이 이 규칙의 전부다.
+     * **회수로 나간 것은 게임오버를 만들지 않는다.** 그것이 이 규칙의 전부다.
      *
      * 물건마다 표를 보고 가른다 — 판이 서 있는 동안인지로 가르면 같은 프레임에 탑이
      * 무너졌을 때 그 이탈까지 함께 면제된다. 회수 하나가 붕괴 하나를 덮어주는 셈이라
@@ -1172,6 +1212,8 @@ class GameEngine {
     */
     const fallen = escaped.filter((event) => event.recalled !== true)
     if (fallen.length > 0 && this.stageId !== 0) {
+      this.lives = 0
+      this.score.onLifeLost()
       const taken = fallen[0]
       if (taken !== undefined) {
         this.cats.take(taken.variant, taken.x, catPickupY(taken.y, 0))
@@ -1352,33 +1394,55 @@ class GameEngine {
     this.recipeFlow.observe(this.recipeCounts)
   }
 
-  /** 상자 안에서 찾아 돌려줄 물건 목록을 세 칸으로 유지한다. */
-  private syncWhiteboardWithRecipe(): void {
+  /** 재료 구성이 그대로면 레시피 관찰과 집중 단어 계산을 건너뛴다. */
+  private refreshRecipeFlow(): void {
+    const physicsVersion = this.physics.version
+    const wordVersion = this.spawner.version
+    const feverVersion = this.nightFever.version
+    if (
+      this.recipePhysicsVersion === physicsVersion &&
+      this.recipeWordVersion === wordVersion &&
+      this.recipeDropQueueVersion === this.dropQueueVersion &&
+      this.recipeFeverVersion === feverVersion &&
+      this.recipeStageId === this.stageId
+    ) {
+      return
+    }
+
+    this.observeRecipeFlow()
+    this.syncRecipeFocus()
+    this.recipePhysicsVersion = physicsVersion
+    this.recipeWordVersion = wordVersion
+    this.recipeDropQueueVersion = this.dropQueueVersion
+    this.recipeFeverVersion = feverVersion
+    this.recipeStageId = this.stageId
+  }
+
+  private syncRecipeFocus(): void {
     this.focusedRecipeWords = this.recipeFlow.prepareFocusWords()
+  }
+
+  /** 상자 안에서 찾아 돌려줄 물건 목록을 세 칸으로 유지한다. */
+  private refillWhiteboard(): void {
     if (this.stageId === 0) {
       return
     }
-    const stage = soloStage(this.stageId)
-    const candidates = [
-      ...featuredEntries(stage).flatMap((entry) => entry.variants),
-      ...stage.hiddenResults.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
-    ]
-    const unique = [...new Map(candidates.map((variant) => [variant.id, variant])).values()]
+    const candidates = this.whiteboardCandidates
     if (this.whiteboardTargets.length === 0) {
-      const hidden = unique.filter((candidate) => candidate.hidden)
+      const hidden = candidates.filter((candidate) => candidate.hidden)
       if (hidden.length > 0) {
         this.whiteboardTargets.push(hidden[this.rng.int(hidden.length)]!)
       }
     }
-    while (this.whiteboardTargets.length < 3 && unique.length > this.whiteboardTargets.length) {
-      const available = unique.filter((candidate) => !this.whiteboardTargets.some((target) => target.id === candidate.id))
+    while (this.whiteboardTargets.length < 3 && candidates.length > this.whiteboardTargets.length) {
+      const available = candidates.filter((candidate) => !this.whiteboardTargets.some((target) => target.id === candidate.id))
       if (available.length === 0) break
       this.whiteboardTargets.push(available[this.rng.int(available.length)]!)
     }
     // 히든만 세 장이면 회수 목록이 전부 미지의 물건이 된다. 첫 히든 보상은 남기되,
     // 일반 후보가 있으면 마지막 칸을 바꿔 적어도 한 장은 바로 읽을 수 있게 한다.
     if (this.whiteboardTargets.length > 1 && this.whiteboardTargets.every((target) => target.hidden)) {
-      const normal = unique.filter(
+      const normal = candidates.filter(
         (candidate) => !candidate.hidden && !this.whiteboardTargets.some((target) => target.id === candidate.id),
       )
       if (normal.length > 0) {
@@ -1760,7 +1824,6 @@ class GameEngine {
           ? Math.min(Math.max(1 - this.complexMergeSlowLeft / COMPLEX_MERGE_SLOW_SEC, 0), 1)
           : null,
       runSeq: this.runSeq,
-      invulnerable: this.invulnerableLeft / INVULNERABLE_SEC,
       collected: this.collection.ids,
       freshlyCollected: this.collection.freshIds,
       stage: {
@@ -1770,8 +1833,14 @@ class GameEngine {
         totalReturns: this.totalReturns,
         // 튜토리얼에서도 첫 보관함과 같은 목표를 처음부터 계속 보여준다.
         // 계란 프라이를 회수하면 stageReturns가 올라가므로 20개에서 19개로 바뀐다.
-        target: this.stageId === 0 ? soloStage(1).returnTarget : soloStage(this.stageId).returnTarget,
+        target:
+          this.stageId === 0
+            ? soloStage(1).returnTarget
+            : this.isEndlessMode()
+              ? null
+              : soloStage(this.stageId).returnTarget,
         congestion: this.congestion,
+        congestionRecoverySeq: this.congestionRecoverySeq,
         congestionBurst: this.congestionBurstLeft / CONGESTION_BURST_SEC,
         // 데모도 일반 플레이처럼 게이지가 가득 차면 같은 경보 상태로 그린다.
         congestionRush:

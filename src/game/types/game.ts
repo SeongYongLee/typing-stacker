@@ -214,7 +214,7 @@ interface RunStats {
   readonly stackCount: number
   readonly maxHeight: number
   readonly missedWords: number
-  /** 남은 목숨. 물건이 받침대를 벗어날 때마다 하나 줄어든다 */
+  /** 남은 생존 기회. 싱글은 플레이 중 1, 게임오버 시 0이고 대전은 남은 하트 수다. */
   readonly lives: number
   readonly combo: number
   readonly maxCombo: number

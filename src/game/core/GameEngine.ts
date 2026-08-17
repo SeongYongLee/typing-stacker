@@ -82,7 +82,6 @@ const COLLAPSE_VIEW_SEC = 2.8
 
 /** 게임오버가 될 상황에서 고양이가 물건을 물고 달려간다. */
 /** 탑 중앙 부근에서 포물선 정점을 지나도록 맞춘 재투척 속도 */
-const CAT_RETHROW_VELOCITY = { horizontal: 1.5, vertical: 8.2 } as const
 /** 받을 곳이 없는 물건은 화면 아래까지 완전히 내려가기 전에 고양이가 낚아챈다 */
 const CAT_EARLY_ESCAPE_MARGIN = 0.35
 /** 보드 단어가 물건으로 바뀌어 손과 함께 사라지는 시간 */
@@ -284,13 +283,6 @@ interface WhiteboardRecall {
   elapsed: number
 }
 
-interface PendingCatThrow {
-  readonly variant: ItemVariant
-  readonly from: 'left' | 'right'
-  readonly delay: number
-  readonly nightProtected: boolean
-}
-
 /**
  * 놓친 단어가 서 있던 자리를 아레나 x로 옮긴다.
  * 왼쪽 레인의 왼쪽 칸일수록 아레나 왼쪽에서 떨어진다 — 어디로 내려올지 미리 보이므로
@@ -308,8 +300,6 @@ class GameEngine {
   private recipeFlow: RecipeFlow
   private nightFever: NightFever
   private spawner: WordSpawner
-  /** 화이트보드보다 먼저 확정한 현재 집중 레시피의 단어들 */
-  private focusedRecipeWords: readonly string[] = []
   /** RecipeFlow에 넘길 개수표. 구성이 바뀐 때만 비워 다시 쓴다. */
   private readonly recipeCounts = new Map<string, number>()
   private recipePhysicsVersion = -1
@@ -420,7 +410,6 @@ class GameEngine {
   private markWordVersion = -1
   private runSeq = 0
   private readonly dropQueue: PendingDrop[] = []
-  private readonly catThrowQueue: PendingCatThrow[] = []
 
   private renderer: ArenaRenderer | null = null
   private listener: ((state: GameState) => void) | null = null
@@ -499,7 +488,6 @@ class GameEngine {
     this.quakeStrength = 0
     this.dropQueue.length = 0
     this.dropQueueVersion += 1
-    this.catThrowQueue.length = 0
     this.runSeq += 1
     this.rng = createRng(this.seed)
     this.recipeFlow = new RecipeFlow(createRng(this.seed ^ 0x72656369), WORDS, RECIPES)
@@ -512,7 +500,6 @@ class GameEngine {
       this.recipeFlow.pick(candidates),
       { startImmediately: false },
     )
-    this.focusedRecipeWords = []
     this.stageId = showTutorial ? 0 : 1
     this.stageReturns = 0
     this.totalReturns = 0
@@ -572,14 +559,12 @@ class GameEngine {
     this.whiteboardWords = []
     this.whiteboardTargets = []
     this.whiteboardCandidates = whiteboardCandidatesFor(stage)
-    this.focusedRecipeWords = []
     if (stage.id === 0) {
       this.spawner.setScripted(true)
       this.showTutorialStep()
       return
     }
     this.spawner.setScripted(false)
-    this.syncRecipeFocus()
     this.refillWhiteboard()
   }
 
@@ -1039,7 +1024,6 @@ class GameEngine {
     if (this.congestionDemo !== 'gameOverPrompt') {
       this.cats.update(this.phase === 'collapsing' ? frameDt * 0.42 : dt)
     }
-    this.advanceCatThrows(dt)
     // 회수 손은 경보 안내와 별개다. 4/4 직후 판이 Enter를 기다려도 손과 물건은
     // 계속 움직여야 상단 안내와 회수 결과를 같은 순간에 읽을 수 있다.
     this.advanceCatcher(dt)
@@ -1275,25 +1259,6 @@ class GameEngine {
     this.congestionDemoWordTimer += CONGESTION_DEMO_WORD_INTERVAL_SEC
   }
 
-  private advanceCatThrows(dt: number): void {
-    if (this.catThrowQueue.length === 0) {
-      return
-    }
-    for (let index = this.catThrowQueue.length - 1; index >= 0; index -= 1) {
-      const pending = this.catThrowQueue[index]
-      if (pending === undefined) {
-        continue
-      }
-      const delay = pending.delay - dt
-      if (delay > 0) {
-        this.catThrowQueue[index] = { ...pending, delay }
-        continue
-      }
-      this.catThrowQueue.splice(index, 1)
-      this.throwBackFromCat(pending.variant, pending.from, pending.nightProtected)
-    }
-  }
-
   private advanceWhiteboardRecall(dt: number): void {
     if (this.whiteboardRecall === null) {
       return
@@ -1324,36 +1289,6 @@ class GameEngine {
     this.congestionRushLeft -= 1
     this.congestionRushTimer = CONGESTION_RUSH_INTERVAL
     this.congestionBurstLeft = CONGESTION_BURST_SEC
-  }
-
-  private throwBackFromCat(
-    variant: ItemVariant,
-    from: 'left' | 'right',
-    nightProtected = false,
-  ): void {
-    const sign = from === 'left' ? -1 : 1
-    this.physics.spawnItemMovingAt(
-      variant,
-      sign * (ARENA.platformHalfWidth + 0.7),
-      ARENA.platformTop + 1.15,
-      SOLO_OWNER,
-      0,
-      false,
-      {
-        x: -sign * CAT_RETHROW_VELOCITY.horizontal,
-        y: CAT_RETHROW_VELOCITY.vertical,
-      },
-      -sign * 1.8,
-      false,
-      nightProtected,
-    )
-    this.fire({
-      kind: 'drop',
-      source: 'input',
-      hidden: false,
-      material: variant.material,
-      tone: variant.tone,
-    })
   }
 
   /**
@@ -1405,16 +1340,11 @@ class GameEngine {
     }
 
     this.observeRecipeFlow()
-    this.syncRecipeFocus()
     this.recipePhysicsVersion = physicsVersion
     this.recipeWordVersion = wordVersion
     this.recipeDropQueueVersion = this.dropQueueVersion
     this.recipeFeverVersion = feverVersion
     this.recipeStageId = this.stageId
-  }
-
-  private syncRecipeFocus(): void {
-    this.focusedRecipeWords = this.recipeFlow.prepareFocusWords()
   }
 
   /** 상자 안에서 찾아 돌려줄 물건 목록을 세 칸으로 유지한다. */
@@ -1573,11 +1503,6 @@ class GameEngine {
     return cycle < 2 / 3
       ? timeOfDay('day', cycle / (2 / 3))
       : timeOfDay('night', (cycle - 2 / 3) / (1 / 3))
-  }
-
-  /** 현재 화이트보드보다 먼저 확정된 집중 레시피 단어. 엔진 통합 검증용이다. */
-  debugFocusedRecipeWords(): readonly string[] {
-    return this.focusedRecipeWords
   }
 
   /**
@@ -1752,7 +1677,6 @@ class GameEngine {
       cameraY: 0,
       stackTop: this.physics.stackTop(),
       nightfall: time.nightfall,
-      ledges: this.physics.ledges(),
       catcher:
         this.catcherView === null
           ? null

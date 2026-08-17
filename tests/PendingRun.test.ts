@@ -84,4 +84,43 @@ describe('미전송 싱글 기록', () => {
     expect(loadPendingRun()).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('서버 제한으로 거절된 기록을 남겼다가 정책 변경 후 다시 보낸다', async () => {
+    localStorage.setItem('typing-stacker/profile/v1', JSON.stringify({
+      id: 'player', name: '말랑한 연필', icon: '',
+    }))
+    const accepted = {
+      best: { ...lower, score: 300_000, at: undefined }, rank: 1, top: [],
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: 'invalid', reason: 'stack-count',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(accepted), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const stats: RunStats = {
+      score: 300_000,
+      rawScore: 300_000,
+      accuracy: 1,
+      stackCount: 650,
+      maxHeight: 52,
+      missedWords: 0,
+      lives: 0,
+      combo: 651,
+      maxCombo: 651,
+      kpm: 220,
+      durationSec: 3600,
+      hiddenFound: [],
+    }
+
+    expect(await submitRun(stats)).toMatchObject({ error: 'invalid', reason: 'stack-count' })
+    expect(loadPendingRun()?.score).toBe(300_000)
+
+    expect(await flushPendingRun()).toMatchObject({ rank: 1 })
+    expect(loadPendingRun()).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })

@@ -66,7 +66,10 @@ function verdictOf(stats: RunStats, ranking: RunRanking): string | null {
     return '연결되지 않아 기록을 보관했다'
   }
   if (ranking.status === 'rejected') {
-    return '서버가 기록값을 확인하지 못했다'
+    const reason = ranking.view?.reason
+    return reason === 'shape'
+      ? '기록 형식을 확인하지 못해 보관했다'
+      : '서버 제한과 맞지 않아 기록을 보관했다'
   }
   const view = ranking.view
   if (view === null) {
@@ -186,7 +189,7 @@ function ResultScreen({
               {verdict}
             </p>
           )}
-          {ranking.status === 'offline' && (
+          {(ranking.status === 'offline' || ranking.status === 'rejected') && (
             <button type="button" onClick={ranking.retry} style={retryRankStyle}>
               기록 다시 보내기
             </button>

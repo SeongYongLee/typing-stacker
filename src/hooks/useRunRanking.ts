@@ -59,6 +59,8 @@ function useRunRanking(stats: RunStats, enabled = true): RunRanking {
         return
       }
       if (next.error !== undefined) {
+        // 거절 사유를 결과 화면에 보여주고 같은 기록을 다시 보낼 수 있게 보존한다.
+        setView(next)
         setStatus('rejected')
         return
       }

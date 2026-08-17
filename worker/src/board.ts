@@ -23,7 +23,7 @@
 
 import { findPair, waitedSecOf, bandOf, type Waiting } from './matching.ts'
 import { START_RATING, TIERS, tierIndexOf } from './tiers.ts'
-import { LIMITS, withinRunLimits } from './runLimits.ts'
+import { LIMITS, runLimitViolation } from './runLimits.ts'
 
 /** 기기 id의 최대 길이. UUID가 36자다 */
 const MAX_ID = 64
@@ -86,6 +86,11 @@ interface RunRow {
   maxCombo: number
   kpm: number
   at: number
+}
+
+/** 저장하지 않지만 서버 검증에는 필요한 한 판의 전체 입력. */
+interface RunInput extends RunRow {
+  durationSec: number
 }
 
 interface RatingRow {
@@ -343,9 +348,13 @@ export class Board {
 
   /** 싱글 기록. 기기마다 **최고 기록 하나만** 남긴다 */
   private submitRun(raw: unknown): unknown {
-    const run = parseRun(raw)
+    const run = readRun(raw)
     if (run === null) {
-      return { error: 'invalid' }
+      return { error: 'invalid', reason: 'shape' }
+    }
+    const violation = runLimitViolation(run)
+    if (violation !== null) {
+      return { error: 'invalid', reason: violation }
     }
 
     this.sql.exec(
@@ -698,7 +707,14 @@ function iconId(raw: unknown): string {
   return typeof raw === 'string' && /^[a-z0-9-]{1,40}$/.test(raw) ? raw : ''
 }
 
-function parseRun(raw: unknown): RunRow | null {
+/** 외부 테스트와 진단에서 쓰는 완전한 기록 파서. */
+function parseRun(raw: unknown): RunInput | null {
+  const run = readRun(raw)
+  return run !== null && runLimitViolation(run) === null ? run : null
+}
+
+/** 본문 모양만 읽는다. 제한 위반은 호출부가 이유와 함께 답할 수 있도록 따로 검사한다. */
+function readRun(raw: unknown): RunInput | null {
   if (typeof raw !== 'object' || raw === null) return null
   const value = raw as Record<string, unknown>
 
@@ -719,20 +735,11 @@ function parseRun(raw: unknown): RunRow | null {
     return null
   }
 
-  /*
-   * 여기가 타당성 검사다. 점수가 맞는지가 아니라 **사람이 낼 수 있는 값인지**를 본다.
-   * 하나하나가 물리적으로 불가능한 것만 고른 것이라, 성실한 판이 걸릴 일은 없다.
-   */
-  if (!withinRunLimits({
-    score,
-    stackCount,
-    maxHeight,
-    maxCombo,
-    kpm,
+  return {
+    id, name, icon, score, stackCount, maxHeight, maxCombo, kpm,
     durationSec: duration,
-  })) return null
-
-  return { id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at: 0 }
+    at: 0,
+  }
 }
 
 /**

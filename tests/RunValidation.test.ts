@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LIMITS, withinRunLimits } from '../worker/src/runLimits.ts'
+import { LIMITS, runLimitViolation, withinRunLimits } from '../worker/src/runLimits.ts'
 
 function run(overrides: Partial<Parameters<typeof withinRunLimits>[0]> = {}) {
   return {
@@ -18,9 +18,24 @@ describe('싱글 장기 기록 검증', () => {
     expect(withinRunLimits(run())).toBe(true)
   })
 
+  it('마지막 물건이 정착하지 않은 완벽 콤보를 받는다', () => {
+    expect(withinRunLimits(run({ stackCount: 650, maxCombo: 651 }))).toBe(true)
+  })
+
+  it('입력 낙하와 경보 반입이 겹친 정상 속도를 받는다', () => {
+    expect(withinRunLimits(run({ stackCount: 100, maxCombo: 50, durationSec: 20 }))).toBe(true)
+  })
+
   it('늘어난 상한 밖의 값과 불가능하게 빠른 기록은 계속 거절한다', () => {
     expect(withinRunLimits(run({ stackCount: LIMITS.stackCount + 1 }))).toBe(false)
     expect(withinRunLimits(run({ maxHeight: LIMITS.height + 1 }))).toBe(false)
-    expect(withinRunLimits(run({ durationSec: 10 }))).toBe(false)
+    expect(withinRunLimits(run({ stackCount: 100, maxCombo: 20, durationSec: 10 }))).toBe(false)
+    expect(withinRunLimits(run({ maxCombo: 20_000, kpm: 100, durationSec: 60 }))).toBe(false)
+  })
+
+  it('거절된 항목을 서버 응답에 쓸 수 있게 구분한다', () => {
+    expect(runLimitViolation(run({ maxHeight: LIMITS.height + 1 }))).toBe('height')
+    expect(runLimitViolation(run({ stackCount: 100, maxCombo: 20, durationSec: 10 })))
+      .toBe('duration')
   })
 })

@@ -38,6 +38,8 @@ interface RunRecord {
 interface RankView {
   /** 서버가 값을 거절했다. 화면은 이것을 "순위 없음"과 구분해서 보여준다 */
   readonly error?: string
+  /** 거절된 값. 서버 제한과 클라이언트 모양 오류를 구분해 안내하고 재전송하는 데 쓴다 */
+  readonly reason?: string
   /** 내 최고 기록. 아직 하나도 없으면 null */
   readonly best: RunRecord | null
   /** 내 순위(1부터). 기록이 없으면 null */
@@ -104,8 +106,8 @@ async function flushPendingRun(): Promise<RankView | null> {
 
 async function sendPendingRun(pending: PendingRun): Promise<RankView | null> {
   const result = await post('/rank/run', pending)
-  if (result !== null) {
-    // 서버가 값 자체를 거절한 경우도 재전송으로 나아지지 않으므로 대기열에서 치운다.
+  if (result !== null && result.error === undefined) {
+    // 서버가 실제로 받은 기록만 치운다. 제한 불일치는 서버 배포 뒤 나아질 수 있다.
     clearPendingRun(pending)
   }
   return result

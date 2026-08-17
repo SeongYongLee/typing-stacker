@@ -28,13 +28,6 @@ interface DisplaySettings {
    * 이쪽만 끄고 색은 남겨두고 싶을 수 있다.
    */
   readonly trail: number
-  /**
-   * 혼자 하기 시작 전에 규칙 화면을 보여줄지.
-   *
-   * 기본은 보여준다. 다만 규칙을 이미 익힌 사람에게 매 판 같은 화면은 시작 흐름을
-   * 끊으므로, 끄는 값을 같은 설정 저장소에 남긴다.
-   */
-  readonly soloRules: boolean
   /** 첫 플레이 뒤 튜토리얼을 어떻게 제안할지. */
   readonly soloTutorial: 'required' | 'ask' | 'disabled'
 }
@@ -46,7 +39,6 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   shake: 1,
   glow: 1,
   trail: 1,
-  soloRules: true,
   soloTutorial: 'required',
 }
 
@@ -55,10 +47,6 @@ function clampLevel(value: unknown, fallback: number): number {
     return fallback
   }
   return Math.min(Math.max(value, 0), 1)
-}
-
-function boolSetting(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback
 }
 
 function tutorialSetting(value: unknown): DisplaySettings['soloTutorial'] {
@@ -82,7 +70,6 @@ function loadDisplaySettings(): DisplaySettings {
       shake: clampLevel(record.shake, DEFAULT_SETTINGS.shake),
       glow: clampLevel(record.glow, DEFAULT_SETTINGS.glow),
       trail: clampLevel(record.trail, DEFAULT_SETTINGS.trail),
-      soloRules: boolSetting(record.soloRules, DEFAULT_SETTINGS.soloRules),
       soloTutorial: tutorialSetting(record.soloTutorial),
     }
   } catch {

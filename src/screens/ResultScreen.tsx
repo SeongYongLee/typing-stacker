@@ -113,7 +113,8 @@ function ResultScreen({
     onCancel: onHome,
   })
 
-  const ranking = useRunRanking(stats)
+  // 튜토리얼 데모는 실제 기록이 아니다. 완료 UI만 보여주고 순위 서버에는 보내지 않는다.
+  const ranking = useRunRanking(stats, !tutorialEnd)
   const verdict = verdictOf(stats, ranking)
   // 정확도가 깎아간 몫. 원점수를 그대로 보여주면 왜 깎였는지는 여전히 모른다
   const lost = Math.max(0, stats.rawScore - stats.score)
@@ -163,11 +164,6 @@ function ResultScreen({
     <div style={rootStyle}>
       <div style={panelStyle}>
         <div>
-          {tutorialEnd && (
-            <p style={{ color: '#ff6b6b', fontSize: 13, letterSpacing: '0.12em', margin: 0 }}>
-              튜토리얼 종료
-            </p>
-          )}
           <div
             style={{
               font: '700 52px/1.1 var(--sans)',

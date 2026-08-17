@@ -247,8 +247,6 @@ interface GameState {
     readonly endlessUnlocked: boolean
     readonly notice: {
       readonly kind: 'start' | 'complete'
-      /** 실제 규칙을 처음 만나는 순간에만 붙는 짧은 안내. */
-      readonly lesson: 'congestion' | null
       readonly title: string
       readonly returns: number
       readonly target: number | null
@@ -615,7 +613,6 @@ class GameEngine {
     }
     this.stageNotice = {
       kind: 'complete',
-      lesson: null,
       title: stage.title,
       returns: this.stageReturns,
       target: stage.returnTarget,
@@ -630,7 +627,6 @@ class GameEngine {
     const stage = soloStage(this.stageId)
     this.stageNotice = {
       kind: 'start',
-      lesson: null,
       title: stage.title,
       returns: 0,
       target: stage.returnTarget,

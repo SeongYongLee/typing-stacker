@@ -13,9 +13,8 @@ import type { DifficultyLevel } from '../types/game.ts'
  * 살펴볼 틈 없이 손부터 급해진다. 그래서 **쌓은 만큼** 몰아치게 한다.
  * 잘 쌓는 사람에게 더 많은 단어가 오고, 아직 못 쌓은 사람은 여유를 갖는다.
  *
- * 싱글에서는 이 높이 곡선과 누적 점수 곡선 중 더 어려운 쪽을 쓴다. 높이 곡선은
- * 판 초반의 쌓기 성과를 반영하고, 점수 곡선은 탑이 무너져도 장기 플레이의 압박이
- * 초기화되지 않게 한다. 대전은 기존처럼 높이 곡선만 쓴다.
+ * 현재 이 곡선은 대전에서 탑 높이에 따른 압박을 정할 때 쓴다. 싱글은 스테이지별
+ * 고정 난이도를 `soloStages.ts`에서 직접 정한다.
  *
  * 높이 곡선이 어디서 최대치에 닿는지는 `DIFFICULTY_FULL_HEIGHT`가 정한다. 한때 카메라가 움직이기
  * 시작하는 높이를 그대로 썼는데, 재보니 그 지점이 **판의 절반**이라 나머지 절반을 내내
@@ -91,37 +90,6 @@ const FULL: DifficultyLevel = {
 }
 
 /**
- * 싱글 장기 플레이의 점수 이정표.
- *
- * 높이 난이도는 판 초반을 맡고, 점수 난이도는 탑이 한 번 무너진 뒤에도 이어지는
- * 장기 압박을 맡는다. 15만점 뒤에는 더 빨라지지 않게 상한을 둔다.
- * 싱글은 첫 단어 다음부터 바로 2.5초 간격으로 시작한다. 공통 OPENING을 바꾸지 않는
- * 이유는 대결 모드가 여기에 인원·모드 배율을 다시 적용하기 때문이다.
- */
-const SOLO_OPENING: DifficultyLevel = { ...OPENING, spawnInterval: 2.5, fallDuration: 10 }
-
-const SOLO_SCORE_LEVELS: readonly { readonly score: number; readonly level: DifficultyLevel }[] = [
-  { score: 0, level: SOLO_OPENING },
-  { score: 5_000, level: { ...FULL, spawnInterval: 2.4, fallDuration: 9.5 } },
-  {
-    score: 25_000,
-    level: { spawnInterval: 2.125, fallDuration: 8.75, aimSpeed: 0.42, maxConcurrent: 4 },
-  },
-  {
-    score: 50_000,
-    level: { spawnInterval: 1.75, fallDuration: 7.5, aimSpeed: 0.46, maxConcurrent: 5 },
-  },
-  {
-    score: 100_000,
-    level: { spawnInterval: 1.375, fallDuration: 6.25, aimSpeed: 0.5, maxConcurrent: 5 },
-  },
-  {
-    score: 150_000,
-    level: { spawnInterval: 1, fallDuration: 5, aimSpeed: 0.54, maxConcurrent: 5 },
-  },
-]
-
-/**
  * 탑 높이를 0~1 진행도로 옮긴다.
  * 받침대 윗면에서 시작해 `DIFFICULTY_FULL_HEIGHT`만큼 쌓으면 1이 된다.
  */
@@ -150,43 +118,6 @@ function difficultyAt(progress: number): DifficultyLevel {
     fallDuration: lerp(OPENING.fallDuration, FULL.fallDuration),
     aimSpeed: lerp(OPENING.aimSpeed, FULL.aimSpeed),
     maxConcurrent: Math.round(lerp(OPENING.maxConcurrent, FULL.maxConcurrent)),
-  }
-}
-
-/**
- * 싱글 난이도는 누적 점수만 따른다. 탑 높이가 바뀌어도 단어 주기와 낙하 시간은 바뀌지 않는다.
- */
-function soloDifficultyAt(score: number): DifficultyLevel {
-  return difficultyForScore(score)
-}
-
-function difficultyForScore(score: number): DifficultyLevel {
-  const safe = Math.max(0, score)
-  const last = SOLO_SCORE_LEVELS.at(-1)!
-  if (safe >= last.score) return last.level
-
-  for (let index = 1; index < SOLO_SCORE_LEVELS.length; index += 1) {
-    const right = SOLO_SCORE_LEVELS[index]!
-    if (safe > right.score) continue
-    const left = SOLO_SCORE_LEVELS[index - 1]!
-    const progress = (safe - left.score) / (right.score - left.score)
-    return interpolateLevel(left.level, right.level, progress)
-  }
-  return last.level
-}
-
-function interpolateLevel(
-  from: DifficultyLevel,
-  to: DifficultyLevel,
-  progress: number,
-): DifficultyLevel {
-  const t = Math.min(1, Math.max(0, progress))
-  const lerp = (left: number, right: number): number => left + (right - left) * t
-  return {
-    spawnInterval: lerp(from.spawnInterval, to.spawnInterval),
-    fallDuration: lerp(from.fallDuration, to.fallDuration),
-    aimSpeed: lerp(from.aimSpeed, to.aimSpeed),
-    maxConcurrent: Math.round(lerp(from.maxConcurrent, to.maxConcurrent)),
   }
 }
 
@@ -229,10 +160,8 @@ const MIN_SPAWN_INTERVAL = 0.55
 export {
   OPENING,
   FULL,
-  SOLO_SCORE_LEVELS,
   MAX_ON_SCREEN,
   difficultyAt,
-  soloDifficultyAt,
   difficultyProgress,
   forPlayers,
 }

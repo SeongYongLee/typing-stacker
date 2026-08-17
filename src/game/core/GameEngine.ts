@@ -30,7 +30,6 @@ import { pairMarks, pairPartners, pairPulse, pairSizes } from '../systems/PairMa
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
 import { NightFever } from '../systems/NightFever.ts'
 import { timeOfDay, type TimeOfDay } from '../systems/DayNight.ts'
-import { Whiteboard } from '../systems/Whiteboard.ts'
 import { type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
 import { renderVerticalBounds } from '../systems/Camera.ts'
@@ -381,8 +380,8 @@ class GameEngine {
   /** 이번 낮에 채워야 하는 점수. 낮이 시작된 뒤에는 바꾸지 않아 시계가 역행하지 않는다. */
   /** 현재 Night Fever에서 흐른 시간. 밤은 기존처럼 10초 동안 열린다. */
   /** 프레임 사이 새로 얻은 점수만 낮 게이지에 더하기 위한 기준값. */
-  /** 벽에 적힌 회수 목록. 여기 있는 단어를 치면 쌓지 않고 빼낸다 */
-  private readonly whiteboard = new Whiteboard(createRng(0x5eed))
+  /** 벽에 적힌 회수 목록. 실제 대상 배열과 같은 순서를 유지한다. */
+  private whiteboardWords: readonly string[] = []
   /** 화이트보드는 단어 레인이 아니라 상자 안의 실제 변형을 가리킨다. */
   private whiteboardTargets: ItemVariant[] = []
   private whiteboardCandidates: readonly ItemVariant[] = []
@@ -570,7 +569,7 @@ class GameEngine {
     this.physics.setContainer(stage.box.halfWidth, stage.box.wallHeight)
     this.physics.setEscapeY(ARENA.killY + CAT_EARLY_ESCAPE_MARGIN)
     this.spawner.restrict(featuredEntries(stage))
-    this.whiteboard.clear()
+    this.whiteboardWords = []
     this.whiteboardTargets = []
     this.whiteboardCandidates = whiteboardCandidatesFor(stage)
     this.focusedRecipeWords = []
@@ -595,7 +594,7 @@ class GameEngine {
     if (step.kind === 'board') {
       const friedEgg = VARIANT_BY_ID.get('fried-egg')
       this.whiteboardTargets = friedEgg === undefined ? [] : [friedEgg]
-      this.whiteboard.set(this.whiteboardTargets.map((target) => target.label))
+      this.whiteboardWords = this.whiteboardTargets.map((target) => target.label)
       return
     }
     this.spawner.spawnScripted(step.word, step.side)
@@ -759,7 +758,7 @@ class GameEngine {
       return
     }
 
-    const targetIndex = this.whiteboard.words.indexOf(text.trim())
+    const targetIndex = this.whiteboardWords.indexOf(text.trim())
     const target = targetIndex === -1 ? undefined : this.whiteboardTargets[targetIndex]
     if (target !== undefined) {
       const source = this.physics.snapshots().find((body) => body.variant.id === target.id)
@@ -1448,7 +1447,7 @@ class GameEngine {
         }
       }
     }
-    this.whiteboard.set(this.whiteboardTargets.map((target) => target.label))
+    this.whiteboardWords = this.whiteboardTargets.map((target) => target.label)
   }
 
   /**
@@ -1789,7 +1788,7 @@ class GameEngine {
       wordMarks: this.wordMarks(marks),
       wordMergeSizes: this.wordMergeSizes(this.mergeSizes()),
       wordMergeHints: this.wordMergeHints(marks),
-      whiteboard: this.whiteboard.words,
+      whiteboard: this.whiteboardWords,
       activeWhiteboard: this.whiteboardTargets
         .filter((target) => (this.physics.countsByVariant().get(target.id) ?? 0) > 0)
         .map((target) => target.label),

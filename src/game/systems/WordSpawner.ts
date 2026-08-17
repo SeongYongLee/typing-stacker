@@ -5,7 +5,6 @@ import type { Rng } from './Rng.ts'
 /** 놓친 쪽지가 혼잡 게이지로 흡수되는 연출까지 남아 있어야 한다. */
 const FADE_SECONDS = 3
 const SIDES: readonly Side[] = ['left', 'right']
-const PREFERRED_WEIGHT = 4
 
 interface WordSpawnerOptions {
   /** 첫 단어도 일반 생성 주기를 기다릴지 여부. 기본값은 기존처럼 즉시 생성이다. */
@@ -15,10 +14,8 @@ interface WordSpawnerOptions {
 class WordSpawner {
   private readonly rng: Rng
   private readonly entries: readonly WordEntry[]
-  /** 테스트와 대전 호환용 후보 밭. 싱글 GameEngine은 더는 좁히지 않는다. */
+  /** 스테이지와 대전 규칙이 허용하는 후보 밭. */
   private pool: readonly WordEntry[]
-  /** 회수 보드의 단어. 레시피 흐름과 별도로 조금 더 자주 보여준다. */
-  private preferred = new Set<string>()
   /** 단어 선택 규칙. 없으면 대전이 쓰는 기존 전체 랜덤으로 뽑는다. */
   private readonly pickEntry: ((candidates: readonly WordEntry[]) => WordEntry) | null
   private readonly startImmediately: boolean
@@ -115,11 +112,6 @@ class WordSpawner {
     this.revision += 1
   }
 
-  /** 회수 보드 단어에 기존과 같은 4배 가중치를 줄 준비를 한다. */
-  prefer(words: readonly string[]): void {
-    this.preferred = new Set(words)
-  }
-
   /**
    * 밖에서 온 밭으로 갈아끼운다.
    *
@@ -214,8 +206,7 @@ class WordSpawner {
       return
     }
 
-    const entry =
-      this.pickPreferred(candidates) ?? this.pickEntry?.(candidates) ?? this.rng.pick(candidates)
+    const entry = this.pickEntry?.(candidates) ?? this.rng.pick(candidates)
     this.revision += 1
     this.list.push({
       id: this.nextId++,
@@ -226,25 +217,6 @@ class WordSpawner {
       state: 'active',
       fade: 1,
     })
-  }
-
-  /**
-   * 커스텀 레시피 흐름을 덮지 않고 회수 보드 가중치의 **추가 몫**만 먼저 뽑는다.
-   *
-   * 선호 단어 수를 P, 전체를 N이라 하면 추가 몫은 `3P / (N + 3P)`다. 이 추첨에
-   * 실패했을 때 기본 선택기가 나머지 한 표씩을 맡으므로, 커스텀 선택기가 없는 대전은
-   * 기존과 정확히 같은 4:1 가중치가 된다. 싱글은 나머지를 RecipeFlow가 고른다.
-   */
-  private pickPreferred(candidates: readonly WordEntry[]): WordEntry | null {
-    const preferred = candidates.filter((entry) => this.preferred.has(entry.word))
-    if (preferred.length === 0) {
-      return null
-    }
-    const extraWeight = preferred.length * (PREFERRED_WEIGHT - 1)
-    if (this.rng.next() * (candidates.length + extraWeight) >= extraWeight) {
-      return null
-    }
-    return this.rng.pick(preferred)
   }
 
   /** 한쪽에만 몰리지 않게 적은 쪽을 우선한다 */

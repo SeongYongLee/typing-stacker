@@ -13,20 +13,20 @@ src/
                   DayNight     흐른 시간 → 낮·Night Fever와 어둠 정도
                   NightFever   상단 아이템을 완성하는 6개 낙하·3초 휴식 계획
                   RecipeFlow   현재 집중 레시피 → 부족한 재료 단어
-                  Whiteboard   집중 재료를 제외한 회수 목록
+                  Whiteboard   벽에 표시할 회수 단어 목록
                   PairMarks    지금 서로 합칠 수 있는 것들에 표식 붙이기
                   Ledge        합성 보상으로 설 통나무 자리 고르기
                   Collection   도감 진행
                   ScoreManager 점수/콤보/타수 집계
                   TypingSpeed  한글 → 두벌식 키 수, 분당 타수 환산
-                  Difficulty   탑 높이 → 단어 밀도
+                  Difficulty   대전 진행도 → 단어 밀도
                   Camera       탑을 따라 올라가는 시야
                   LandingGlow  얹힌 물건의 색 (연출)
                   TrailField   흘리는 부스러기 (연출)
                   Rng          mulberry32 시드 난수
     physics/      PhysicsWorld(Rapier), collapseDetector(이탈 판정)
     renderer/     ArenaRenderer(Canvas 2D)
-    data/         words.ts, recipes.ts, materials.ts, sprites.generated.ts(스크립트가 생성)
+    data/         words.ts, recipes.ts, soloStages.ts, materials.ts, sprites.generated.ts(스크립트가 생성)
     shapes.ts     도형 크기 계산, 스프라이트 실루엣 → 충돌 도형
     config.ts     아레나 좌표계와 밸런스 상수
   audio/          WebAudio 절차 생성 — 사건을 소리로 바꾼다
@@ -58,9 +58,9 @@ tests/            순수 시스템 + 물리 + 엔진 단위 테스트
 
 node 환경에서 캔버스 없이 테스트가 전부 돌아간다. 난수는 전부 `Rng`를 주입받아서 같은 시드면 단어 순서·히든 결과·통나무 자리가 재현된다. 시간도 루프가 주입하는 delta로만 흐른다. 이 셋은 서버가 같은 로직을 돌려 검증할 수 있게 하려는 경계다.
 
-## 레시피와 화이트보드는 선택 순서가 계약이다
+## 싱글 스테이지와 화이트보드는 정확한 물건 id가 계약이다
 
-싱글 스폰은 현재 물건을 센 뒤 RecipeFlow가 집중 레시피를 먼저 확정하고, Whiteboard가 그 재료 단어를 제외해 회수 목록을 채운다. WordSpawner는 화이트보드 추가 가중치를 먼저 시도하고, 미당첨일 때 RecipeFlow의 선택을 쓴다. 상세 동작과 변경 계약은 [`RECIPE_FLOW.md`](RECIPE_FLOW.md)에 있다.
+싱글은 `soloStages.ts`가 단어 풀·회수 목표·상자 크기·경보 반입량·기본 속도를 함께 정한다. RecipeFlow는 그 스테이지 단어 풀 안에서 합성 재료를 고른다. 화이트보드는 단어만 비교하지 않고 정확한 `ItemVariant.id`를 목표로 들고 있으며, 같은 변형이 상자 안에 있을 때만 회수 가능 표시를 켠다. 플레이 규칙은 [`SINGLEPLAYER.md`](SINGLEPLAYER.md), 레시피 선택의 내부 계약은 [`RECIPE_FLOW.md`](RECIPE_FLOW.md)에 있다.
 
 ## 기술 선택은 근거를 요구해서 골랐다
 

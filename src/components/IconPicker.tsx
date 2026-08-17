@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { Avatar } from './Avatar.tsx'
 import { soundBoard } from '../audio/SoundBoard.ts'
 import { hashOf } from '../game/data/materials.ts'
 import { VARIANT_BY_ID } from '../game/data/words.ts'
 import { loadCollection } from '../storage/collection.ts'
+import { iconStepForKey } from './iconPickerKeys.ts'
 
 /**
  * 도감에서 모은 것 중 하나를 아이콘으로 고른다.
@@ -58,9 +59,16 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
     [],
   )
   const at = Math.max(0, options.indexOf(icon))
-  const step = (by: number) => {
+  const step = useCallback((by: number) => {
     onChange(options[(at + by + options.length) % options.length] ?? '')
-  }
+  }, [at, onChange, options])
+  const moveForKey = useCallback((key: string): boolean => {
+    const by = iconStepForKey(key)
+    if (by === 0) return false
+    step(by)
+    soundBoard().handle({ kind: 'menuMove' })
+    return true
+  }, [step])
 
   /*
    * 좌우는 여기서 듣는다. `useMenuKeys`는 위아래로 고르는 것만 다루므로 —
@@ -71,17 +79,12 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       return
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      const by = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-      if (by === 0) {
-        return
-      }
+      if (!moveForKey(event.key)) return
       event.preventDefault()
-      step(by)
-      soundBoard().handle({ kind: 'menuMove' })
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  })
+  }, [moveForKey, selected])
 
   const label =
     icon === ''
@@ -107,13 +110,10 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       role="group"
       aria-label="아이콘 고르기"
       onKeyDown={(event) => {
-        const by = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-        if (by === 0) {
-          return
-        }
+        if (!moveForKey(event.key)) return
         event.preventDefault()
-        step(by)
-        soundBoard().handle({ kind: 'menuMove' })
+        // 포커스 안에서는 이 경로가 소유한다. window 리스너까지 올라가면 두 칸 움직인다.
+        event.stopPropagation()
       }}
       data-icon-picker={icon === '' ? 'none' : icon}
       data-selected={selected ? 'yes' : 'no'}

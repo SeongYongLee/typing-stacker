@@ -241,7 +241,8 @@ interface DuelTowerRenderState {
   readonly cameraY: number
   readonly stackTop: number
   readonly lives?: number
-  readonly ledges?: readonly { readonly x: number; readonly y: number; readonly halfWidth: number }[]
+  /** 예약 공격을 풀기 전에 정착 여부를 확인 중인 방어 물건. */
+  readonly defenseItemId?: number | null
   readonly pairMarks?: ReadonlyMap<string, number>
   readonly pairSizes?: ReadonlyMap<string, number>
   readonly pairPulse?: number
@@ -543,7 +544,6 @@ class ArenaRenderer {
       const towerAlpha = Math.max(0, 1 - tower.exitProgress * tower.exitProgress)
       ctx.globalAlpha = towerAlpha * (tower.previewDimmed === true ? 0.24 : 1)
       drawPlatformBack(view)
-      drawLedges(view, tower.ledges ?? NO_LEDGES)
       if (tower.showAim) {
         drawAim(view, tower.aimX, tower.stackTop)
       }
@@ -558,6 +558,17 @@ class ArenaRenderer {
           tower.pairPulse ?? 0,
           1,
         )
+        if (tower.defenseItemId !== null && body.itemId === tower.defenseItemId) {
+          const radius = Math.hypot(body.variant.artBounds.hw, body.variant.artBounds.hh) * view.scale
+          ctx.save()
+          ctx.strokeStyle = `rgba(126, 255, 194, ${0.62 + (tower.pairPulse ?? 0) * 0.3})`
+          ctx.lineWidth = 3
+          ctx.setLineDash([6, 5])
+          ctx.beginPath()
+          ctx.arc(view.toScreenX(body.x), view.toScreenY(body.y), radius + 7, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.restore()
+        }
       }
       drawPlatformFront(view)
       drawDuelIdentity(view, left, width, tower.nickname, tower.mine, tower.lives ?? 0)

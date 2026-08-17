@@ -29,7 +29,6 @@ const MAX_WORDS = 24
 const MAX_WELDS = 256
 /** 한 키프레임에 허용할 물건 수. 64KB 전송 상한보다 먼저 의미 범위를 제한한다. */
 const MAX_BODIES = 128
-const MAX_DUEL_LEDGES = 32
 /** Rapier에 넘기기 전 클라이언트 안정성을 지키는 보수적인 물리 값 범위. */
 const MAX_POSITION = 100
 const MAX_SPEED = 100
@@ -76,21 +75,35 @@ interface PlayerInfo {
   readonly device: string
 }
 
-interface DuelLedgeFrame {
-  readonly x: number
-  readonly y: number
-  readonly halfWidth: number
-}
-
 type DuelDropSource = 'input' | 'timeout' | 'attack'
-type DuelAttackPhase = 'warning' | 'waiting' | 'checking' | 'dropping'
+type DuelAttackPhase = 'queued' | 'warning' | 'waiting' | 'checking' | 'dropping'
+type DuelAttackEventKind = 'sent' | 'cancelled' | 'dropped'
 
 interface DuelAttackFrame {
+  readonly id: number
+  readonly source: PlayerId
   readonly target: PlayerId
   readonly count: number
   readonly releaseIn: number
   readonly phase: DuelAttackPhase
   readonly defenseItemId: number | null
+}
+
+interface DuelAttackEvent {
+  readonly seq: number
+  readonly attackId: number
+  readonly kind: DuelAttackEventKind
+  readonly source: PlayerId
+  readonly target: PlayerId
+  readonly count: number
+}
+
+/** 합성 공격을 검증하기 위한 재료·결과 증명. 단순 레시피 이름만은 신뢰하지 않는다. */
+interface DuelMergeReport {
+  readonly recipeId: string
+  readonly consumedItemIds: readonly number[]
+  readonly resultItemId: number
+  readonly resultVariantId: string
 }
 
 /** 참가자 → 방장 */
@@ -194,7 +207,12 @@ type ToGuest =
   /** 대결에서 이미 순위가 정해진 사람들. 방장이 전체 목록을 덮어써서 동기화한다. */
   | { readonly t: 'duelResults'; readonly results: readonly DuelResult[]; readonly matchId?: string }
   /** 상대 합성으로 예약된 공격. 방장이 전체 목록을 덮어써서 동기화한다. */
-  | { readonly t: 'duelAttacks'; readonly attacks: readonly DuelAttackFrame[]; readonly matchId?: string }
+  | {
+      readonly t: 'duelAttacks'
+      readonly attacks: readonly DuelAttackFrame[]
+      readonly events?: readonly DuelAttackEvent[]
+      readonly matchId?: string
+    }
   /**
    * 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다.
    *
@@ -230,8 +248,7 @@ type Either = { readonly t: 'bye' }
       readonly owner: PlayerId
       readonly bodies: readonly BodyFrame[]
       readonly welds: readonly (readonly [number, number])[]
-      readonly ledges?: readonly DuelLedgeFrame[]
-      readonly mergedRecipes?: readonly string[]
+      readonly merges?: readonly DuelMergeReport[]
       readonly tick: number
       /** 직전 상태 전송 뒤 게임판을 빠져나간 물건 수. */
       readonly escaped: number
@@ -452,30 +469,66 @@ function parseMessage(raw: unknown): Message | null {
     case 'duelAttacks': {
       if (!Array.isArray(raw['attacks'])) return null
       const attacks: DuelAttackFrame[] = []
-      const targets = new Set<PlayerId>()
+      const ids = new Set<number>()
       for (const entry of raw['attacks']) {
         if (
-          !isRecord(entry) || !isShortString(entry['target'], 64) ||
-          targets.has(entry['target']) || !Number.isSafeInteger(entry['count']) ||
+          !isRecord(entry) || !Number.isSafeInteger(entry['id']) ||
+          (entry['id'] as number) < 1 || ids.has(entry['id'] as number) ||
+          !isShortString(entry['source'], 64) || !isShortString(entry['target'], 64) ||
+          !Number.isSafeInteger(entry['count']) ||
           (entry['count'] as number) < 1 || (entry['count'] as number) > MAX_BODIES ||
           !isFiniteNumber(entry['releaseIn']) || (entry['releaseIn'] as number) < 0 ||
           (entry['releaseIn'] as number) > 60 ||
-          (entry['phase'] !== 'warning' && entry['phase'] !== 'waiting' &&
+          (entry['phase'] !== 'queued' && entry['phase'] !== 'warning' &&
+            entry['phase'] !== 'waiting' &&
             entry['phase'] !== 'checking' && entry['phase'] !== 'dropping') ||
           (entry['defenseItemId'] !== null &&
             (!Number.isSafeInteger(entry['defenseItemId']) || (entry['defenseItemId'] as number) < 1))
         ) return null
-        targets.add(entry['target'])
+        ids.add(entry['id'] as number)
         attacks.push({
+          id: entry['id'] as number,
+          source: entry['source'],
           target: entry['target'],
           count: entry['count'] as number,
           releaseIn: entry['releaseIn'] as number,
           phase: entry['phase'] as DuelAttackPhase,
           defenseItemId: entry['defenseItemId'] as number | null,
         })
+        if (attacks.length > MAX_BODIES) return null
+      }
+      const rawEvents = raw['events'] ?? []
+      if (!Array.isArray(rawEvents)) return null
+      const events: DuelAttackEvent[] = []
+      for (const entry of rawEvents) {
+        if (
+          !isRecord(entry) || !Number.isSafeInteger(entry['seq']) ||
+          (entry['seq'] as number) < 1 || !Number.isSafeInteger(entry['attackId']) ||
+          (entry['attackId'] as number) < 1 ||
+          (entry['kind'] !== 'sent' && entry['kind'] !== 'cancelled' &&
+            entry['kind'] !== 'dropped') ||
+          !isShortString(entry['source'], 64) || !isShortString(entry['target'], 64) ||
+          !Number.isSafeInteger(entry['count']) || (entry['count'] as number) < 1 ||
+          (entry['count'] as number) > MAX_BODIES
+        ) return null
+        events.push({
+          seq: entry['seq'] as number,
+          attackId: entry['attackId'] as number,
+          kind: entry['kind'] as DuelAttackEventKind,
+          source: entry['source'],
+          target: entry['target'],
+          count: entry['count'] as number,
+        })
+        if (events.length > MAX_BODIES) return null
       }
       const matchId = optionalShortString(raw['matchId'], 96)
-      return matchId === null ? null : { t: 'duelAttacks', attacks, ...matchId }
+      return matchId === null
+        ? null
+        : {
+          t: 'duelAttacks', attacks,
+          ...(raw['events'] === undefined ? {} : { events }),
+          ...matchId,
+        }
     }
     case 'sync': {
       const state = parsePhysicsState(raw, false)
@@ -491,22 +544,38 @@ function parseMessage(raw: unknown): Message | null {
       const state = parsePhysicsState(raw, true)
       if (state === null || state.tick === undefined) return null
       if (state.bodies.some((body) => body.owner !== raw['owner'])) return null
-      const ledges = parseDuelLedges(raw['ledges'] ?? [])
-      const rawMergedRecipes = raw['mergedRecipes'] ?? []
-      if (ledges === null || !Array.isArray(rawMergedRecipes)) return null
-      const mergedRecipes: string[] = []
-      for (const id of rawMergedRecipes) {
-        if (!isShortString(id, 40)) return null
-        mergedRecipes.push(id)
-        if (mergedRecipes.length > MAX_BODIES) return null
+      const rawMerges = raw['merges'] ?? []
+      if (!Array.isArray(rawMerges)) return null
+      const merges: DuelMergeReport[] = []
+      for (const entry of rawMerges) {
+        if (
+          !isRecord(entry) || !isShortString(entry['recipeId'], 400) ||
+          !Array.isArray(entry['consumedItemIds']) || entry['consumedItemIds'].length < 2 ||
+          entry['consumedItemIds'].length > 8 ||
+          !Number.isSafeInteger(entry['resultItemId']) || (entry['resultItemId'] as number) < 1 ||
+          !isShortString(entry['resultVariantId'], 40)
+        ) return null
+        const consumedItemIds: number[] = []
+        const seen = new Set<number>()
+        for (const id of entry['consumedItemIds']) {
+          if (!Number.isSafeInteger(id) || (id as number) < 1 || seen.has(id as number)) return null
+          seen.add(id as number)
+          consumedItemIds.push(id as number)
+        }
+        merges.push({
+          recipeId: entry['recipeId'],
+          consumedItemIds,
+          resultItemId: entry['resultItemId'] as number,
+          resultVariantId: entry['resultVariantId'],
+        })
+        if (merges.length > 8) return null
       }
       return {
         t: 'duelBoardState',
         owner: raw['owner'],
         bodies: state.bodies,
         welds: state.welds,
-        ...(raw['ledges'] === undefined ? {} : { ledges }),
-        ...(raw['mergedRecipes'] === undefined ? {} : { mergedRecipes }),
+        ...(raw['merges'] === undefined ? {} : { merges }),
         tick: state.tick,
         escaped: raw['escaped'] as number,
         ...(state.matchId === undefined ? {} : { matchId: state.matchId }),
@@ -521,27 +590,6 @@ function parseMessage(raw: unknown): Message | null {
     default:
       return null
   }
-}
-
-function parseDuelLedges(raw: unknown): DuelLedgeFrame[] | null {
-  if (!Array.isArray(raw) || raw.length > MAX_DUEL_LEDGES) return null
-  const ledges: DuelLedgeFrame[] = []
-  for (const entry of raw) {
-    if (
-      !isRecord(entry) ||
-      !isBoundedNumber(entry['x'], MAX_POSITION) ||
-      !isBoundedNumber(entry['y'], MAX_POSITION) ||
-      !isFiniteNumber(entry['halfWidth']) ||
-      (entry['halfWidth'] as number) <= 0 ||
-      (entry['halfWidth'] as number) > 4
-    ) return null
-    ledges.push({
-      x: entry['x'],
-      y: entry['y'],
-      halfWidth: entry['halfWidth'] as number,
-    })
-  }
-  return ledges
 }
 
 function parsePhysicsState(
@@ -692,6 +740,7 @@ function parseFallingWord(raw: unknown): FallingWord | null {
     !isFiniteNumber(raw['slot']) ||
     !isFiniteNumber(raw['y']) ||
     !isFiniteNumber(raw['fade']) ||
+    (raw['owner'] !== undefined && !isShortString(raw['owner'], 64)) ||
     (state !== 'active' && state !== 'missed')
   ) {
     return null
@@ -699,6 +748,7 @@ function parseFallingWord(raw: unknown): FallingWord | null {
   return {
     id: Math.floor(raw['id']),
     word: raw['word'],
+    ...(isShortString(raw['owner'], 64) ? { owner: raw['owner'] } : {}),
     side,
     slot: clamp(Math.floor(raw['slot']), 0, MAX_WORDS),
     y: clamp(raw['y'], 0, 1),
@@ -762,8 +812,10 @@ export type {
   ToGuest,
   Message,
   BodyFrame,
-  DuelLedgeFrame,
   DuelDropSource,
   DuelAttackPhase,
   DuelAttackFrame,
+  DuelAttackEventKind,
+  DuelAttackEvent,
+  DuelMergeReport,
 }

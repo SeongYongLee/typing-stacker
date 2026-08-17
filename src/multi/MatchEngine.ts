@@ -2,14 +2,12 @@ import {
   AIM_HALF_RANGE,
   ARENA,
   INVULNERABLE_SEC,
-  LEDGE,
   LIVES,
 } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
 import { SOLO_STAGES, featuredEntries, type SoloStage } from '../game/data/soloStages.ts'
 import { craftKeyOf, RECIPES, type Recipe } from '../game/data/recipes.ts'
-import { shapeBounds } from '../game/shapes.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
 import { PhysicsWorld } from '../game/physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../game/renderer/ArenaRenderer.ts'
@@ -26,7 +24,6 @@ import {
   mergeCandidateKeys,
   MERGE_CHECK_INTERVAL_SEC,
 } from '../game/systems/Merger.ts'
-import { placeLedge } from '../game/systems/Ledge.ts'
 import { pairMarks, pairPartners, pairPulse, pairSizes } from '../game/systems/PairMarks.ts'
 import { RecipeFlow } from '../game/systems/RecipeFlow.ts'
 import { createRng, type Rng } from '../game/systems/Rng.ts'
@@ -41,7 +38,9 @@ import { MatchState } from './MatchState.ts'
 import { buildOwnerColors } from './ownerColors.ts'
 import type {
   BodyFrame,
+  DuelAttackEvent,
   DuelAttackFrame,
+  DuelMergeReport,
   DuelDropSource,
   Message,
   PlayerId,
@@ -133,6 +132,8 @@ const MAX_FIXED_STEPS = 3
 const DROP_LEAD_TICKS = 6
 const DUEL_ATTACK_WARNING_SEC = 1.2
 const DUEL_ATTACK_DROP_INTERVAL_SEC = 0.28
+/** 각 플레이어가 입력하지 않으면 자기 단어 하나를 자동으로 놓는 간격. */
+const DUEL_IDLE_DROP_SEC = 10
 
 /**
  * 대전은 튜토리얼을 쓰지 않는다. 한 판의 테마는 시드만으로 정하므로 방장 교체나
@@ -248,6 +249,8 @@ interface MatchViewState {
   readonly stage: { readonly id: number; readonly title: string }
   /** 현재 예약된 합성 공격. releaseIn이 0이면 순차 낙하 중이다. */
   readonly attacks: readonly DuelAttackFrame[]
+  /** 가장 최근 공격 송신·상쇄·낙하 사건. 공격 이동 연출의 기준이다. */
+  readonly attackFeedback: DuelAttackEvent | null
   /**
    * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
    * 같은 붕괴로 함께 탈락하면 공동 등수다.
@@ -373,8 +376,10 @@ interface ScheduledDrop {
 }
 
 interface PendingDuelAttack {
+  readonly id: number
+  readonly source: PlayerId
   count: number
-  releaseAt: number
+  releaseAt: number | null
   nextDropAt: number
   defenseItemId: number | null
   defenseSeen: boolean
@@ -427,6 +432,8 @@ class MatchEngine {
   private spawner: WordSpawner
   private readonly recipeFlows = new Map<PlayerId, RecipeFlow>()
   private recipePickIndex = 0
+  /** WordSpawner가 방금 고른 단어를 실제 FallingWord 소유자와 잇는 짧은 대기표. */
+  private readonly pendingWordOwners = new Map<string, PlayerId>()
   private readonly recipeCounts = new Map<string, number>()
   private wordClaims: readonly TimedDuelWordClaim[] = []
   private wordClaimSeq = 0
@@ -434,7 +441,9 @@ class MatchEngine {
   private mergeFeedbackSeq = 0
   private readonly duelRng: Rng
   private nextMergedItemId: number
-  private readonly pendingMergedRecipes: string[] = []
+  private readonly pendingDuelMerges: DuelMergeReport[] = []
+  /** 같은 합성 결과 번호를 다시 보고해 공격을 중복 생성하지 못하게 한다. */
+  private readonly acceptedDuelMergeResults = new Map<PlayerId, Set<number>>()
   private readonly duelMarks = new Map<PlayerId, ReadonlyMap<string, number>>()
   private readonly duelMergeSizes = new Map<PlayerId, ReadonlyMap<string, number>>()
   private readonly duelMarkPhysicsVersions = new Map<PlayerId, number>()
@@ -463,6 +472,8 @@ class MatchEngine {
   private dropCooldown = 0
   /** 대결 모드에서 사람마다 따로 도는 드롭 쿨타임 */
   private readonly duelCooldowns = new Map<PlayerId, number>()
+  /** 대결에서 플레이어마다 따로 흐르는 마지막 입력 뒤 경과 시간. */
+  private readonly duelIdleElapsed = new Map<PlayerId, number>()
   /**
    * 지금 차례가 시작된 뒤 흐른 시간(초).
    *
@@ -485,8 +496,11 @@ class MatchEngine {
   private fixedAccumulator = 0
   /** 물리 세계에 넣는 시점만 예약한다. 단어 제거·턴 이동은 드롭 승인 시점에 한다. */
   private readonly pendingDrops: ScheduledDrop[] = []
-  /** 대상별 예약 공격. 방장이 판정하고 참가자는 전체 스냅샷을 따른다. */
-  private readonly duelAttacks = new Map<PlayerId, PendingDuelAttack>()
+  /** 대상별 공격 묶음 큐. 맨 앞 묶음만 예고·방어·낙하를 진행한다. */
+  private readonly duelAttacks = new Map<PlayerId, PendingDuelAttack[]>()
+  private nextDuelAttackId = 1
+  private duelAttackEventSeq = 0
+  private attackFeedback: DuelAttackEvent | null = null
   /** 방장이 떨군 뒤 정착 상태를 한 번 더 알려줄 물건들 */
   private readonly pendingSettledSync = new Set<number>()
   /** 참가자 화면에서만 권위 위치 교정을 짧게 이어 붙인다. */
@@ -581,6 +595,7 @@ class MatchEngine {
       this.duelStackTops.set(player.id, ARENA.platformTop)
       if (this.matchMode === 'duel') {
         this.duelBodyCorrections.set(player.id, new BodyCorrection())
+        this.duelIdleElapsed.set(player.id, 0)
       }
     }
     this.standingsView = this.duelRace === null ? this.match.standings() : []
@@ -645,7 +660,24 @@ class MatchEngine {
     if (players.length === 0) return this.rng.pick(candidates)
     const player = players[this.recipePickIndex % players.length]!
     this.recipePickIndex += 1
-    return this.recipeFlows.get(player.id)?.pick(candidates) ?? this.rng.pick(candidates)
+    const entry = this.recipeFlows.get(player.id)?.pick(candidates) ?? this.rng.pick(candidates)
+    this.pendingWordOwners.set(entry.word, player.id)
+    return entry
+  }
+
+  /** 새 단어에는 살아 있는 플레이어를 명시적으로 새긴다. 탈락자의 순번은 재사용하지 않는다. */
+  private assignDuelWordOwners(): void {
+    if (!this.isHost || this.matchMode !== 'duel') return
+    let changed = false
+    const words = this.spawner.words.map((word) => {
+      if (word.owner !== undefined) return word
+      const owner = this.pendingWordOwners.get(word.word)
+      if (owner === undefined) return word
+      this.pendingWordOwners.delete(word.word)
+      changed = true
+      return { ...word, owner }
+    })
+    if (changed) this.spawner.apply(words)
   }
 
   /** 각자 자기 보드에서 완성하기 쉬운 재료를 공용 단어 밭에 번갈아 공급한다. */
@@ -659,7 +691,7 @@ class MatchEngine {
         this.recipeCounts.set(id, count)
       }
       for (const falling of this.spawner.words) {
-        if (falling.state !== 'active') continue
+        if (falling.state !== 'active' || this.duelWordOwner(falling) !== player.id) continue
         const id = WORD_BASE_ID.get(falling.word)
         if (id !== undefined) {
           this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
@@ -743,7 +775,10 @@ class MatchEngine {
     if (inputMode === 'idle') {
       return
     }
-    const result = judgeInput(this.spawner.words, text)
+    const words = this.matchMode === 'duel'
+      ? this.spawner.words.filter((word) => this.duelWordOwner(word) === this.transport.selfId)
+      : this.spawner.words
+    const result = judgeInput(words, text)
     this.feedbackSeq += 1
 
     if (result.kind === 'miss') {
@@ -1264,7 +1299,7 @@ class MatchEngine {
     }
     const target = this.spawner.words.find(
       (candidate) => candidate.state === 'active' && candidate.word === word && (
-        this.matchMode !== 'duel' || this.duelWordOwner(candidate.id) === by
+        this.matchMode !== 'duel' || this.duelWordOwner(candidate) === by
       ),
     )
     if (target === undefined) {
@@ -1294,17 +1329,36 @@ class MatchEngine {
     this.acceptDrop(by, word, aimX, spawnY, variant.id, itemId, applyAtTick, 'input')
   }
 
-  /** 참가자 명단에 단어 순서를 고르게 나눈다. 탈락해도 기존 단어의 주인이 바뀌지 않는다. */
-  private duelWordOwner(wordId: number): PlayerId | null {
+  /** 새 프레임은 소유자를 명시한다. 구형 프레임만 기존 순번 규칙으로 복원한다. */
+  private duelWordOwner(word: FallingWord): PlayerId | null {
+    if (word.owner !== undefined) return word.owner
     const players = this.match.players
     if (players.length === 0) return null
-    return players[(wordId - 1) % players.length]?.id ?? null
+    return players[(word.id - 1) % players.length]?.id ?? null
   }
 
   /** 만료된 내 단어는 기본 물건으로 내 필드에 자동 반입된다. */
   private dropExpiredDuelWord(word: FallingWord): void {
-    const by = this.duelWordOwner(word.id)
+    const by = this.duelWordOwner(word)
     if (by === null || !this.isDuelActive(by)) return
+    this.dropDuelWord(by, word, false)
+  }
+
+  /** 개인 입력 시한이 끝나면 가장 아래에 있는 자기 단어를 실제 필드에 놓는다. */
+  private dropIdleDuelWord(by: PlayerId): boolean {
+    const word = this.spawner.words
+      .filter((candidate) => candidate.state === 'active' && this.duelWordOwner(candidate) === by)
+      .reduce<FallingWord | null>(
+        (lowest, candidate) => lowest === null || candidate.y > lowest.y ? candidate : lowest,
+        null,
+      )
+    if (word === null) return false
+    this.spawner.remove(word.id)
+    this.dropDuelWord(by, word, true)
+    return true
+  }
+
+  private dropDuelWord(by: PlayerId, word: FallingWord, resetIdle: boolean): void {
     const entry = WORDS.find((candidate) => candidate.word === word.word)
     const variant = entry?.variants[0]
     if (variant === undefined) return
@@ -1318,6 +1372,7 @@ class MatchEngine {
       variantId: variant.id, source: 'timeout', itemId, applyAtTick, matchId: this.matchId,
     })
     this.acceptDrop(by, word.word, aimX, spawnY, variant.id, itemId, applyAtTick, 'timeout')
+    if (resetIdle) this.duelIdleElapsed.set(by, 0)
   }
 
   private attackTargetFor(attacker: PlayerId): PlayerId | null {
@@ -1331,72 +1386,131 @@ class MatchEngine {
     return null
   }
 
+  private activateNextDuelAttack(target: PlayerId): void {
+    const attack = this.duelAttacks.get(target)?.[0]
+    if (attack === undefined || attack.releaseAt !== null) return
+    attack.releaseAt = this.elapsed + DUEL_ATTACK_WARNING_SEC
+    attack.nextDropAt = Number.POSITIVE_INFINITY
+    attack.defenseItemId = null
+    attack.defenseSeen = false
+  }
+
+  private makeDuelAttackEvent(
+    attack: PendingDuelAttack,
+    target: PlayerId,
+    kind: DuelAttackEvent['kind'],
+    count: number,
+  ): DuelAttackEvent {
+    return {
+      seq: ++this.duelAttackEventSeq,
+      attackId: attack.id,
+      kind,
+      source: attack.source,
+      target,
+      count,
+    }
+  }
+
   /** 합성 공격은 먼저 자기 예약분을 지우고, 남은 수만 다음 생존자에게 보낸다. */
   private queueDuelAttack(attacker: PlayerId, recipe: Recipe): void {
     if (!this.isHost || this.matchMode !== 'duel') return
     let count = Math.max(1, recipe.inputs.length - 1)
+    const events: DuelAttackEvent[] = []
     const incoming = this.duelAttacks.get(attacker)
-    if (incoming !== undefined) {
-      const cancelled = Math.min(count, incoming.count)
-      incoming.count -= cancelled
+    while (count > 0 && incoming !== undefined && incoming.length > 0) {
+      const attack = incoming[0]!
+      const cancelled = Math.min(count, attack.count)
+      attack.count -= cancelled
       count -= cancelled
-      if (incoming.count === 0) this.duelAttacks.delete(attacker)
+      events.push(this.makeDuelAttackEvent(attack, attacker, 'cancelled', cancelled))
+      if (attack.count <= 0) {
+        incoming.shift()
+        this.activateNextDuelAttack(attacker)
+      }
+    }
+    if (incoming !== undefined && incoming.length === 0) {
+      this.duelAttacks.delete(attacker)
     }
     if (count > 0) {
       const target = this.attackTargetFor(attacker)
       if (target !== null) {
-        const queued = this.duelAttacks.get(target)
-        if (queued === undefined) {
-          const releaseAt = this.elapsed + DUEL_ATTACK_WARNING_SEC
-          this.duelAttacks.set(target, {
-            count,
-            releaseAt,
-            nextDropAt: Number.POSITIVE_INFINITY,
-            defenseItemId: null,
-            defenseSeen: false,
-          })
-        } else {
-          queued.count += count
+        const queue = this.duelAttacks.get(target) ?? []
+        const attack: PendingDuelAttack = {
+          id: this.nextDuelAttackId++,
+          source: attacker,
+          count,
+          releaseAt: queue.length === 0 ? this.elapsed + DUEL_ATTACK_WARNING_SEC : null,
+          nextDropAt: Number.POSITIVE_INFINITY,
+          defenseItemId: null,
+          defenseSeen: false,
         }
+        queue.push(attack)
+        this.duelAttacks.set(target, queue)
+        events.push(this.makeDuelAttackEvent(attack, target, 'sent', count))
       }
     }
-    this.broadcastDuelAttacks()
+    this.broadcastDuelAttacks(events)
     this.emit()
   }
 
   private duelAttackFrames(): readonly DuelAttackFrame[] {
-    return [...this.duelAttacks].map(([target, attack]) => ({
-      target,
-      count: attack.count,
-      releaseIn: Math.max(0, attack.releaseAt - this.elapsed),
-      phase: this.elapsed < attack.releaseAt
-        ? 'warning'
-        : attack.nextDropAt < Number.POSITIVE_INFINITY
-          ? 'dropping'
-          : attack.defenseItemId === null ? 'waiting' : 'checking',
-      defenseItemId: attack.defenseItemId,
+    return [...this.duelAttacks].flatMap(([target, queue]) => queue.map((attack, index) => {
+      const releaseAt = attack.releaseAt
+      const phase = index > 0 || releaseAt === null
+        ? 'queued'
+        : this.elapsed < releaseAt
+          ? 'warning'
+          : attack.nextDropAt < Number.POSITIVE_INFINITY
+            ? 'dropping'
+            : attack.defenseItemId === null ? 'waiting' : 'checking'
+      return {
+        id: attack.id,
+        source: attack.source,
+        target,
+        count: attack.count,
+        releaseIn: phase === 'queued'
+          ? DUEL_ATTACK_WARNING_SEC
+          : phase === 'dropping'
+            ? Math.max(0, attack.nextDropAt - this.elapsed)
+            : Math.max(0, (releaseAt ?? this.elapsed) - this.elapsed),
+        phase,
+        defenseItemId: attack.defenseItemId,
+      }
     }))
   }
 
-  private broadcastDuelAttacks(): void {
+  private broadcastDuelAttacks(events: readonly DuelAttackEvent[] = []): void {
     if (!this.isHost || this.matchMode !== 'duel') return
+    if (events.length > 0) this.attackFeedback = events.at(-1) ?? null
     this.transport.broadcast({
-      t: 'duelAttacks', attacks: this.duelAttackFrames(), matchId: this.matchId,
+      t: 'duelAttacks', attacks: this.duelAttackFrames(),
+      ...(events.length === 0 ? {} : { events }),
+      matchId: this.matchId,
     })
   }
 
-  private applyDuelAttacks(attacks: readonly DuelAttackFrame[]): void {
+  private applyDuelAttacks(
+    attacks: readonly DuelAttackFrame[],
+    events: readonly DuelAttackEvent[] = [],
+  ): void {
     this.duelAttacks.clear()
     for (const attack of attacks) {
-      const releaseAt = this.elapsed + attack.releaseIn
-      this.duelAttacks.set(attack.target, {
+      const queue = this.duelAttacks.get(attack.target) ?? []
+      const releaseAt = attack.phase === 'queued' ? null : this.elapsed + attack.releaseIn
+      queue.push({
+        id: attack.id,
+        source: attack.source,
         count: attack.count,
         releaseAt,
-        nextDropAt: attack.phase === 'dropping' ? releaseAt : Number.POSITIVE_INFINITY,
+        nextDropAt: attack.phase === 'dropping'
+          ? this.elapsed + attack.releaseIn
+          : Number.POSITIVE_INFINITY,
         defenseItemId: attack.defenseItemId,
         defenseSeen: false,
       })
+      this.duelAttacks.set(attack.target, queue)
     }
+    if (events.length > 0) this.attackFeedback = events.at(-1) ?? null
     this.emit()
   }
 
@@ -1422,9 +1536,21 @@ class MatchEngine {
   private advanceDuelAttacks(): void {
     if (!this.isHost || this.matchMode !== 'duel') return
     let changed = false
-    for (const [target, attack] of this.duelAttacks) {
+    const events: DuelAttackEvent[] = []
+    for (const [target, queue] of this.duelAttacks) {
       if (!this.isDuelActive(target)) {
         this.duelAttacks.delete(target)
+        changed = true
+        continue
+      }
+      const attack = queue[0]
+      if (attack === undefined) {
+        this.duelAttacks.delete(target)
+        changed = true
+        continue
+      }
+      if (attack.releaseAt === null) {
+        this.activateNextDuelAttack(target)
         changed = true
         continue
       }
@@ -1449,21 +1575,27 @@ class MatchEngine {
       if (this.elapsed < attack.nextDropAt) continue
       this.dropDuelAttack(target)
       attack.count -= 1
+      events.push(this.makeDuelAttackEvent(attack, target, 'dropped', 1))
       changed = true
       if (attack.count <= 0) {
-        this.duelAttacks.delete(target)
+        queue.shift()
+        if (queue.length === 0) {
+          this.duelAttacks.delete(target)
+        } else {
+          this.activateNextDuelAttack(target)
+        }
       } else {
         attack.nextDropAt = this.elapsed + DUEL_ATTACK_DROP_INTERVAL_SEC
       }
     }
-    if (changed) this.broadcastDuelAttacks()
+    if (changed) this.broadcastDuelAttacks(events)
   }
 
   private noteDuelDefensePlacement(by: PlayerId, itemId: number, source: DuelDropSource): void {
     if (!this.isHost || source === 'attack') return
-    const attack = this.duelAttacks.get(by)
+    const attack = this.duelAttacks.get(by)?.[0]
     if (
-      attack === undefined || this.elapsed < attack.releaseAt ||
+      attack === undefined || attack.releaseAt === null || this.elapsed < attack.releaseAt ||
       attack.nextDropAt < Number.POSITIVE_INFINITY || attack.defenseItemId !== null
     ) return
     attack.defenseItemId = itemId
@@ -1488,7 +1620,7 @@ class MatchEngine {
     }
     const target = source === 'input' ? this.spawner.words.find(
       (candidate) => candidate.state === 'active' && candidate.word === word && (
-        this.matchMode !== 'duel' || this.duelWordOwner(candidate.id) === by
+        this.matchMode !== 'duel' || this.duelWordOwner(candidate) === by
       ),
     ) : undefined
     if (target !== undefined) {
@@ -1519,6 +1651,7 @@ class MatchEngine {
       this.dropCooldown = DROP_INTERVAL_SEC
     } else {
       this.duelCooldowns.set(by, DROP_INTERVAL_SEC)
+      this.duelIdleElapsed.set(by, 0)
     }
     this.turnElapsed = 0
 
@@ -1646,7 +1779,7 @@ class MatchEngine {
         break
       case 'duelAttacks':
         if (!this.isHost && this.matchMode === 'duel') {
-          this.applyDuelAttacks(message.attacks)
+          this.applyDuelAttacks(message.attacks, message.events)
         }
         break
       case 'sync':
@@ -1889,6 +2022,17 @@ class MatchEngine {
         this.dropForIdlePlayer()
       }
     }
+    if (this.isHost && this.matchMode === 'duel') {
+      for (const player of this.match.players) {
+        if (!this.isDuelActive(player.id)) continue
+        const elapsed = (this.duelIdleElapsed.get(player.id) ?? 0) + dt
+        this.duelIdleElapsed.set(player.id, elapsed)
+        if (elapsed >= DUEL_IDLE_DROP_SEC && !this.dropIdleDuelWord(player.id)) {
+          // 자기 단어가 막 생성되려는 순간에는 즉시 다시 검사하되 매 tick 수치가 커지지는 않게 한다.
+          this.duelIdleElapsed.set(player.id, DUEL_IDLE_DROP_SEC)
+        }
+      }
+    }
 
     /*
      * 난이도는 쌓은 높이를 따라간다. 한 번 오른 뒤에는 내려가지 않는다 —
@@ -1919,6 +2063,7 @@ class MatchEngine {
     }
     const missedWords = this.spawner.update(dt, difficulty)
     if (this.isHost && this.matchMode === 'duel') {
+      this.assignDuelWordOwners()
       for (const word of missedWords) this.dropExpiredDuelWord(word)
     }
 
@@ -2027,35 +2172,29 @@ class MatchEngine {
 
     const result = resolveCrafted(match.recipe, this.duelRng)
     const itemId = ++this.nextMergedItemId
+    const itemIdByHandle = new Map(world.snapshots().map((body) => [body.handle, body.itemId]))
+    const consumedItemIds = match.itemIds.flatMap((handle) => {
+      const consumed = itemIdByHandle.get(handle)
+      return consumed === undefined ? [] : [consumed]
+    })
+    if (consumedItemIds.length !== match.itemIds.length) return
     if (world.mergeItems(match.itemIds, result, owner, itemId) === null) return
 
     this.recipeFlows.get(owner)?.onMerged(match.recipe)
-    this.pendingMergedRecipes.push(match.recipe.id)
+    this.pendingDuelMerges.push({
+      recipeId: match.recipe.id,
+      consumedItemIds,
+      resultItemId: itemId,
+      resultVariantId: result.id,
+    })
     this.mergeFeedback = {
       seq: ++this.mergeFeedbackSeq,
       itemLabel: result.label,
       ingredientCount: match.recipe.inputs.length,
     }
-    this.growDuelLedge(world)
     this.fire({ kind: 'merge' })
     if (this.isHost) this.queueDuelAttack(owner, match.recipe)
     this.sinceDuelBoardSync = DUEL_BOARD_SYNC_INTERVAL_SEC
-  }
-
-  private growDuelLedge(world: PhysicsWorld): void {
-    const items = world.frames().flatMap((frame) => {
-      const variant = VARIANT_BY_ID.get(frame.variantId)
-      if (variant === undefined) return []
-      const { hw, hh } = shapeBounds(variant.shape)
-      return [{ x: frame.x, y: frame.y, hw, hh }]
-    })
-    const ledges = world.ledges().map((ledge) => ({
-      ...ledge,
-      hw: ledge.halfWidth,
-      hh: LEDGE.halfHeight,
-    }))
-    const spot = placeLedge(items, ledges, world.stackTop(), this.duelRng)
-    if (spot !== null) world.addLedge(spot.x, spot.y, spot.halfWidth)
   }
 
   private marksFor(owner: PlayerId): ReadonlyMap<string, number> {
@@ -2069,7 +2208,7 @@ class MatchEngine {
     }
     const counts = new Map(world.countsByVariant())
     for (const falling of this.spawner.words) {
-      if (falling.state !== 'active') continue
+      if (falling.state !== 'active' || this.duelWordOwner(falling) !== owner) continue
       const id = WORD_BASE_ID.get(falling.word)
       if (id !== undefined) counts.set(id, (counts.get(id) ?? 0) + 1)
     }
@@ -2091,6 +2230,7 @@ class MatchEngine {
     if (marks.size === 0) return NO_MARKS
     const byWord = new Map<string, number>()
     for (const falling of this.spawner.words) {
+      if (this.duelWordOwner(falling) !== owner) continue
       const id = WORD_BASE_ID.get(falling.word)
       const mark = id === undefined ? undefined : marks.get(id)
       if (mark !== undefined) byWord.set(falling.word, mark)
@@ -2103,6 +2243,7 @@ class MatchEngine {
     if (sizes.size === 0) return NO_MARKS
     const byWord = new Map<string, number>()
     for (const falling of this.spawner.words) {
+      if (this.duelWordOwner(falling) !== owner) continue
       const id = WORD_BASE_ID.get(falling.word)
       const size = id === undefined ? undefined : sizes.get(id)
       if (size !== undefined) byWord.set(falling.word, size)
@@ -2116,6 +2257,7 @@ class MatchEngine {
     const partners = pairPartners(marks, new Map(this.worldFor(owner).countsByVariant()))
     const byWord = new Map<string, readonly MergeHint[]>()
     for (const falling of this.spawner.words) {
+      if (this.duelWordOwner(falling) !== owner) continue
       const id = WORD_BASE_ID.get(falling.word)
       const partnerIds = id === undefined ? undefined : partners.get(id)
       const hints = partnerIds?.flatMap((partner) => {
@@ -2151,13 +2293,12 @@ class MatchEngine {
       owner,
       bodies: world.frames(),
       welds: world.weldPairs(),
-      ledges: world.ledges(),
-      mergedRecipes: [...this.pendingMergedRecipes],
+      merges: [...this.pendingDuelMerges],
       tick: this.physicsTick,
       escaped,
       matchId: this.matchId,
     })
-    this.pendingMergedRecipes.length = 0
+    this.pendingDuelMerges.length = 0
     this.sinceDuelBoardSync = 0
   }
 
@@ -2179,6 +2320,47 @@ class MatchEngine {
     this.duelBodyCorrections.get(owner)?.note(corrections)
   }
 
+  /** 게스트가 주장한 합성이 실제 직전 재료와 새 결과로 설명되는지 방장이 확인한다. */
+  private validateDuelMerges(
+    owner: PlayerId,
+    previousBodies: readonly BodyFrame[],
+    nextBodies: readonly BodyFrame[],
+    reports: readonly DuelMergeReport[],
+  ): readonly { report: DuelMergeReport; recipe: Recipe }[] {
+    const previous = new Map(previousBodies.map((body) => [body.itemId, body]))
+    const next = new Map(nextBodies.map((body) => [body.itemId, body]))
+    const acceptedResults = this.acceptedDuelMergeResults.get(owner) ?? new Set<number>()
+    this.acceptedDuelMergeResults.set(owner, acceptedResults)
+    const valid: { report: DuelMergeReport; recipe: Recipe }[] = []
+    for (const report of reports) {
+      const recipe = RECIPES.find((candidate) => candidate.id === report.recipeId)
+      const result = next.get(report.resultItemId)
+      const allowedResults = recipe === undefined
+        ? []
+        : [recipe.result.id, ...recipe.hiddenResults.map((variant) => variant.id)]
+      const actualInputs = report.consumedItemIds.flatMap((id) => {
+        const body = previous.get(id)
+        return body === undefined ? [] : [craftKeyOf(body.variantId)]
+      }).sort()
+      const wantedInputs = recipe?.inputs.map(craftKeyOf).sort() ?? []
+      if (
+        recipe === undefined || acceptedResults.has(report.resultItemId) ||
+        previous.has(report.resultItemId) ||
+        report.consumedItemIds.includes(report.resultItemId) ||
+        report.consumedItemIds.length !== recipe.inputs.length ||
+        actualInputs.length !== report.consumedItemIds.length ||
+        actualInputs.join('|') !== wantedInputs.join('|') ||
+        report.consumedItemIds.some((id) => next.has(id)) ||
+        result === undefined || result.owner !== owner ||
+        result.variantId !== report.resultVariantId ||
+        !allowedResults.includes(result.variantId)
+      ) continue
+      acceptedResults.add(report.resultItemId)
+      valid.push({ report, recipe })
+    }
+    return valid
+  }
+
   private applyDuelBoardState(
     from: PlayerId,
     message: Extract<Message, { readonly t: 'duelBoardState' }>,
@@ -2193,41 +2375,61 @@ class MatchEngine {
     const previousTick = this.duelBoardTicks.get(owner) ?? -1
     if (message.tick <= previousTick) return
     this.duelBoardTicks.set(owner, message.tick)
-    this.applyDuelBoardFrames(owner, message.bodies, message.welds)
+    const previousBodies = this.worldFor(owner).frames()
+    const validMerges = this.isHost
+      ? this.validateDuelMerges(owner, previousBodies, message.bodies, message.merges ?? [])
+      : []
+    const validResultIds = new Set(validMerges.map(({ report }) => report.resultItemId))
+    const previousById = new Map(previousBodies.map((body) => [body.itemId, body]))
+    const acceptedBodies = this.isHost
+      ? message.bodies.filter((body) => {
+          const previous = previousById.get(body.itemId)
+          return previous === undefined
+            ? validResultIds.has(body.itemId)
+            : previous.variantId === body.variantId
+        })
+      : message.bodies
+    this.applyDuelBoardFrames(owner, acceptedBodies, message.welds)
     const world = this.worldFor(owner)
-    if (message.ledges !== undefined) {
-      const currentLedges = world.ledges()
-      const ledgesChanged = currentLedges.length !== message.ledges.length || message.ledges.some(
-        (ledge, index) => {
-          const current = currentLedges[index]
-          return current === undefined || current.x !== ledge.x || current.y !== ledge.y ||
-            current.halfWidth !== ledge.halfWidth
-        },
-      )
-      if (ledgesChanged) world.replaceLedges(message.ledges)
-    }
     if (this.isHost) {
       const flow = this.recipeFlows.get(owner)
-      for (const recipeId of message.mergedRecipes ?? []) {
-        const recipe = RECIPES.find((candidate) => candidate.id === recipeId)
-        if (recipe !== undefined) {
-          flow?.onMerged(recipe)
-          this.queueDuelAttack(owner, recipe)
-        }
+      for (const { recipe } of validMerges) {
+        flow?.onMerged(recipe)
+        this.queueDuelAttack(owner, recipe)
       }
-      const attack = this.duelAttacks.get(owner)
+      const attack = this.duelAttacks.get(owner)?.[0]
       if (attack !== undefined && attack.defenseItemId !== null) {
-        const defense = message.bodies.find((body) => body.itemId === attack.defenseItemId)
-        if (defense !== undefined || (message.mergedRecipes?.length ?? 0) > 0) {
+        const defense = acceptedBodies.find((body) => body.itemId === attack.defenseItemId)
+        if (defense !== undefined || validMerges.length > 0) {
           attack.defenseSeen = true
         }
       }
-      this.transport.broadcast(message)
+      const consumed = new Set(validMerges.flatMap(({ report }) => report.consumedItemIds))
+      const nextIds = new Set(acceptedBodies.map((body) => body.itemId))
+      const unexplainedMissing = previousBodies.filter(
+        (body) => !nextIds.has(body.itemId) && !consumed.has(body.itemId),
+      ).length
+      this.transport.broadcast({
+        ...message,
+        bodies: acceptedBodies,
+        merges: validMerges.map(({ report }) => report),
+        escaped: Math.max(message.escaped, unexplainedMissing),
+      })
     }
     this.duelStackTops.set(owner, world.stackTop())
-    if (this.isHost && message.escaped > 0 && this.isDuelActive(owner)) {
+    if (this.isHost && this.isDuelActive(owner)) {
+      const consumed = new Set(validMerges.flatMap(({ report }) => report.consumedItemIds))
+      const nextIds = new Set(acceptedBodies.map((body) => body.itemId))
+      const unexplainedMissing = previousBodies.filter(
+        (body) => !nextIds.has(body.itemId) && !consumed.has(body.itemId),
+      ).length
+      const escaped = Math.max(message.escaped, unexplainedMissing)
+      if (escaped <= 0) {
+        this.emit()
+        return
+      }
       const pending = this.pendingDuelEscapes.get(owner) ?? 0
-      this.pendingDuelEscapes.set(owner, Math.min(MAX_ON_SCREEN, pending + message.escaped))
+      this.pendingDuelEscapes.set(owner, Math.min(MAX_ON_SCREEN, pending + escaped))
     }
     this.emit()
   }
@@ -2421,7 +2623,7 @@ class MatchEngine {
           cameraY: this.cameraY,
           stackTop,
           lives: this.match.livesOf(id),
-          ledges: world.ledges(),
+          defenseItemId: this.duelAttacks.get(id)?.[0]?.defenseItemId ?? null,
           pairMarks: this.marksFor(id),
           pairSizes: this.mergeSizesFor(id),
           pairPulse: pairPulse(this.elapsed),
@@ -2536,6 +2738,7 @@ class MatchEngine {
         ? { id: 0, title: '함께 쌓기' }
         : { id: this.duelStage.id, title: this.duelStage.title },
       attacks: this.duelAttackFrames(),
+      attackFeedback: this.attackFeedback,
       standings: this.standingsView,
       duelResults: this.duelRace?.results ?? [],
       duelTowerIds: this.visibleDuelIds(),

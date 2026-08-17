@@ -227,7 +227,7 @@ describe('MatchEngine — 대전', () => {
 
     await pair.clock.advance(3)
     const word = pair.guestState().words.find((candidate) => (
-      candidate.state === 'active' && candidate.id % 2 === 0
+      candidate.state === 'active' && candidate.owner === 'guest-peer'
     ))?.word
     expect(word).toBeDefined()
     if (word === undefined) return
@@ -256,7 +256,7 @@ describe('MatchEngine — 대전', () => {
     pair = await makePair(1518, true, 'duel')
     await pair.clock.advance(4)
     const target = pair.guestState().words.find((candidate) => (
-      candidate.state === 'active' && candidate.id % 2 === 0
+      candidate.state === 'active' && candidate.owner === 'guest-peer'
     ))
     expect(target).toBeDefined()
     if (target === undefined) return
@@ -287,9 +287,45 @@ describe('MatchEngine — 대전', () => {
     expect(pair.guestLink.sent.some((message) => (
       message.t === 'duelBoardState' && message.owner === 'guest-peer'
     ))).toBe(true)
+    expect(pair.hostLink.sent.some((message) => (
+      message.t === 'duelBoardState' && 'ledges' in message
+    ))).toBe(false)
+    expect(pair.guestLink.sent.some((message) => (
+      message.t === 'duelBoardState' && 'ledges' in message
+    ))).toBe(false)
   })
 
-  it('내 단어가 만료되면 내 필드에 기본 물건을 자동으로 보낸다', async () => {
+  it('근거 없는 합성 결과 바디와 공격 보고는 방장이 거부한다', async () => {
+    pair = await makePair(1526, true, 'duel')
+    const recipe = RECIPES[0]!
+    pair.guestLink.broadcast({
+      t: 'duelBoardState',
+      owner: 'guest-peer',
+      bodies: [{
+        itemId: 9_999_999,
+        variantId: recipe.result.id,
+        owner: 'guest-peer',
+        x: 0,
+        y: 1,
+        rotation: 0,
+      }],
+      welds: [],
+      merges: [{
+        recipeId: recipe.id,
+        consumedItemIds: [9_999_997, 9_999_998],
+        resultItemId: 9_999_999,
+        resultVariantId: recipe.result.id,
+      }],
+      tick: 99_999,
+      escaped: 0,
+      matchId: pair.hostState().matchId,
+    })
+    await pair.clock.flush()
+    expect(pair.hostState().attacks).toHaveLength(0)
+    expect(pair.host.debugBodies().some((body) => body.itemId === 9_999_999)).toBe(false)
+  })
+
+  it('각 플레이어가 10초간 입력하지 않으면 자기 단어를 자동으로 놓는다', async () => {
     pair = await makePair(1521, true, 'duel')
     await pair.clock.advance(20)
 
@@ -298,7 +334,23 @@ describe('MatchEngine — 대전', () => {
     ))
     expect(timeoutDrops.length).toBeGreaterThan(0)
     expect(new Set(timeoutDrops.map((message) => message.t === 'dropped' ? message.by : '')))
-      .toContain('host-peer')
+      .toEqual(new Set(['host-peer', 'guest-peer']))
+  })
+
+  it('상대에게 배정된 숨은 단어는 내 입력 판정 대상이 아니다', async () => {
+    pair = await makePair(1524, true, 'duel')
+    await pair.clock.advance(3)
+    const opponentWord = pair.hostState().words.find((word) => (
+      word.state === 'active' && word.owner === 'guest-peer'
+    ))
+    expect(opponentWord).toBeDefined()
+    if (opponentWord === undefined) return
+    pair.host.submit(opponentWord.word)
+    await pair.clock.flush()
+    expect(pair.hostState().feedback).toEqual(expect.objectContaining({ kind: 'miss' }))
+    expect(pair.hostLink.sent.some((message) => (
+      message.t === 'dropped' && message.word === opponentWord.word
+    ))).toBe(false)
   })
 
   it('합성 공격은 예고 뒤 상대의 다음 배치와 합성 확인을 기다린다', async () => {
@@ -329,7 +381,7 @@ describe('MatchEngine — 대전', () => {
 
     await pair.clock.advance(3)
     const defenseWord = pair.guestState().words.find((candidate) => (
-      candidate.state === 'active' && candidate.id % 2 === 0
+      candidate.state === 'active' && candidate.owner === 'guest-peer'
     ))
     expect(defenseWord).toBeDefined()
     if (defenseWord === undefined) return
@@ -338,6 +390,37 @@ describe('MatchEngine — 대전', () => {
     expect(pair.hostLink.sent.some((message) => (
       message.t === 'dropped' && message.source === 'attack' && message.by === 'guest-peer'
     ))).toBe(true)
+  })
+
+  it('겹친 공격은 합치지 않고 다음 묶음에 새 예고 시간을 준다', async () => {
+    pair = await makePair(1525, true, 'duel')
+    await pair.clock.advance(0.2)
+    const internals = pair.host as unknown as {
+      elapsed: number
+      duelAttacks: Map<string, Array<{
+        count: number
+        releaseAt: number | null
+        nextDropAt: number
+      }>>
+      queueDuelAttack(attacker: string, recipe: Recipe): void
+      advanceDuelAttacks(): void
+      duelAttackFrames(): MatchViewState['attacks']
+    }
+    const recipe = RECIPES.find((candidate) => candidate.inputs.length === 2) ?? RECIPES[0]!
+    internals.queueDuelAttack('host-peer', recipe)
+    internals.queueDuelAttack('host-peer', recipe)
+    expect(pair.hostState().attacks.map((attack) => attack.phase)).toEqual(['warning', 'queued'])
+
+    const first = internals.duelAttacks.get('guest-peer')?.[0]
+    expect(first).toBeDefined()
+    if (first === undefined) return
+    first.releaseAt = 0
+    first.nextDropAt = 0
+    internals.advanceDuelAttacks()
+    const remaining = internals.duelAttackFrames()
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]).toEqual(expect.objectContaining({ phase: 'warning' }))
+    expect(remaining[0]?.releaseIn).toBeGreaterThan(1)
   })
 
   it('방어 배치 뒤 합성이 생기면 예약 공격을 상쇄하고 낙하하지 않는다', async () => {
@@ -350,7 +433,7 @@ describe('MatchEngine — 대전', () => {
     internals.queueDuelAttack('guest-peer', recipe)
     await pair.clock.advance(4)
     const defenseWord = pair.hostState().words.find((candidate) => (
-      candidate.state === 'active' && candidate.id % 2 === 1
+      candidate.state === 'active' && candidate.owner === 'host-peer'
     ))
     expect(defenseWord).toBeDefined()
     if (defenseWord === undefined) return

@@ -91,6 +91,7 @@ class BodyCorrection {
       const scale = correction === undefined ? 0 : remaining(correction.age, this.duration)
       const slot = (this.buffer[count] ??= { ...body })
       slot.handle = body.handle
+      slot.itemId = body.itemId
       slot.variant = body.variant
       slot.owner = body.owner
       slot.x = body.x + (correction?.dx ?? 0) * scale

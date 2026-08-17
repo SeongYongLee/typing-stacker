@@ -72,7 +72,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
   }, [state.players, state.wordClaims])
   const typingWords = state.matchMode === 'duel'
     ? state.words.filter((word) => (
-        state.players[(word.id - 1) % state.players.length]?.id === state.selfId
+        (word.owner ?? state.players[(word.id - 1) % state.players.length]?.id) === state.selfId
       ))
     : state.words
 
@@ -149,6 +149,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
           />
         </div>
         <DuelMergeFeedback state={state} />
+        <DuelAttackFlight state={state} />
         {state.phase === 'over' && (
           <Verdict
             state={state}
@@ -167,7 +168,13 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 
 /** 이번 판의 좁은 단어 풀을 알려 주는 전략 정보. 경기 중에도 항상 남긴다. */
 function DuelStageBadge({ state }: { state: MatchViewState }) {
-  const incoming = state.attacks.find((attack) => attack.target === state.selfId) ?? null
+  const incomingAttacks = state.attacks.filter((attack) => attack.target === state.selfId)
+  const incoming = incomingAttacks[0] ?? null
+  const incomingCount = incomingAttacks.reduce((sum, attack) => sum + attack.count, 0)
+  const outgoingCount = state.attacks
+    .filter((attack) => attack.source === state.selfId)
+    .reduce((sum, attack) => sum + attack.count, 0)
+  const attacker = state.players.find((player) => player.id === incoming?.source)?.nickname
   const attackStatus = incoming === null
     ? ''
     : incoming.phase === 'warning'
@@ -192,7 +199,7 @@ function DuelStageBadge({ state }: { state: MatchViewState }) {
       {incoming !== null && (
         <div
           aria-live="assertive"
-          aria-label={`예약 공격 ${incoming.count}개, ${attackStatus}`}
+          aria-label={`예약 공격 ${incomingCount}개, ${attackStatus}`}
           style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '5px 9px', borderRadius: 12,
             background: 'rgba(103, 24, 41, 0.9)', color: '#fff', fontSize: 13, fontWeight: 800,
@@ -200,13 +207,79 @@ function DuelStageBadge({ state }: { state: MatchViewState }) {
           }}
         >
           <span style={{ display: 'flex', gap: 3 }} aria-hidden="true">
-            {Array.from({ length: Math.min(incoming.count, 6) }, (_, index) => (
+            {Array.from({ length: Math.min(incomingCount, 6) }, (_, index) => (
               <span key={index} style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff7188' }} />
             ))}
           </span>
-          공격 {incoming.count} · {attackStatus}
+          {attacker === undefined ? '공격' : `${attacker}의 공격`} {incomingCount} · {attackStatus}
         </div>
       )}
+      {outgoingCount > 0 && (
+        <div style={{
+          padding: '4px 8px', borderRadius: 10, background: 'rgba(28, 81, 74, 0.88)',
+          color: '#caffea', fontSize: 12, fontWeight: 750,
+        }}>
+          보낸 공격 {outgoingCount}개 대기 중
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 뿌요처럼 공격이 타워 사이를 이동하고, 상쇄되면 대상 자리에서 터진다. */
+function DuelAttackFlight({ state }: { state: MatchViewState }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [hiddenSeq, setHiddenSeq] = useState<number | null>(null)
+  const event = state.attackFeedback
+  const sourceIndex = event === null ? -1 : state.duelTowerIds.indexOf(event.source)
+  const targetIndex = event === null ? -1 : state.duelTowerIds.indexOf(event.target)
+  const count = Math.max(1, state.duelTowerIds.length)
+  const sourceLeft = `${((Math.max(0, sourceIndex) + 0.5) / count) * 100}%`
+  const targetLeft = `${((Math.max(0, targetIndex) + 0.5) / count) * 100}%`
+
+  useEffect(() => {
+    if (event === null || ref.current === null || sourceIndex < 0 || targetIndex < 0) return
+    const cancelled = event.kind === 'cancelled'
+    const dropped = event.kind === 'dropped'
+    const animation = play(
+      ref.current,
+      cancelled
+        ? [
+            { left: targetLeft, transform: 'translate(-50%, -50%) scale(0.45)', opacity: 0 },
+            { left: targetLeft, transform: 'translate(-50%, -50%) scale(1.35)', opacity: 1 },
+            { left: targetLeft, transform: 'translate(-50%, -50%) scale(1.8)', opacity: 0 },
+          ]
+        : [
+            { left: dropped ? targetLeft : sourceLeft, top: dropped ? '12%' : '8%', opacity: 0.2 },
+            { left: targetLeft, top: dropped ? '48%' : '12%', opacity: 1, offset: 0.78 },
+            { left: targetLeft, top: dropped ? '58%' : '12%', opacity: 0 },
+          ],
+      { duration: cancelled ? 620 : 780, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    )
+    const timer = window.setTimeout(() => setHiddenSeq(event.seq), cancelled ? 660 : 820)
+    return () => {
+      animation?.cancel()
+      window.clearTimeout(timer)
+    }
+  }, [event, sourceIndex, sourceLeft, targetIndex, targetLeft])
+
+  if (event === null || event.seq === hiddenSeq || sourceIndex < 0 || targetIndex < 0) return null
+  const label = event.kind === 'cancelled'
+    ? `${event.count} 상쇄!`
+    : event.kind === 'dropped' ? `공격 ${event.count}` : `공격 ${event.count} 보냄`
+  return (
+    <div
+      key={event.seq}
+      ref={ref}
+      aria-live="polite"
+      style={{
+        position: 'absolute', zIndex: 8, left: sourceLeft, top: '8%', transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none', padding: '6px 9px', borderRadius: 999,
+        background: event.kind === 'cancelled' ? '#57d9a3' : '#ff5f7d', color: '#111827',
+        fontWeight: 900, fontSize: 13, boxShadow: '0 0 22px rgba(255,255,255,0.7)',
+      }}
+    >
+      ● {label}
     </div>
   )
 }

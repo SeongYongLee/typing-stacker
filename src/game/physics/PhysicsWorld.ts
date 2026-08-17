@@ -963,6 +963,7 @@ class PhysicsWorld {
       }
       const slot = (buffer[count] ??= {
         handle,
+        itemId: entry.itemId,
         variant: entry.variant,
         owner: entry.owner,
         x,
@@ -973,6 +974,7 @@ class PhysicsWorld {
         congestion: false,
       })
       slot.handle = handle
+      slot.itemId = entry.itemId
       slot.variant = entry.variant
       slot.owner = entry.owner
       slot.x = x

@@ -116,6 +116,8 @@ type Side = 'left' | 'right'
 interface FallingWord {
   readonly id: number
   readonly word: string
+  /** 멀티 대결에서 이 단어를 입력할 사람. 구형 프레임에는 없을 수 있다. */
+  readonly owner?: OwnerId
   readonly side: Side
   readonly slot: number
   /** 0 = 레인 최상단, 1 = 바닥선 */
@@ -152,6 +154,8 @@ type OwnerId = string
 
 interface BodySnapshot {
   readonly handle: number
+  /** 네트워크와 공격 방어 판정이 공유하는 물건 식별자. */
+  readonly itemId?: number
   readonly variant: ItemVariant
   readonly owner: OwnerId
   readonly x: number

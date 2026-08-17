@@ -142,21 +142,40 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     })
   })
 
-  it('duelAttacks는 대상별 예약 개수와 남은 경고 시간만 받는다', () => {
+  it('duelAttacks는 공격 묶음의 출발·대상·단계를 검증한다', () => {
+    const attack = {
+      id: 1, source: 'a', target: 'b', count: 3,
+      releaseIn: 1.2, phase: 'warning', defenseItemId: null,
+    }
     expect(parseMessage({
       t: 'duelAttacks',
-      attacks: [{ target: 'b', count: 3, releaseIn: 1.2, phase: 'warning', defenseItemId: null }],
+      attacks: [attack],
     })).toEqual({
       t: 'duelAttacks',
-      attacks: [{ target: 'b', count: 3, releaseIn: 1.2, phase: 'warning', defenseItemId: null }],
+      attacks: [attack],
     })
     expect(parseMessage({
       t: 'duelAttacks',
-      attacks: [{ target: 'b', count: 0, releaseIn: 1, phase: 'warning', defenseItemId: null }],
+      attacks: [{ ...attack, count: 0 }],
     })).toBeNull()
     expect(parseMessage({
       t: 'duelAttacks',
-      attacks: [{ target: 'b', count: 2, releaseIn: -1, phase: 'warning', defenseItemId: null }],
+      attacks: [{ ...attack, releaseIn: -1 }],
+    })).toBeNull()
+  })
+
+  it('duelBoardState 합성은 실제 재료와 결과 식별자를 함께 요구한다', () => {
+    const message = {
+      t: 'duelBoardState', owner: 'a', bodies: [], welds: [], tick: 12, escaped: 0,
+      merges: [{
+        recipeId: 'apple+apple=pie', consumedItemIds: [1, 2],
+        resultItemId: 3, resultVariantId: 'pie',
+      }],
+    }
+    expect(parseMessage(message)).toEqual(message)
+    expect(parseMessage({
+      ...message,
+      merges: [{ ...message.merges[0], consumedItemIds: [1, 1] }],
     })).toBeNull()
   })
 

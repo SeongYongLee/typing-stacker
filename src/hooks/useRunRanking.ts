@@ -25,7 +25,7 @@ interface RunRanking {
  *
  * 실패는 조용히 넘긴다. 서버가 죽었다고 결과 화면을 못 보면 안 된다.
  */
-function useRunRanking(stats: RunStats): RunRanking {
+function useRunRanking(stats: RunStats, enabled = true): RunRanking {
   const [status, setStatus] = useState<RankingStatus>('sending')
   const [view, setView] = useState<RankView | null>(null)
   const [isBest, setIsBest] = useState(false)
@@ -39,6 +39,12 @@ function useRunRanking(stats: RunStats): RunRanking {
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus('ready')
+      setView(null)
+      setIsBest(false)
+      return
+    }
     let alive = true
     setStatus('sending')
     setView(null)
@@ -64,7 +70,7 @@ function useRunRanking(stats: RunStats): RunRanking {
     return () => {
       alive = false
     }
-  }, [key, attempt])
+  }, [key, attempt, enabled])
 
   useEffect(() => {
     if (status !== 'offline') return

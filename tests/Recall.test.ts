@@ -171,7 +171,6 @@ describe('화이트보드 상자 회수', () => {
     internals.advanceStage()
     internals.emit()
     expect((state as unknown as GameState).stage.notice?.kind).toBe('complete')
-    expect((state as unknown as GameState).stage.notice?.lesson).toBeNull()
     await clock.advance(2.2)
     expect((state as unknown as GameState).stage.id).toBe(2)
     expect((state as unknown as GameState).stage.notice?.kind).toBe('start')

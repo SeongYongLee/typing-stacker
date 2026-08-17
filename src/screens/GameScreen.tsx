@@ -452,13 +452,7 @@ function CongestionWarning() {
 function StageNotice({ notice }: { notice: NonNullable<GameState['stage']['notice']> }) {
   const isStart = notice.kind === 'start'
   const progress = notice.target === null ? '튜토리얼' : `${notice.returns} / ${notice.target} 회수`
-  const duration = notice.lesson === null ? (isStart ? '1.35s' : '2.1s') : '3.8s'
-  const lesson = notice.lesson === 'congestion'
-    ? {
-        title: '경보 시스템',
-        text: '이 보관함은 물건 20개를 회수하면 클리어입니다. 단어를 놓치면 혼잡 경보가 차고, 가득 차면 물건이 한꺼번에 떨어집니다.',
-      }
-    : null
+  const duration = isStart ? '1.35s' : '2.1s'
   return (
     <div
       aria-live="polite"
@@ -496,12 +490,6 @@ function StageNotice({ notice }: { notice: NonNullable<GameState['stage']['notic
           {isStart ? '새 보관함' : '보관함 정산'}
         </span>
         <strong style={{ fontSize: 28, lineHeight: 1.15 }}>{notice.title}</strong>
-        {lesson !== null && (
-          <div style={{ display: 'grid', gap: 4, maxWidth: 360 }}>
-            <strong style={{ fontSize: 15, color: '#ffe1a0' }}>{lesson.title}</strong>
-            <span style={{ fontSize: 15, lineHeight: 1.45, color: '#d7d9e7' }}>{lesson.text}</span>
-          </div>
-        )}
         {isStart ? (
           <span style={{ fontSize: 16, color: '#d7d9e7' }}>{progress}</span>
         ) : (

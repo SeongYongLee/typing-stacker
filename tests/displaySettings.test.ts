@@ -41,10 +41,6 @@ describe('화면 설정 저장', () => {
     expect(DEFAULT_SETTINGS.shake).toBe(1)
   })
 
-  it('기본은 혼자 하기 규칙을 보여준다', () => {
-    expect(DEFAULT_SETTINGS.soloRules).toBe(true)
-  })
-
   it('튜토리얼은 첫 완료 전에는 필수이고, 저장된 선택지만 허용한다', () => {
     expect(DEFAULT_SETTINGS.soloTutorial).toBe('required')
     withStorage(JSON.stringify({ soloTutorial: 'ask' }), () => {
@@ -61,20 +57,9 @@ describe('화면 설정 저장', () => {
         shake: 0,
         glow: 0,
         trail: 0,
-        soloRules: false,
         soloTutorial: 'disabled',
       })
       expect(loadDisplaySettings().shake).toBe(0)
-      expect(loadDisplaySettings().soloRules).toBe(false)
-    })
-  })
-
-  it('규칙 화면 설정은 boolean만 받는다', () => {
-    withStorage(JSON.stringify({ soloRules: false }), () => {
-      expect(loadDisplaySettings().soloRules).toBe(false)
-    })
-    withStorage(JSON.stringify({ soloRules: 'false' }), () => {
-      expect(loadDisplaySettings().soloRules).toBe(true)
     })
   })
 
@@ -113,7 +98,6 @@ describe('화면 설정 저장', () => {
           shake: 0,
           glow: 0,
           trail: 0,
-          soloRules: false,
           soloTutorial: 'disabled',
         }),
       ).not.toThrow()

@@ -9,6 +9,7 @@ import { VARIANT_BY_ID } from '../game/data/words.ts'
 interface ResultScreenProps {
   stats: RunStats
   freshlyCollected: readonly string[]
+  totalReturns: number
   /** 경보 규칙을 설명하려고 의도적으로 만든 첫 게임오버인지. */
   congestionDemo?: boolean
   /** 튜토리얼 종료 뒤 바로 일반 판을 연다. */
@@ -87,6 +88,7 @@ function verdictOf(stats: RunStats, ranking: RunRanking): string | null {
 function ResultScreen({
   stats,
   freshlyCollected,
+  totalReturns,
   congestionDemo = false,
   onStartGame,
   onReplayTutorial,
@@ -196,26 +198,23 @@ function ResultScreen({
         </div>
 
         <div style={{ overflowY: 'auto', minHeight: 0 }}>
-          <section
-            aria-label="게임오버 안내"
-            style={{
-              marginBottom: 16,
-              padding: '10px 12px',
-              border: '1px solid #40354a',
-              borderRadius: 8,
-              background: '#11151f',
-              color: '#d7d9e7',
-              fontSize: 14,
-              lineHeight: 1.45,
-            }}
-          >
-            <strong style={{ display: 'block', marginBottom: 3, color: '#ffe1a0' }}>
-              {congestionDemo ? '튜토리얼 완료' : '게임오버 안내'}
-            </strong>
-            {congestionDemo
-              ? '방금 장면은 경보를 보여주기 위해 물건 100개를 과장해 반입한 데모입니다. 실제 경보는 이렇게 많이 떨어지지 않습니다. 이제 직접 보관소를 정리해보세요.'
-              : '물건이 상자 밖으로 나가면 탑이 무너집니다. 다음 판에서는 끝보다 안쪽을 겨냥하고, 낮고 넓게 쌓아보세요.'}
-          </section>
+          {totalReturns === 0 && (
+            <section
+              aria-label="회수 안내"
+              style={{
+                marginBottom: 16,
+                padding: '10px 12px',
+                border: '1px solid #40354a',
+                borderRadius: 8,
+                background: '#11151f',
+                color: '#d7d9e7',
+                fontSize: 14,
+                lineHeight: 1.45,
+              }}
+            >
+              화이트보드에 표시된 물건을 회수하면 다음 스테이지로 진행할 수 있습니다.
+            </section>
+          )}
 
           {/* 이 게임의 성취. 쌓기·높이·콤보가 판을 요약한다 */}
           <div style={rowStyle}>

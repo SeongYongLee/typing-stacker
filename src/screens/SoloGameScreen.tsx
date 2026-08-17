@@ -51,6 +51,7 @@ function SoloGameScreen({
         <ResultScreen
           stats={state.stats}
           freshlyCollected={state.freshlyCollected}
+          totalReturns={state.stage.totalReturns}
           congestionDemo={state.stage.congestionDemo === 'over'}
           onRestart={onRestart}
           onStartGame={onStartGame}

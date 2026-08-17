@@ -74,10 +74,13 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   const input = useHangulInput(
     submit,
       state.stage.congestionDemo === 'ready' ||
+      state.stage.congestionDemo === 'congestionGuide' ||
+      state.stage.congestionDemo === 'full' ||
       state.stage.congestionDemo === 'gameOverPrompt' ||
       state.stage.tutorialStep === 0 ||
       state.stage.tutorialStep === 4 ||
-      state.stage.tutorialStep === 5,
+      state.stage.tutorialStep === 5 ||
+      state.stage.tutorialStep === 6,
   )
   const { focus, clear } = input
 
@@ -139,26 +142,34 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
       state.phase === 'playing' &&
       (
         state.stage.congestionDemo === 'ready' ||
+        state.stage.congestionDemo === 'congestionGuide' ||
+        state.stage.congestionDemo === 'full' ||
         state.stage.congestionDemo === 'gameOverPrompt' ||
         state.stage.tutorialStep === 0 ||
         state.stage.tutorialStep === 4 ||
-        state.stage.tutorialStep === 5
+        state.stage.tutorialStep === 5 ||
+        state.stage.tutorialStep === 6
       )
     ) {
       focus()
     }
-  }, [state.phase, state.stage.congestionDemo, focus])
+  }, [state.phase, state.stage.congestionDemo, state.stage.tutorialStep, focus])
 
   const collapsing = state.phase === 'collapsing'
   const activeWhiteboard = state.activeWhiteboard
-  const tutorialGaugeGuide = state.phase === 'playing' && state.stage.congestionDemo === 'ready'
+  const tutorialGaugeGuide =
+    state.phase === 'playing' &&
+    (state.stage.congestionDemo === 'congestionGuide' || state.stage.congestionDemo === 'full')
+  const tutorialRemainingGuide =
+    state.phase === 'playing' &&
+    (state.stage.tutorialStep === 6 || state.stage.congestionDemo === 'ready')
   const tutorialBoxGuide = state.phase === 'playing' && state.stage.tutorialStep === 0
   const tutorialWhiteboardGuide = state.phase === 'playing' && state.stage.tutorialStep === 5
   const congestionImminent = state.phase === 'playing' && (
     (state.stage.id > 0 && state.stage.congestion >= 80) ||
     (state.stage.congestionRush && (
       state.stage.id > 0 ||
-      state.stage.congestionDemo === 'warning' ||
+      state.stage.congestionDemo === 'full' ||
       state.stage.congestionDemo === 'falling'
     ))
   )
@@ -180,6 +191,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
         {tutorialGaugeGuide && <TutorialGaugeSpotlight />}
+        {tutorialRemainingGuide && <TutorialRemainingSpotlight />}
         {tutorialBoxGuide && <TutorialBoxSpotlight />}
         {tutorialWhiteboardGuide && <TutorialWhiteboardSpotlight />}
         {state.stage.congestionBurst > 0 && <CongestionBurst />}
@@ -224,6 +236,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         feedback={state.feedback}
         stats={state.stats}
         nightfall={state.timeOfDay.nightfall}
+        locked={state.stage.congestionDemo === 'wordRush'}
       />
 
       {/* 화면 전체를 덮는다. 아레나 안쪽에만 두면 HUD와 입력칸이 살아 있는 것처럼 보인다 */}
@@ -296,6 +309,27 @@ function TutorialGaugeSpotlight() {
         zIndex: 5,
         width: 276,
         height: 52,
+        transform: 'translateX(-50%)',
+        pointerEvents: 'none',
+        boxShadow: '0 0 0 100vmax rgba(5, 7, 12, 0.72)',
+        borderRadius: 6,
+      }}
+    />
+  )
+}
+
+/** 첫 회수 직후에는 경보 안내와 같은 방식으로 남은 회수물 영역만 밝게 남긴다. */
+function TutorialRemainingSpotlight() {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        top: 6,
+        left: '50%',
+        zIndex: 5,
+        width: 'min(360px, calc(100vw - 24px))',
+        height: 36,
         transform: 'translateX(-50%)',
         pointerEvents: 'none',
         boxShadow: '0 0 0 100vmax rgba(5, 7, 12, 0.72)',
@@ -449,7 +483,12 @@ function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: n
   const remaining = stage.target === null ? null : Math.max(stage.target - stage.returns, 0)
   // 경보를 처음 설명할 때 게이지와 행동 안내는 하나의 정보다. 딤보다 위에 함께 둔다.
   const tutorialGuideActive =
-    stage.congestionDemo === 'ready' || stage.tutorialStep === 0 || stage.tutorialStep === 5
+    (stage.congestionDemo === 'ready' ||
+      stage.congestionDemo === 'congestionGuide' ||
+      stage.congestionDemo === 'full') ||
+    stage.tutorialStep === 0 ||
+    stage.tutorialStep === 5 ||
+    stage.tutorialStep === 6
   const tutorialProgress = stage.tutorialStep === null || stage.tutorialTotal === null
     ? null
     : `${stage.tutorialStep + 1} / ${stage.tutorialTotal}`
@@ -483,8 +522,8 @@ function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: n
         pointerEvents: 'none',
       }}
     >
-      {tutorialProgress === null ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {tutorialProgress === null ? (
           <div
             data-stage-title={stage.id}
             style={{
@@ -499,39 +538,39 @@ function StageStatus({ stage, missSeq }: { stage: GameState['stage']; missSeq: n
           >
             {stage.title}
           </div>
-          {remaining !== null && (
-            <div
-              data-remaining-recalls={remaining}
-              style={{
-                padding: '5px 9px',
-                border: '1px solid rgba(255, 209, 125, 0.7)',
-                borderRadius: 4,
-                background: 'rgba(71, 49, 31, 0.76)',
-                color: '#fff0c5',
-                fontWeight: 800,
-                fontSize: 14,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              회수물 {remaining}개 남음
-            </div>
-          )}
-        </div>
-      ) : (
-        <div
-          style={{
-            padding: '5px 10px',
-            border: '1px solid rgba(255,255,255,0.45)',
-            borderRadius: 4,
-            background: 'rgba(17, 23, 34, 0.68)',
-            color: '#fff5cb',
-            fontWeight: 700,
-            fontSize: 15,
-          }}
-        >
-          튜토리얼 {tutorialProgress}
-        </div>
-      )}
+        ) : (
+          <div
+            style={{
+              padding: '5px 10px',
+              border: '1px solid rgba(255,255,255,0.45)',
+              borderRadius: 4,
+              background: 'rgba(17, 23, 34, 0.68)',
+              color: '#fff5cb',
+              fontWeight: 700,
+              fontSize: 15,
+            }}
+          >
+            튜토리얼 {tutorialProgress}
+          </div>
+        )}
+        {remaining !== null && (
+          <div
+            data-remaining-recalls={remaining}
+            style={{
+              padding: '5px 9px',
+              border: '1px solid rgba(255, 209, 125, 0.7)',
+              borderRadius: 4,
+              background: 'rgba(71, 49, 31, 0.76)',
+              color: '#fff0c5',
+              fontWeight: 800,
+              fontSize: 14,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            회수물 {remaining}개 남음
+          </div>
+        )}
+      </div>
       {(stage.id > 0 || stage.congestionDemo !== null) && (
         <div
           data-congestion-gauge
@@ -664,7 +703,7 @@ function TutorialGameOverPrompt() {
           물건이 밖으로 떨어지고 고양이가 나오면 게임오버입니다.
         </span>
         <span style={{ display: 'block', marginTop: 8, fontSize: 14, lineHeight: 1.5, color: '#d7d9e7' }}>
-          실제 게임에서는 방금처럼 물건 100개가 떨어지진 않습니다.
+          실제 게임에서는 방금처럼 물건이 많이 떨어지진 않습니다.
         </span>
         <span style={{ display: 'block', marginTop: 10, color: '#ffe1a0', fontSize: 14, fontWeight: 700 }}>
           Enter를 누르세요

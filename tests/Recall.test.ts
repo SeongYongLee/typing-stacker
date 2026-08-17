@@ -29,6 +29,7 @@ describe('화이트보드 상자 회수', () => {
     expect(target).toBeDefined()
     if (target === undefined) throw new Error('화이트보드 대상이 비어 있다')
     expect(target.hidden).toBe(true)
+    expect(internals.whiteboardTargets.some((candidate) => !candidate.hidden)).toBe(true)
     let current = state as unknown as GameState
     expect(current.activeWhiteboard).not.toContain(target.label)
 
@@ -44,6 +45,7 @@ describe('화이트보드 상자 회수', () => {
 
     expect(after).toBe(before - 1)
     expect((state as unknown as GameState).stage.returns).toBe(1)
+    expect((state as unknown as GameState).stage.totalReturns).toBe(1)
     expect((state as unknown as GameState).whiteboardRecall).toMatchObject({
       label: target.label,
       sourceX: 0,
@@ -65,7 +67,7 @@ describe('화이트보드 상자 회수', () => {
     expect(current.stage.id).toBe(0)
     expect(current.stage).toMatchObject({
       tutorialStep: 0,
-      tutorialTotal: 7,
+      tutorialTotal: 8,
       tutorialText: expect.stringContaining('물건을 쌓는 상자'),
     })
     expect(current.words.filter((word) => word.state === 'active')).toEqual([])
@@ -242,8 +244,24 @@ describe('화이트보드 상자 회수', () => {
     engine.startRun(true)
     internals.loop.stop()
     internals.phase = 'playing'
-    internals.tutorialStep = 6
+    expect((state as unknown as GameState).stage).toMatchObject({
+      returns: 0,
+      target: 20,
+    })
+    internals.tutorialStep = 5
     internals.showTutorialStep()
+    engine.submit('')
+    expect((state as unknown as GameState).stage).toMatchObject({
+      tutorialStep: 6,
+      target: 20,
+      returns: 0,
+      tutorialText: expect.stringContaining('게임 클리어'),
+    })
+    engine.submit('')
+    expect((state as unknown as GameState).stage).toMatchObject({
+      tutorialStep: 7,
+      tutorialText: expect.stringContaining('계란 프라이를 입력'),
+    })
     const friedEgg = VARIANT_BY_ID.get('fried-egg')
     if (friedEgg === undefined) throw new Error('계란 프라이가 없다')
     internals.physics.spawnItemAt(friedEgg, 0, 1, 'solo')
@@ -251,14 +269,30 @@ describe('화이트보드 상자 회수', () => {
 
     engine.submit('계란 프라이')
     expect((state as unknown as GameState).whiteboardRecall).toMatchObject({ label: '계란 프라이' })
-    expect((state as unknown as GameState).stage.congestionDemo).toBe('ready')
+    expect((state as unknown as GameState).stage).toMatchObject({
+      congestionDemo: 'ready',
+      returns: 1,
+      target: 20,
+      tutorialStep: 7,
+      tutorialTotal: 8,
+      tutorialText: expect.stringContaining('1개 줄었습니다'),
+    })
 
     engine.submit('')
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('congestionGuide')
+    engine.submit('')
+    expect((state as unknown as GameState).stage).toMatchObject({
+      congestion: 0,
+      congestionDemo: 'wordRush',
+    })
+    for (let index = 0; index < 55; index += 1) {
+      internals.update(0.05)
+    }
     expect((state as unknown as GameState).stage).toMatchObject({
       congestion: 100,
-      congestionDemo: 'warning',
+      congestionDemo: 'full',
     })
-    internals.update(1.7)
+    engine.submit('')
     expect((state as unknown as GameState).stage.congestionDemo).toBe('falling')
     expect(internals.physics.snapshots()).toHaveLength(0)
     for (let index = 0; index < 100; index += 1) {

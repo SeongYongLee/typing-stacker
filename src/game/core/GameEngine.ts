@@ -74,9 +74,11 @@ const CONGESTION_RUSH_INTERVAL = 0.5
 const CONGESTION_BURST_SEC = 0.42
 /** 튜토리얼에서만 보여주는 과장된 경보 반입 장면의 길이. */
 const CONGESTION_DEMO_SEC = 5.2
-/** 게이지가 찬 원인과 곧 일어날 일을 읽는 시간. */
-const CONGESTION_DEMO_WARNING_SEC = 1.65
 const CONGESTION_DEMO_DROP_INTERVAL_SEC = 0.045
+/** 경보 데모에서 단어 하나가 화면을 가로지르는 시간. 입력할 틈이 없게 짧다. */
+const CONGESTION_DEMO_WORD_FALL_SEC = 1.25
+const CONGESTION_DEMO_WORD_INTERVAL_SEC = 0.28
+const CONGESTION_DEMO_WORD_COUNT = 5
 /** 고양이가 물건을 물고 화면을 가로지른 뒤, 사라지기 직전에 튜토리얼을 멈춘다. */
 const CONGESTION_DEMO_CAT_FREEZE_SEC = 0.7
 const TUTORIAL_EGG_DROPS_REQUIRED = 3
@@ -104,7 +106,7 @@ const TUTORIAL_STEPS = [
     kind: 'word',
     word: '프라이팬',
     side: 'right',
-    text: '계란 옆에 프라이팬을 떨어뜨려 보세요. 합성할 수 있으면 짝인 물건과 단어가 같은 색 테두리로 깜빡입니다.',
+    text: '계란 옆에 프라이팬을 떨어뜨려 보세요. 물건과 단어가 짝이면 같은 색 테두리로 깜빡입니다.',
   },
   {
     kind: 'intro',
@@ -112,7 +114,11 @@ const TUTORIAL_STEPS = [
   },
   {
     kind: 'board',
-    text: '화이트보드에는 물건 리스트가 보입니다. 상자안에 해당 물건이 있으면 회수 할 수 있습니다. 정해진 횟수만큼 회수하면 게임 클리어입니다. Enter를 누르세요.',
+    text: '화이트보드의 단어는 상자 안에 있으면 회수할 수 있습니다. Enter를 누르세요.',
+  },
+  {
+    kind: 'intro',
+    text: '정해진 횟수만큼 회수하면 게임 클리어입니다. Enter를 누르세요.',
   },
   {
     kind: 'board',
@@ -204,6 +210,8 @@ interface GameState {
     readonly id: SoloStageId
     readonly title: string
     readonly returns: number
+    /** 이번 런 전체에서 회수한 물건 수. 결과 안내 조건에 쓴다. */
+    readonly totalReturns: number
     readonly target: number | null
     readonly congestion: number
     /** 경보 반입이 막 시작된 짧은 상단 보관함 연출. */
@@ -211,7 +219,7 @@ interface GameState {
     /** 혼잡 반입 물건이 아직 떨어지고 있는가. */
     readonly congestionRush: boolean
     /** 첫 판에서만 보여주는 의도적인 경보·게임오버 데모의 상태. */
-    readonly congestionDemo: 'ready' | 'warning' | 'falling' | 'gameOverIntro' | 'gameOverPrompt' | 'over' | null
+    readonly congestionDemo: 'ready' | 'congestionGuide' | 'wordRush' | 'full' | 'falling' | 'gameOverIntro' | 'gameOverPrompt' | 'over' | null
     /** 0부터 시작하는 안내 단계. 튜토리얼이 아닐 때는 null이다. */
     readonly tutorialStep: number | null
     readonly tutorialTotal: number | null
@@ -363,6 +371,7 @@ class GameEngine {
   private whiteboardRecall: WhiteboardRecall | null = null
   private stageId: SoloStageId = 0
   private stageReturns = 0
+  private totalReturns = 0
   private congestion = 0
   private congestionRushLeft = 0
   private congestionRushTimer = 0
@@ -372,6 +381,8 @@ class GameEngine {
   private congestionDemoDropsLeft = 0
   private congestionDemoDropTimer = 0
   private congestionDemoDropIndex = 0
+  private congestionDemoWordTimer = 0
+  private congestionDemoWordIndex = 0
   /** 데모에서 실제로 화면 밖으로 나간 마지막 물건. 게임오버 고양이가 이 물건을 문다. */
   private congestionDemoEscape: { readonly variant: ItemVariant; readonly x: number; readonly y: number } | null = null
   private tutorialStep = 0
@@ -481,6 +492,7 @@ class GameEngine {
     this.focusedRecipeWords = []
     this.stageId = showTutorial ? 0 : 1
     this.stageReturns = 0
+    this.totalReturns = 0
     this.congestion = 0
     this.congestionRushLeft = 0
     this.congestionRushTimer = 0
@@ -490,6 +502,8 @@ class GameEngine {
     this.congestionDemoDropsLeft = 0
     this.congestionDemoDropTimer = 0
     this.congestionDemoDropIndex = 0
+    this.congestionDemoWordTimer = 0
+    this.congestionDemoWordIndex = 0
     this.congestionDemoEscape = null
     this.tutorialStep = 0
     this.tutorialEggDrops = 0
@@ -631,6 +645,8 @@ class GameEngine {
     this.congestionDemoDropsLeft = 0
     this.congestionDemoDropTimer = 0
     this.congestionDemoDropIndex = 0
+    this.congestionDemoWordTimer = 0
+    this.congestionDemoWordIndex = 0
     this.congestionDemoEscape = null
     this.physics.reset()
     this.spawner.reset()
@@ -654,7 +670,10 @@ class GameEngine {
     // 같은 보드를 그대로 쓰며 실제 회수 입력을 받는다.
     if (
       this.stageId === 0 &&
-      (this.tutorialStep === 0 || this.tutorialStep === 4 || this.tutorialStep === 5)
+      (this.tutorialStep === 0 ||
+        this.tutorialStep === 4 ||
+        this.tutorialStep === 5 ||
+        this.tutorialStep === 6)
     ) {
       if (text.trim() === '') {
         this.tutorialStep += 1
@@ -679,16 +698,36 @@ class GameEngine {
     }
 
     if (this.congestionDemo === 'ready' && text.trim() === '') {
-      this.congestion = 100
-      this.congestionDemo = 'warning'
+      this.congestionDemo = 'congestionGuide'
+      this.emit()
+      return
+    }
+
+    if (this.congestionDemo === 'congestionGuide' && text.trim() === '') {
+      this.congestion = 0
+      this.congestionDemo = 'wordRush'
       this.congestionDemoElapsed = 0
+      this.congestionDemoWordTimer = 0
+      this.congestionDemoWordIndex = 0
+      this.spawner.reset()
+      this.spawner.setScripted(true)
       this.feedback = {
         seq: this.feedbackSeq,
-        text: '경보 데모',
+        text: '단어 폭주',
         ok: true,
         itemLabel: null,
         hidden: false,
       }
+      this.emit()
+      return
+    }
+
+    if (this.congestionDemo === 'full' && text.trim() === '') {
+      this.congestionDemo = 'falling'
+      this.congestionDemoElapsed = 0
+      this.congestionDemoDropsLeft = 100
+      this.congestionDemoDropTimer = 0
+      this.congestionDemoDropIndex = 0
       this.emit()
       return
     }
@@ -726,6 +765,7 @@ class GameEngine {
         this.whiteboardTargets.splice(targetIndex, 1)
         this.syncWhiteboardWithRecipe()
         this.stageReturns += 1
+        this.totalReturns += 1
         if (this.stageId === 0) {
           this.tutorialStep += 1
           this.advanceStage()
@@ -994,14 +1034,21 @@ class GameEngine {
       return
     }
 
-    if (this.congestionDemo === 'warning') {
+    if (this.congestionDemo === 'wordRush') {
       this.congestionDemoElapsed += frameDt
-      if (this.congestionDemoElapsed >= CONGESTION_DEMO_WARNING_SEC) {
-        this.congestionDemo = 'falling'
-        this.congestionDemoElapsed = 0
-        this.congestionDemoDropsLeft = 100
-        this.congestionDemoDropTimer = 0
-        this.congestionDemoDropIndex = 0
+      this.advanceCongestionDemoWords(frameDt)
+      const difficulty = {
+        ...soloStage(this.stageId).difficulty,
+        fallDuration: CONGESTION_DEMO_WORD_FALL_SEC,
+        spawnInterval: Number.POSITIVE_INFINITY,
+      }
+      const missed = this.spawner.update(frameDt, difficulty)
+      if (missed.length > 0) {
+        this.score.onWordMissed()
+        this.congestion = Math.min(100, this.congestion + missed.length * CONGESTION_PER_MISSED_WORD)
+      }
+      if (this.congestion >= 100) {
+        this.congestionDemo = 'full'
       }
       this.emit()
       return
@@ -1167,6 +1214,28 @@ class GameEngine {
     this.congestionDemoDropTimer += CONGESTION_DEMO_DROP_INTERVAL_SEC
   }
 
+  /** 입력할 수 없는 짧은 폭주 동안 서로 다른 단어를 순서대로 내보낸다. */
+  private advanceCongestionDemoWords(dt: number): void {
+    if (this.congestionDemoWordIndex >= CONGESTION_DEMO_WORD_COUNT) {
+      return
+    }
+    this.congestionDemoWordTimer -= dt
+    if (this.congestionDemoWordTimer > 0) {
+      return
+    }
+    const entries = featuredEntries(soloStage(this.stageId))
+    const entry = entries[this.congestionDemoWordIndex % entries.length]
+    if (entry !== undefined) {
+      this.spawner.spawnScripted(
+        entry.word,
+        this.congestionDemoWordIndex % 2 === 0 ? 'left' : 'right',
+        Math.floor(this.congestionDemoWordIndex / 2),
+      )
+    }
+    this.congestionDemoWordIndex += 1
+    this.congestionDemoWordTimer += CONGESTION_DEMO_WORD_INTERVAL_SEC
+  }
+
   private advanceCatThrows(dt: number): void {
     if (this.catThrowQueue.length === 0) {
       return
@@ -1303,6 +1372,19 @@ class GameEngine {
       const available = unique.filter((candidate) => !this.whiteboardTargets.some((target) => target.id === candidate.id))
       if (available.length === 0) break
       this.whiteboardTargets.push(available[this.rng.int(available.length)]!)
+    }
+    // 히든만 세 장이면 회수 목록이 전부 미지의 물건이 된다. 첫 히든 보상은 남기되,
+    // 일반 후보가 있으면 마지막 칸을 바꿔 적어도 한 장은 바로 읽을 수 있게 한다.
+    if (this.whiteboardTargets.length > 1 && this.whiteboardTargets.every((target) => target.hidden)) {
+      const normal = unique.filter(
+        (candidate) => !candidate.hidden && !this.whiteboardTargets.some((target) => target.id === candidate.id),
+      )
+      if (normal.length > 0) {
+        const replacement = normal[this.rng.int(normal.length)]
+        if (replacement !== undefined) {
+          this.whiteboardTargets[this.whiteboardTargets.length - 1] = replacement
+        }
+      }
     }
     this.whiteboard.set(this.whiteboardTargets.map((target) => target.label))
   }
@@ -1679,27 +1761,31 @@ class GameEngine {
         id: this.stageId,
         title: soloStage(this.stageId).title,
         returns: this.stageReturns,
-        target: soloStage(this.stageId).returnTarget,
+        totalReturns: this.totalReturns,
+        // 튜토리얼에서도 첫 보관함과 같은 목표를 처음부터 계속 보여준다.
+        // 계란 프라이를 회수하면 stageReturns가 올라가므로 20개에서 19개로 바뀐다.
+        target: this.stageId === 0 ? soloStage(1).returnTarget : soloStage(this.stageId).returnTarget,
         congestion: this.congestion,
         congestionBurst: this.congestionBurstLeft / CONGESTION_BURST_SEC,
         // 데모도 일반 플레이처럼 게이지가 가득 차면 같은 경보 상태로 그린다.
         congestionRush:
           this.congestionRushLeft > 0 ||
-          this.congestionDemo === 'warning' ||
+          this.congestionDemo === 'full' ||
           this.congestionDemo === 'falling',
         congestionDemo: this.congestionDemo,
-        tutorialStep: this.stageId === 0 && this.tutorialStep < TUTORIAL_STEPS.length
-          ? this.tutorialStep
-          : null,
-        tutorialTotal: this.stageId === 0 && this.tutorialStep < TUTORIAL_STEPS.length
-          ? TUTORIAL_STEPS.length
-          : null,
+        // 조작 안내가 끝난 뒤에도 경보·게임오버 데모는 튜토리얼의 연장이다.
+        // 마지막 번호를 유지해 남은 회수 횟수 왼쪽 라벨이 보관소 이름으로 바뀌지 않게 한다.
+        tutorialStep:
+          this.stageId === 0 ? Math.min(this.tutorialStep, TUTORIAL_STEPS.length - 1) : null,
+        tutorialTotal: this.stageId === 0 ? TUTORIAL_STEPS.length : null,
         tutorialText:
           this.congestionDemo === 'ready'
-            ? '단어를 놓치면 혼잡 경보 게이지가 쌓입니다. 이번에는 Enter를 누르면 경보 게이지를 한 번에 가득 채웁니다.'
-            : this.congestionDemo === 'warning'
-              ? '경보 게이지가 가득 차면 보관함의 물건이 한꺼번에 떨어집니다.'
-              : this.stageId === 0 && this.tutorialStep === 2
+            ? '계란 프라이를 회수해 남은 횟수가 1개 줄었습니다. Enter를 누르세요.'
+            : this.congestionDemo === 'congestionGuide'
+              ? '단어를 놓치면 혼잡 경보 게이지가 쌓입니다. Enter를 누르세요.'
+            : this.congestionDemo === 'full'
+              ? '혼잡 경보 게이지가 가득 찼습니다. Enter를 누르세요.'
+            : this.stageId === 0 && this.tutorialStep === 2
               ? `${TUTORIAL_STEPS[this.tutorialStep].text} (${this.tutorialEggDrops} / ${TUTORIAL_EGG_DROPS_REQUIRED})`
               : this.stageId === 0 ? (TUTORIAL_STEPS[this.tutorialStep]?.text ?? null) : null,
         endlessUnlocked: this.endlessUnlocked,

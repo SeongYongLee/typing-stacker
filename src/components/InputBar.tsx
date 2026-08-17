@@ -14,6 +14,8 @@ interface InputBarProps {
   stats: RunStats
   /** 0 → 낮, 1 → 밤. 메모장과 연필의 조명이 방을 따라간다 */
   nightfall: number
+  /** 경보 데모처럼 의도적으로 입력할 수 없는 짧은 구간인지. */
+  locked?: boolean
 }
 
 interface MemoInputProps {
@@ -23,6 +25,7 @@ interface MemoInputProps {
   width?: CSSProperties['width']
   /** 틀린 입력마다 바뀌는 번호. null이면 실패 연출을 하지 않는다. */
   invalidSeq?: number | null
+  locked?: boolean
 }
 
 /*
@@ -311,6 +314,7 @@ function MemoInput({
   ariaLabel,
   width = 'min(420px, 34vw)',
   invalidSeq = null,
+  locked = false,
 }: MemoInputProps) {
   const fieldRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLDivElement | null>(null)
@@ -377,6 +381,7 @@ function MemoInput({
         autoComplete="off"
         autoCapitalize="off"
         spellCheck={false}
+        disabled={locked}
         aria-label={ariaLabel}
       />
       <div
@@ -394,7 +399,7 @@ function MemoInput({
   )
 }
 
-function InputBar({ input, feedback, stats, nightfall }: InputBarProps) {
+function InputBar({ input, feedback, stats, nightfall, locked = false }: InputBarProps) {
   return (
     <div style={wrapStyle}>
       <div style={rowStyle}>
@@ -405,6 +410,7 @@ function InputBar({ input, feedback, stats, nightfall }: InputBarProps) {
           ariaLabel="단어 입력"
           width="min(520px, 46vw)"
           invalidSeq={feedback !== null && !feedback.ok ? feedback.seq : null}
+          locked={locked}
         />
         <div style={{ ...sideClusterStyle, justifyContent: 'flex-start' }}>
           <Score score={stats.score} fever={false} size="bar" />

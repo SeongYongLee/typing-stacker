@@ -21,7 +21,10 @@ const MODE_BLURBS: Record<MatchModeChoice, readonly ReactNode[]> = {
     '상대 물건을 밀어내면 그 물건 주인의 하트가 줄어듭니다.',
     '마지막 생존자가 이깁니다.',
   ],
-  duel: ['먼저 골인 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.'],
+  duel: [
+    '내 단어를 놓치면 물건이 자동으로 떨어집니다.',
+    '합성하면 상대에게 예약 공격을 보내고, 마지막 생존자가 이깁니다.',
+  ],
 }
 
 function nextModeChoice(current: MatchModeChoice): MatchModeChoice {

@@ -13,6 +13,7 @@ import type { MatchMode } from '../src/multi/matchModes.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 import { ChatLog } from '../src/multi/ChatLog.ts'
+import { RECIPES, type Recipe } from '../src/game/data/recipes.ts'
 
 /**
  * 대전 로직 전체를 붙여서 확인한다.
@@ -286,6 +287,89 @@ describe('MatchEngine — 대전', () => {
     expect(pair.guestLink.sent.some((message) => (
       message.t === 'duelBoardState' && message.owner === 'guest-peer'
     ))).toBe(true)
+  })
+
+  it('내 단어가 만료되면 내 필드에 기본 물건을 자동으로 보낸다', async () => {
+    pair = await makePair(1521, true, 'duel')
+    await pair.clock.advance(20)
+
+    const timeoutDrops = pair.hostLink.sent.filter((message) => (
+      message.t === 'dropped' && message.source === 'timeout'
+    ))
+    expect(timeoutDrops.length).toBeGreaterThan(0)
+    expect(new Set(timeoutDrops.map((message) => message.t === 'dropped' ? message.by : '')))
+      .toContain('host-peer')
+  })
+
+  it('합성 공격은 예고 뒤 상대의 다음 배치와 합성 확인을 기다린다', async () => {
+    pair = await makePair(1522, true, 'duel')
+    await pair.clock.advance(0.2)
+    const internals = pair.host as unknown as {
+      queueDuelAttack(attacker: string, recipe: Recipe): void
+    }
+    const recipe = RECIPES.find((candidate) => candidate.inputs.length >= 3) ?? RECIPES[0]!
+
+    internals.queueDuelAttack('host-peer', recipe)
+    await pair.clock.flush()
+    const expected = Math.max(1, recipe.inputs.length - 1)
+    expect(pair.hostState().attacks).toContainEqual(expect.objectContaining({
+      target: 'guest-peer', count: expected, phase: 'warning',
+    }))
+    expect(pair.guestState().attacks).toContainEqual(expect.objectContaining({
+      target: 'guest-peer', count: expected,
+    }))
+
+    await pair.clock.advance(1.5)
+    expect(pair.hostLink.sent.some((message) => (
+      message.t === 'dropped' && message.source === 'attack'
+    ))).toBe(false)
+    expect(pair.hostState().attacks).toContainEqual(expect.objectContaining({
+      target: 'guest-peer', phase: 'waiting',
+    }))
+
+    await pair.clock.advance(3)
+    const defenseWord = pair.guestState().words.find((candidate) => (
+      candidate.state === 'active' && candidate.id % 2 === 0
+    ))
+    expect(defenseWord).toBeDefined()
+    if (defenseWord === undefined) return
+    pair.guest.submit(defenseWord.word)
+    await pair.clock.advance(5)
+    expect(pair.hostLink.sent.some((message) => (
+      message.t === 'dropped' && message.source === 'attack' && message.by === 'guest-peer'
+    ))).toBe(true)
+  })
+
+  it('방어 배치 뒤 합성이 생기면 예약 공격을 상쇄하고 낙하하지 않는다', async () => {
+    pair = await makePair(1523, true, 'duel')
+    const internals = pair.host as unknown as {
+      queueDuelAttack(attacker: string, recipe: Recipe): void
+    }
+    const recipe = RECIPES.find((candidate) => candidate.inputs.length === 2) ?? RECIPES[0]!
+
+    internals.queueDuelAttack('guest-peer', recipe)
+    await pair.clock.advance(4)
+    const defenseWord = pair.hostState().words.find((candidate) => (
+      candidate.state === 'active' && candidate.id % 2 === 1
+    ))
+    expect(defenseWord).toBeDefined()
+    if (defenseWord === undefined) return
+    pair.host.submit(defenseWord.word)
+    await pair.clock.advance(0.1)
+    expect(pair.hostState().attacks).toContainEqual(expect.objectContaining({
+      target: 'host-peer', phase: 'checking',
+    }))
+
+    // 실제 게임에서는 방어 물건이 합쳐진 뒤 tryDuelMerge가 같은 호출을 한다.
+    internals.queueDuelAttack('host-peer', recipe)
+    await pair.clock.flush()
+
+    expect(pair.hostState().attacks).toHaveLength(0)
+    expect(pair.guestState().attacks).toHaveLength(0)
+    await pair.clock.advance(5)
+    expect(pair.hostLink.sent.some((message) => (
+      message.t === 'dropped' && message.source === 'attack' && message.by === 'host-peer'
+    ))).toBe(false)
   })
 
   it('친선 대결의 드롭 쿨타임은 채팅 시간이 아니다', async () => {

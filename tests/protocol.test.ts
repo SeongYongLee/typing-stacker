@@ -141,6 +141,24 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     })
   })
 
+  it('duelAttacks는 대상별 예약 개수와 남은 경고 시간만 받는다', () => {
+    expect(parseMessage({
+      t: 'duelAttacks',
+      attacks: [{ target: 'b', count: 3, releaseIn: 1.2, phase: 'warning', defenseItemId: null }],
+    })).toEqual({
+      t: 'duelAttacks',
+      attacks: [{ target: 'b', count: 3, releaseIn: 1.2, phase: 'warning', defenseItemId: null }],
+    })
+    expect(parseMessage({
+      t: 'duelAttacks',
+      attacks: [{ target: 'b', count: 0, releaseIn: 1, phase: 'warning', defenseItemId: null }],
+    })).toBeNull()
+    expect(parseMessage({
+      t: 'duelAttacks',
+      attacks: [{ target: 'b', count: 2, releaseIn: -1, phase: 'warning', defenseItemId: null }],
+    })).toBeNull()
+  })
+
   it('duelBoardState는 주인 바디와 유효한 tick만 받는다', () => {
     expect(parseMessage({
       t: 'duelBoardState',
@@ -195,6 +213,8 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     expect(parseMessage(missing)).toBeNull()
     expect(parseMessage({ ...full, applyAtTick: -1 })).toBeNull()
     expect(parseMessage({ ...full, applyAtTick: 1.5 })).toBeNull()
+    expect(parseMessage({ ...full, source: 'attack' })).toEqual({ ...full, source: 'attack' })
+    expect(parseMessage({ ...full, source: 'unknown' })).toBeNull()
   })
 
   it('over의 winner는 null이 될 수 있다 (무승부)', () => {

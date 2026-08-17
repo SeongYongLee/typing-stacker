@@ -119,7 +119,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
-        {state.matchMode === 'duel' && <DuelStageBadge stage={state.stage} />}
+        {state.matchMode === 'duel' && <DuelStageBadge state={state} />}
         <div style={fieldStyle}>
           <TypingLane
             words={typingWords}
@@ -187,18 +187,47 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 }
 
 /** 이번 판의 좁은 단어 풀을 알려 주는 전략 정보. 경기 중에도 항상 남긴다. */
-function DuelStageBadge({ stage }: { stage: MatchViewState['stage'] }) {
+function DuelStageBadge({ state }: { state: MatchViewState }) {
+  const incoming = state.attacks.find((attack) => attack.target === state.selfId) ?? null
+  const attackStatus = incoming === null
+    ? ''
+    : incoming.phase === 'warning'
+      ? `${incoming.releaseIn.toFixed(1)}초 후 방어 기회`
+      : incoming.phase === 'waiting'
+        ? '물건을 하나 놓아 방어'
+        : incoming.phase === 'checking' ? '합성 확인 중' : '낙하 중'
   return (
     <div
-      aria-label={`이번 대전 스테이지: ${stage.title}`}
+      aria-label={`이번 대전 스테이지: ${state.stage.title}`}
       style={{
         position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 4,
-        padding: '5px 10px', border: '1px solid rgba(255,255,255,0.45)', borderRadius: 4,
-        background: 'rgba(17, 23, 34, 0.7)', color: '#fff5cb', fontSize: 14, fontWeight: 700,
-        pointerEvents: 'none', whiteSpace: 'nowrap',
+        display: 'grid', justifyItems: 'center', gap: 6, pointerEvents: 'none', whiteSpace: 'nowrap',
       }}
     >
-      {stage.title}
+      <div style={{
+        padding: '5px 10px', border: '1px solid rgba(255,255,255,0.45)', borderRadius: 4,
+        background: 'rgba(17, 23, 34, 0.7)', color: '#fff5cb', fontSize: 14, fontWeight: 700,
+      }}>
+        {state.stage.title}
+      </div>
+      {incoming !== null && (
+        <div
+          aria-live="assertive"
+          aria-label={`예약 공격 ${incoming.count}개, ${attackStatus}`}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7, padding: '5px 9px', borderRadius: 12,
+            background: 'rgba(103, 24, 41, 0.9)', color: '#fff', fontSize: 13, fontWeight: 800,
+            boxShadow: '0 0 18px rgba(255, 76, 105, 0.45)',
+          }}
+        >
+          <span style={{ display: 'flex', gap: 3 }} aria-hidden="true">
+            {Array.from({ length: Math.min(incoming.count, 6) }, (_, index) => (
+              <span key={index} style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff7188' }} />
+            ))}
+          </span>
+          공격 {incoming.count} · {attackStatus}
+        </div>
+      )}
     </div>
   )
 }

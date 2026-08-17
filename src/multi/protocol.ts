@@ -90,6 +90,17 @@ interface DuelHeartReward {
   readonly index: number
 }
 
+type DuelDropSource = 'input' | 'timeout' | 'attack'
+type DuelAttackPhase = 'warning' | 'waiting' | 'checking' | 'dropping'
+
+interface DuelAttackFrame {
+  readonly target: PlayerId
+  readonly count: number
+  readonly releaseIn: number
+  readonly phase: DuelAttackPhase
+  readonly defenseItemId: number | null
+}
+
 /** 참가자 → 방장 */
 type ToHost =
   | {
@@ -153,6 +164,8 @@ type ToGuest =
       /** 방장이 계산한 생성 높이. 빠지면 구형 클라이언트 호환값을 쓴다 */
       readonly spawnY?: number
       readonly variantId: string
+      /** 직접 입력, 단어 만료, 상대 합성 공격 중 무엇이 만든 낙하인가. */
+      readonly source?: DuelDropSource
       /** 양쪽이 같은 물건으로 취급하도록 방장이 매기는 번호 */
       readonly itemId: number
       /**
@@ -194,6 +207,8 @@ type ToGuest =
     }
   /** 대결에서 이미 순위가 정해진 사람들. 방장이 전체 목록을 덮어써서 동기화한다. */
   | { readonly t: 'duelResults'; readonly results: readonly DuelResult[]; readonly matchId?: string }
+  /** 상대 합성으로 예약된 공격. 방장이 전체 목록을 덮어써서 동기화한다. */
+  | { readonly t: 'duelAttacks'; readonly attacks: readonly DuelAttackFrame[]; readonly matchId?: string }
   /**
    * 턴이 끝날 때 방장이 보내는 권위 키프레임. 게스트가 여기에 스냅한다.
    *
@@ -369,6 +384,10 @@ function parseMessage(raw: unknown): Message | null {
       )
         return null
       if (!Number.isSafeInteger(raw['itemId']) || raw['itemId'] <= 0) return null
+      if (
+        raw['source'] !== undefined &&
+        raw['source'] !== 'input' && raw['source'] !== 'timeout' && raw['source'] !== 'attack'
+      ) return null
       if (raw['spawnY'] !== undefined && !isFiniteNumber(raw['spawnY'])) return null
       if (
         raw['applyAtTick'] !== undefined &&
@@ -384,6 +403,7 @@ function parseMessage(raw: unknown): Message | null {
         aimX: raw['aimX'],
         spawnY: raw['spawnY'],
         variantId: raw['variantId'],
+        source: raw['source'] as DuelDropSource | undefined,
         itemId: raw['itemId'],
         applyAtTick: raw['applyAtTick'] as number | undefined,
         ...droppedMatchId,
@@ -475,6 +495,34 @@ function parseMessage(raw: unknown): Message | null {
       }
       const matchId = optionalShortString(raw['matchId'], 96)
       return matchId === null ? null : { t: 'duelResults', results, ...matchId }
+    }
+    case 'duelAttacks': {
+      if (!Array.isArray(raw['attacks'])) return null
+      const attacks: DuelAttackFrame[] = []
+      const targets = new Set<PlayerId>()
+      for (const entry of raw['attacks']) {
+        if (
+          !isRecord(entry) || !isShortString(entry['target'], 64) ||
+          targets.has(entry['target']) || !Number.isSafeInteger(entry['count']) ||
+          (entry['count'] as number) < 1 || (entry['count'] as number) > MAX_BODIES ||
+          !isFiniteNumber(entry['releaseIn']) || (entry['releaseIn'] as number) < 0 ||
+          (entry['releaseIn'] as number) > 60 ||
+          (entry['phase'] !== 'warning' && entry['phase'] !== 'waiting' &&
+            entry['phase'] !== 'checking' && entry['phase'] !== 'dropping') ||
+          (entry['defenseItemId'] !== null &&
+            (!Number.isSafeInteger(entry['defenseItemId']) || (entry['defenseItemId'] as number) < 1))
+        ) return null
+        targets.add(entry['target'])
+        attacks.push({
+          target: entry['target'],
+          count: entry['count'] as number,
+          releaseIn: entry['releaseIn'] as number,
+          phase: entry['phase'] as DuelAttackPhase,
+          defenseItemId: entry['defenseItemId'] as number | null,
+        })
+      }
+      const matchId = optionalShortString(raw['matchId'], 96)
+      return matchId === null ? null : { t: 'duelAttacks', attacks, ...matchId }
     }
     case 'sync': {
       const state = parsePhysicsState(raw, false)
@@ -763,4 +811,7 @@ export type {
   BodyFrame,
   DuelLedgeFrame,
   DuelHeartReward,
+  DuelDropSource,
+  DuelAttackPhase,
+  DuelAttackFrame,
 }

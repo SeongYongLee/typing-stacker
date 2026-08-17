@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ARENA } from '../src/game/config.ts'
-import { DUEL_TARGET_STACK_TOP } from '../src/multi/MatchEngine.ts'
 
 const CSS_WIDTH = 900
 const CSS_HEIGHT = 700
@@ -75,8 +74,8 @@ afterEach(() => {
   delete (globalThis as unknown as { window?: unknown }).window
 })
 
-describe('대결 골인선', () => {
-  it('모든 타워가 공유하는 실제 골인 높이의 선을 하나만 그린다', () => {
+describe('대결 생존전', () => {
+  it('골인선을 그리지 않고 각 타워의 이름만 보여준다', () => {
     const { canvas, texts, dashes, strokeRects } = makeCanvas()
     new ArenaRenderer(canvas).draw({
       bodies: [],
@@ -89,7 +88,6 @@ describe('대결 골인선', () => {
       time: 0,
       impacts: [],
       ownerColors: null,
-      duelGoalY: DUEL_TARGET_STACK_TOP,
       duelTowers: [
         {
           id: 'a',
@@ -120,8 +118,8 @@ describe('대결 골인선', () => {
       ],
     })
 
-    expect(texts.filter((text) => text === '골인')).toHaveLength(1)
-    expect(dashes.filter((dash) => dash.join(',') === '12,7')).toHaveLength(1)
+    expect(texts).not.toContain('골인')
+    expect(dashes.filter((dash) => dash.join(',') === '12,7')).toHaveLength(0)
     expect(texts).toContain('자두 · 나')
     expect(texts).toContain('매실')
     expect(strokeRects).toHaveLength(0)

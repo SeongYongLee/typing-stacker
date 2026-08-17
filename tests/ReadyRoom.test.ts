@@ -63,7 +63,8 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).toContain('data-ready-rules="manual"')
     expect(html).toContain('data-fixed-match-mode="duel"')
     expect(html).toContain('모드 · 대결')
-    expect(html).toContain('먼저 골인 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.')
+    expect(html).toContain('내 단어를 놓치면 물건이 자동으로 떨어집니다.')
+    expect(html).toContain('합성하면 상대에게 예약 공격을 보내고')
     expect(html).not.toContain('함께 쌓기')
     expect(html).not.toContain('룰렛')
     expect(html).not.toContain('방 참가 코드')
@@ -81,7 +82,7 @@ describe('ReadyRoom 게임 규칙', () => {
     const html = markup(false)
 
     expect(html).toContain('data-ready-rules="auto"')
-    expect(html).toContain('먼저 골인 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.')
+    expect(html).toContain('내 단어를 놓치면 물건이 자동으로 떨어집니다.')
     expect(html).not.toContain('함께 쌓기')
     expect(html).not.toContain('룰렛')
     expect(html).toContain('준비 (Enter)')
@@ -90,18 +91,19 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).not.toContain('이긴 만큼 티어 점수가 오릅니다.')
   })
 
-  it('대결 모드 준비 화면에서 승리 조건만 한 줄로 보여준다', () => {
+  it('대결 모드 준비 화면에서 자동 낙하와 합성 공격을 보여준다', () => {
     const html = markup(true, 'duel')
 
     expect(html).toContain('대결')
-    expect(html).toContain('먼저 골인 높이에 닿거나 마지막까지 하트를 남기면 이깁니다.')
+    expect(html).toContain('내 단어를 놓치면 물건이 자동으로 떨어집니다.')
+    expect(html).toContain('마지막 생존자가 이깁니다.')
     expect(html).not.toContain('동시에 진행합니다.')
   })
 
   it('이전 룰렛 상태가 들어와도 대결로 고정한다', () => {
     const html = markup(false, 'roulette')
 
-    expect(html).toContain('골인 높이')
+    expect(html).toContain('예약 공격')
     expect(html).not.toContain('룰렛')
   })
 })

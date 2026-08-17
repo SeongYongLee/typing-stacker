@@ -1,7 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { ARENA, LIVES } from '../../game/config.ts'
 import { ArenaRenderer } from '../../game/renderer/ArenaRenderer.ts'
-import { DUEL_TARGET_STACK_TOP } from '../../multi/MatchEngine.ts'
 import { buildOwnerColors } from '../../multi/ownerColors.ts'
 import type { PlayerId, PlayerInfo } from '../../multi/protocol.ts'
 import { visibleDuelTowerIds } from '../../multi/duelTowers.ts'
@@ -43,7 +42,6 @@ function DuelCountdownArena({ players, selfId, seed, nightfall }: DuelCountdownA
         time: 0,
         impacts: [],
         ownerColors,
-        duelGoalY: DUEL_TARGET_STACK_TOP,
         duelTowers: visiblePlayers.map((player) => ({
           id: player.id,
           nickname: player.nickname,

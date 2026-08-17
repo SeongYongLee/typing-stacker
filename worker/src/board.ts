@@ -35,6 +35,13 @@ const MAX_PLAYERS = 8
 /** 랭킹에 돌려주는 인원 */
 const TOP = 20
 
+/**
+ * 싱글 규칙이 크게 바뀔 때 올린다. 이전 기록은 지우지 않고 다른 규칙판으로 보관한다.
+ *
+ * 1은 2026-08-17 이전 규칙이다. 2부터 현재 스테이지·난이도 규칙을 사용한다.
+ */
+const CURRENT_SOLO_RULESET = 2
+
 /** 티어 순위에 돌려주는 인원. 화면은 다섯 줄만 그리지만 여유를 둔다 */
 const LADDER_TOP = 10
 
@@ -185,6 +192,43 @@ export class Board {
         at INTEGER NOT NULL
       )
     `)
+    /*
+     * `runs`는 첫 랭킹부터 쓰던 표라 규칙이 바뀐 기록을 갈라 담을 수 없다. 지우면 대전
+     * 순위표가 여기서 가져오던 아이콘도 함께 사라지므로, 프로필과 규칙별 기록을 각각
+     * 분리한 뒤 옛 기록을 규칙 1로 옮겨 둔다. INSERT OR IGNORE라 생성자 재실행도 안전하다.
+     */
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT '',
+        at INTEGER NOT NULL
+      )
+    `)
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS solo_runs (
+        ruleset INTEGER NOT NULL,
+        id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT '',
+        score INTEGER NOT NULL,
+        stackCount INTEGER NOT NULL,
+        maxHeight REAL NOT NULL,
+        maxCombo INTEGER NOT NULL,
+        kpm INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        PRIMARY KEY (ruleset, id)
+      )
+    `)
+    this.sql.exec(`
+      INSERT OR IGNORE INTO profiles (id, name, icon, at)
+      SELECT id, name, icon, at FROM runs
+    `)
+    this.sql.exec(`
+      INSERT OR IGNORE INTO solo_runs
+        (ruleset, id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at)
+      SELECT 1, id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at FROM runs
+    `)
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS ratings (
         id TEXT PRIMARY KEY,
@@ -304,27 +348,34 @@ export class Board {
       return { error: 'invalid' }
     }
 
-    const best = this.sql
-      .exec<RunRow>('SELECT * FROM runs WHERE id = ?', run.id)
-      .toArray()[0]
+    this.sql.exec(
+      `INSERT INTO profiles (id, name, icon, at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name, icon = excluded.icon, at = excluded.at`,
+      run.id, run.name, run.icon, Date.now(),
+    )
 
-    if (best === undefined || run.score > best.score) {
+    const best = this.bestOf(run.id)
+
+    if (best === null || run.score > best.score) {
       this.sql.exec(
-        `INSERT INTO runs (id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
+        `INSERT INTO solo_runs
+           (ruleset, id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(ruleset, id) DO UPDATE SET
            name = excluded.name, icon = excluded.icon, score = excluded.score,
            stackCount = excluded.stackCount,
            maxHeight = excluded.maxHeight, maxCombo = excluded.maxCombo,
            kpm = excluded.kpm, at = excluded.at`,
-        run.id, run.name, run.icon, run.score, run.stackCount,
+        CURRENT_SOLO_RULESET, run.id, run.name, run.icon, run.score, run.stackCount,
         run.maxHeight, run.maxCombo, run.kpm, Date.now(),
       )
     } else if (best.name !== run.name || best.icon !== run.icon) {
       // 기록은 그대로 두고 이름과 아이콘만 따라간다 — 바꿨는데 순위표만 옛것이면 헷갈린다
       this.sql.exec(
-        'UPDATE runs SET name = ?, icon = ? WHERE id = ?',
-        run.name, run.icon, run.id,
+        'UPDATE solo_runs SET name = ?, icon = ? WHERE ruleset = ? AND id = ?',
+        run.name, run.icon, CURRENT_SOLO_RULESET, run.id,
       )
     }
 
@@ -587,7 +638,12 @@ export class Board {
   }
 
   private bestOf(id: string): RunRow | null {
-    return this.sql.exec<RunRow>('SELECT * FROM runs WHERE id = ?', id).toArray()[0] ?? null
+    return this.sql
+      .exec<RunRow>(
+        'SELECT id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at FROM solo_runs WHERE ruleset = ? AND id = ?',
+        CURRENT_SOLO_RULESET, id,
+      )
+      .toArray()[0] ?? null
   }
 
   /** 나보다 점수가 높은 사람 수 + 1 */
@@ -597,14 +653,21 @@ export class Board {
       return null
     }
     const above = this.sql
-      .exec<{ n: number }>('SELECT COUNT(*) AS n FROM runs WHERE score > ?', best.score)
+      .exec<{ n: number }>(
+        'SELECT COUNT(*) AS n FROM solo_runs WHERE ruleset = ? AND score > ?',
+        CURRENT_SOLO_RULESET, best.score,
+      )
       .toArray()[0]
     return (above?.n ?? 0) + 1
   }
 
   private top(): RunRow[] {
     return this.sql
-      .exec<RunRow>('SELECT * FROM runs ORDER BY score DESC, at ASC LIMIT ?', TOP)
+      .exec<RunRow>(
+        `SELECT id, name, icon, score, stackCount, maxHeight, maxCombo, kpm, at
+         FROM solo_runs WHERE ruleset = ? ORDER BY score DESC, at ASC LIMIT ?`,
+        CURRENT_SOLO_RULESET, TOP,
+      )
       .toArray()
   }
 
@@ -614,16 +677,15 @@ export class Board {
    * **한 판도 안 한 사람은 없다** — `ratings`에는 결과를 보고한 사람만 들어온다.
    * 시작값(1000)뿐인 줄이 순위표를 채우면 아무 의미가 없다.
    *
-   * 아이콘은 `runs`에서 가져온다. 이 표에는 아이콘 칸이 없는데, 넣으려면 대전 보고에
-   * 아이콘을 실어 보내고 표도 바꿔야 한다 — 같은 기기의 혼자 하기 기록에 이미 그
-   * 사람의 얼굴이 있으므로 그것을 쓴다. 혼자 하기를 안 한 사람은 빈 자리로 남는다.
+   * 아이콘은 싱글 규칙판과 분리된 `profiles`에서 가져온다. 싱글 랭킹을 새 규칙으로
+   * 넘겨도 대전 순위표의 얼굴이 함께 사라지지 않아야 한다.
    */
   private ladder(): unknown[] {
     return this.sql
       .exec(
         `SELECT r.id, r.name, r.rating, r.wins, r.losses,
                 COALESCE(u.icon, '') AS icon
-         FROM ratings r LEFT JOIN runs u ON u.id = r.id
+         FROM ratings r LEFT JOIN profiles u ON u.id = r.id
          ORDER BY r.rating DESC, r.at ASC LIMIT ?`,
         LADDER_TOP,
       )

@@ -80,6 +80,11 @@ class Whiteboard {
     this.list = []
   }
 
+  /** 튜토리얼처럼 목록이 정해진 경우에만 쓴다. */
+  set(words: readonly string[]): void {
+    this.list = [...new Set(words)].slice(0, this.size)
+  }
+
   /**
    * 지금 밭에 맞춰 보드를 채운다. `excluded`는 현재 집중 레시피의 재료처럼 이번에
    * 회수 대상으로 잡으면 안 되는 단어다.

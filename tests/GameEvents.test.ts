@@ -93,11 +93,11 @@ describe('GameEngine이 사건을 흘린다', () => {
       state = next
     })
 
-    engine.startRun()
+    engine.startRun(false)
     expect(kinds(events)).toContain('runStart')
 
     // 단어가 내려올 때까지 돌린다
-    await clock.advance(2.6)
+    await clock.advance(4.2)
     const words = state === null ? [] : (state as GameState).words
     expect(words.length).toBeGreaterThan(0)
 

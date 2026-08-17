@@ -2,7 +2,8 @@ import { WORD } from '../config.ts'
 import type { FallingWord, DifficultyLevel, Side, WordEntry } from '../types/game.ts'
 import type { Rng } from './Rng.ts'
 
-const FADE_SECONDS = 0.6
+/** 놓친 쪽지가 혼잡 게이지로 흡수되는 연출까지 남아 있어야 한다. */
+const FADE_SECONDS = 3
 const SIDES: readonly Side[] = ['left', 'right']
 const PREFERRED_WEIGHT = 4
 
@@ -33,6 +34,8 @@ class WordSpawner {
    * 한 번 어긋나면 단어가 나오는 순간이 영영 갈린다.
    */
   private following = false
+  /** 튜토리얼은 다음 행동이 끝날 때까지 정해진 단어만 낸다. */
+  private scripted = false
   /**
    * 밭이 바뀔 때마다 오른다.
    * 대전에서 방장이 "보낼 것이 생겼는지"를 매 프레임 문자열로 비교하지 않고 알아채는 통로다.
@@ -95,6 +98,23 @@ class WordSpawner {
     return this.pool !== this.entries
   }
 
+  setScripted(scripted: boolean): void {
+    this.scripted = scripted
+    this.timer = 0
+  }
+
+  /** 자동 생성 없이 튜토리얼이 지정한 단어 하나를 올린다. */
+  spawnScripted(word: string, side: Side = 'left', slot = 0): void {
+    if (!this.entries.some((entry) => entry.word === word)) {
+      throw new Error(`없는 튜토리얼 단어: ${word}`)
+    }
+    if (this.list.some((item) => item.state === 'active' && item.word === word)) {
+      return
+    }
+    this.list.push({ id: this.nextId++, word, side, slot, y: 0, state: 'active', fade: 1 })
+    this.revision += 1
+  }
+
   /** 회수 보드 단어에 기존과 같은 4배 가중치를 줄 준비를 한다. */
   prefer(words: readonly string[]): void {
     this.preferred = new Set(words)
@@ -149,7 +169,7 @@ class WordSpawner {
       this.revision += 1
     }
 
-    if (this.following) {
+    if (this.following || this.scripted) {
       return justMissed
     }
 

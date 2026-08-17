@@ -14,9 +14,9 @@ interface MusicScene {
   readonly matchPhase: 'playing' | 'over' | null
 }
 
-/** 화면의 낮·Night Fever를 곡 이름으로 옮긴다. */
-function soloTrackFor(phase: Phase | null): BgmTrackName {
-  return phase === 'day' ? 'gameDay' : 'gameNight'
+/** 싱글의 시계는 배경 연출 전용이다. 음악과 규칙은 낮 트랙에 고정한다. */
+function soloTrackFor(_phase: Phase | null): BgmTrackName {
+  return 'gameDay'
 }
 
 /**

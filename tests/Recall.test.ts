@@ -1,103 +1,278 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
+import { VARIANT_BY_ID } from '../src/game/data/words.ts'
+import type { PhysicsWorld } from '../src/game/physics/PhysicsWorld.ts'
+import type { GamePhase, ItemVariant } from '../src/game/types/game.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
-/**
- * 화이트보드에 적힌 단어를 치면 **목숨이 깎이지 않는다.**
- *
- * 이 규칙의 전부가 그 한 줄이고, 그것만큼은 엔진을 돌려봐야 안다 — 순수 로직
- * (`Whiteboard`·`Catcher`)은 "무엇이 적히고 판이 어디 서는가"까지만 말한다. 물건이
- * 실제로 판을 타고 나가는지, 나간 것이 목숨으로 세어지는지는 물리와 엔진이 정한다.
- *
- * **가장 나쁜 고장은 조용하다.** 표를 잃어버리면 회수한 물건이 평범한 이탈로 세어져
- * 목숨이 깎이는데, 화면에서는 손이 물건을 가져가는 것으로 똑같이 보인다.
- */
-describe('회수된 물건은 목숨을 깎지 않는다', () => {
+describe('화이트보드 상자 회수', () => {
   const clock = new FrameClock()
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
 
-  it('집중 레시피를 먼저 정하고 그 재료는 보드에서 뺀다', async () => {
-    const engine = await GameEngine.create(20260810)
-    let state: GameState | null = null
-    engine.onStateChange((next) => {
-      state = next
-    })
-    engine.startRun()
-
-    await clock.advance(0.25)
-
-    const now = state as GameState | null
-    const focused = engine.debugFocusedRecipeWords()
-    expect(now?.timeOfDay.phase).toBe('day')
-    expect(focused.length, '낮의 집중 레시피가 정해지지 않았다').toBeGreaterThan(0)
-    for (const word of focused) {
-      expect(now?.whiteboard, `${word}은 집중 재료라 보드에 있으면 안 된다`).not.toContain(word)
+  it('상자 안에 있는 보드 대상만 동그라미가 되고 입력하면 실제 물건 하나가 사라진다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      loop: { stop(): void }
+      physics: PhysicsWorld
+      whiteboardTargets: ItemVariant[]
+      catcherView: { y: number } | null
+      phase: GamePhase
+      emit(): void
     }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(false)
+    internals.loop.stop()
+
+    const target = internals.whiteboardTargets[0]
+    expect(target).toBeDefined()
+    if (target === undefined) throw new Error('화이트보드 대상이 비어 있다')
+    expect(target.hidden).toBe(true)
+    let current = state as unknown as GameState
+    expect(current.activeWhiteboard).not.toContain(target.label)
+
+    internals.physics.spawnItemAt(target, 0, 1, 'solo')
+    internals.emit()
+    current = state as unknown as GameState
+    expect(current.activeWhiteboard).toContain(target.label)
+
+    const before = internals.physics.countsByVariant().get(target.id) ?? 0
+    internals.phase = 'playing'
+    engine.submit(target.label)
+    const after = internals.physics.countsByVariant().get(target.id) ?? 0
+
+    expect(after).toBe(before - 1)
+    expect((state as unknown as GameState).stage.returns).toBe(1)
+    expect((state as unknown as GameState).whiteboardRecall).toMatchObject({
+      label: target.label,
+      sourceX: 0,
+      sourceY: 1,
+    })
+    expect(internals.catcherView?.y).toBeGreaterThan(1)
     engine.dispose()
   })
 
-  /**
-   * 보드에 적힌 셋은 단어 107개 중 셋이라 **화면에 잘 안 뜬다.** 한 판만 보면 한 번도
-   * 못 치고 끝나서 시험이 아무것도 안 지킨 채 통과한다. 그래서 여러 시드를 돌려
-   * 회수를 모으고, 한 번도 못 모았으면 그것 자체를 실패로 본다.
-   *
-   * 치지 않고 기다리는 이유는 **목숨이 다른 이유로 줄면 안 되기 때문**이다. 아무것도
-   * 안 치면 물건이 안 떨어지므로 이탈도 없다 — 그 상태에서 회수만 시켜야 "회수가
-   * 목숨을 깎았는가"를 정확히 잰다.
-   */
-  it('보드 단어를 치면 목숨이 그대로다', async () => {
-    let recalls = 0
+  it('튜토리얼은 조건을 만족할 때까지 다음 단어로 넘어가지 않는다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as { loop: { stop(): void }; phase: GamePhase }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(true)
+    internals.loop.stop()
 
-    for (const seed of [20260810, 7, 4242, 99]) {
-      const engine = await GameEngine.create(seed)
-      let state: GameState | null = null
-      engine.onStateChange((next) => {
-        state = next
-      })
-      engine.startRun()
+    let current = state as unknown as GameState
+    expect(current.stage.id).toBe(0)
+    expect(current.stage).toMatchObject({
+      tutorialStep: 0,
+      tutorialTotal: 7,
+      tutorialText: expect.stringContaining('물건을 쌓는 상자'),
+    })
+    expect(current.words.filter((word) => word.state === 'active')).toEqual([])
 
-      for (let t = 0; t < 200; t += 0.25) {
-        await clock.advance(0.25)
-        const now = state as GameState | null
-        if (now === null || now.phase !== 'playing') {
-          break
-        }
-        const board = new Set(now.whiteboard)
-        const target = now.words.find((word) => word.state === 'active' && board.has(word.word))
-        if (target === undefined) {
-          continue
-        }
+    internals.phase = 'playing'
+    engine.submit('아무말')
+    current = state as unknown as GameState
+    expect(current.words.filter((word) => word.state === 'active')).toEqual([])
 
-        const before = now.stats.lives
-        const scoreBeforeRecall = now.stats.rawScore
-        engine.submit(target.word)
-        recalls += 1
+    engine.submit('')
+    current = state as unknown as GameState
+    expect(current.stage).toMatchObject({ tutorialStep: 1, tutorialText: expect.stringContaining('화살표 위치') })
+    expect(current.words.filter((word) => word.state === 'active').map((word) => word.word)).toEqual(['책'])
 
-        const rewarded = state as GameState | null
-        expect(
-          rewarded?.stats.rawScore,
-          `${target.word}을 회수했는데 점수가 오르지 않았다`,
-        ).toBeGreaterThan(scoreBeforeRecall)
+    engine.submit('책')
+    current = state as unknown as GameState
+    expect(current.stage).toMatchObject({
+      tutorialStep: 2,
+      tutorialText: expect.stringContaining('계란 3개를 상자에 넣어봐요'),
+    })
+    expect(current.words.filter((word) => word.state === 'active').map((word) => word.word)).toEqual(['계란'])
 
-        /*
-         * 물건이 판을 타고 나갈 시간을 준다. 판은 1.4초 뒤 사라지므로 그보다 넉넉히
-         * 본다 — 나가는 순간이 목숨을 세는 순간이다.
-         */
-        await clock.advance(3)
-        const after = state as GameState | null
-        expect(
-          after?.stats.lives,
-          `${target.word}을 회수했는데 목숨이 줄었다 (${before} → ${after?.stats.lives})`,
-        ).toBe(before)
-      }
+    engine.submit('계란')
+    current = state as unknown as GameState
+    expect(current.stage.tutorialText).toContain('1 / 3')
+    expect(current.words.filter((word) => word.state === 'active').map((word) => word.word)).toEqual(['계란'])
 
-      engine.dispose()
-      if (recalls >= 3) {
-        break
-      }
+    engine.submit('계란')
+    engine.submit('계란')
+    current = state as unknown as GameState
+    expect(current.words.filter((word) => word.state === 'active').map((word) => word.word)).toEqual(['프라이팬'])
+    engine.submit('프라이팬')
+    current = state as unknown as GameState
+    expect(current.words.filter((word) => word.state === 'active').map((word) => word.word)).toEqual(['프라이팬'])
+    engine.dispose()
+  })
+
+  it('튜토리얼에서도 화살표가 움직이고 입력 순간의 화살표 위치에 떨어진다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      loop: { stop(): void }
+      physics: PhysicsWorld
+      phase: GamePhase
+      sinceLastDrop: number
     }
+    engine.startRun(true)
+    internals.loop.stop()
+    internals.phase = 'playing'
+    engine.submit('')
 
-    expect(recalls, '보드 단어를 한 번도 못 쳤다 — 시험이 아무것도 안 지킨다').toBeGreaterThan(0)
-  }, 120_000)
+    const bookAim = 0.42
+    ;(internals as unknown as { aimer: { setWorldX(x: number): void } }).aimer.setWorldX(bookAim)
+    internals.sinceLastDrop = Number.POSITIVE_INFINITY
+    engine.submit('책')
+    const eggAim = -0.31
+    ;(internals as unknown as { aimer: { setWorldX(x: number): void } }).aimer.setWorldX(eggAim)
+    internals.sinceLastDrop = Number.POSITIVE_INFINITY
+    engine.submit('계란')
+    internals.sinceLastDrop = Number.POSITIVE_INFINITY
+    engine.submit('계란')
+    internals.sinceLastDrop = Number.POSITIVE_INFINITY
+    engine.submit('계란')
+    const panAim = 0.67
+    ;(internals as unknown as { aimer: { setWorldX(x: number): void } }).aimer.setWorldX(panAim)
+    internals.sinceLastDrop = Number.POSITIVE_INFINITY
+    engine.submit('프라이팬')
+
+    expect(
+      (engine as unknown as { spawner: { readonly words: readonly { state: string; word: string }[] } }).spawner
+        .words
+        .filter((word) => word.state === 'active')
+        .map((word) => word.word),
+    ).toEqual(['프라이팬'])
+
+    const bodies = internals.physics.snapshots()
+    const egg = bodies.find((body) => body.variant.id === 'egg')
+    const pan = bodies.find((body) => body.variant.id === 'frying-pan')
+    const book = bodies.find((body) => body.variant.id === 'study-book')
+    expect(book?.x).toBeCloseTo(bookAim)
+    expect(egg?.x).toBeCloseTo(eggAim)
+    expect(pan?.x).toBeCloseTo(panAim)
+    engine.dispose()
+  })
+
+  it('스테이지는 시작 안내와 정산 안내를 거친 뒤 다음 보관함을 연다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      stageReturns: number
+      advanceStage(): void
+      emit(): void
+    }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(false)
+
+    expect((state as unknown as GameState).stage.notice?.kind).toBe('start')
+    await clock.advance(1.4)
+    expect((state as unknown as GameState).phase).toBe('playing')
+
+    internals.stageReturns = 20
+    internals.advanceStage()
+    internals.emit()
+    expect((state as unknown as GameState).stage.notice?.kind).toBe('complete')
+    expect((state as unknown as GameState).stage.notice?.lesson).toBeNull()
+    await clock.advance(2.2)
+    expect((state as unknown as GameState).stage.id).toBe(2)
+    expect((state as unknown as GameState).stage.notice?.kind).toBe('start')
+    engine.dispose()
+  })
+
+  it('4/4 회수 뒤에는 같은 판에서 멈춘 경보 데모로 이어진다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as { advanceStage(): void; emit(): void; phase: GamePhase }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(true)
+    internals.phase = 'playing'
+
+    internals.advanceStage()
+    internals.emit()
+    expect((state as unknown as GameState).stage.id).toBe(0)
+    expect((state as unknown as GameState).phase).toBe('playing')
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('ready')
+    engine.dispose()
+  })
+
+  it('프라이팬을 세 번 떨어뜨려도 합성이 안 되면 튜토리얼이 합성을 도와준다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      loop: { stop(): void }
+      physics: PhysicsWorld
+      phase: GamePhase
+      tutorialStep: number
+      tryTutorialForcedMerge(): void
+      emit(): void
+    }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(true)
+    internals.loop.stop()
+    internals.phase = 'playing'
+    internals.tutorialStep = 3
+    const egg = VARIANT_BY_ID.get('egg')
+    const pan = VARIANT_BY_ID.get('frying-pan')
+    if (egg === undefined || pan === undefined) throw new Error('튜토리얼 재료가 없다')
+    internals.physics.spawnItemAt(egg, -1, 1, 'solo')
+    internals.physics.spawnItemAt(pan, 1, 1, 'solo')
+    internals.physics.spawnItemAt(pan, 0, 1.4, 'solo')
+    internals.physics.spawnItemAt(pan, -0.6, 1.7, 'solo')
+
+    internals.tryTutorialForcedMerge()
+    internals.emit()
+
+    expect((state as unknown as GameState).stage.tutorialStep).toBe(4)
+    expect((state as unknown as GameState).feedback?.text).toBe('합성을 도와드렸어요!')
+    expect(internals.physics.snapshots().map((body) => body.variant.id)).toContain('fried-egg')
+    engine.dispose()
+  })
+
+  it('계란 프라이 회수 뒤 경보 설명과 Enter 데모를 거쳐 실제 100개 낙하로 이어진다', async () => {
+    const engine = await GameEngine.create(20260817)
+    const internals = engine as unknown as {
+      loop: { stop(): void }
+      physics: PhysicsWorld
+      phase: GamePhase
+      tutorialStep: number
+      congestionDemoDropIndex: number
+      showTutorialStep(): void
+      emit(): void
+      update(dt: number): void
+    }
+    let state: GameState | null = null
+    engine.onStateChange((next) => { state = next })
+    engine.startRun(true)
+    internals.loop.stop()
+    internals.phase = 'playing'
+    internals.tutorialStep = 6
+    internals.showTutorialStep()
+    const friedEgg = VARIANT_BY_ID.get('fried-egg')
+    if (friedEgg === undefined) throw new Error('계란 프라이가 없다')
+    internals.physics.spawnItemAt(friedEgg, 0, 1, 'solo')
+    internals.emit()
+
+    engine.submit('계란 프라이')
+    expect((state as unknown as GameState).whiteboardRecall).toMatchObject({ label: '계란 프라이' })
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('ready')
+
+    engine.submit('')
+    expect((state as unknown as GameState).stage).toMatchObject({
+      congestion: 100,
+      congestionDemo: 'warning',
+    })
+    internals.update(1.7)
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('falling')
+    expect(internals.physics.snapshots()).toHaveLength(0)
+    for (let index = 0; index < 100; index += 1) {
+      internals.update(0.05)
+    }
+    expect(internals.congestionDemoDropIndex).toBe(100)
+    internals.update(0.3)
+    expect((state as unknown as GameState).phase).toBe('playing')
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('gameOverIntro')
+    internals.update(0.7)
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('gameOverPrompt')
+    engine.submit('')
+    expect((state as unknown as GameState).stage.congestionDemo).toBe('over')
+    expect((state as unknown as GameState).phase).toBe('over')
+    engine.dispose()
+  })
 })

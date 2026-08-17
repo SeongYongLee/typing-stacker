@@ -51,10 +51,6 @@ function initialRoute(): Route {
 type SoloStage = 'rules' | SoloStep
 type SoloGameScreenComponent = typeof import('./screens/SoloGameScreen.tsx')['SoloGameScreen']
 
-function openingSoloStage(): SoloStage {
-  return displaySettings().soloRules ? 'rules' : 'ready'
-}
-
 function DeferredRoute({ children, theme }: { children: ReactNode; theme: TitleTheme }) {
   return (
     <Suspense fallback={<RouteLoading theme={theme} />}>
@@ -79,6 +75,7 @@ function App() {
   ))
   /** 규칙 확인부터 시작 신호까지. null이면 판이 이미 돌고 있거나 다른 화면이다 */
   const [soloStage, setSoloStage] = useState<SoloStage | null>(null)
+  const [showSoloTutorial, setShowSoloTutorial] = useState(true)
   /** 타이틀의 핵심 그림보다 게임 자산 요청이 먼저 대역폭을 차지하지 않게 한다. */
   const [titleReady, setTitleReady] = useState(false)
   const [matchPhase, setMatchPhase] = useState<'playing' | 'over' | null>(null)
@@ -128,18 +125,35 @@ function App() {
     void Promise.all([loadSoloGameScreen(), loadSoloRulesScreen()]).then(([module]) => {
       setLoadedSoloGameScreen(() => module.SoloGameScreen)
     })
+    const tutorial = displaySettings().soloTutorial
+    setShowSoloTutorial(tutorial !== 'disabled')
     setRoute('solo')
-    setSoloStage(openingSoloStage())
+    setSoloStage(tutorial === 'ask' ? 'rules' : 'ready')
   }, [engine])
 
   const beginSolo = useCallback(() => {
+    setShowSoloTutorial(true)
     setSoloStage('ready')
   }, [])
 
   const hideRulesAndBeginSolo = useCallback(() => {
-    updateDisplaySettings({ soloRules: false })
+    updateDisplaySettings({ soloTutorial: 'disabled' })
+    setShowSoloTutorial(false)
     setSoloStage('ready')
   }, [])
+
+  /** 튜토리얼 종료 화면의 두 갈래는 규칙 선택 화면을 다시 거치지 않고 바로 연다. */
+  const startSoloFromTutorialEnd = useCallback((showTutorial: boolean) => {
+    if (engine === null) {
+      return
+    }
+    void loadSoloGameScreen().then((module) => {
+      setLoadedSoloGameScreen(() => module.SoloGameScreen)
+    })
+    setShowSoloTutorial(showTutorial)
+    setRoute('solo')
+    setSoloStage('ready')
+  }, [engine])
 
   useEffect(() => {
     if (soloStage === null || soloStage === 'rules' || engine === null) {
@@ -158,13 +172,29 @@ function App() {
         }
         // 판마다 단어 순서가 달라지도록 시드를 새로 뽑는다
         engine.reseed(Date.now() >>> 0)
-        engine.startRun()
+        engine.startRun(showSoloTutorial)
         setSoloStage(null)
       },
       soloStage === 'ready' ? SOLO_READY_MS : SOLO_START_MS,
     )
     return () => clearTimeout(timer)
-  }, [soloStage, engine, LoadedSoloGameScreen])
+  }, [soloStage, engine, LoadedSoloGameScreen, showSoloTutorial])
+
+  useEffect(() => {
+    if (stateStore === null || !showSoloTutorial) {
+      return
+    }
+    return stateStore.subscribe(() => {
+      const state = stateStore.getSnapshot()
+      // 첫 판은 실제로 0단계를 끝낸 뒤에만 다음 실행의 선택 화면을 연다.
+      if (
+        (state?.stage.id !== 0 || state?.stage.congestionDemo === 'over') &&
+        displaySettings().soloTutorial === 'required'
+      ) {
+        updateDisplaySettings({ soloTutorial: 'ask' })
+      }
+    })
+  }, [stateStore, showSoloTutorial])
 
   const openTitle = useCallback(() => {
     // 타이틀에 머무는 동안은 고정하되, 다시 들어올 때는 지금 시각을 새로 읽는다
@@ -286,6 +316,8 @@ function App() {
         engine={engine}
         stateStore={stateStore}
         onRestart={startSolo}
+        onStartGame={() => startSoloFromTutorialEnd(false)}
+        onReplayTutorial={() => startSoloFromTutorialEnd(true)}
         onHome={backToTitle}
         onSceneChange={updateSoloMusic}
       />

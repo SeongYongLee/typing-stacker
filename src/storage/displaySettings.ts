@@ -35,6 +35,8 @@ interface DisplaySettings {
    * 끊으므로, 끄는 값을 같은 설정 저장소에 남긴다.
    */
   readonly soloRules: boolean
+  /** 첫 플레이 뒤 튜토리얼을 어떻게 제안할지. */
+  readonly soloTutorial: 'required' | 'ask' | 'disabled'
 }
 
 const STORAGE_KEY = 'typing-stacker/display/v1'
@@ -45,6 +47,7 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   glow: 1,
   trail: 1,
   soloRules: true,
+  soloTutorial: 'required',
 }
 
 function clampLevel(value: unknown, fallback: number): number {
@@ -56,6 +59,12 @@ function clampLevel(value: unknown, fallback: number): number {
 
 function boolSetting(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
+}
+
+function tutorialSetting(value: unknown): DisplaySettings['soloTutorial'] {
+  return value === 'ask' || value === 'disabled' || value === 'required'
+    ? value
+    : DEFAULT_SETTINGS.soloTutorial
 }
 
 function loadDisplaySettings(): DisplaySettings {
@@ -74,6 +83,7 @@ function loadDisplaySettings(): DisplaySettings {
       glow: clampLevel(record.glow, DEFAULT_SETTINGS.glow),
       trail: clampLevel(record.trail, DEFAULT_SETTINGS.trail),
       soloRules: boolSetting(record.soloRules, DEFAULT_SETTINGS.soloRules),
+      soloTutorial: tutorialSetting(record.soloTutorial),
     }
   } catch {
     // 저장소가 막혀 있어도(시크릿 모드) 게임은 열려야 한다

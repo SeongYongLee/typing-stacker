@@ -42,6 +42,9 @@ interface WhiteboardRecall {
   readonly sprite: string
   readonly side: 'left' | 'right'
   readonly index: number
+  /** 회수되기 직전 상자 안에 있던 실제 물건의 월드 좌표. */
+  readonly sourceX: number
+  readonly sourceY: number
   /** 0 → 1 */
   readonly progress: number
 }
@@ -70,6 +73,7 @@ type FilledRenderState = ArenaRenderState & Required<Pick<ArenaRenderState,
   readonly formingLedge: NonNullable<ArenaRenderState['formingLedge']> | null
   readonly catcher: NonNullable<ArenaRenderState['catcher']> | null
   readonly cats: readonly CatView[]
+  readonly collapseFocus: NonNullable<ArenaRenderState['collapseFocus']> | null
 }
 
 /** 없는 것에 기본값을 준다. **한 곳에서만 정한다** — 그리는 자리마다 물으면 곧 갈린다 */
@@ -88,6 +92,7 @@ function withDefaults(state: ArenaRenderState): FilledRenderState {
     pairSizes: state.pairSizes ?? NO_PAIR_SIZES,
     pairPulse: state.pairPulse ?? 0,
     cats: state.cats ?? NO_CATS,
+    collapseFocus: state.collapseFocus ?? null,
   }
 }
 
@@ -209,6 +214,14 @@ interface ArenaRenderState {
    * 어디로 뛰는지는 `catPose.ts`가 정한다 — 여기 오는 것은 "누가 어디서 언제부터"까지다.
    */
   readonly cats?: readonly CatView[]
+  /** 게임오버 직전 고양이가 회수하는 위치를 잠시 확대한다. */
+  readonly collapseFocus?: {
+    readonly x: number
+    readonly y: number
+    readonly progress: number
+  } | null
+  /** 싱글 스테이지의 열린 택배 상자. */
+  readonly container?: { readonly halfWidth: number; readonly wallHeight: number } | null
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
   readonly duelTowers?: readonly DuelTowerRenderState[]
@@ -437,12 +450,24 @@ class ArenaRenderer {
       const t = state.quakePhase
       ctx.translate(Math.sin(t * 47) * amp, Math.cos(t * 31) * amp * 0.7)
     }
+    if (state.collapseFocus !== null) {
+      const focusX = view.toScreenX(state.collapseFocus.x)
+      const focusY = view.toScreenY(state.collapseFocus.y)
+      const progress = Math.min(Math.max(state.collapseFocus.progress, 0), 1)
+      const zoom = 1 + Math.sin(Math.PI * progress) * 0.45
+      ctx.translate(focusX, focusY)
+      ctx.scale(zoom, zoom)
+      ctx.translate(-focusX, -focusY)
+    }
 
     // 히든 연출은 배경에 깔린다 — 쌓인 물건을 가리지 않아야 한다
     if (state.hiddenReveal !== null) {
       drawHiddenReveal(view, state.hiddenReveal)
     }
     drawPlatformBack(view)
+    if (state.container !== undefined && state.container !== null) {
+      drawContainer(view, state.container)
+    }
     if (state.formingLedge !== null) {
       drawFormingLedge(view, state.formingLedge)
     }
@@ -639,6 +664,29 @@ class ArenaRenderer {
       toScreenY: (worldY) => this.toScreenY(worldY),
     }
   }
+}
+
+function drawContainer(
+  view: ArenaView,
+  container: { readonly halfWidth: number; readonly wallHeight: number },
+): void {
+  const { ctx } = view
+  const left = view.toScreenX(-container.halfWidth)
+  const right = view.toScreenX(container.halfWidth)
+  const bottom = view.toScreenY(ARENA.platformTop)
+  const top = view.toScreenY(ARENA.platformTop + container.wallHeight)
+  ctx.save()
+  ctx.fillStyle = 'rgba(93, 56, 28, 0.1)'
+  ctx.fillRect(left, top, right - left, bottom - top)
+  ctx.strokeStyle = 'rgba(113, 72, 35, 0.92)'
+  ctx.lineWidth = Math.max(4, view.scale * 0.09)
+  ctx.beginPath()
+  ctx.moveTo(left, top)
+  ctx.lineTo(left, bottom)
+  ctx.lineTo(right, bottom)
+  ctx.lineTo(right, top)
+  ctx.stroke()
+  ctx.restore()
 }
 
 /** 회전해도 잘리지 않도록 그림 외접원의 반지름으로 화면 교차 여부를 본다. */

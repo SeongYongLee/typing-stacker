@@ -4,9 +4,6 @@ import {
   DROP_COOLDOWN_MS,
   INVULNERABLE_SEC,
   CATCH,
-  LEDGE,
-  NIGHT_SCORE_INTERVAL,
-  NIGHT_SEC,
   SOLO_LIVES,
   SOLO_OWNER,
   QUAKE_DURATION,
@@ -14,13 +11,11 @@ import {
   QUAKE_MAX_AMPLITUDE,
 } from '../config.ts'
 import { VARIANT_BY_ID, WORDS } from '../data/words.ts'
-import { shapeBounds } from '../shapes.ts'
+import { featuredEntries, soloStage, type SoloStageId } from '../data/soloStages.ts'
 import { PhysicsWorld, type ImpactEvent } from '../physics/PhysicsWorld.ts'
 import { ArenaRenderer } from '../renderer/ArenaRenderer.ts'
 import { Aimer } from '../systems/Aimer.ts'
-import { soloDifficultyAt } from '../systems/Difficulty.ts'
 import { craftKeyOf, RECIPES } from '../data/recipes.ts'
-import { placeLedge, soloLedgeWidthAt } from '../systems/Ledge.ts'
 import { resolveCrafted, resolveItem } from '../systems/ItemResolver.ts'
 import {
   findMerge,
@@ -29,22 +24,12 @@ import {
 } from '../systems/Merger.ts'
 import { pairMarks, pairPartners, pairPulse, pairSizes } from '../systems/PairMarks.ts'
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
-import { NightFever, isLifeProtected } from '../systems/NightFever.ts'
-import {
-  nightScoreTargetAt,
-  timeOfDay,
-  type Phase,
-  type TimeOfDay,
-} from '../systems/DayNight.ts'
+import { NightFever } from '../systems/NightFever.ts'
+import { timeOfDay, type TimeOfDay } from '../systems/DayNight.ts'
 import { Whiteboard } from '../systems/Whiteboard.ts'
-import { catchSpot, plankOf, recallDropX, type CatchPlank } from '../systems/Catcher.ts'
+import { type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
-import {
-  followCameraY,
-  renderVerticalBounds,
-  spawnYFor,
-  targetCameraY,
-} from '../systems/Camera.ts'
+import { renderVerticalBounds } from '../systems/Camera.ts'
 import { Collection } from '../systems/Collection.ts'
 import { ScoreManager } from '../systems/ScoreManager.ts'
 import { judgeInput } from '../systems/TypingJudge.ts'
@@ -61,7 +46,6 @@ import { GameLoop } from './GameLoop.ts'
 const NO_MARKS: ReadonlyMap<string, number> = new Map()
 const NO_MERGE_HINTS: ReadonlyMap<string, readonly MergeHint[]> = new Map()
 const NO_MERGE_SIZES: ReadonlyMap<string, number> = new Map()
-const NO_BODIES: readonly never[] = []
 
 /** 단어 → 그 단어의 기본 변형 id. 내려오는 단어가 무슨 재료인지 보려는 것이다 */
 const WORD_BASE_ID = new Map(
@@ -74,18 +58,67 @@ function isVariant(item: ItemVariant | undefined): item is ItemVariant {
 }
 
 /** 무너지는 장면을 이만큼 보여준 뒤 결과 화면으로 넘어간다 */
-const COLLAPSE_VIEW_SEC = 1.3
+const COLLAPSE_VIEW_SEC = 2.8
 
 /** 목숨을 잃을 상황에서 고양이가 가끔 같은 물건을 다시 던져준다 */
-const CAT_RETHROW_CHANCE = 0.25
-/** 물고 간 뒤 바로 튀어나오면 고양이가 던진 것으로 읽히지 않아서 약간 기다린다 */
-const CAT_RETHROW_DELAY_SEC = 0.28
 /** 탑 중앙 부근에서 포물선 정점을 지나도록 맞춘 재투척 속도 */
 const CAT_RETHROW_VELOCITY = { horizontal: 1.5, vertical: 8.2 } as const
 /** 받을 곳이 없는 물건은 화면 아래까지 완전히 내려가기 전에 고양이가 낚아챈다 */
 const CAT_EARLY_ESCAPE_MARGIN = 0.35
 /** 보드 단어가 물건으로 바뀌어 손과 함께 사라지는 시간 */
 const WHITEBOARD_RECALL_SEC = CATCH.holdSec
+const CONGESTION_PER_MISSED_WORD = 20
+const CONGESTION_RECOVERY_PER_HIT = 2
+const CONGESTION_RUSH_INTERVAL = 0.5
+/** 실제 경보 물건 하나가 상단 보관함에서 내려오는 데 걸리는 시간. */
+const CONGESTION_BURST_SEC = 0.42
+/** 튜토리얼에서만 보여주는 과장된 경보 반입 장면의 길이. */
+const CONGESTION_DEMO_SEC = 5.2
+/** 게이지가 찬 원인과 곧 일어날 일을 읽는 시간. */
+const CONGESTION_DEMO_WARNING_SEC = 1.65
+const CONGESTION_DEMO_DROP_INTERVAL_SEC = 0.045
+/** 고양이가 물건을 물고 화면을 가로지른 뒤, 사라지기 직전에 튜토리얼을 멈춘다. */
+const CONGESTION_DEMO_CAT_FREEZE_SEC = 0.7
+const TUTORIAL_EGG_DROPS_REQUIRED = 3
+const STAGE_START_NOTICE_SEC = 1.35
+const STAGE_COMPLETE_NOTICE_SEC = 2.1
+
+const TUTORIAL_STEPS = [
+  {
+    kind: 'intro',
+    text: '이곳은 물건을 쌓는 상자입니다. 단어를 입력하면 물건이 상자 안으로 떨어집니다. Enter를 누르세요.',
+  },
+  {
+    kind: 'word',
+    word: '책',
+    side: 'left',
+    text: '책을 입력하고 Enter를 누르세요. 물건은 그 순간 화살표 위치에 떨어집니다.',
+  },
+  {
+    kind: 'word',
+    word: '계란',
+    side: 'right',
+    text: '이번에는 계란 3개를 상자에 넣어봐요.',
+  },
+  {
+    kind: 'word',
+    word: '프라이팬',
+    side: 'right',
+    text: '계란 옆에 프라이팬을 떨어뜨려 보세요. 합성할 수 있으면 짝인 물건과 단어가 같은 색 테두리로 깜빡입니다.',
+  },
+  {
+    kind: 'intro',
+    text: '합성을 도와드렸어요! 계란과 프라이팬을 가까이 두면 합성됩니다. Enter를 누르세요.',
+  },
+  {
+    kind: 'board',
+    text: '화이트보드에는 물건 리스트가 보입니다. 상자안에 해당 물건이 있으면 회수 할 수 있습니다. 정해진 횟수만큼 회수하면 게임 클리어입니다. Enter를 누르세요.',
+  },
+  {
+    kind: 'board',
+    text: '마침 계란 프라이가 상자 안에 있습니다. 계란 프라이를 입력하고 Enter를 눌러 회수하세요.',
+  },
+] as const
 
 /**
  * 합성 연출 길이.
@@ -96,12 +129,12 @@ const WHITEBOARD_RECALL_SEC = CATCH.holdSec
  */
 const MERGE_REVEAL_SEC = 3
 /** 3개 이상 합성 직후 세계가 거의 멈춘 듯 보이는 시간과 속도 */
-const COMPLEX_MERGE_SLOW_SEC = 0.45
-const COMPLEX_MERGE_TIME_SCALE = 0.06
+const COMPLEX_MERGE_REVEAL_SEC = 4.2
+const COMPLEX_MERGE_SLOW_SEC = 0.8
+const COMPLEX_MERGE_TIME_SCALE = 0.035
 /** 회전한 큰 물체와 화면 경계 연출까지 남겨두는 렌더 월드 여백. */
 const RENDER_VERTICAL_MARGIN = 1.5
 /** 점수를 나눠 더했을 때 생기는 부동소수점 경계 오차. */
-const SCORE_TARGET_EPSILON = 1e-6
 
 interface SubmitFeedback {
   /** 같은 내용을 다시 제출해도 애니메이션이 다시 돌게 하는 일회용 키 */
@@ -135,6 +168,8 @@ interface GameState {
    * 둘이 어긋나면 "보드에는 있는데 쪽지에는 표시가 없다"가 생긴다.
    */
   readonly whiteboard: readonly string[]
+  /** 보드 대상 중 지금 상자 안에 실제로 있어 입력할 수 있는 항목. */
+  readonly activeWhiteboard: readonly string[]
   /** 방금 보드 단어가 물건으로 바뀐 짧은 연출 */
   readonly whiteboardRecall: WhiteboardRecallView | null
   /**
@@ -164,6 +199,34 @@ interface GameState {
   readonly collected: readonly string[]
   /** 그중 이번 판에 처음 만난 것 */
   readonly freshlyCollected: readonly string[]
+  /** 점수와 별개인 싱글 보관함 진행도. */
+  readonly stage: {
+    readonly id: SoloStageId
+    readonly title: string
+    readonly returns: number
+    readonly target: number | null
+    readonly congestion: number
+    /** 경보 반입이 막 시작된 짧은 상단 보관함 연출. */
+    readonly congestionBurst: number
+    /** 혼잡 반입 물건이 아직 떨어지고 있는가. */
+    readonly congestionRush: boolean
+    /** 첫 판에서만 보여주는 의도적인 경보·게임오버 데모의 상태. */
+    readonly congestionDemo: 'ready' | 'warning' | 'falling' | 'gameOverIntro' | 'gameOverPrompt' | 'over' | null
+    /** 0부터 시작하는 안내 단계. 튜토리얼이 아닐 때는 null이다. */
+    readonly tutorialStep: number | null
+    readonly tutorialTotal: number | null
+    readonly tutorialText: string | null
+    readonly endlessUnlocked: boolean
+    readonly notice: {
+      readonly kind: 'start' | 'complete'
+      /** 실제 규칙을 처음 만나는 순간에만 붙는 짧은 안내. */
+      readonly lesson: 'congestion' | null
+      readonly title: string
+      readonly returns: number
+      readonly target: number | null
+      readonly score: number
+    } | null
+  }
 }
 
 interface PendingDrop {
@@ -179,6 +242,9 @@ interface WhiteboardRecallView {
   readonly sprite: string
   readonly side: 'left' | 'right'
   readonly index: number
+  /** 상자에서 회수하기 직전의 실제 물건 위치. */
+  readonly sourceX: number
+  readonly sourceY: number
   readonly progress: number
 }
 
@@ -188,6 +254,8 @@ interface WhiteboardRecall {
   readonly sprite: string
   readonly side: 'left' | 'right'
   readonly index: number
+  readonly sourceX: number
+  readonly sourceY: number
   elapsed: number
 }
 
@@ -213,7 +281,6 @@ class GameEngine {
   private onDiscover: ((ids: readonly string[]) => void) | null = null
   private rng: Rng
   private recipeFlow: RecipeFlow
-  private catRng: Rng
   private nightFever: NightFever
   private spawner: WordSpawner
   /** 화이트보드보다 먼저 확정한 현재 집중 레시피의 단어들 */
@@ -232,6 +299,8 @@ class GameEngine {
   /** Night Fever 중 놓친 단어 수. 이 구간에는 정확도 점수 패널티를 매기지 않는다. */
   private feverForgivenMisses = 0
   private collapseTimer = 0
+  /** 게임오버 직전 고양이가 회수하는 물건. 화면 확대의 기준점이다. */
+  private collapseFocus: { readonly x: number; readonly y: number } | null = null
   /**
    * 지금 알리는 중인 물건.
    *
@@ -251,10 +320,6 @@ class GameEngine {
   private complexMergeSlowLeft = 0
   /** 접촉 그래프를 매 렌더 프레임 만들지 않기 위한 합성 검사 시계. */
   private mergeCheckElapsed = 0
-  /** 뭉쳐지는 중인 통나무. 다 앉으면 물리에 세우고 비운다 */
-  private formingLedge: { x: number; y: number; halfWidth: number; elapsed: number } | null = null
-  /** 낮에 합성이 연달아 일어나도 통나무 보상을 덮어쓰지 않도록 기다리는 횟수 */
-  private pendingLedgeRewards = 0
   /** 방금 얹힌 물건의 색. 대전과 같은 것을 쓴다 */
   private readonly landing = new LandingGlow()
   /**
@@ -275,7 +340,6 @@ class GameEngine {
   private quakeStrength = 0
   private quakePhase = 0
   /** 지금 화면이 올려다보는 높이. 탑을 따라 부드럽게 올라간다 */
-  private cameraY = 0
   private lives = SOLO_LIVES
   /** 남은 무적 시간(초). 목숨을 잃은 직후의 연쇄 이탈을 한 번으로 묶는다 */
   private invulnerableLeft = 0
@@ -283,24 +347,40 @@ class GameEngine {
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
   /** `lastMarks`가 선택한 레시피의 총 재료 수. */
   private lastMergeSizes: ReadonlyMap<string, number> = NO_MERGE_SIZES
-  /** 지금 국면. 바뀔 때만 Fever와 레시피 흐름을 갈아끼우려고 들고 있는다 */
-  private phaseNow: Phase = 'day'
   /** 낮에 얻어 다음 Night Fever까지 쌓인 점수. 밤에 얻은 점수는 포함하지 않는다. */
-  private dayScore = 0
   /** 이번 낮에 채워야 하는 점수. 낮이 시작된 뒤에는 바꾸지 않아 시계가 역행하지 않는다. */
-  private dayScoreTarget = NIGHT_SCORE_INTERVAL
   /** 현재 Night Fever에서 흐른 시간. 밤은 기존처럼 10초 동안 열린다. */
-  private nightElapsed = 0
   /** 프레임 사이 새로 얻은 점수만 낮 게이지에 더하기 위한 기준값. */
-  private observedRawScore = 0
   /** 벽에 적힌 회수 목록. 여기 있는 단어를 치면 쌓지 않고 빼낸다 */
   private readonly whiteboard = new Whiteboard(createRng(0x5eed))
+  /** 화이트보드는 단어 레인이 아니라 상자 안의 실제 변형을 가리킨다. */
+  private whiteboardTargets: ItemVariant[] = []
   /** 지금 뻗어 있는 회수 판. 남은 시간이 0이 되면 치운다 */
   private catcherLeft = 0
   /** 렌더러가 물리 회수 판과 같은 자리에 손 그림을 그리기 위한 값 */
   private catcherView: CatchPlank | null = null
   /** 보드 단어가 물건으로 바뀌는 짧은 연결 연출 */
   private whiteboardRecall: WhiteboardRecall | null = null
+  private stageId: SoloStageId = 0
+  private stageReturns = 0
+  private congestion = 0
+  private congestionRushLeft = 0
+  private congestionRushTimer = 0
+  private congestionBurstLeft = 0
+  private congestionDemo: GameState['stage']['congestionDemo'] = null
+  private congestionDemoElapsed = 0
+  private congestionDemoDropsLeft = 0
+  private congestionDemoDropTimer = 0
+  private congestionDemoDropIndex = 0
+  /** 데모에서 실제로 화면 밖으로 나간 마지막 물건. 게임오버 고양이가 이 물건을 문다. */
+  private congestionDemoEscape: { readonly variant: ItemVariant; readonly x: number; readonly y: number } | null = null
+  private tutorialStep = 0
+  private tutorialEggDrops = 0
+  private endlessUnlocked = false
+  private stageScoreStart = 0
+  private stageNotice: GameState['stage']['notice'] = null
+  private stageTransitionLeft = 0
+  private pendingStageId: SoloStageId | null = null
   /** 물건이나 단어 구성이 그대로면 합성 표식을 다시 세지 않는다. */
   private markPhysicsVersion = -1
   private markWordVersion = -1
@@ -323,7 +403,6 @@ class GameEngine {
     this.cats = new CatPickup(seed ^ 0x63617473)
     this.rng = createRng(seed)
     this.recipeFlow = new RecipeFlow(createRng(seed ^ 0x72656369), WORDS, RECIPES)
-    this.catRng = createRng(seed ^ 0xc47f00d)
     this.nightFever = new NightFever(createRng(seed ^ 0x66657672), RECIPES, VARIANT_BY_ID)
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
@@ -366,13 +445,14 @@ class GameEngine {
     this.render()
   }
 
-  startRun(): void {
+  startRun(showTutorial = true): void {
     this.phase = 'playing'
     this.elapsed = 0
     this.feedback = null
     this.sinceLastDrop = Number.POSITIVE_INFINITY
     this.feverForgivenMisses = 0
     this.collapseTimer = 0
+    this.collapseFocus = null
     this.lives = SOLO_LIVES
     this.invulnerableLeft = 0
     this.lastMarks = NO_MARKS
@@ -382,8 +462,6 @@ class GameEngine {
     this.hiddenReveal = null
     this.complexMergeSlowLeft = 0
     this.mergeCheckElapsed = 0
-    this.formingLedge = null
-    this.pendingLedgeRewards = 0
     this.quakeLeft = 0
     this.quakeStrength = 0
     this.dropQueue.length = 0
@@ -391,7 +469,6 @@ class GameEngine {
     this.runSeq += 1
     this.rng = createRng(this.seed)
     this.recipeFlow = new RecipeFlow(createRng(this.seed ^ 0x72656369), WORDS, RECIPES)
-    this.catRng = createRng(this.seed ^ 0xc47f00d)
     this.nightFever = new NightFever(
       createRng(this.seed ^ 0x66657672),
       RECIPES,
@@ -402,13 +479,25 @@ class GameEngine {
       { startImmediately: false },
     )
     this.focusedRecipeWords = []
-    this.phaseNow = 'day'
-    this.dayScore = 0
-    this.dayScoreTarget = NIGHT_SCORE_INTERVAL
-    this.nightElapsed = 0
-    this.observedRawScore = 0
-    this.whiteboard.clear()
-    this.spawner.prefer(this.whiteboard.words)
+    this.stageId = showTutorial ? 0 : 1
+    this.stageReturns = 0
+    this.congestion = 0
+    this.congestionRushLeft = 0
+    this.congestionRushTimer = 0
+    this.congestionBurstLeft = 0
+    this.congestionDemo = null
+    this.congestionDemoElapsed = 0
+    this.congestionDemoDropsLeft = 0
+    this.congestionDemoDropTimer = 0
+    this.congestionDemoDropIndex = 0
+    this.congestionDemoEscape = null
+    this.tutorialStep = 0
+    this.tutorialEggDrops = 0
+    this.endlessUnlocked = false
+    this.stageScoreStart = 0
+    this.stageNotice = null
+    this.stageTransitionLeft = 0
+    this.pendingStageId = null
     this.catcherLeft = 0
     this.catcherView = null
     this.whiteboardRecall = null
@@ -416,10 +505,10 @@ class GameEngine {
     this.score.reset()
     this.collection.startRun()
     this.cats.reset(this.seed ^ 0x63617473)
-    this.cameraY = 0
     this.physics.reset()
+    this.configureStage()
+    this.openStageNotice()
     this.observeRecipeFlow()
-    this.syncWhiteboardWithRecipe()
     this.loop.start()
     this.fire({ kind: 'runStart' })
     this.emit()
@@ -436,6 +525,120 @@ class GameEngine {
     this.emit()
   }
 
+  /** 스테이지 전환 시 단어 풀과 보드만 갈아끼운다. 물리 초기화는 호출부가 맡는다. */
+  private configureStage(): void {
+    const stage = soloStage(this.stageId)
+    this.physics.setContainer(stage.box.halfWidth, stage.box.wallHeight)
+    this.physics.setEscapeY(ARENA.killY + CAT_EARLY_ESCAPE_MARGIN)
+    this.spawner.restrict(featuredEntries(stage))
+    this.whiteboard.clear()
+    this.whiteboardTargets = []
+    this.focusedRecipeWords = []
+    if (stage.id === 0) {
+      this.spawner.setScripted(true)
+      this.showTutorialStep()
+      return
+    }
+    this.spawner.setScripted(false)
+    this.syncWhiteboardWithRecipe()
+  }
+
+  private showTutorialStep(): void {
+    const step = TUTORIAL_STEPS[this.tutorialStep]
+    if (step === undefined) {
+      return
+    }
+    if (step.kind === 'intro') {
+      return
+    }
+    if (step.kind === 'board') {
+      const friedEgg = VARIANT_BY_ID.get('fried-egg')
+      this.whiteboardTargets = friedEgg === undefined ? [] : [friedEgg]
+      this.whiteboard.set(this.whiteboardTargets.map((target) => target.label))
+      return
+    }
+    this.spawner.spawnScripted(step.word, step.side)
+  }
+
+  private advanceStage(): void {
+    const stage = soloStage(this.stageId)
+    // 4/4 회수 뒤에도 처음 튜토리얼 판을 그대로 쓴다. 보관함·물리 세계를
+    // 갈아끼우지 않고 멈춘 채 Enter만 기다리므로, 규칙의 원인과 결과가 이어진다.
+    if (stage.id === 0) {
+      // 회수 직후 상단에서 다음 행동을 알려준다. 손 연출은 멈춘 판에서도 계속 돈다.
+      this.congestionDemo = 'ready'
+      this.congestionDemoElapsed = 0
+      return
+    }
+    this.stageNotice = {
+      kind: 'complete',
+      lesson: null,
+      title: stage.title,
+      returns: this.stageReturns,
+      target: stage.returnTarget,
+      score: Math.max(0, this.score.stats(0, this.lives, this.elapsed).score - this.stageScoreStart),
+    }
+    this.pendingStageId = this.stageId < 5 ? (this.stageId + 1) as SoloStageId : null
+    this.stageTransitionLeft = STAGE_COMPLETE_NOTICE_SEC
+    this.phase = 'stageTransition'
+  }
+
+  private openStageNotice(): void {
+    const stage = soloStage(this.stageId)
+    this.stageNotice = {
+      kind: 'start',
+      lesson: null,
+      title: stage.title,
+      returns: 0,
+      target: stage.returnTarget,
+      score: 0,
+    }
+    this.stageTransitionLeft = STAGE_START_NOTICE_SEC
+    this.phase = 'stageTransition'
+  }
+
+  private advanceStageTransition(dt: number): void {
+    this.elapsed += dt
+    this.stageTransitionLeft = Math.max(0, this.stageTransitionLeft - dt)
+    if (this.stageTransitionLeft > 0 || this.stageNotice === null) {
+      return
+    }
+    if (this.stageNotice.kind === 'start') {
+      this.stageNotice = null
+      this.phase = 'playing'
+      return
+    }
+    if (this.pendingStageId === null) {
+      this.stageNotice = null
+      this.phase = 'credits'
+      return
+    }
+    const nextStageId = this.pendingStageId
+    this.pendingStageId = null
+    this.enterStage(nextStageId)
+  }
+
+  /** 다음 보관함의 물리·단어 풀을 열고 시작 안내를 띄운다. */
+  private enterStage(stageId: SoloStageId): void {
+    this.stageId = stageId
+    this.stageReturns = 0
+    this.congestion = 0
+    this.congestionRushLeft = 0
+    this.congestionRushTimer = 0
+    this.congestionBurstLeft = 0
+    this.congestionDemo = null
+    this.congestionDemoElapsed = 0
+    this.congestionDemoDropsLeft = 0
+    this.congestionDemoDropTimer = 0
+    this.congestionDemoDropIndex = 0
+    this.congestionDemoEscape = null
+    this.physics.reset()
+    this.spawner.reset()
+    this.configureStage()
+    this.stageScoreStart = this.score.stats(0, this.lives, this.elapsed).score
+    this.openStageNotice()
+  }
+
   /**
    * Enter를 누른 순간 호출된다. 조준 x좌표는 지금 화면에 그려져 있는 화살표
    * 위치를 그대로 쓴다 — 보이는 것과 판정이 어긋나지 않아야 한다.
@@ -446,6 +649,104 @@ class GameEngine {
     }
 
     this.feedbackSeq += 1
+
+    // 화이트보드 규칙을 읽는 장면에서는 회수를 열지 않는다. Enter로 설명을 닫은 뒤
+    // 같은 보드를 그대로 쓰며 실제 회수 입력을 받는다.
+    if (
+      this.stageId === 0 &&
+      (this.tutorialStep === 0 || this.tutorialStep === 4 || this.tutorialStep === 5)
+    ) {
+      if (text.trim() === '') {
+        this.tutorialStep += 1
+        this.showTutorialStep()
+        this.emit()
+      }
+      return
+    }
+
+    /*
+     * 실제 판에서 빈 Enter는 오타일 뿐이다. 다만 처음 경보를 배우는 판에서는
+     * "일부러 놓치기"를 안전한 한 번의 행동으로 바꾼다. 일반 규칙에 예외를
+     * 섞지 않도록 이 판·이 단계에서만 연다.
+     */
+    if (this.congestionDemo === 'gameOverPrompt' && text.trim() === '') {
+      this.congestionDemo = 'over'
+      this.phase = 'over'
+      this.loop.stop()
+      this.fire({ kind: 'gameOver', won: null })
+      this.emit()
+      return
+    }
+
+    if (this.congestionDemo === 'ready' && text.trim() === '') {
+      this.congestion = 100
+      this.congestionDemo = 'warning'
+      this.congestionDemoElapsed = 0
+      this.feedback = {
+        seq: this.feedbackSeq,
+        text: '경보 데모',
+        ok: true,
+        itemLabel: null,
+        hidden: false,
+      }
+      this.emit()
+      return
+    }
+
+    const targetIndex = this.whiteboard.words.indexOf(text.trim())
+    const target = targetIndex === -1 ? undefined : this.whiteboardTargets[targetIndex]
+    if (target !== undefined) {
+      const source = this.physics.snapshots().find((body) => body.variant.id === target.id)
+      const recalled = this.physics.removeOneByVariant(target.id)
+      if (recalled !== null) {
+        const side = (source?.x ?? 0) < 0 ? 'left' : 'right'
+        const sourceX = source?.x ?? 0
+        const sourceY = source?.y ?? ARENA.platformTop
+        // 손은 회수 대상에 박히지 않고 현재 탑 꼭대기보다 위에서 받는다.
+        const handY = Math.max(sourceY, this.physics.stackTop(), ARENA.platformTop) + 0.55
+        this.catcherView = {
+          x: sourceX,
+          y: handY,
+          halfLength: 0.5,
+          angle: side === 'left' ? -0.2 : 0.2,
+        }
+        this.catcherLeft = CATCH.holdSec
+        this.whiteboardRecall = {
+          word: target.label,
+          label: recalled.label,
+          sprite: recalled.sprite,
+          side,
+          index: targetIndex,
+          sourceX,
+          sourceY,
+          elapsed: 0,
+        }
+        this.score.onRecalled(recalled)
+        this.discover(recalled)
+        this.whiteboardTargets.splice(targetIndex, 1)
+        this.syncWhiteboardWithRecipe()
+        this.stageReturns += 1
+        if (this.stageId === 0) {
+          this.tutorialStep += 1
+          this.advanceStage()
+        } else {
+          const stageTarget = soloStage(this.stageId).returnTarget
+          if (stageTarget !== null && this.stageReturns >= stageTarget) {
+            this.advanceStage()
+          }
+        }
+        this.feedback = {
+          seq: this.feedbackSeq,
+          text: target.label,
+          ok: true,
+          itemLabel: recalled.label,
+          hidden: recalled.hidden,
+        }
+        this.fire({ kind: 'wordHit', combo: this.score.comboCount })
+        this.emit()
+        return
+      }
+    }
 
     const result = judgeInput(this.spawner.words, text)
 
@@ -465,48 +766,27 @@ class GameEngine {
 
     this.spawner.remove(result.word.id)
     this.score.onWordMatched(result.word.word)
+    this.congestion = Math.max(0, this.congestion - CONGESTION_RECOVERY_PER_HIT)
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
     // 물건의 정체는 이 순간 처음 결정되고, 그대로 플레이어에게 공개된다
-    const variant = resolveItem(result.word.word)
-    /*
-     * 보드에 적힌 단어면 **쌓지 않고 빼낸다.**
-     *
-     * 조준을 쓰지 않는 것이 이 갈래의 유일한 예외다 — 빼내는 쪽은 단어가 내려온
-     * 레인이 정하는데 떨구는 자리를 조준이 정하면 판이 아레나를 가로지른다.
-     * 까닭과 실측은 `CATCH.dropX`에.
-     */
-    const recallIndex = this.whiteboard.words.indexOf(result.word.word)
-    const recalled = this.whiteboard.claim(
-      result.word.word,
-      WORDS,
-      this.focusedRecipeWords,
-    )
-    this.spawner.prefer(this.whiteboard.words)
-    if (recalled) {
-      this.score.onRecalled(variant)
-      const side = result.word.side
-      const dropX = recallDropX(side)
-      const catcher = plankOf(catchSpot(dropX, side, this.physics.stackTop()))
-      this.physics.clearCatcher()
-      this.catcherView = catcher
-      this.catcherLeft = CATCH.holdSec
-      this.whiteboardRecall = {
-        word: result.word.word,
-        label: variant.label,
-        sprite: variant.sprite,
-        side,
-        index: Math.max(recallIndex, 0),
-        elapsed: 0,
+    const entry = WORDS.find((candidate) => candidate.word === result.word.word)
+    const variant =
+      this.stageId === 0 && entry?.variants[0] !== undefined
+        ? entry.variants[0]
+        : resolveItem(result.word.word)
+    this.queueDrop(variant, this.aimer.worldX)
+    if (this.stageId === 0) {
+      if (result.word.word === '책') {
+        this.tutorialStep += 1
       }
-      this.fire({
-        kind: 'drop',
-        source: 'input',
-        hidden: false,
-        material: variant.material,
-        tone: variant.tone,
-      })
-    } else {
-      this.queueDrop(variant, this.aimer.worldX)
+      if (result.word.word === '계란') {
+        this.tutorialEggDrops += 1
+        if (this.tutorialEggDrops >= TUTORIAL_EGG_DROPS_REQUIRED) {
+          this.tutorialStep += 1
+        }
+      }
+      // 합성이 일어날 때까지 프라이팬을 계속 낼 수 있다.
+      this.showTutorialStep()
     }
     this.discover(variant)
 
@@ -536,6 +816,17 @@ class GameEngine {
     if (this.phase !== 'paused') {
       return
     }
+    this.phase = 'playing'
+    this.emit()
+  }
+
+  /** 5스테이지 엔딩 후 같은 상자와 탑에서 끝없는 보관을 이어간다. */
+  continueEndless(): void {
+    if (this.phase !== 'credits') {
+      return
+    }
+    this.endlessUnlocked = true
+    this.stageReturns = 0
     this.phase = 'playing'
     this.emit()
   }
@@ -627,16 +918,17 @@ class GameEngine {
     variant: ItemVariant,
     x: number,
     recalled = false,
-    source: 'input' | 'fever' = 'input',
+    source: 'input' | 'fever' | 'congestion' = 'input',
   ): void {
     this.physics.spawnItemAt(
       variant,
       x,
-      spawnYFor(this.cameraY),
+      ARENA.spawnY,
       SOLO_OWNER,
       0,
       recalled,
       source === 'fever',
+      source === 'congestion',
     )
     this.sinceLastDrop = 0
     this.fire({
@@ -654,20 +946,26 @@ class GameEngine {
       this.complexMergeSlowLeft = Math.max(this.complexMergeSlowLeft - frameDt, 0)
     }
     const dt = slowingComplexMerge ? frameDt * COMPLEX_MERGE_TIME_SCALE : frameDt
+    this.congestionBurstLeft = Math.max(this.congestionBurstLeft - frameDt, 0)
     this.advanceQuake(dt)
     // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
     this.landing.advance(dt)
-    this.cats.update(dt)
+    // 게임오버 직전에는 고양이를 읽을 수 있게 시간 전체를 늦춘다.
+    // 튜토리얼 게임오버 안내가 뜬 마지막 프레임에서는 고양이도 함께 멈춘다.
+    if (this.congestionDemo !== 'gameOverPrompt') {
+      this.cats.update(this.phase === 'collapsing' ? frameDt * 0.42 : dt)
+    }
     this.advanceCatThrows(dt)
+    // 회수 손은 경보 안내와 별개다. 4/4 직후 판이 Enter를 기다려도 손과 물건은
+    // 계속 움직여야 상단 안내와 회수 결과를 같은 순간에 읽을 수 있다.
+    this.advanceCatcher(dt)
     this.advanceWhiteboardRecall(dt)
     // 지난 프레임의 부딪힘은 이미 그려졌다. 비우지 않으면 물이 계속 퍼진다
     this.frameImpacts.length = 0
 
     if (this.phase === 'collapsing') {
       this.collapseTimer += dt
-      this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
-      this.syncEscapeLine()
-      const result = this.physics.step(dt)
+      const result = this.physics.step(frameDt * 0.12)
       this.applyQuake(result.quake)
       // 쏟아지는 동안에도 부딪히는 소리는 나야 한다. 무너짐은 이 게임의 결말이다
       this.handleImpacts(result.impacts, result.quake)
@@ -680,15 +978,79 @@ class GameEngine {
       return
     }
 
+    if (this.phase === 'stageTransition') {
+      this.advanceStageTransition(frameDt)
+      this.emit()
+      return
+    }
+
     if (this.phase !== 'playing') {
       // 멈춘 동안에도 그리기는 이어진다 — 아래 render가 매 프레임 돈다
       return
     }
 
+    // 경보 데모를 읽는 동안에는 단어·물리·시간을 전부 멈춘다. Enter만 다음 장면을 연다.
+    if (this.congestionDemo === 'ready') {
+      return
+    }
+
+    if (this.congestionDemo === 'warning') {
+      this.congestionDemoElapsed += frameDt
+      if (this.congestionDemoElapsed >= CONGESTION_DEMO_WARNING_SEC) {
+        this.congestionDemo = 'falling'
+        this.congestionDemoElapsed = 0
+        this.congestionDemoDropsLeft = 100
+        this.congestionDemoDropTimer = 0
+        this.congestionDemoDropIndex = 0
+      }
+      this.emit()
+      return
+    }
+
+    if (this.congestionDemo === 'falling') {
+      this.congestionDemoElapsed += frameDt
+      this.advanceCongestionDemoDrops(frameDt)
+      const { settled, impacts, escaped, quake } = this.physics.step(dt)
+      this.applyQuake(quake)
+      this.handleImpacts(impacts, quake)
+      const escapedItem = escaped.find((event) => event.recalled !== true)
+      if (escapedItem !== undefined) {
+        this.congestionDemoEscape = escapedItem
+      }
+      for (const event of settled) {
+        this.score.onSettled(event.variant, event.topY)
+      }
+      if (this.congestionDemoElapsed >= CONGESTION_DEMO_SEC) {
+        const taken = this.congestionDemoEscape ?? escapedItem ?? this.physics.snapshots()[0]
+        if (taken !== undefined) {
+          const pickupY = catPickupY(taken.y, 0)
+          this.cats.take(taken.variant, taken.x, pickupY)
+          this.collapseFocus = { x: taken.x, y: pickupY }
+        }
+        this.congestionDemo = 'gameOverIntro'
+        this.congestionDemoElapsed = 0
+      }
+      this.emit()
+      return
+    }
+
+    // 고양이가 물건을 문 모습은 실제 게임오버와 같지만, 끝까지 지나가 버리기 전에
+    // 멈춰 설명을 읽게 한다. 이 분기에서는 물리·단어·카메라가 모두 정지한다.
+    if (this.congestionDemo === 'gameOverIntro') {
+      this.congestionDemoElapsed += frameDt
+      if (this.congestionDemoElapsed >= CONGESTION_DEMO_CAT_FREEZE_SEC) {
+        this.congestionDemo = 'gameOverPrompt'
+      }
+      this.emit()
+      return
+    }
+
+    if (this.congestionDemo === 'gameOverPrompt') {
+      return
+    }
+
     this.elapsed += dt
     this.sinceLastDrop += dt
-    this.cameraY = followCameraY(this.cameraY, this.physics.stackTop(), dt)
-    this.syncEscapeLine()
     if (this.invulnerableLeft > 0) {
       this.invulnerableLeft = Math.max(this.invulnerableLeft - dt, 0)
     }
@@ -700,16 +1062,7 @@ class GameEngine {
         this.hiddenReveal = null
       }
     }
-    this.advanceLedge(dt)
-    this.advanceCatcher(dt)
-
-    if (this.phaseNow === 'night') {
-      this.nightElapsed = Math.min(this.nightElapsed + dt, NIGHT_SEC)
-      if (this.nightElapsed >= NIGHT_SEC) {
-        this.applyPhase('day')
-      }
-    }
-    const difficulty = soloDifficultyAt(this.score.rawPoints)
+    const difficulty = soloStage(this.stageId).difficulty
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
      * 놓친 단어는 판을 방해하지 않고 사라진다. 낮의 대가는 **콤보와 점수**다.
@@ -721,9 +1074,17 @@ class GameEngine {
     const missedWords = this.spawner.update(dt, difficulty)
     if (missedWords.length > 0) {
       this.score.onWordMissed()
-      if (this.phaseNow === 'night') {
-        this.feverForgivenMisses += missedWords.length
+      if (this.stageId !== 0) {
+        this.congestion = Math.min(100, this.congestion + missedWords.length * CONGESTION_PER_MISSED_WORD)
+        if (this.congestion >= 100) {
+          this.congestion = 0
+          this.congestionRushLeft = soloStage(this.stageId).congestionDrops
+          this.congestionRushTimer = 0
+        }
       }
+    }
+    if (this.stageId === 0 && missedWords.length > 0) {
+      this.showTutorialStep()
     }
 
     if (this.dropQueue.length > 0 && this.sinceLastDrop >= DROP_COOLDOWN_MS / 1000) {
@@ -733,19 +1094,9 @@ class GameEngine {
       }
     }
 
-    const feverDrop = this.nightFever.update(
-      dt,
-      this.phaseNow === 'night' ? this.physics.snapshots() : NO_BODIES,
-    )
-    if (feverDrop !== null) {
-      this.dropNow(feverDrop.variant, feverDrop.x, false, 'fever')
-      this.discover(feverDrop.variant)
-    }
+    this.advanceCongestionRush(dt)
 
-    const { settled, impacts, escaped, quake } = this.physics.step(
-      dt,
-      this.phaseNow === 'night',
-    )
+    const { settled, impacts, escaped, quake } = this.physics.step(dt)
     this.applyQuake(quake)
     this.handleImpacts(impacts, quake)
     for (const event of settled) {
@@ -756,8 +1107,8 @@ class GameEngine {
     if (this.mergeCheckElapsed >= MERGE_CHECK_INTERVAL_SEC) {
       this.mergeCheckElapsed %= MERGE_CHECK_INTERVAL_SEC
       this.tryMerge()
+      this.tryTutorialForcedMerge()
     }
-    this.advanceDayScore()
 
     /*
      * 무너짐 한 번은 이탈 여러 개를 만든다. 그것을 각각 세면 목숨 3개가 한순간에
@@ -769,67 +1120,51 @@ class GameEngine {
      * 물건마다 표를 보고 가른다 — 판이 서 있는 동안인지로 가르면 같은 프레임에 탑이
      * 무너졌을 때 그 이탈까지 함께 면제된다. 회수 하나가 붕괴 하나를 덮어주는 셈이라
      * 배출구가 아니라 방패가 된다.
-     */
+    */
     const fallen = escaped.filter((event) => event.recalled !== true)
-    if (fallen.length > 0 && this.phaseNow === 'night') {
-      /*
-       * Night Fever는 방어 구간이다. 빠진 물건마다 고양이를 한 마리씩 보내고 전부
-       * 되던진다. 여러 물건이 같은 프레임에 빠져도 첫 물건만 구하면 "우르르"가
-       * 아니라 평소 회수와 같아지므로 배열 전체를 처리한다.
-       */
-      for (const taken of fallen) {
-        this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY), true)
-        this.queueCatThrow(taken.variant, taken.x < 0 ? 'left' : 'right')
-      }
-    } else {
-      const costly = fallen.filter((event) => event.nightProtected !== true)
-      if (costly.length === 0 || isLifeProtected(this.phaseNow, this.invulnerableLeft)) {
-        this.emit()
-        return
-      }
-      // 목숨을 깎을 뻔한 그 물건을 고양이가 물어 간다. 여럿 떨어졌으면 첫 번째 것이다
-      const taken = costly[0]
+    if (fallen.length > 0 && this.stageId !== 0) {
+      const taken = fallen[0]
       if (taken !== undefined) {
-        this.cats.take(taken.variant, taken.x, catPickupY(taken.y, this.cameraY))
+        this.cats.take(taken.variant, taken.x, catPickupY(taken.y, 0))
+        this.collapseFocus = {
+          x: taken.x,
+          y: catPickupY(taken.y, 0),
+        }
       }
-      if (taken !== undefined && this.catRng.next() < CAT_RETHROW_CHANCE) {
-        this.queueCatThrow(taken.variant, taken.x < 0 ? 'left' : 'right')
-      } else {
-        this.lives = Math.max(this.lives - 1, 0)
-        this.invulnerableLeft = INVULNERABLE_SEC
-        // 콤보가 끊기는 유일한 조건이다 — 오타나 놓친 단어로는 끊기지 않는다
-        this.score.onLifeLost()
-        this.fire({ kind: 'lifeLost', livesLeft: this.lives })
-      }
-      if (this.lives === 0) {
-        this.phase = 'collapsing'
-        this.collapseTimer = 0
-        this.fire({ kind: 'collapse' })
-      }
+      this.phase = 'collapsing'
+      this.collapseTimer = 0
+      this.fire({ kind: 'collapse' })
     }
 
     this.emit()
   }
 
-  private syncEscapeLine(): void {
-    const stackTop = this.physics.stackTop()
-    /*
-     * 카메라가 내려오는 중이면 현재 카메라가 실제 탑보다 높게 남아 있다. 그 상태에서
-     * 현재 카메라 하단선을 이탈선으로 쓰면 정상 낙하 물건도 고양이가 먼저 가져간다.
-     * 올라갈 때는 현재 화면 기준으로 빠르게 잡고, 내려올 때는 목표 카메라 기준으로
-     * 낮춰 잡는다.
-     */
-    const escapeCameraY = Math.min(this.cameraY, targetCameraY(stackTop))
-    this.physics.setEscapeY(escapeCameraY + ARENA.killY + CAT_EARLY_ESCAPE_MARGIN)
-  }
-
-  private queueCatThrow(variant: ItemVariant, from: 'left' | 'right'): void {
-    this.catThrowQueue.push({
-      variant,
-      from,
-      delay: CAT_RETHROW_DELAY_SEC,
-      nightProtected: this.phaseNow === 'night',
-    })
+  /** 경보 데모의 100개도 렌더링용 가짜가 아니라 실제 물리 물체다. */
+  private advanceCongestionDemoDrops(dt: number): void {
+    if (this.congestionDemoDropsLeft <= 0) {
+      return
+    }
+    this.congestionDemoDropTimer -= dt
+    if (this.congestionDemoDropTimer > 0) {
+      return
+    }
+    const entries = featuredEntries(soloStage(this.stageId))
+    if (entries.length === 0) {
+      return
+    }
+    const entry = entries[this.congestionDemoDropIndex % entries.length]
+    const variant = entry?.variants[0]
+    if (variant !== undefined) {
+      const column = this.congestionDemoDropIndex % 10
+      const x = -AIM_HALF_RANGE + ((column + 0.5) / 10) * AIM_HALF_RANGE * 2
+      // 실제 경보 반입과 같은 경로로 넣어, 상단 보관함 신호·낙하음도 함께 재생한다.
+      this.dropNow(variant, x, false, 'congestion')
+      this.discover(variant)
+      this.congestionBurstLeft = CONGESTION_BURST_SEC
+    }
+    this.congestionDemoDropIndex += 1
+    this.congestionDemoDropsLeft -= 1
+    this.congestionDemoDropTimer += CONGESTION_DEMO_DROP_INTERVAL_SEC
   }
 
   private advanceCatThrows(dt: number): void {
@@ -861,6 +1196,28 @@ class GameEngine {
     }
   }
 
+  /** 혼잡 게이지가 가득 찬 뒤에만 물건을 자동 반입한다. 중간 경보에는 패널티가 없다. */
+  private advanceCongestionRush(dt: number): void {
+    if (this.congestionRushLeft <= 0 || this.stageId === 0) {
+      return
+    }
+    this.congestionRushTimer -= dt
+    if (this.congestionRushTimer > 0) {
+      return
+    }
+    const entries = featuredEntries(soloStage(this.stageId))
+    const entry = this.rng.pick(entries)
+    const variant = entry.variants[0]
+    if (variant === undefined) {
+      return
+    }
+    this.dropNow(variant, this.rng.next() * AIM_HALF_RANGE * 2 - AIM_HALF_RANGE, false, 'congestion')
+    this.discover(variant)
+    this.congestionRushLeft -= 1
+    this.congestionRushTimer = CONGESTION_RUSH_INTERVAL
+    this.congestionBurstLeft = CONGESTION_BURST_SEC
+  }
+
   private throwBackFromCat(
     variant: ItemVariant,
     from: 'left' | 'right',
@@ -870,7 +1227,7 @@ class GameEngine {
     this.physics.spawnItemMovingAt(
       variant,
       sign * (ARENA.platformHalfWidth + 0.7),
-      this.cameraY + ARENA.platformTop + 1.15,
+      ARENA.platformTop + 1.15,
       SOLO_OWNER,
       0,
       false,
@@ -924,11 +1281,30 @@ class GameEngine {
     this.recipeFlow.observe(this.recipeCounts)
   }
 
-  /** 레시피를 먼저 정한 뒤 그 재료를 제외한 목록으로 회수 보드를 맞춘다. */
+  /** 상자 안에서 찾아 돌려줄 물건 목록을 세 칸으로 유지한다. */
   private syncWhiteboardWithRecipe(): void {
     this.focusedRecipeWords = this.recipeFlow.prepareFocusWords()
-    this.whiteboard.refill(WORDS, this.focusedRecipeWords)
-    this.spawner.prefer(this.whiteboard.words)
+    if (this.stageId === 0) {
+      return
+    }
+    const stage = soloStage(this.stageId)
+    const candidates = [
+      ...featuredEntries(stage).flatMap((entry) => entry.variants),
+      ...stage.hiddenResults.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
+    ]
+    const unique = [...new Map(candidates.map((variant) => [variant.id, variant])).values()]
+    if (this.whiteboardTargets.length === 0) {
+      const hidden = unique.filter((candidate) => candidate.hidden)
+      if (hidden.length > 0) {
+        this.whiteboardTargets.push(hidden[this.rng.int(hidden.length)]!)
+      }
+    }
+    while (this.whiteboardTargets.length < 3 && unique.length > this.whiteboardTargets.length) {
+      const available = unique.filter((candidate) => !this.whiteboardTargets.some((target) => target.id === candidate.id))
+      if (available.length === 0) break
+      this.whiteboardTargets.push(available[this.rng.int(available.length)]!)
+    }
+    this.whiteboard.set(this.whiteboardTargets.map((target) => target.label))
   }
 
   /**
@@ -979,7 +1355,7 @@ class GameEngine {
       variant: result,
       from: match.recipe.inputs.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
       elapsed: 0,
-      duration: MERGE_REVEAL_SEC,
+      duration: match.recipe.inputs.length >= 3 ? COMPLEX_MERGE_REVEAL_SEC : MERGE_REVEAL_SEC,
     }
     if (match.recipe.inputs.length >= 3) {
       this.complexMergeSlowLeft = COMPLEX_MERGE_SLOW_SEC
@@ -987,10 +1363,60 @@ class GameEngine {
     this.fire({ kind: 'merge' })
     this.score.onCrafted(result)
     this.discover(result)
-    // Night Fever 자체가 방어 구간이므로 합성으로 방어용 먼지구름·통나무를 더 만들지 않는다.
-    if (this.phaseNow !== 'night') {
-      this.growLedge()
+    if (this.stageId === 0 && this.tutorialStep === 3 && result.id === 'fried-egg') {
+      this.tutorialStep = 5
+      this.showTutorialStep()
     }
+  }
+
+  /**
+   * 합성을 배우는 첫 판에서만 쓰는 안전장치.
+   *
+   * 프라이팬을 세 번 실제로 떨어뜨렸는데도 계란 곁에 놓지 못했다면, 둘을 골라
+   * 기존 합성 연출로 묶어 준다. 튜토리얼이 조작 실수 때문에 막히지 않게 하는 장면이다.
+   */
+  private tryTutorialForcedMerge(): void {
+    if (this.stageId !== 0 || this.tutorialStep !== 3) {
+      return
+    }
+    const recipe = RECIPES.find((candidate) => candidate.result.id === 'fried-egg')
+    const result = VARIANT_BY_ID.get('fried-egg')
+    if (recipe === undefined || result === undefined) {
+      return
+    }
+    const bodies = this.physics.snapshots()
+    const egg = bodies.find((body) => body.variant.id === 'egg')
+    const pans = bodies.filter((body) => body.variant.id === 'frying-pan')
+    const pan = pans[0]
+    if (pans.length < 3 || egg === undefined || pan === undefined) {
+      return
+    }
+    const created = this.physics.mergeItems([egg.handle, pan.handle], result, SOLO_OWNER)
+    if (created === null) {
+      return
+    }
+
+    this.recipeFlow.onMerged(recipe)
+    this.hiddenReveal = {
+      variant: result,
+      from: [egg.variant, pan.variant],
+      elapsed: 0,
+      duration: MERGE_REVEAL_SEC,
+    }
+    this.feedbackSeq += 1
+    this.feedback = {
+      seq: this.feedbackSeq,
+      text: '합성을 도와드렸어요!',
+      ok: true,
+      itemLabel: result.label,
+      hidden: result.hidden,
+    }
+    this.fire({ kind: 'merge' })
+    this.score.onCrafted(result)
+    this.discover(result)
+    // 방금 친 세 번째 프라이팬 Enter가 안내까지 넘기지 않도록, 전용 멈춤 단계를 연다.
+    this.tutorialStep = 4
+    this.showTutorialStep()
   }
 
   /**
@@ -999,56 +1425,11 @@ class GameEngine {
    * 이미 내려오는 단어는 그대로 둔다. 밤에 들어가면 NightFever의 1.8초 낙하·3초 휴식 시계를 열고,
    * 새벽에는 밤에 시작된 붕괴가 뒤늦게 목숨을 깎지 않도록 기존 보호막을 이어 붙인다.
    */
-  private applyPhase(next: Phase): void {
-    if (next === this.phaseNow) {
-      return
-    }
-    const previous = this.phaseNow
-    this.phaseNow = next
-    this.recipeFlow.setPhase(next)
-
-    if (next === 'night') {
-      this.nightElapsed = 0
-      this.nightFever.start()
-    } else if (previous === 'night') {
-      this.nightFever.stop()
-      this.nightElapsed = 0
-      this.dayScoreTarget = nightScoreTargetAt(this.score.rawPoints)
-      this.invulnerableLeft = Math.max(this.invulnerableLeft, INVULNERABLE_SEC)
-    }
-    /* 낮·밤 보드는 같은 프레임의 `syncWhiteboardWithRecipe`가 레시피 확정 뒤 맞춘다. */
-  }
-
-  /** 낮에 실제로 얻은 점수를 이번 낮의 목표까지 모으면 Night Fever를 한 번 연다. */
-  private advanceDayScore(): void {
-    const rawScore = this.score.rawPoints
-    const gained = Math.max(rawScore - this.observedRawScore, 0)
-    this.observedRawScore = rawScore
-    if (this.phaseNow !== 'day' || gained === 0) {
-      return
-    }
-    this.dayScore += gained
-    if (this.dayScore + SCORE_TARGET_EPSILON >= this.dayScoreTarget) {
-      this.dayScore -= this.dayScoreTarget
-      this.applyPhase('night')
-    }
-  }
-
   private timeView(): TimeOfDay {
-    return this.phaseNow === 'day'
-      ? timeOfDay('day', this.dayScore / this.dayScoreTarget)
-      : timeOfDay('night', this.nightElapsed / NIGHT_SEC)
-  }
-
-  /**
-   * 지금 서 있는 통나무들. 확인용이다.
-   *
-   * 통나무는 화면에만 나타나고 `GameState`에는 실리지 않아서(연출이라 규칙에 닿지
-   * 않는다) 밖에서 볼 길이 없었다. 그래서 "합성했는데 안 생긴다"를 눈이 아니면
-   * 확인할 수 없었다. 대전의 `debugBodies`와 같은 자리다.
-   */
-  debugLedges(): readonly { x: number; y: number; halfWidth: number }[] {
-    return this.physics.ledges()
+    const cycle = (this.elapsed % 180) / 180
+    return cycle < 2 / 3
+      ? timeOfDay('day', cycle / (2 / 3))
+      : timeOfDay('night', (cycle - 2 / 3) / (1 / 3))
   }
 
   /** 현재 화이트보드보다 먼저 확정된 집중 레시피 단어. 엔진 통합 검증용이다. */
@@ -1068,67 +1449,6 @@ class GameEngine {
   }
 
   /**
-   * **합성했을 때만** 공중에 작은 통나무를 하나 세운다.
-   *
-   * 판을 끝내는 것은 점수가 아니라 얹을 자리가 좁아지는 것이니, 자리를 하나 더 주는
-   * 것이 이 게임의 말로 된 보상이다. 자리를 고르는 규칙은 `systems/Ledge.ts`에 있다.
-   *
-   * ## 자리가 없으면 그냥 지나간다
-   *
-   * 억지로 끼워 넣으면 통나무가 탑 속에 박혀 물건을 밀어내고, 보상이 오히려 판을
-   * 무너뜨린다.
-   *
-   * 물건의 크기는 회전을 무시하고 외접 사각형으로 본다. 기울어 누운 물건은 실제보다
-   * 넓게 잡히는데, 그쪽으로 틀리는 편이 안전하다 — 겹쳐 세우는 것보다 한 번 거르는
-   * 것이 싸다.
-   */
-  private growLedge(): void {
-    this.pendingLedgeRewards += 1
-    this.startNextLedge()
-  }
-
-  /** 진행 중인 통나무가 없을 때 대기 중인 합성 보상 하나를 꺼낸다. */
-  private startNextLedge(): void {
-    if (this.formingLedge !== null || this.pendingLedgeRewards <= 0) {
-      return
-    }
-    this.pendingLedgeRewards -= 1
-    const items = this.physics.frames().flatMap((frame) => {
-      const variant = VARIANT_BY_ID.get(frame.variantId)
-      if (variant === undefined) {
-        return []
-      }
-      const { hw, hh } = shapeBounds(variant.shape)
-      return [{ x: frame.x, y: frame.y, hw, hh }]
-    })
-    const ledges = this.physics
-      .ledges()
-      .map((spot) => ({ ...spot, hw: spot.halfWidth, hh: LEDGE.halfHeight }))
-
-    const spot = placeLedge(
-      items,
-      ledges,
-      this.physics.stackTop(),
-      this.rng,
-      soloLedgeWidthAt(this.score.rawPoints),
-    )
-    if (spot !== null) {
-      // 아직 세우지 않는다. 연출이 뭉쳐 다 앉은 뒤에 실제 통나무가 된다
-      this.formingLedge = { ...spot, elapsed: 0 }
-    } else {
-      // 지금 자리가 없으면 기존 규칙처럼 보상을 건너뛴다. 대기열도 같은 세계를 보므로 비운다.
-      this.pendingLedgeRewards = 0
-    }
-  }
-
-  /**
-   * 뭉쳐지던 것이 다 앉으면 그때 통나무를 세운다.
-   *
-   * **먼저 세워두고 연출만 얹으면 안 된다.** 아직 보이지도 않는 통나무가 물건을
-   * 받아내서 허공에 걸린 것처럼 보인다 — 보이는 것과 부딪히는 것이 어긋나면 안 된다는
-   * 이 프로젝트의 전제가 연출에도 그대로 적용된다.
-   */
-  /**
    * 회수 판은 **잠깐만 서 있는다.**
    *
    * 더 끌면 다음에 떨구는 물건까지 받아내서 배출구가 아니라 공중 발판이 된다 —
@@ -1144,19 +1464,6 @@ class GameEngine {
       this.catcherView = null
       this.physics.clearRecalledItems()
       this.physics.clearCatcher()
-    }
-  }
-
-  private advanceLedge(dt: number): void {
-    const forming = this.formingLedge
-    if (forming === null) {
-      return
-    }
-    forming.elapsed += dt
-    if (forming.elapsed >= LEDGE.formSec) {
-      this.physics.addLedge(forming.x, forming.y, forming.halfWidth)
-      this.formingLedge = null
-      this.startNextLedge()
     }
   }
 
@@ -1260,7 +1567,7 @@ class GameEngine {
   private readonly render = (): void => {
     const time = this.timeView()
     const reveal = this.hiddenReveal
-    const renderBounds = renderVerticalBounds(this.cameraY, RENDER_VERTICAL_MARGIN)
+    const renderBounds = renderVerticalBounds(0, RENDER_VERTICAL_MARGIN)
     this.renderer?.draw({
       bodies: this.physics.snapshots(renderBounds.bottom, renderBounds.top),
       aimX: this.aimer.worldX,
@@ -1283,25 +1590,26 @@ class GameEngine {
               sprite: this.whiteboardRecall.sprite,
               side: this.whiteboardRecall.side,
               index: this.whiteboardRecall.index,
+              sourceX: this.whiteboardRecall.sourceX,
+              sourceY: this.whiteboardRecall.sourceY,
               progress: Math.min(this.whiteboardRecall.elapsed / WHITEBOARD_RECALL_SEC, 1),
             },
       landing: this.landing.view,
       cats: this.cats.views,
+      collapseFocus:
+        this.phase === 'collapsing' && this.collapseFocus !== null
+          ? {
+              ...this.collapseFocus,
+              progress: Math.min(this.collapseTimer / COLLAPSE_VIEW_SEC, 1),
+            }
+          : null,
+      container: soloStage(this.stageId).box,
       quake: this.quakeAmplitude,
       quakePhase: this.quakePhase,
-      cameraY: this.cameraY,
+      cameraY: 0,
       stackTop: this.physics.stackTop(),
       nightfall: time.nightfall,
       ledges: this.physics.ledges(),
-      formingLedge:
-        this.formingLedge === null
-          ? null
-          : {
-              x: this.formingLedge.x,
-              y: this.formingLedge.y,
-              halfWidth: this.formingLedge.halfWidth,
-              progress: Math.min(this.formingLedge.elapsed / LEDGE.formSec, 1),
-            },
       catcher:
         this.catcherView === null
           ? null
@@ -1338,6 +1646,9 @@ class GameEngine {
       wordMergeSizes: this.wordMergeSizes(this.mergeSizes()),
       wordMergeHints: this.wordMergeHints(marks),
       whiteboard: this.whiteboard.words,
+      activeWhiteboard: this.whiteboardTargets
+        .filter((target) => (this.physics.countsByVariant().get(target.id) ?? 0) > 0)
+        .map((target) => target.label),
       whiteboardRecall:
         this.whiteboardRecall === null
           ? null
@@ -1347,6 +1658,8 @@ class GameEngine {
               sprite: this.whiteboardRecall.sprite,
               side: this.whiteboardRecall.side,
               index: this.whiteboardRecall.index,
+              sourceX: this.whiteboardRecall.sourceX,
+              sourceY: this.whiteboardRecall.sourceY,
               progress: Math.min(this.whiteboardRecall.elapsed / WHITEBOARD_RECALL_SEC, 1),
             },
       pairPulse: pairPulse(this.elapsed),
@@ -1362,6 +1675,36 @@ class GameEngine {
       invulnerable: this.invulnerableLeft / INVULNERABLE_SEC,
       collected: this.collection.ids,
       freshlyCollected: this.collection.freshIds,
+      stage: {
+        id: this.stageId,
+        title: soloStage(this.stageId).title,
+        returns: this.stageReturns,
+        target: soloStage(this.stageId).returnTarget,
+        congestion: this.congestion,
+        congestionBurst: this.congestionBurstLeft / CONGESTION_BURST_SEC,
+        // 데모도 일반 플레이처럼 게이지가 가득 차면 같은 경보 상태로 그린다.
+        congestionRush:
+          this.congestionRushLeft > 0 ||
+          this.congestionDemo === 'warning' ||
+          this.congestionDemo === 'falling',
+        congestionDemo: this.congestionDemo,
+        tutorialStep: this.stageId === 0 && this.tutorialStep < TUTORIAL_STEPS.length
+          ? this.tutorialStep
+          : null,
+        tutorialTotal: this.stageId === 0 && this.tutorialStep < TUTORIAL_STEPS.length
+          ? TUTORIAL_STEPS.length
+          : null,
+        tutorialText:
+          this.congestionDemo === 'ready'
+            ? '단어를 놓치면 혼잡 경보 게이지가 쌓입니다. 이번에는 Enter를 누르면 경보 게이지를 한 번에 가득 채웁니다.'
+            : this.congestionDemo === 'warning'
+              ? '경보 게이지가 가득 차면 보관함의 물건이 한꺼번에 떨어집니다.'
+              : this.stageId === 0 && this.tutorialStep === 2
+              ? `${TUTORIAL_STEPS[this.tutorialStep].text} (${this.tutorialEggDrops} / ${TUTORIAL_EGG_DROPS_REQUIRED})`
+              : this.stageId === 0 ? (TUTORIAL_STEPS[this.tutorialStep]?.text ?? null) : null,
+        endlessUnlocked: this.endlessUnlocked,
+        notice: this.stageNotice,
+      },
     })
   }
 

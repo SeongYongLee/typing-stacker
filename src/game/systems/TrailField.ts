@@ -29,6 +29,8 @@ interface TrailBody {
   readonly settled: boolean
   /** Night Fever 자동 낙하이면 원래 재질 꼬리 대신 별똥별 꼬리를 쓴다. */
   readonly fever?: boolean
+  /** 혼잡 경보 반입이면 보라색 대신 주황·붉은 경보 꼬리를 쓴다. */
+  readonly congestion?: boolean
   readonly variant: {
     readonly id: string
     readonly color: string
@@ -188,6 +190,18 @@ const FEVER_TRAIL_SPEC: TrailSpec = {
   spin: 1.8,
 }
 const FEVER_TRAIL_COLOR = '#dec7ff'
+const CONGESTION_TRAIL_COLOR = '#ff7959'
+const CONGESTION_TRAIL_SPEC: TrailSpec = {
+  rate: 28,
+  life: 0.42,
+  size: 0.052,
+  gravity: 0.2,
+  inherit: 0.16,
+  sway: 0.8,
+  spread: 0.95,
+  spin: 7,
+  grow: 0,
+}
 
 /** 한 번 부딪힐 때 터지는 물방울 수. 세기에 따라 이 값까지 늘어난다 */
 const SPLASH_COUNT = 16
@@ -511,7 +525,7 @@ class TrailField {
     suppressed: ReadonlySet<number>,
   ): void {
     for (const body of bodies) {
-      const kind = body.fever === true ? 'sparkle' : trailOf(body.variant.id)
+      const kind = body.fever === true ? 'sparkle' : body.congestion === true ? 'sparkle' : trailOf(body.variant.id)
       const last = this.previous.get(body.handle)
       this.previous.set(body.handle, { x: body.x, y: body.y })
       // 표시 보정은 실제 이동이 아니다. 기록만 새 위치로 옮겨 해제 프레임도 튀지 않게 한다.
@@ -535,7 +549,11 @@ class TrailField {
       if (speed < MIN_SPEED) {
         continue
       }
-      const spec = body.fever === true ? FEVER_TRAIL_SPEC : SPECS[kind]
+      const spec = body.fever === true
+        ? FEVER_TRAIL_SPEC
+        : body.congestion === true
+          ? CONGESTION_TRAIL_SPEC
+          : SPECS[kind]
       const strength = Math.min(speed / FULL_SPEED, 1)
       const count = this.owe(body.handle, spec.rate * strength * dt)
       for (let i = 0; i < count; i += 1) {
@@ -551,7 +569,11 @@ class TrailField {
           born: spec.life,
           size: spec.size * (0.7 + this.random() * 0.6),
           kind,
-          color: body.fever === true ? FEVER_TRAIL_COLOR : body.variant.color,
+          color: body.fever === true
+            ? FEVER_TRAIL_COLOR
+            : body.congestion === true
+              ? CONGESTION_TRAIL_COLOR
+              : body.variant.color,
           phase: this.random() * 6,
           angle: this.random() * Math.PI * 2,
           // 반씩 양쪽으로 돌게 한다. 한 방향으로만 돌면 무리가 같이 도는 것으로 보인다
@@ -658,5 +680,7 @@ export {
   STEAM_MAX,
   FEVER_TRAIL_SPEC,
   FEVER_TRAIL_COLOR,
+  CONGESTION_TRAIL_SPEC,
+  CONGESTION_TRAIL_COLOR,
 }
 export type { Particle, TrailBody, TrailHit, TrailSpec }

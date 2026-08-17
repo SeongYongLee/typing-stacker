@@ -1,7 +1,6 @@
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import type { CSSProperties } from 'react'
-import { SOLO_LIVES } from '../game/config.ts'
 import type { RunStats } from '../game/types/game.ts'
 import { useRunRanking, type RunRanking } from '../hooks/useRunRanking.ts'
 import { loadProfile } from '../storage/profile.ts'
@@ -10,6 +9,12 @@ import { VARIANT_BY_ID } from '../game/data/words.ts'
 interface ResultScreenProps {
   stats: RunStats
   freshlyCollected: readonly string[]
+  /** 경보 규칙을 설명하려고 의도적으로 만든 첫 게임오버인지. */
+  congestionDemo?: boolean
+  /** 튜토리얼 종료 뒤 바로 일반 판을 연다. */
+  onStartGame?: () => void
+  /** 튜토리얼 종료 뒤 처음부터 다시 재생한다. */
+  onReplayTutorial?: () => void
   onRestart: () => void
   onHome: () => void
 }
@@ -79,11 +84,25 @@ function verdictOf(stats: RunStats, ranking: RunRanking): string | null {
   return parts.length === 0 ? null : parts.join(' · ')
 }
 
-function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScreenProps) {
-  const items = [
-    { label: '다시 하기', run: onRestart, primary: true },
-    { label: '처음으로', run: onHome, primary: false },
-  ]
+function ResultScreen({
+  stats,
+  freshlyCollected,
+  congestionDemo = false,
+  onStartGame,
+  onReplayTutorial,
+  onRestart,
+  onHome,
+}: ResultScreenProps) {
+  const tutorialEnd = congestionDemo && onStartGame !== undefined && onReplayTutorial !== undefined
+  const items = tutorialEnd
+    ? [
+        { label: '게임 시작하기', run: onStartGame, primary: true },
+        { label: '튜토리얼 다시 보기', run: onReplayTutorial, primary: false },
+      ]
+    : [
+        { label: '다시 하기', run: onRestart, primary: true },
+        { label: '처음으로', run: onHome, primary: false },
+      ]
 
   const menu = useMenuKeys({
     count: items.length,
@@ -97,13 +116,56 @@ function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScre
   // 정확도가 깎아간 몫. 원점수를 그대로 보여주면 왜 깎였는지는 여전히 모른다
   const lost = Math.max(0, stats.rawScore - stats.score)
 
+  if (tutorialEnd) {
+    return (
+      <div style={rootStyle}>
+        <div
+          style={{
+            width: 'min(420px, 100%)',
+            display: 'grid',
+            gap: 24,
+            justifyItems: 'center',
+            padding: '32px',
+            border: '1px solid #40354a',
+            borderRadius: 14,
+            background: '#151824',
+            textAlign: 'center',
+          }}
+        >
+          <div>
+            <p style={{ margin: 0, color: '#ffcf80', fontSize: 13, letterSpacing: '0.12em' }}>
+              TUTORIAL COMPLETE
+            </p>
+            <h1 style={{ margin: '8px 0 10px', color: '#fff4d2', fontSize: 32 }}>튜토리얼 완료</h1>
+          </div>
+
+          <div style={{ width: 'min(240px, 100%)', display: 'grid', gap: 10 }}>
+            {items.map((item, index) => (
+              <MenuButton
+                key={item.label}
+                selected={menu.index === index}
+                onClick={item.run}
+                onHover={() => menu.select(index)}
+                primary={item.primary}
+              >
+                {item.label}
+              </MenuButton>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={rootStyle}>
       <div style={panelStyle}>
         <div>
-          <p style={{ color: '#ff6b6b', fontSize: 13, letterSpacing: '0.12em', margin: 0 }}>
-            목숨 {SOLO_LIVES}개를 모두 잃었다
-          </p>
+          {tutorialEnd && (
+            <p style={{ color: '#ff6b6b', fontSize: 13, letterSpacing: '0.12em', margin: 0 }}>
+              튜토리얼 종료
+            </p>
+          )}
           <div
             style={{
               font: '700 52px/1.1 var(--sans)',
@@ -134,6 +196,27 @@ function ResultScreen({ stats, freshlyCollected, onRestart, onHome }: ResultScre
         </div>
 
         <div style={{ overflowY: 'auto', minHeight: 0 }}>
+          <section
+            aria-label="게임오버 안내"
+            style={{
+              marginBottom: 16,
+              padding: '10px 12px',
+              border: '1px solid #40354a',
+              borderRadius: 8,
+              background: '#11151f',
+              color: '#d7d9e7',
+              fontSize: 14,
+              lineHeight: 1.45,
+            }}
+          >
+            <strong style={{ display: 'block', marginBottom: 3, color: '#ffe1a0' }}>
+              {congestionDemo ? '튜토리얼 완료' : '게임오버 안내'}
+            </strong>
+            {congestionDemo
+              ? '방금 장면은 경보를 보여주기 위해 물건 100개를 과장해 반입한 데모입니다. 실제 경보는 이렇게 많이 떨어지지 않습니다. 이제 직접 보관소를 정리해보세요.'
+              : '물건이 상자 밖으로 나가면 탑이 무너집니다. 다음 판에서는 끝보다 안쪽을 겨냥하고, 낮고 넓게 쌓아보세요.'}
+          </section>
+
           {/* 이 게임의 성취. 쌓기·높이·콤보가 판을 요약한다 */}
           <div style={rowStyle}>
             <Stat label="쌓은 물건" value={`${stats.stackCount}개`} />

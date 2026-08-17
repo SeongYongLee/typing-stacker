@@ -23,11 +23,6 @@ import type { HiddenReveal, LandingGlow, WhiteboardRecall } from './ArenaRendere
 const MERGE_GATHER = 0.36
 const HIDDEN_REVEAL_Y_RATIO = 0.22
 const HIDDEN_REVEAL_MIN_TOP_PX = 96
-const WHITEBOARD_CENTER_X = 50.5
-const WHITEBOARD_CENTER_Y = 31.7
-const WHITEBOARD_WIDTH = 33.9 * 0.8
-const WHITEBOARD_ASPECT = 610 / 1200
-const WHITEBOARD_WORD_AREA = { left: 0.07, top: 0.16, width: 0.86, height: 0.66 } as const
 const WHITEBOARD_RECALL_TRAVEL_END = 0.62
 
 /**
@@ -278,8 +273,11 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   const { ctx } = view
   const t = Math.min(Math.max(reveal.progress, 0), 1)
   const complexMerge = reveal.from.length >= 3
-  // 앞의 12%는 밝아지고, 뒤의 40%는 사라진다
-  const alpha = t < 0.12 ? t / 0.12 : t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1
+  const gatherEnd = complexMerge ? 0.46 : MERGE_GATHER
+  // 다중 합성은 재료를 더 오래 읽고, 결과도 마지막까지 남겨 둔다.
+  const alpha = t < 0.12 ? t / 0.12 : t > (complexMerge ? 0.72 : 0.6)
+    ? 1 - (t - (complexMerge ? 0.72 : 0.6)) / (complexMerge ? 0.28 : 0.4)
+    : 1
   if (alpha <= 0) {
     return
   }
@@ -297,7 +295,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    * 합성이면 앞 3할 동안 재료가 모인다. 그동안 결과물은 아직 없다 —
    * 겹쳐 그리면 결과가 재료보다 먼저 보여서 "합쳐졌다"가 아니라 "셋이 겹쳤다"가 된다.
    */
-  const gather = Math.min(t / MERGE_GATHER, 1)
+  const gather = Math.min(t / gatherEnd, 1)
 
   ctx.save()
   ctx.globalAlpha = alpha
@@ -309,7 +307,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   }
 
   // 모임이 끝난 **그 순간**에 한 번 번쩍인다. 재료가 결과로 바뀌는 자리를 못 박는다
-  const flash = Math.max(0, 1 - (t - MERGE_GATHER) / 0.1)
+  const flash = Math.max(0, 1 - (t - gatherEnd) / (complexMerge ? 0.16 : 0.1))
   if (flash > 0) {
     // 결과물을 덮어버리지 않을 만큼만. 가리면 번쩍임이 아니라 빈칸으로 보인다
     ctx.globalAlpha = alpha * flash * (complexMerge ? 0.78 : 0.55)
@@ -321,10 +319,10 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
       // 다중 합성은 결과가 나오는 순간 여덟 방향으로 짧게 터져 일반 합성과 구분된다.
       ctx.strokeStyle = '#fff4bd'
       ctx.lineWidth = 3
-      for (let index = 0; index < 8; index += 1) {
-        const angle = (index / 8) * Math.PI * 2
-        const inner = unit * (0.62 + (1 - flash) * 0.25)
-        const outer = unit * (1.02 + (1 - flash) * 0.55)
+      for (let index = 0; index < 12; index += 1) {
+        const angle = (index / 12) * Math.PI * 2
+        const inner = unit * (0.58 + (1 - flash) * 0.32)
+        const outer = unit * (1.18 + (1 - flash) * 0.9)
         ctx.beginPath()
         ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner)
         ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer)
@@ -337,16 +335,16 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    * 링은 결과물이 나온 시점을 0으로 잡는다. 합성일 때 연출 시작을 0으로 두면
    * 재료가 모이는 동안 링이 이미 다 퍼져서, 정작 결과가 나올 때는 아무 일도 없다.
    */
-  const ringBase = Math.max(0, (t - MERGE_GATHER) / (1 - MERGE_GATHER))
-  const ringCount = complexMerge ? 3 : 2
+  const ringBase = Math.max(0, (t - gatherEnd) / (1 - gatherEnd))
+  const ringCount = complexMerge ? 5 : 2
   for (let i = 0; i < ringCount; i += 1) {
-    const ringT = Math.min(ringBase * (complexMerge ? 1.35 : 1.6) - i * 0.18, 1)
+    const ringT = Math.min(ringBase * (complexMerge ? 1.6 : 1.6) - i * (complexMerge ? 0.14 : 0.18), 1)
     if (ringT <= 0) continue
     ctx.beginPath()
-    ctx.arc(cx, cy, unit * (0.3 + ringT * (complexMerge ? 2.25 : 1.7)), 0, Math.PI * 2)
+    ctx.arc(cx, cy, unit * (0.3 + ringT * (complexMerge ? 2.85 : 1.7)), 0, Math.PI * 2)
     ctx.strokeStyle = complexMerge && i === 1 ? '#fff4bd' : COLORS.hidden
-    ctx.globalAlpha = alpha * (1 - ringT) * (complexMerge ? 0.72 : 0.5)
-    ctx.lineWidth = complexMerge ? 3 : 2
+    ctx.globalAlpha = alpha * (1 - ringT) * (complexMerge ? 0.86 : 0.5)
+    ctx.lineWidth = complexMerge ? 4 : 2
     ctx.stroke()
   }
 
@@ -366,7 +364,7 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
    */
   const settle = Math.min(Math.max((ringBase - 0.2) / 0.4, 0), 1)
   ctx.globalAlpha = alpha * pop * (0.75 - settle * 0.5)
-  const ghost = unit * (1.3 + t * 0.5) * (0.55 + pop * 0.45)
+  const ghost = unit * (complexMerge ? 1.75 + t * 0.85 : 1.3 + t * 0.5) * (0.55 + pop * 0.45)
   const img = sprite(reveal.sprite)
   if (img !== null) {
     const ratio = img.naturalWidth / img.naturalHeight
@@ -377,8 +375,8 @@ function drawHiddenReveal(view: ArenaView, reveal: HiddenReveal): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
-  const labelSize = Math.max(16, unit * 0.34)
-  const tagSize = Math.max(10, unit * 0.16)
+  const labelSize = Math.max(16, unit * (complexMerge ? 0.42 : 0.34))
+  const tagSize = Math.max(10, unit * (complexMerge ? 0.21 : 0.16))
   /*
    * 쪽지는 물건 그림 **아래로 비켜선다.** 0.62로 두었더니 그림의 아랫동이 종이를
    * 덮어 이름이 반쯤 가려졌다 — 무엇을 얻었는지 알리려고 띄운 것이 그림에 가린다.
@@ -455,7 +453,10 @@ function drawWhiteboardRecall(
   const t = Math.min(Math.max(recall.progress, 0), 1)
   const travel = Math.min(t / WHITEBOARD_RECALL_TRAVEL_END, 1)
   const eased = travel * travel * (3 - 2 * travel)
-  const start = whiteboardWordScreenPoint(view, recall.word, recall.index)
+  const start = {
+    x: view.toScreenX(recall.sourceX),
+    y: view.toScreenY(recall.sourceY),
+  }
   const side = recall.side
   const sign = side === 'left' ? -1 : 1
   const end = {
@@ -545,47 +546,6 @@ function drawGathering(
 
 function hiddenRevealScreenY(view: ArenaView): number {
   return Math.max(HIDDEN_REVEAL_MIN_TOP_PX, view.cssHeight * HIDDEN_REVEAL_Y_RATIO)
-}
-
-function whiteboardWordScreenPoint(
-  view: ArenaView,
-  word: string,
-  index: number,
-): { readonly x: number; readonly y: number } {
-  const seed = hashText(word) + index * 101
-  const anchors = [
-    { x: 47, y: 18 },
-    { x: 53, y: 42 },
-    { x: 50, y: 72 },
-  ] as const
-  const anchor = anchors[index % anchors.length]!
-  const wordX = anchor.x + (jitter(seed, 0) - 0.5) * 6
-  const wordY = anchor.y + (jitter(seed, 1) - 0.5) * 16
-
-  const boardWidth = view.cssWidth * (WHITEBOARD_WIDTH / 100)
-  const boardHeight = boardWidth * WHITEBOARD_ASPECT
-  const boardLeft = view.cssWidth * ((WHITEBOARD_CENTER_X - WHITEBOARD_WIDTH / 2) / 100)
-  const boardTop = view.cssHeight * (WHITEBOARD_CENTER_Y / 100) - boardHeight / 2
-  return {
-    x: boardLeft + boardWidth * (WHITEBOARD_WORD_AREA.left + WHITEBOARD_WORD_AREA.width * wordX / 100),
-    y: boardTop + boardHeight * (WHITEBOARD_WORD_AREA.top + WHITEBOARD_WORD_AREA.height * wordY / 100),
-  }
-}
-
-function hashText(text: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return hash >>> 0
-}
-
-function jitter(seed: number, salt: number): number {
-  let value = (seed + Math.imul(salt + 1, 0x9e3779b9)) >>> 0
-  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b)
-  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35)
-  return ((value ^ (value >>> 16)) >>> 0) / 4294967296
 }
 
 export { GATHER_FROM, drawFormingLedge, drawHiddenReveal, drawLandingGlow, drawTrails, drawWhiteboardRecall }

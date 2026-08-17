@@ -5,17 +5,13 @@ import type { RunStats } from '../game/types/game.ts'
 import type { HangulInput } from '../hooks/useHangulInput.ts'
 import { play } from './animate.ts'
 import { RunChase } from './RunChase.tsx'
-import { Combo, Lives, Score } from './Vitals.tsx'
+import { Combo, Score } from './Vitals.tsx'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 
 interface InputBarProps {
   input: HangulInput
   feedback: SubmitFeedback | null
   stats: RunStats
-  /** 남은 무적 시간 비율(0~1). 하트에 베리어로 보여준다 */
-  invulnerable: number
-  /** 화면이 Night Fever인가. 남은 하트를 연보라색으로 빛낸다 */
-  fever: boolean
   /** 0 → 낮, 1 → 밤. 메모장과 연필의 조명이 방을 따라간다 */
   nightfall: number
 }
@@ -398,13 +394,11 @@ function MemoInput({
   )
 }
 
-function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: InputBarProps) {
+function InputBar({ input, feedback, stats, nightfall }: InputBarProps) {
   return (
     <div style={wrapStyle}>
       <div style={rowStyle}>
-        <div style={{ ...sideClusterStyle, justifyContent: 'flex-end' }}>
-          <Lives lives={stats.lives} invulnerable={invulnerable} fever={fever} size="bar" />
-        </div>
+        <div style={sideClusterStyle} />
         <MemoInput
           input={input}
           nightfall={nightfall}
@@ -413,7 +407,7 @@ function InputBar({ input, feedback, stats, invulnerable, fever, nightfall }: In
           invalidSeq={feedback !== null && !feedback.ok ? feedback.seq : null}
         />
         <div style={{ ...sideClusterStyle, justifyContent: 'flex-start' }}>
-          <Score score={stats.score} fever={fever} size="bar" />
+          <Score score={stats.score} fever={false} size="bar" />
           <Combo combo={stats.combo} size="bar" />
         </div>
       </div>

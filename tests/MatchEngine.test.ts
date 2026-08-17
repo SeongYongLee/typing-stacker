@@ -224,7 +224,10 @@ describe('MatchEngine — 대전', () => {
     expect(pair.guestState().canDrop).toBe(true)
     expect(pair.guestState().turnLeft).toBeNull()
 
-    const word = pair.guestState().words.find((candidate) => candidate.state === 'active')?.word
+    await pair.clock.advance(3)
+    const word = pair.guestState().words.find((candidate) => (
+      candidate.state === 'active' && candidate.id % 2 === 0
+    ))?.word
     expect(word).toBeDefined()
     if (word === undefined) return
     pair.guest.submit(word)
@@ -250,11 +253,12 @@ describe('MatchEngine — 대전', () => {
 
   it('대결에서 단어를 가져간 사람과 원래 자리를 양쪽에 잠시 보여준다', async () => {
     pair = await makePair(1518, true, 'duel')
-    await pair.clock.advance(1)
-    const target = pair.guestState().words.find((candidate) => candidate.state === 'active')
+    await pair.clock.advance(4)
+    const target = pair.guestState().words.find((candidate) => (
+      candidate.state === 'active' && candidate.id % 2 === 0
+    ))
     expect(target).toBeDefined()
     if (target === undefined) return
-
     pair.guest.submit(target.word)
     await pair.clock.advance(0.1)
 
@@ -264,7 +268,6 @@ describe('MatchEngine — 대전', () => {
         word: target.word,
         side: target.side,
         slot: target.slot,
-        lifeReward: false,
       }))
     }
 

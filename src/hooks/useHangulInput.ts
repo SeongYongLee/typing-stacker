@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   MouseEvent as ReactMouseEvent,
   ChangeEvent,
@@ -41,12 +41,29 @@ interface HangulInput {
  * 풀지 않고 "사용자가 다음 키를 누를 때"만 푼다 — input과 compositionend의
  * 발생 순서가 브라우저마다 달라서, 순서에 의존하지 않는 유일한 기준점이 keydown이다.
  */
-function useHangulInput(onSubmit: (text: string) => void): HangulInput {
+function useHangulInput(onSubmit: (text: string) => void, allowEmptySubmit = false): HangulInput {
   const ref = useRef<HTMLInputElement | null>(null)
   const [value, setValue] = useState('')
   const [composing, setComposing] = useState(false)
   const [tapSeq, setTapSeq] = useState(0)
   const swallow = useRef(false)
+  /**
+   * 직전 한글 제출이 남긴 빈 Enter와, 경보 안내를 읽은 뒤 사용자가 새로 누른 Enter를
+   * 가른다. 상태 전환 직후 바로 빈 Enter를 열면 IME의 뒷정리 Enter가 데모를
+   * 저절로 시작시킨다.
+   */
+  const emptySubmitArmed = useRef(false)
+
+  useEffect(() => {
+    emptySubmitArmed.current = false
+    if (!allowEmptySubmit) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      emptySubmitArmed.current = true
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [allowEmptySubmit])
 
   const clear = useCallback(() => {
     if (ref.current !== null) {
@@ -127,7 +144,7 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
        * keydown Enter가 isComposing=true / false로 두 번 온다), 그 두 번째 Enter가
        * 방금 비운 입력창을 제출해 성공 피드백을 "(빈 입력) ✗"로 덮어쓴다.
        */
-      if (text.trim().length === 0) {
+      if (text.trim().length === 0 && (!allowEmptySubmit || !emptySubmitArmed.current)) {
         return
       }
 
@@ -137,7 +154,7 @@ function useHangulInput(onSubmit: (text: string) => void): HangulInput {
       // 조립 중이었다면 확정 이벤트가 뒤따라오므로 그것만 삼킬 준비를 한다
       swallow.current = composingNow
     },
-    [onSubmit],
+    [onSubmit, allowEmptySubmit],
   )
 
   return {

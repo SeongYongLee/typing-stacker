@@ -7,6 +7,7 @@ import {
 } from '../game/config.ts'
 import { GameLoop } from '../game/core/GameLoop.ts'
 import { VARIANT_BY_ID, WORDS } from '../game/data/words.ts'
+import { SOLO_STAGES, featuredEntries, type SoloStage } from '../game/data/soloStages.ts'
 import { craftKeyOf, RECIPES } from '../game/data/recipes.ts'
 import { shapeBounds } from '../game/shapes.ts'
 import { followCameraY, spawnYFor } from '../game/systems/Camera.ts'
@@ -134,6 +135,16 @@ const MAX_FIXED_STEPS = 3
 const DROP_LEAD_TICKS = 6
 
 /**
+ * 대전은 튜토리얼을 쓰지 않는다. 한 판의 테마는 시드만으로 정하므로 방장 교체나
+ * 재접속 뒤에도 모두 같은 단어 풀과 스테이지 이름을 복원할 수 있다.
+ */
+function duelStageFor(seed: number): SoloStage {
+  const stages = SOLO_STAGES.filter((stage) => stage.id > 0)
+  const index = Math.floor(createRng(seed ^ 0x73746167).next() * stages.length)
+  return stages[index] ?? SOLO_STAGES[1]!
+}
+
+/**
  * 판을 가리키는 이름. 인원이 몇이든 길이가 같다.
  *
  * 참가자 전원이 각자 만들어도 같은 값이 나와야 한다 — 서버가 여러 보고를 한 판으로
@@ -235,6 +246,8 @@ interface MatchViewState {
   readonly ranked: boolean
   /** 실제로 열린 모드. UI와 입력 규칙이 이 값을 따른다 */
   readonly matchMode: MatchMode
+  /** 이번 대전에 고정된 싱글 보관소 테마. 단어 풀과 노릴 합성의 힌트다. */
+  readonly stage: { readonly id: number; readonly title: string }
   /**
    * 등수. 1이 마지막까지 버틴 사람이다. 판이 끝나면 결과 화면이 그대로 보여준다.
    * 같은 붕괴로 함께 탈락하면 공동 등수다.
@@ -377,6 +390,7 @@ class MatchEngine {
   private readonly ranked: boolean
   private readonly matchMode: MatchMode
   private readonly seed: number
+  private readonly duelStage: SoloStage | null
   private readonly chatClock: () => number
   private readonly duelWorlds: ReadonlyMap<PlayerId, PhysicsWorld> | null
   private readonly duelRace: DuelRace | null
@@ -555,6 +569,7 @@ class MatchEngine {
     this.ranked = options.ranked
     this.matchMode = options.matchMode ?? 'shared'
     this.seed = options.seed
+    this.duelStage = this.matchMode === 'duel' ? duelStageFor(options.seed) : null
     this.chatClock = options.chatClock
     this.winsView = [...this.wins]
     this.match = new MatchState(options.players, LIVES, options.starter ?? starterOf(options.seed, options.players))
@@ -586,6 +601,7 @@ class MatchEngine {
       this.matchMode === 'duel' ? (candidates) => this.pickRecipeWord(candidates) : null,
     )
     if (this.matchMode === 'duel') {
+      this.spawner.restrict(featuredEntries(this.duelStage!))
       this.syncDuelRecipeGuidance()
     }
     if (!this.isHost) {
@@ -1262,6 +1278,11 @@ class MatchEngine {
     if (target === undefined) {
       return
     }
+    // 대결 단어는 각자에게 배정된다. 남의 단어를 먼저 치면 상대의 시간 압박을
+    // 없애는 셈이므로, 방장이 이 자리에서 거절한다.
+    if (this.matchMode === 'duel' && this.duelWordOwner(target.id) !== by) {
+      return
+    }
     if (this.matchMode === 'duel' && this.whiteboard.has(word)) {
       this.resolveWhiteboardClaim(by, target)
       return
@@ -1285,6 +1306,31 @@ class MatchEngine {
       matchId: this.matchId,
     })
     this.acceptDrop(by, word, aimX, spawnY, variant.id, itemId, applyAtTick)
+  }
+
+  /** 참가자 명단에 단어 순서를 고르게 나눈다. 탈락해도 기존 단어의 주인이 바뀌지 않는다. */
+  private duelWordOwner(wordId: number): PlayerId | null {
+    const players = this.match.players
+    if (players.length === 0) return null
+    return players[(wordId - 1) % players.length]?.id ?? null
+  }
+
+  /** 만료된 내 단어는 기본 물건으로 내 필드에 자동 반입된다. */
+  private dropExpiredDuelWord(word: FallingWord): void {
+    const by = this.duelWordOwner(word.id)
+    if (by === null || !this.isDuelActive(by)) return
+    const entry = WORDS.find((candidate) => candidate.word === word.word)
+    const variant = entry?.variants[0]
+    if (variant === undefined) return
+    const itemId = this.nextItemId
+    this.nextItemId += 1
+    const spawnY = spawnYFor(this.cameraY)
+    const applyAtTick = this.physicsTick + DROP_LEAD_TICKS
+    this.transport.broadcast({
+      t: 'dropped', by, word: word.word, aimX: this.aimer.worldX, spawnY,
+      variantId: variant.id, itemId, applyAtTick, matchId: this.matchId,
+    })
+    this.acceptDrop(by, word.word, this.aimer.worldX, spawnY, variant.id, itemId, applyAtTick)
   }
 
   private resolveWhiteboardClaim(by: PlayerId, target: FallingWord): void {
@@ -1320,11 +1366,11 @@ class MatchEngine {
     this.emit()
   }
 
-  private broadcastDuelWhiteboard(reward?: DuelHeartReward): void {
+  private broadcastDuelWhiteboard(reward: DuelHeartReward | null = null): void {
     this.transport.broadcast({
       t: 'duelWhiteboard',
       words: this.whiteboardWords,
-      ...(reward === undefined ? {} : { reward }),
+      ...(reward === null ? {} : { reward }),
       matchId: this.matchId,
     })
   }
@@ -1781,7 +1827,10 @@ class MatchEngine {
     if (this.isHost && this.matchMode === 'duel') {
       this.syncDuelRecipeGuidance()
     }
-    this.spawner.update(dt, difficulty)
+    const missedWords = this.spawner.update(dt, difficulty)
+    if (this.isHost && this.matchMode === 'duel') {
+      for (const word of missedWords) this.dropExpiredDuelWord(word)
+    }
 
     this.spawnScheduledDrops()
     let ownedEscaped: readonly PlayerId[] = []
@@ -2410,6 +2459,9 @@ class MatchEngine {
       inputMode: this.inputMode(),
       ranked: this.ranked,
       matchMode: this.matchMode,
+      stage: this.duelStage === null
+        ? { id: 0, title: '함께 쌓기' }
+        : { id: this.duelStage.id, title: this.duelStage.title },
       standings: this.standingsView,
       duelResults: this.duelRace?.results ?? [],
       duelTowerIds: this.visibleDuelIds(),

@@ -1,7 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { MenuButton } from '../components/MenuButton.tsx'
-import { Danger, Key } from '../components/SidePanel.tsx'
-import { SOLO_LIVES } from '../game/config.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 
 interface SoloRulesScreenProps {
@@ -10,19 +8,9 @@ interface SoloRulesScreenProps {
 }
 
 const RULES: readonly ReactNode[] = [
-  '좌우에서 내려오는 한글 단어를 타이핑합니다.',
-  <>
-    <Key>Enter를 누른 순간</Key>의 화살표 위치로 물건이 떨어집니다.
-  </>,
-  <>
-    물건이 쏠려서 받침대를 벗어나면 <Danger>목숨이 하나</Danger> 줄어듭니다.
-  </>,
-  <>
-    목숨은 <Danger>{SOLO_LIVES}개({'♥'.repeat(SOLO_LIVES)})</Danger>. 다 잃으면 게임이 끝납니다.
-  </>,
-  <>
-    밤에는 <Key>Night Fever</Key>. 별빛 재료 6개가 쏟아지고 3초 쉬며 목숨이 무적이 됩니다.
-  </>,
+  '단어를 입력해 상자 안에 분실물을 넣습니다.',
+  '합성한 물건과 화이트보드의 동그라미 항목을 찾아 돌려보냅니다.',
+  '놓친 단어가 쌓이면 혼잡 경보가 차고 물건이 한꺼번에 떨어집니다.',
 ]
 
 const rootStyle: CSSProperties = {
@@ -90,8 +78,8 @@ const listStyle: CSSProperties = {
 
 function SoloRulesScreen({ onStart, onHideAndStart }: SoloRulesScreenProps) {
   const actions = [
-    { label: '게임 시작', run: onStart, primary: true },
-    { label: '다시 보지 않기', run: onHideAndStart, primary: false },
+    { label: '튜토리얼 보기', run: onStart, primary: true },
+    { label: '앞으로 튜토리얼 보지 않기', run: onHideAndStart, primary: false },
   ]
   const menu = useMenuKeys({
     count: actions.length,
@@ -100,11 +88,11 @@ function SoloRulesScreen({ onStart, onHideAndStart }: SoloRulesScreenProps) {
 
   return (
     <main style={rootStyle} data-solo-rules>
-      <h1 style={titleStyle}>GAME RULES</h1>
+      <h1 style={titleStyle}>TUTORIAL</h1>
 
       <div style={contentStyle}>
         <div style={rulesGroupStyle}>
-          <p style={introStyle}>타자를 쳐서 물건이 떨어지지 않게 높게 쌓아보세요!</p>
+          <p style={introStyle}>튜토리얼을 다시 볼까요?</p>
           <section style={panelStyle} aria-label="게임 규칙">
             <ul style={listStyle} data-blurb="solo">
               {RULES.map((rule, index) => (

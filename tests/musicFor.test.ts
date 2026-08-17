@@ -25,15 +25,15 @@ describe('스플래시 낮·밤 음악', () => {
   })
 })
 
-describe('플레이 낮·밤 음악', () => {
-  it('Night Fever는 밤 곡, 낮은 낮 곡이다', () => {
-    expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'night' }))).toBe('gameNight')
+describe('플레이 음악', () => {
+  it('싱글 시계는 배경 연출만 바꾸고 음악은 낮 곡으로 유지한다', () => {
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'night' }))).toBe('gameDay')
     expect(musicFor(scene({ route: 'solo', soloPhase: 'playing', soloTimeOfDay: 'day' }))).toBe('gameDay')
   })
 
-  it('판이 끝나도 마지막 낮·밤 곡은 이어진다', () => {
+  it('판이 끝나도 같은 곡을 유지한다', () => {
     expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'day' }))).toBe('gameDay')
-    expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'night' }))).toBe('gameNight')
+    expect(musicFor(scene({ route: 'solo', soloPhase: 'over', soloTimeOfDay: 'night' }))).toBe('gameDay')
   })
 
   it('일시정지만 조용하다', () => {

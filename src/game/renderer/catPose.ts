@@ -25,16 +25,16 @@ import { GRAB_AT, type CatView } from '../systems/CatPickup.ts'
  * 받침대 반폭이 2.0m이고 물건이 0.4~1.2m다. 1.5m면 물건보다 확실히 크면서
  * 받침대를 다 가리지는 않는다 — **가려버리면 무엇을 잃었는지가 또 안 보인다.**
  */
-const CAT_WIDTH = 1.5
+const CAT_WIDTH = 1.85
 
 /** 뛰기 시작하는 자리가 물건에서 바깥쪽으로 얼마나 떨어져 있는가(m) */
-const LEAP_OUT = 0.7
+const LEAP_OUT = 0.95
 
 /** 물어 가며 착지하는 자리는 더 바깥이다 — 물건을 갖고 물러난다 */
-const LEAP_AWAY = 1.45
+const LEAP_AWAY = 1.8
 
 /** 뛰기 시작하는 높이가 물건보다 얼마나 아래인가(m). 화면 밖에서 올라와야 한다 */
-const LEAP_DROP = 1.45
+const LEAP_DROP = 1.7
 
 /** 잡는 자리 — 고양이 그림 가운데에서 앞발 손끝 쪽으로 얼마나(그림 폭 대비) */
 const PAW_FORWARD = 0.36

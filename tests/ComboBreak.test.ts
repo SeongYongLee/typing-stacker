@@ -23,8 +23,8 @@ describe('싱글 — 단어를 놓치면 콤보가 끊긴다', () => {
       state = next
     })
 
-    engine.startRun()
-    await clock.advance(2.6)
+    engine.startRun(false)
+    await clock.advance(4.2)
 
     const word = (state as GameState | null)?.words[0]
     if (word === undefined) {
@@ -56,8 +56,8 @@ describe('싱글 — 단어를 놓치면 콤보가 끊긴다', () => {
       state = next
     })
 
-    engine.startRun()
-    await clock.advance(2.6)
+    engine.startRun(false)
+    await clock.advance(4.2)
     const word = (state as GameState | null)?.words[0]
     if (word === undefined) throw new Error('낙하 중인 단어가 없다')
 

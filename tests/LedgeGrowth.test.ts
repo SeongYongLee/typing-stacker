@@ -1,24 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
-import { LEDGE } from '../src/game/config.ts'
 import type { GameEvent } from '../src/game/types/events.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
 /**
- * 합성하면 통나무가 실제로 서는가.
- *
- * 규칙(`tests/Ledge.test.ts`)과 따로 두는 이유는 **이어져 있는지**가 따로 깨지기
- * 때문이다. 실제로 그랬다 — 규칙 테스트는 다 통과하는데 판에서는 판 중반부터
- * 통나무가 서지 않았다. 자리를 한 높이에서만 찾아서, 탑이 자라면 평균 높이가 곧
- * 탑의 허리라 통나무 안쪽 끝이 늘 탑에 닿았다.
+ * 싱글 합성은 점수와 도감 보상만 준다. 추가 발판은 대전 전용 규칙이다.
  */
-describe('합성하면 통나무가 선다', () => {
+describe('싱글 합성 보상', () => {
   const clock = new FrameClock()
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
 
-  it('첫 합성에 하나가 서고, 연출이 끝난 뒤에 선다', async () => {
-    // 이 시드는 첫 합성이 낮에 난다. Fever 합성은 의도적으로 통나무 보상이 없다.
+  it('합성해도 추가 발판을 만들지 않는다', async () => {
     const engine = await GameEngine.create(1)
     const events: GameEvent[] = []
     let state: GameState | null = null
@@ -27,6 +20,17 @@ describe('합성하면 통나무가 선다', () => {
       state = next
     })
     engine.startRun()
+    // 합성 자체는 튜토리얼을 지난 정식 스테이지에서 확인한다.
+    const internals = engine as unknown as {
+      stageId: number
+      physics: { reset(): void; ledges(): readonly unknown[] }
+      spawner: { reset(): void }
+      configureStage(): void
+    }
+    internals.stageId = 1
+    internals.physics.reset()
+    internals.spawner.reset()
+    internals.configureStage()
 
     const STEP = 1 / 30
     let merged = false
@@ -42,15 +46,7 @@ describe('합성하면 통나무가 선다', () => {
     }
 
     expect(merged, '판 안에 합성이 한 번은 일어나야 한다').toBe(true)
-    // 뭉쳐지는 동안에는 아직 없다 — 보이지 않는 통나무가 물건을 받으면 안 된다
-    expect(engine.debugLedges()).toHaveLength(0)
-
-    for (let t = 0; t < LEDGE.formSec + 0.3; t += STEP) {
-      await clock.advance(STEP)
-    }
-    const ledges = engine.debugLedges()
-    expect(ledges).toHaveLength(1)
-    expect(ledges[0]!.halfWidth).toBeGreaterThanOrEqual(LEDGE.minHalfWidth)
+    expect(internals.physics.ledges()).toHaveLength(0)
 
     engine.dispose()
   }, 120_000)

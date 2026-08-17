@@ -232,6 +232,8 @@ interface TrackedBody {
   readonly recalled: boolean
   /** Night Fever 자동 낙하인지. 물리에는 영향이 없고 렌더 스냅샷까지 전달한다. */
   readonly fever: boolean
+  /** 혼잡 경보가 반입한 물건인지. Night Fever와 시각 연출을 분리한다. */
+  readonly congestion: boolean
   /** Night Fever 중 한 번이라도 움직여 낮 이후 이탈까지 보호받는가. */
   nightProtected: boolean
   /**
@@ -375,6 +377,9 @@ class PhysicsWorld {
   private readonly ledgeList: { x: number; y: number; halfWidth: number; body: RigidBody }[] = []
   /** 지금 서 있는 회수 판. 잠깐 있다 사라지므로 하나뿐이다 */
   private catcherBody: RigidBody | null = null
+  /** 싱글 스테이지의 열린 택배 상자 양옆 벽. */
+  private containerBodies: RigidBody[] = []
+  private escapeHalfWidth: number = ARENA.halfWidth
   /** 이 높이보다 아래로 내려가면 이탈이다. 싱글은 카메라를 따라 움직이고, 대전은 기본값을 쓴다 */
   private escapeY: number = ARENA.killY
   private accumulator = 0
@@ -415,8 +420,9 @@ class PhysicsWorld {
     itemId = 0,
     recalled = false,
     fever = false,
+    congestion = false,
   ): number {
-    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled, fever)
+    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled, fever, congestion)
   }
 
   /**
@@ -431,6 +437,7 @@ class PhysicsWorld {
     itemId = 0,
     recalled = false,
     fever = false,
+    congestion = false,
   ): number {
     return this.spawnItemMovingAt(
       variant,
@@ -442,6 +449,8 @@ class PhysicsWorld {
       { x: 0, y: 0 },
       0,
       fever,
+      fever,
+      congestion,
     )
   }
 
@@ -456,6 +465,7 @@ class PhysicsWorld {
     angularVelocity = 0,
     fever = false,
     nightProtected = fever,
+    congestion = false,
   ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
       .setTranslation(x, y)
@@ -504,6 +514,7 @@ class PhysicsWorld {
       itemId,
       recalled,
       fever,
+      congestion,
       nightProtected,
       // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
       heavy: body.mass() >= HEAVY_MASS,
@@ -638,6 +649,21 @@ class PhysicsWorld {
     }
     this.variantCountsDirty = false
     return counts
+  }
+
+  /** 상자 안의 대상 물건 하나를 회수한다. 보드 회수는 낙하 단어가 아닌 실제 물건을 뺀다. */
+  removeOneByVariant(variantId: string): ItemVariant | null {
+    for (const [handle, entry] of this.tracked) {
+      if (entry.lost || entry.recalled || entry.variant.id !== variantId) {
+        continue
+      }
+      this.forgetWelds(handle)
+      this.world.removeRigidBody(entry.body)
+      this.tracked.delete(handle)
+      this.noteCompositionChanged()
+      return entry.variant
+    }
+    return null
   }
 
   /**
@@ -972,6 +998,7 @@ class PhysicsWorld {
         settled: false,
         recalled: false,
         fever: false,
+        congestion: false,
       })
       slot.handle = handle
       slot.variant = entry.variant
@@ -982,6 +1009,7 @@ class PhysicsWorld {
       slot.settled = entry.settled
       slot.recalled = entry.recalled
       slot.fever = entry.fever
+      slot.congestion = entry.congestion
       count += 1
     }
     // 지난 프레임에 있었지만 지금은 없는 물건의 칸을 버린다
@@ -1027,8 +1055,47 @@ class PhysicsWorld {
     this.escapeY = y
   }
 
+  /**
+   * 바닥은 기존 받침대를 쓰고, 양옆 벽만 바꿔 열린 상자를 만든다.
+   * 벽을 넘은 물건은 더 이상 받칠 곳이 없어 이탈 사건으로 이어진다.
+   */
+  setContainer(halfWidth: number, wallHeight: number): void {
+    for (const body of this.containerBodies) {
+      this.world.removeRigidBody(body)
+    }
+    this.containerBodies = []
+    this.escapeHalfWidth = halfWidth + 0.18
+    const thickness = 0.075
+    const extension = halfWidth - ARENA.platformHalfWidth
+    if (extension > 0) {
+      for (const side of [-1, 1]) {
+        const body = this.world.createRigidBody(
+          rapier().RigidBodyDesc.fixed().setTranslation(
+            side * (ARENA.platformHalfWidth + extension / 2),
+            ARENA.platformTop - 0.025,
+          ),
+        )
+        this.world.createCollider(
+          rapier().ColliderDesc.cuboid(extension / 2, 0.025).setFriction(0.9).setRestitution(0.02),
+          body,
+        )
+        this.containerBodies.push(body)
+      }
+    }
+    for (const side of [-1, 1]) {
+      const body = this.world.createRigidBody(
+        rapier().RigidBodyDesc.fixed().setTranslation(side * halfWidth, ARENA.platformTop + wallHeight / 2),
+      )
+      this.world.createCollider(
+        rapier().ColliderDesc.cuboid(thickness, wallHeight / 2).setFriction(0.72).setRestitution(0.05),
+        body,
+      )
+      this.containerBodies.push(body)
+    }
+  }
+
   private isEscaped(entry: TrackedBody, x: number, y: number): boolean {
-    if (Math.abs(x) > ARENA.halfWidth || y < ARENA.killY) {
+    if (Math.abs(x) > this.escapeHalfWidth || y < ARENA.killY) {
       return true
     }
     /*

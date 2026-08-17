@@ -10,6 +10,8 @@ interface SoloGameScreenProps {
   engine: GameEngine
   stateStore: EngineStateStore
   onRestart: () => void
+  onStartGame: () => void
+  onReplayTutorial: () => void
   onHome: () => void
   onSceneChange: (phase: GamePhase, timeOfDay: Phase) => void
 }
@@ -22,6 +24,8 @@ function SoloGameScreen({
   engine,
   stateStore,
   onRestart,
+  onStartGame,
+  onReplayTutorial,
   onHome,
   onSceneChange,
 }: SoloGameScreenProps) {
@@ -42,15 +46,42 @@ function SoloGameScreen({
   return (
     <>
       <GameScreen engine={engine} state={state} onRestart={onRestart} onHome={onHome} />
+      {state.phase === 'credits' && <CreditsOverlay onContinue={() => engine.continueEndless()} />}
       {state.phase === 'over' && (
         <ResultScreen
           stats={state.stats}
           freshlyCollected={state.freshlyCollected}
+          congestionDemo={state.stage.congestionDemo === 'over'}
           onRestart={onRestart}
+          onStartGame={onStartGame}
+          onReplayTutorial={onReplayTutorial}
           onHome={onHome}
         />
       )}
     </>
+  )
+}
+
+function CreditsOverlay({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 30, display: 'grid', placeItems: 'center',
+        background: 'rgba(7, 10, 18, 0.88)', color: '#fff7d7', textAlign: 'center',
+      }}
+    >
+      <div style={{ display: 'grid', gap: 18, justifyItems: 'center' }}>
+        <h1 style={{ margin: 0, fontSize: 36 }}>모든 주인을 찾았습니다</h1>
+        <p style={{ margin: 0, fontSize: 18, color: '#d7d9e7' }}>수상한 분실물 보관소</p>
+        <button
+          type="button"
+          onClick={onContinue}
+          style={{ padding: '11px 18px', border: '1px solid #f6d76f', borderRadius: 5, background: '#2b2730', color: '#fff7d7', fontSize: 17, fontWeight: 700 }}
+        >
+          계속 정리하기
+        </button>
+      </div>
+    </div>
   )
 }
 

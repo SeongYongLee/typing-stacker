@@ -83,6 +83,11 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
       label: `${withSubject(nickname)} 가져감`,
     }
   }, [state.heartReward, state.players])
+  const typingWords = state.matchMode === 'duel'
+    ? state.words.filter((word) => (
+        state.players[(word.id - 1) % state.players.length]?.id === state.selfId
+      ))
+    : state.words
 
   useTypingSound(input.tapSeq)
 
@@ -114,9 +119,10 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
 
       <div style={fieldLayerStyle}>
         <StackArena engine={engine} />
+        {state.matchMode === 'duel' && <DuelStageBadge stage={state.stage} />}
         <div style={fieldStyle}>
           <TypingLane
-            words={state.words}
+            words={typingWords}
             side="left"
             wordMarks={state.wordMarks}
             mergeSizes={state.wordMergeSizes}
@@ -151,7 +157,7 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             )}
           </div>
           <TypingLane
-            words={state.words}
+            words={typingWords}
             side="right"
             wordMarks={state.wordMarks}
             mergeSizes={state.wordMergeSizes}
@@ -176,6 +182,23 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
       </div>
 
       {state.phase === 'playing' && <InputRow input={input} state={state} nightfall={nightfall} />}
+    </div>
+  )
+}
+
+/** 이번 판의 좁은 단어 풀을 알려 주는 전략 정보. 경기 중에도 항상 남긴다. */
+function DuelStageBadge({ stage }: { stage: MatchViewState['stage'] }) {
+  return (
+    <div
+      aria-label={`이번 대전 스테이지: ${stage.title}`}
+      style={{
+        position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 4,
+        padding: '5px 10px', border: '1px solid rgba(255,255,255,0.45)', borderRadius: 4,
+        background: 'rgba(17, 23, 34, 0.7)', color: '#fff5cb', fontSize: 14, fontWeight: 700,
+        pointerEvents: 'none', whiteSpace: 'nowrap',
+      }}
+    >
+      {stage.title}
     </div>
   )
 }

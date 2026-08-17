@@ -10,10 +10,6 @@ interface RulesMenuItem {
   readonly run: () => void
 }
 
-function onOff(value: boolean): string {
-  return value ? '켬' : '끔'
-}
-
 function useRulesMenu(): readonly RulesMenuItem[] {
   const subscribe = useCallback(
     (onChange: () => void) => subscribeDisplaySettings(onChange),
@@ -22,12 +18,17 @@ function useRulesMenu(): readonly RulesMenuItem[] {
   const settings = useSyncExternalStore(subscribe, displaySettings)
 
   return useMemo(
-    () => [
-      {
-        label: `혼자 하기 · ${onOff(settings.soloRules)}`,
-        run: () => updateDisplaySettings({ soloRules: !settings.soloRules }),
-      },
-    ],
+    () => {
+      const tutorialEnabled = settings.soloTutorial !== 'disabled'
+      return [
+        {
+          label: `튜토리얼 안내 · ${tutorialEnabled ? '켬' : '끔'}`,
+          run: () => updateDisplaySettings({
+            soloTutorial: tutorialEnabled ? 'disabled' : 'ask',
+          }),
+        },
+      ]
+    },
     [settings],
   )
 }

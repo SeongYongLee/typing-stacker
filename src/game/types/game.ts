@@ -161,6 +161,8 @@ interface BodySnapshot {
   readonly recalled?: boolean
   /** Night Fever가 직접 떨어뜨린 물건. 별똥별 꼬리를 그리는 로컬 연출 표식이다. */
   readonly fever?: boolean
+  /** 혼잡 경보가 반입한 물건. 경보색 꼬리를 그리는 로컬 연출 표식이다. */
+  readonly congestion?: boolean
 }
 
 /** 네트워크 등 외부 권위 상태로 물리 세계를 복구하기 위한 공통 좌표. */
@@ -200,7 +202,7 @@ interface CompleteAuthorityBodyFrame extends AuthorityBodyBase {
 type AuthorityBodyFrame = LegacyAuthorityBodyFrame | CompleteAuthorityBodyFrame
 
 /** collapsing은 무너지는 장면을 잠깐 보여주는 구간 — 결과 화면이 그 위를 덮기 전에 */
-type GamePhase = 'title' | 'playing' | 'paused' | 'collapsing' | 'over'
+type GamePhase = 'title' | 'stageTransition' | 'playing' | 'paused' | 'collapsing' | 'credits' | 'over'
 
 interface RunStats {
   /** 정확도 패널티까지 반영한 점수. 화면에 보이는 값이다 */

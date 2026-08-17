@@ -45,6 +45,16 @@ describe('화면 설정 저장', () => {
     expect(DEFAULT_SETTINGS.soloRules).toBe(true)
   })
 
+  it('튜토리얼은 첫 완료 전에는 필수이고, 저장된 선택지만 허용한다', () => {
+    expect(DEFAULT_SETTINGS.soloTutorial).toBe('required')
+    withStorage(JSON.stringify({ soloTutorial: 'ask' }), () => {
+      expect(loadDisplaySettings().soloTutorial).toBe('ask')
+    })
+    withStorage(JSON.stringify({ soloTutorial: 'invalid' }), () => {
+      expect(loadDisplaySettings().soloTutorial).toBe('required')
+    })
+  })
+
   it('저장한 값을 그대로 읽는다', () => {
     withStorage(null, () => {
       saveDisplaySettings({
@@ -52,6 +62,7 @@ describe('화면 설정 저장', () => {
         glow: 0,
         trail: 0,
         soloRules: false,
+        soloTutorial: 'disabled',
       })
       expect(loadDisplaySettings().shake).toBe(0)
       expect(loadDisplaySettings().soloRules).toBe(false)
@@ -103,6 +114,7 @@ describe('화면 설정 저장', () => {
           glow: 0,
           trail: 0,
           soloRules: false,
+          soloTutorial: 'disabled',
         }),
       ).not.toThrow()
     } finally {

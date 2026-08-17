@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react'
 import { WORD } from '../game/config.ts'
 import type { FallingWord, MergeHint, Side } from '../game/types/game.ts'
 import { play } from './animate.ts'
@@ -38,6 +38,10 @@ interface TypingLaneProps {
   recallMarker?: 'hand' | 'heart'
   /** 대결에서 방금 사라진 단어의 자리에 남기는 획득 안내. */
   claims?: readonly WordClaimNotice[]
+  /** 혼잡 경보 반입 중에는 모든 단어를 붉게 경고한다. */
+  congestionRush?: boolean
+  /** 혼잡 게이지가 있는 싱글 스테이지에서만 놓침 흡수 연출을 보여준다. */
+  showCongestionAbsorption?: boolean
 }
 
 interface WordClaimNotice {
@@ -116,6 +120,8 @@ function TypingLane({
   recallWords = [],
   recallMarker,
   claims = [],
+  congestionRush = false,
+  showCongestionAbsorption = false,
 }: TypingLaneProps) {
   const mine = words.filter((word) => word.side === side)
   const recallSet = new Set(recallWords)
@@ -138,6 +144,10 @@ function TypingLane({
 
   return (
     <div ref={laneRef} style={laneStyle} data-lane={side}>
+      {congestionRush && <style>{`@keyframes congestion-word-alert {
+        0%, 100% { filter: brightness(1) saturate(1); }
+        50% { filter: brightness(1.18) saturate(1.35); }
+      }`}</style>}
       {mine.map((word) => (
         <Chip
           key={word.id}
@@ -148,7 +158,11 @@ function TypingLane({
           pulse={pairPulse}
           recall={recallSet.has(word.word)}
           recallMarker={recallMarker}
+          congestionRush={congestionRush}
         />
+      ))}
+      {showCongestionAbsorption && mine.filter((word) => word.state === 'missed').map((word) => (
+        <MissedCongestionToken key={word.id} word={word} />
       ))}
       {claims.filter((claim) => claim.side === side).map((claim) => (
         <ClaimMarker key={claim.seq} claim={claim} />
@@ -213,6 +227,7 @@ function Chip({
   pulse,
   recall,
   recallMarker,
+  congestionRush,
 }: {
   word: FallingWord
   mark: number | undefined
@@ -221,6 +236,7 @@ function Chip({
   pulse: number
   recall: boolean
   recallMarker: 'hand' | 'heart' | undefined
+  congestionRush: boolean
 }) {
   const missed = word.state === 'missed'
   // 놓친 단어에는 붙이지 않는다 — 이미 칠 수 없는 것에 "붙일 수 있다"고 알리는 셈이다
@@ -228,7 +244,9 @@ function Chip({
   const complexMerge = paired && (mergeSize ?? 0) >= 3
   const recalled = recall && !missed
   const color = paired ? (PAIR_MARK_COLORS[mark % PAIR_MARK_COLORS.length] ?? null) : null
-  const borderColor = recalled ? PAPER_EDGE : color ?? (missed ? 'rgba(160, 146, 118, 0.4)' : PAPER_EDGE)
+  const borderColor = congestionRush && !missed
+    ? '#ff655d'
+    : recalled ? PAPER_EDGE : color ?? (missed ? 'rgba(160, 146, 118, 0.4)' : PAPER_EDGE)
   const glow = color === null
     ? 'none'
     : complexMerge
@@ -279,8 +297,8 @@ function Chip({
          */
         transform: `translate(-50%, ${-word.y * 100}%)`,
         opacity: missed ? word.fade * 0.6 : 1,
-        color: missed ? INK_MISSED : recalled ? RECALL_INK : INK,
-        background: missed ? PAPER_MISSED : recalled ? RECALL_PAPER : PAPER,
+        color: missed ? INK_MISSED : congestionRush ? '#671e1d' : recalled ? RECALL_INK : INK,
+        background: missed ? PAPER_MISSED : congestionRush ? '#ffe0d3' : recalled ? RECALL_PAPER : PAPER,
         /*
          * 짝이 있으면 테두리가 그 짝의 색으로 바뀐다. 받침대의 물건에는 같은 색
          * 동그라미가 둘린다 — 색이 둘을 잇는다(까닭은 `systems/PairMarks.ts`에).
@@ -291,9 +309,12 @@ function Chip({
          * CSS 애니메이션을 쓰지 않는 것은 이 칩이 매 프레임 다시 그려지기 때문이고,
          * 값으로 그리면 그 다시 그리는 일에 그냥 얹힌다.
          */
-        boxShadow: [glow, recallGlow].filter((shadow) => shadow !== null && shadow !== 'none').join(', ') || 'none',
+        boxShadow: congestionRush
+          ? '0 0 10px rgba(255, 77, 71, .72), 0 0 22px rgba(255, 77, 71, .32)'
+          : [glow, recallGlow].filter((shadow) => shadow !== null && shadow !== 'none').join(', ') || 'none',
         borderWidth: complexMerge ? 4 : paired ? 3 : 1,
         textDecoration: missed ? 'line-through' : 'none',
+        animation: congestionRush && !missed ? 'congestion-word-alert .88s ease-in-out infinite' : undefined,
       }}
     >
       {recalled && recallMarker === 'heart' && (
@@ -331,6 +352,52 @@ function Chip({
   )
 }
 
+/** 놓친 쪽지가 혼잡 경보 게이지로 흡수되는 신호. */
+function MissedCongestionToken({ word }: { word: FallingWord }) {
+  const ref = useRef<HTMLSpanElement | null>(null)
+
+  useLayoutEffect(() => {
+    const token = ref.current
+    const gauge = document.querySelector<HTMLElement>('[data-congestion-gauge]')
+    if (token === null || gauge === null) {
+      return
+    }
+    const source = token.getBoundingClientRect()
+    const target = gauge.getBoundingClientRect()
+    // 레인 밖으로 나가는 변형값은 부모 좌표계가 아니라 뷰포트 좌표계에서 계산한다.
+    // 그래야 반응형 레이아웃에서도 토큰의 끝점이 실제 게이지 중심과 일치한다.
+    token.style.position = 'fixed'
+    token.style.left = `${source.left}px`
+    token.style.top = `${source.top}px`
+    const x = target.left + target.width / 2 - (source.left + source.width / 2)
+    const y = target.top + target.height / 2 - (source.top + source.height / 2)
+    const animation = play(
+      token,
+      [
+        { transform: 'translate(0, 0) scale(.45)', opacity: 0 },
+        { transform: 'translate(0, 0) scale(1)', opacity: 1, offset: 0.12 },
+        { transform: `translate(${x * 0.82}px, ${y * 0.82}px) scale(.42)`, opacity: 1, offset: 0.82 },
+        { transform: `translate(${x}px, ${y}px) scale(.18)`, opacity: 0, offset: 1 },
+      ],
+      { duration: 2600, easing: 'cubic-bezier(.18,.76,.26,1)', fill: 'forwards' },
+    )
+    return () => animation?.cancel()
+  }, [])
+
+  return (
+    <span
+      ref={ref}
+      aria-hidden
+      data-missed-congestion-token
+      style={{
+        ...missedTokenStyle,
+        left: `${((word.slot + 0.5) / WORD.slotsPerSide) * 100}%`,
+        top: `calc(${word.y * 100}% - 26px)`,
+      }}
+    />
+  )
+}
+
 function RecallHand() {
   return (
     <span aria-hidden data-recall-hand style={recallHandStyle}>
@@ -365,6 +432,22 @@ const recallHandStyle: CSSProperties = {
   pointerEvents: 'none',
   filter: 'drop-shadow(0 1px 1px rgba(47, 39, 24, 0.42))',
 }
+
+const missedTokenStyle: CSSProperties = {
+  position: 'absolute',
+  left: '50%',
+  top: '50%',
+  width: 28,
+  height: 28,
+  borderRadius: '50%',
+  border: '3px solid #ffd17d',
+  background: '#ff615b',
+  boxShadow: '0 0 12px rgba(255, 73, 70, .92)',
+  pointerEvents: 'none',
+  transformOrigin: '50% 55%',
+  zIndex: 6,
+}
+
 
 const recallHandImageStyle: CSSProperties = {
   position: 'absolute',

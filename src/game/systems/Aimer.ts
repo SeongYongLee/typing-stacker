@@ -17,6 +17,12 @@ class Aimer {
     this.phase = (this.phase + dt * speed) % 2
   }
 
+  /** 안내 단계처럼 낙하 위치를 먼저 정해 둔 경우, 화살표도 정확히 그 자리에 세운다. */
+  setWorldX(x: number): void {
+    const normalized = Math.min(Math.max(x / this.halfRange, -1), 1)
+    this.phase = (normalized + 1) / 2
+  }
+
   /** -1(왼쪽 끝) ~ 1(오른쪽 끝) */
   get normalized(): number {
     const triangle = this.phase < 1 ? this.phase : 2 - this.phase

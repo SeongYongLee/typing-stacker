@@ -9,6 +9,7 @@ import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { Avatar } from '../components/Avatar.tsx'
 import { loadCollection } from '../storage/collection.ts'
 import { loadProfile, renameProfile, setProfileIcon } from '../storage/profile.ts'
+import { syncProfile } from '../rank/client.ts'
 
 /**
  * 이름을 고르는 화면.
@@ -103,7 +104,9 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
   /** 지금 고른 것을 쓴다. 저장은 여기 한 곳에서만 일어난다 */
   const use = useCallback(() => {
     renameProfile(name)
-    setProfileIcon(pickedIcon)
+    const profile = setProfileIcon(pickedIcon)
+    // 화면 전환을 막지는 않는다. 타이틀에서 순위표를 다시 읽을 때도 재동기화한다.
+    void syncProfile(profile)
     onChangeRef.current?.(name)
     onBack()
   }, [name, pickedIcon, onBack])

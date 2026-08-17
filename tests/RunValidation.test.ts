@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LIMITS, runLimitViolation, withinRunLimits } from '../worker/src/runLimits.ts'
+import { parseProfile } from '../worker/src/profile.ts'
 
 function run(overrides: Partial<Parameters<typeof withinRunLimits>[0]> = {}) {
   return {
@@ -37,5 +38,20 @@ describe('싱글 장기 기록 검증', () => {
     expect(runLimitViolation(run({ maxHeight: LIMITS.height + 1 }))).toBe('height')
     expect(runLimitViolation(run({ stackCount: 100, maxCombo: 20, durationSec: 10 })))
       .toBe('duration')
+  })
+})
+
+describe('랭킹 프로필 검증', () => {
+  it('유효한 이름과 아이콘을 받는다', () => {
+    expect(parseProfile({ id: 'player', name: '말랑한 연필', icon: 'pencil-set' }))
+      .toEqual({ id: 'player', name: '말랑한 연필', icon: 'pencil-set' })
+    expect(parseProfile({ id: 'player', name: '말랑한 연필', icon: '' }))
+      .toEqual({ id: 'player', name: '말랑한 연필', icon: '' })
+  })
+
+  it('비어 있거나 너무 긴 값과 잘못된 아이콘을 거절한다', () => {
+    expect(parseProfile({ id: '', name: '말랑한 연필', icon: '' })).toBeNull()
+    expect(parseProfile({ id: 'player', name: '가'.repeat(13), icon: '' })).toBeNull()
+    expect(parseProfile({ id: 'player', name: '말랑한 연필', icon: '../bad' })).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { RELAY_URL } from '../multi/relayUrl.ts'
 import type { RunStats } from '../game/types/game.ts'
-import { loadProfile } from '../storage/profile.ts'
+import { loadProfile, type Profile } from '../storage/profile.ts'
 import {
   clearPendingRun,
   loadPendingRun,
@@ -105,12 +105,21 @@ async function flushPendingRun(): Promise<RankView | null> {
 }
 
 async function sendPendingRun(pending: PendingRun): Promise<RankView | null> {
-  const result = await post('/rank/run', pending)
+  const profile = loadProfile()
+  const current = profile.id === pending.id
+    ? { ...pending, name: profile.name, icon: profile.icon }
+    : pending
+  const result = await post('/rank/run', current)
   if (result !== null && result.error === undefined) {
     // 서버가 실제로 받은 기록만 치운다. 제한 불일치는 서버 배포 뒤 나아질 수 있다.
     clearPendingRun(pending)
   }
   return result
+}
+
+/** 이미 등록된 기록의 표시 정보만 현재 프로필로 바꾼다. */
+async function syncProfile(profile: Profile = loadProfile()): Promise<RankView | null> {
+  return post('/rank/profile', profile)
 }
 
 /**
@@ -162,8 +171,14 @@ async function fetchRatings(
 /** 지금 내 기록과 상위 목록 */
 async function fetchRank(): Promise<RankView | null> {
   const profile = loadProfile()
-  const [, me, top] = await Promise.all([
-    flushPendingRun(),
+  await flushPendingRun()
+  const synced = await syncProfile(profile)
+  if (synced !== null) {
+    return synced
+  }
+
+  // Worker보다 웹이 먼저 배포된 동안에는 기존 읽기 API로 계속 순위표를 보여준다.
+  const [me, top] = await Promise.all([
     get(`/rank/me?id=${encodeURIComponent(profile.id)}`),
     get('/rank/top'),
   ])
@@ -204,5 +219,13 @@ async function request(path: string, init: RequestInit): Promise<Partial<RankVie
   }
 }
 
-export { submitRun, flushPendingRun, reportMatch, fetchRank, fetchRatings, EMPTY }
+export {
+  submitRun,
+  flushPendingRun,
+  syncProfile,
+  reportMatch,
+  fetchRank,
+  fetchRatings,
+  EMPTY,
+}
 export type { RankView, RunRecord, LadderRecord }

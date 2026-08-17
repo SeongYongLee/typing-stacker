@@ -22,14 +22,18 @@
  */
 
 import { findPair, waitedSecOf, bandOf, type Waiting } from './matching.ts'
+import {
+  MAX_ID,
+  MAX_NAME,
+  iconId,
+  parseProfile,
+  type ProfileInput,
+} from './profile.ts'
 import { START_RATING, TIERS, tierIndexOf } from './tiers.ts'
 import { LIMITS, runLimitViolation } from './runLimits.ts'
 
-/** 기기 id의 최대 길이. UUID가 36자다 */
-const MAX_ID = 64
 /** 판 이름의 최대 길이. 시드 + 기기 id 둘을 이어 붙이므로 id 하나보다 훨씬 길다 */
 const MAX_MATCH_ID = 200
-const MAX_NAME = 12
 /** 한 판에 들어올 수 있는 인원. 서버가 먼저 늘어나야 클라이언트를 나중에 올릴 수 있다 */
 const MAX_PLAYERS = 8
 /** 랭킹에 돌려주는 인원 */
@@ -327,6 +331,9 @@ export class Board {
       if (request.method === 'POST' && path === '/rank/run') {
         return json(this.submitRun(await request.json()))
       }
+      if (request.method === 'POST' && path === '/rank/profile') {
+        return json(this.updateProfile(await request.json()))
+      }
       if (request.method === 'POST' && path === '/rank/match') {
         return json(this.reportMatch(await request.json()))
       }
@@ -357,13 +364,7 @@ export class Board {
       return { error: 'invalid', reason: violation }
     }
 
-    this.sql.exec(
-      `INSERT INTO profiles (id, name, icon, at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         name = excluded.name, icon = excluded.icon, at = excluded.at`,
-      run.id, run.name, run.icon, Date.now(),
-    )
+    this.saveProfile(run)
 
     const best = this.bestOf(run.id)
 
@@ -380,15 +381,45 @@ export class Board {
         CURRENT_SOLO_RULESET, run.id, run.name, run.icon, run.score, run.stackCount,
         run.maxHeight, run.maxCombo, run.kpm, Date.now(),
       )
-    } else if (best.name !== run.name || best.icon !== run.icon) {
-      // 기록은 그대로 두고 이름과 아이콘만 따라간다 — 바꿨는데 순위표만 옛것이면 헷갈린다
-      this.sql.exec(
-        'UPDATE solo_runs SET name = ?, icon = ? WHERE ruleset = ? AND id = ?',
-        run.name, run.icon, CURRENT_SOLO_RULESET, run.id,
-      )
     }
 
     return { best: this.bestOf(run.id), rank: this.rankOf(run.id), top: this.top() }
+  }
+
+  /** 프로필만 바꿔도 이미 등록된 싱글·대전 순위표의 표시 정보를 함께 바꾼다. */
+  private updateProfile(raw: unknown): unknown {
+    const profile = parseProfile(raw)
+    if (profile === null) {
+      return { error: 'invalid' }
+    }
+    this.saveProfile(profile)
+    return {
+      ...this.me(profile.id),
+      top: this.top(),
+      ladder: this.ladder(),
+    }
+  }
+
+  /**
+   * 프로필은 표시 정보의 정본이다. 점수·레이팅·등록 시각은 건드리지 않아 순위와
+   * 동률 순서를 그대로 두고, 모든 규칙판과 대전표의 이름·아이콘만 따라가게 한다.
+   */
+  private saveProfile(profile: ProfileInput): void {
+    this.sql.exec(
+      `INSERT INTO profiles (id, name, icon, at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name, icon = excluded.icon, at = excluded.at`,
+      profile.id, profile.name, profile.icon, Date.now(),
+    )
+    this.sql.exec(
+      'UPDATE solo_runs SET name = ?, icon = ? WHERE id = ?',
+      profile.name, profile.icon, profile.id,
+    )
+    this.sql.exec(
+      'UPDATE ratings SET name = ? WHERE id = ?',
+      profile.name, profile.id,
+    )
   }
 
   /**
@@ -692,7 +723,7 @@ export class Board {
   private ladder(): unknown[] {
     return this.sql
       .exec(
-        `SELECT r.id, r.name, r.rating, r.wins, r.losses,
+        `SELECT r.id, COALESCE(u.name, r.name) AS name, r.rating, r.wins, r.losses,
                 COALESCE(u.icon, '') AS icon
          FROM ratings r LEFT JOIN profiles u ON u.id = r.id
          ORDER BY r.rating DESC, r.at ASC LIMIT ?`,
@@ -700,11 +731,6 @@ export class Board {
       )
       .toArray()
   }
-}
-
-/** 물건 id로 쓸 수 있는 모양인가. 표에 있는지는 그리는 쪽이 본다 */
-function iconId(raw: unknown): string {
-  return typeof raw === 'string' && /^[a-z0-9-]{1,40}$/.test(raw) ? raw : ''
 }
 
 /** 외부 테스트와 진단에서 쓰는 완전한 기록 파서. */

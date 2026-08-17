@@ -127,15 +127,16 @@ describe('parseMessage — 상대가 보낸 것은 전부 거짓일 수 있다',
     expect(parseMessage({
       t: 'duelResults',
       results: [
-        { id: 'a', placement: 1, outcome: 'goal' },
+        { id: 'a', placement: 1, outcome: 'survived' },
         { id: 'b', placement: 4, outcome: 'out' },
-        { id: 'c', placement: 0, outcome: 'goal' },
+        { id: 'c', placement: 0, outcome: 'survived' },
+        { id: 'e', placement: 2, outcome: 'goal' },
         { id: 'd', placement: 2, outcome: 'unknown' },
       ],
     })).toEqual({
       t: 'duelResults',
       results: [
-        { id: 'a', placement: 1, outcome: 'goal' },
+        { id: 'a', placement: 1, outcome: 'survived' },
         { id: 'b', placement: 4, outcome: 'out' },
       ],
     })

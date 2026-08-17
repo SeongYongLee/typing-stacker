@@ -43,7 +43,6 @@ import type {
   BodyFrame,
   DuelAttackFrame,
   DuelDropSource,
-  DuelHeartReward,
   Message,
   PlayerId,
   PlayerInfo,
@@ -185,7 +184,7 @@ function clamp(value: number, min: number, max: number): number {
 const NO_INVULNERABLE: readonly (readonly [PlayerId, number])[] = []
 
 const HOST_MESSAGES = new Set<Message['t']>([
-  'dropped', 'chatted', 'left', 'words', 'lives', 'duelWhiteboard', 'duelResults',
+  'dropped', 'chatted', 'left', 'words', 'lives', 'duelResults',
   'duelAttacks', 'sync', 'over',
   'rematchList', 'restart', 'room',
 ])
@@ -229,9 +228,6 @@ interface MatchViewState {
   /** 합성 가능한 단어 → 내 받침대에서 붙일 짝 물건. */
   readonly wordMergeHints: ReadonlyMap<string, readonly MergeHint[]>
   readonly pairPulse: number
-  readonly whiteboard: readonly string[]
-  readonly activeWhiteboard: readonly string[]
-  readonly heartReward: DuelHeartReward | null
   /** 내 게임판에서 방금 성공한 합성. 상대 합성은 각자 자기 화면에서만 강조한다. */
   readonly mergeFeedback: DuelMergeFeedback | null
   readonly aimNormalized: number
@@ -298,8 +294,6 @@ interface DuelWordClaim {
   readonly side: FallingWord['side']
   readonly slot: number
   readonly y: number
-  /** 화이트보드 단어를 가져가 생명 보상을 받은 획득인지 여부. */
-  readonly lifeReward: boolean
 }
 
 interface DuelMergeFeedback {
@@ -1541,7 +1535,7 @@ class MatchEngine {
     this.emit()
   }
 
-  private recordWordClaim(target: FallingWord, by: PlayerId, lifeReward = false): void {
+  private recordWordClaim(target: FallingWord, by: PlayerId): void {
     if (this.matchMode !== 'duel') return
     this.wordClaims = [
       ...this.wordClaims.filter((claim) => claim.expiresAt > this.elapsed),
@@ -1552,7 +1546,6 @@ class MatchEngine {
         side: target.side,
         slot: target.slot,
         y: target.y,
-        lifeReward,
         expiresAt: this.elapsed + DUEL_WORD_CLAIM_SEC,
       },
     ].slice(-MAX_ON_SCREEN)
@@ -1644,9 +1637,6 @@ class MatchEngine {
         if (!this.isHost) {
           this.applyLives(message.lives)
         }
-        break
-      case 'duelWhiteboard':
-        // 구형 참가자의 메시지는 파싱만 하고 생존전 규칙에서는 무시한다.
         break
       case 'duelResults':
         if (!this.isHost && this.duelRace !== null) {
@@ -2536,9 +2526,6 @@ class MatchEngine {
       wordMergeSizes: this.wordMergeSizesFor(this.transport.selfId),
       wordMergeHints: this.wordMergeHintsFor(this.transport.selfId),
       pairPulse: pairPulse(this.elapsed),
-      whiteboard: [],
-      activeWhiteboard: [],
-      heartReward: null,
       mergeFeedback: this.mergeFeedback,
       aimNormalized: this.aimer.normalized,
       chat: this.chat.view,

@@ -10,17 +10,10 @@ describe('대결 개인 결과 안내', () => {
     })
   })
 
-  it('첫 골인과 마지막 생존은 이겼다고 표시한다', () => {
-    expect(duelStatusMessage({ id: 'a', placement: 1, outcome: 'goal' }).title)
-      .toBe('이겼습니다')
-    expect(duelStatusMessage({ id: 'a', placement: 1, outcome: 'survived' }).title)
-      .toBe('이겼습니다')
-  })
-
-  it('1위가 아닌 골인은 골인과 확정 순위를 표시한다', () => {
-    expect(duelStatusMessage({ id: 'a', placement: 2, outcome: 'goal' })).toEqual({
-      title: '골인했습니다',
-      detail: '2위가 확정됐습니다',
+  it('마지막 생존자는 이겼다고 표시한다', () => {
+    expect(duelStatusMessage({ id: 'a', placement: 1, outcome: 'survived' })).toEqual({
+      title: '이겼습니다',
+      detail: '마지막까지 생존했습니다',
       tone: 'success',
     })
   })

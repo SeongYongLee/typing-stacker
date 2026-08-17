@@ -1,6 +1,6 @@
 import type { PlayerId, PlayerInfo } from './protocol.ts'
 
-type DuelOutcome = 'goal' | 'out' | 'survived'
+type DuelOutcome = 'out' | 'survived'
 
 interface DuelResult {
   readonly id: PlayerId
@@ -8,7 +8,7 @@ interface DuelResult {
   readonly outcome: DuelOutcome
 }
 
-/** 대결의 골인·탈락 순위를 앞과 뒤에서 각각 채운다. */
+/** 탈락 순위를 뒤에서 채우고 마지막 생존자를 1위로 확정한다. */
 class DuelRace {
   private readonly order: readonly PlayerId[]
   private readonly byId = new Map<PlayerId, DuelResult>()
@@ -35,19 +35,6 @@ class DuelRace {
     return this.byId.get(id) ?? null
   }
 
-  finishGoals(ids: readonly PlayerId[]): readonly DuelResult[] {
-    const added: DuelResult[] = []
-    let placement = [...this.byId.values()].filter((result) => result.outcome === 'goal').length + 1
-    for (const id of ids) {
-      if (!this.isActive(id)) continue
-      const result = { id, placement, outcome: 'goal' as const }
-      this.byId.set(id, result)
-      added.push(result)
-      placement += 1
-    }
-    return added
-  }
-
   eliminate(ids: readonly PlayerId[]): readonly DuelResult[] {
     const active = ids.filter((id, index) => this.isActive(id) && ids.indexOf(id) === index)
     if (active.length === 0) return []
@@ -61,13 +48,12 @@ class DuelRace {
     })
   }
 
-  /** 한 명만 남으면 그 사람에게 골인자와 탈락자 사이의 빈 순위를 준다. */
+  /** 한 명만 남으면 마지막 생존자로 1위를 확정한다. */
   settleLast(): DuelResult | null {
     if (this.activeCount !== 1) return null
     const id = this.order.find((candidate) => this.isActive(candidate))
     if (id === undefined) return null
-    const goalCount = [...this.byId.values()].filter((result) => result.outcome === 'goal').length
-    const result = { id, placement: goalCount + 1, outcome: 'survived' as const }
+    const result = { id, placement: 1, outcome: 'survived' as const }
     this.byId.set(id, result)
     return result
   }

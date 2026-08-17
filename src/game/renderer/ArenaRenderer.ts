@@ -225,8 +225,6 @@ interface ArenaRenderState {
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
   readonly duelTowers?: readonly DuelTowerRenderState[]
-  /** 대결 전체가 공유하는 골인 높이. */
-  readonly duelGoalY?: number
 }
 
 interface DuelTowerRenderState {
@@ -249,7 +247,7 @@ interface DuelTowerRenderState {
   readonly pairPulse?: number
   readonly result: {
     readonly placement: number
-    readonly outcome: 'goal' | 'out' | 'survived'
+    readonly outcome: 'out' | 'survived'
   } | null
   /** 0에서 1까지 진행하며 완료된 타워와 받침대를 함께 지운다. */
   readonly exitProgress: number
@@ -278,36 +276,6 @@ const KILL_LINE_MARGIN = -0.18
 const WORLD_TOP = Math.max(ARENA.height, ARENA.spawnY + 0.8)
 const WORLD_HEIGHT = WORLD_TOP - ARENA.killY + KILL_LINE_MARGIN
 const WORLD_WIDTH = ARENA.halfWidth * 2
-
-function drawDuelGoal(view: ArenaView, width: number, goalY: number): void {
-  const { ctx } = view
-  const y = view.toScreenY(goalY)
-  if (y < 0 || y > view.cssHeight) {
-    return
-  }
-
-  const inset = Math.min(22, width * 0.04)
-  ctx.save()
-  ctx.fillStyle = 'rgba(228, 230, 138, 0.13)'
-  ctx.fillRect(inset, y - 9, width - inset * 2, 18)
-  ctx.strokeStyle = '#f3f59b'
-  ctx.lineWidth = 4
-  ctx.lineCap = 'round'
-  ctx.setLineDash([12, 7])
-  ctx.beginPath()
-  ctx.moveTo(inset, y)
-  ctx.lineTo(width - inset, y)
-  ctx.stroke()
-  ctx.setLineDash([])
-  ctx.fillStyle = '#f7f8ad'
-  ctx.font = '900 23px sans-serif'
-  ctx.textAlign = 'right'
-  ctx.textBaseline = 'bottom'
-  ctx.shadowColor = 'rgba(5, 9, 17, 0.82)'
-  ctx.shadowBlur = 9
-  ctx.fillText('골인', width - inset, y - 11)
-  ctx.restore()
-}
 
 function drawDuelIdentity(
   view: ArenaView,
@@ -357,7 +325,7 @@ function drawDuelResult(
   const { ctx } = view
   const succeeded = result.outcome !== 'out'
   const color = succeeded ? '#6bffb0' : '#ff6b6b'
-  const label = result.outcome === 'goal' ? '골인' : result.outcome === 'out' ? '탈락' : '생존'
+  const label = result.outcome === 'out' ? '탈락' : '생존'
   const alpha = Math.max(0, 1 - progress)
   ctx.save()
   ctx.globalAlpha = alpha
@@ -423,7 +391,7 @@ class ArenaRenderer {
     const view = this.view()
     ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
     if (state.duelTowers !== undefined && state.duelTowers.length > 0) {
-      this.drawDuel(state.duelTowers, state.duelGoalY)
+      this.drawDuel(state.duelTowers)
       return
     }
 
@@ -531,28 +499,11 @@ class ArenaRenderer {
     ctx.restore()
   }
 
-  private drawDuel(towers: readonly DuelTowerRenderState[], goalY?: number): void {
+  private drawDuel(towers: readonly DuelTowerRenderState[]): void {
     const { ctx } = this
     const count = Math.max(1, towers.length)
     const gap = 12
     const width = (this.cssWidth - gap * (count - 1)) / count
-    const commonScale = Math.min(width / WORLD_WIDTH, this.cssHeight / WORLD_HEIGHT)
-    const commonCameraY = towers[0]?.cameraY ?? 0
-    const goalView: ArenaView | null = goalY === undefined
-      ? null
-      : {
-        ctx,
-        scale: commonScale,
-        cssWidth: this.cssWidth,
-        cssHeight: this.cssHeight,
-        cameraY: commonCameraY,
-        nightfall: this.nightfall,
-        toScreenX: (worldX) => this.cssWidth / 2 + worldX * commonScale,
-        toScreenY: (worldY) => (
-          this.cssHeight - KILL_LINE_MARGIN * commonScale -
-          (worldY - ARENA.killY - commonCameraY) * commonScale
-        ),
-      }
     for (let index = 0; index < towers.length; index += 1) {
       const tower = towers[index]
       if (tower === undefined) {
@@ -615,10 +566,6 @@ class ArenaRenderer {
         drawDuelResult(view, left, width, tower.result, tower.exitProgress)
       }
       ctx.restore()
-    }
-    // 물건과 받침대 뒤에 그리면 목표 높이에 도달할수록 선이 가려진다.
-    if (goalView !== null && goalY !== undefined) {
-      drawDuelGoal(goalView, this.cssWidth, goalY)
     }
   }
 

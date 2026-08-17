@@ -30,7 +30,6 @@ const MAX_WELDS = 256
 /** 한 키프레임에 허용할 물건 수. 64KB 전송 상한보다 먼저 의미 범위를 제한한다. */
 const MAX_BODIES = 128
 const MAX_DUEL_LEDGES = 32
-const MAX_WHITEBOARD_WORDS = 3
 /** Rapier에 넘기기 전 클라이언트 안정성을 지키는 보수적인 물리 값 범위. */
 const MAX_POSITION = 100
 const MAX_SPEED = 100
@@ -81,13 +80,6 @@ interface DuelLedgeFrame {
   readonly x: number
   readonly y: number
   readonly halfWidth: number
-}
-
-interface DuelHeartReward {
-  readonly seq: number
-  readonly player: PlayerId
-  readonly word: string
-  readonly index: number
 }
 
 type DuelDropSource = 'input' | 'timeout' | 'attack'
@@ -199,12 +191,6 @@ type ToGuest =
    */
   | { readonly t: 'words'; readonly words: readonly FallingWord[]; readonly matchId?: string }
   | { readonly t: 'lives'; readonly lives: readonly (readonly [PlayerId, number])[]; readonly matchId?: string }
-  | {
-      readonly t: 'duelWhiteboard'
-      readonly words: readonly string[]
-      readonly reward?: DuelHeartReward
-      readonly matchId?: string
-    }
   /** 대결에서 이미 순위가 정해진 사람들. 방장이 전체 목록을 덮어써서 동기화한다. */
   | { readonly t: 'duelResults'; readonly results: readonly DuelResult[]; readonly matchId?: string }
   /** 상대 합성으로 예약된 공격. 방장이 전체 목록을 덮어써서 동기화한다. */
@@ -445,39 +431,6 @@ function parseMessage(raw: unknown): Message | null {
       const matchId = optionalShortString(raw['matchId'], 96)
       return matchId === null ? null : { t: 'lives', lives, ...matchId }
     }
-    case 'duelWhiteboard': {
-      if (!Array.isArray(raw['words'])) return null
-      const words: string[] = []
-      for (const word of raw['words']) {
-        if (!isShortString(word, 20) || words.includes(word)) return null
-        words.push(word)
-        if (words.length > MAX_WHITEBOARD_WORDS) return null
-      }
-      let reward: DuelHeartReward | undefined
-      if (raw['reward'] !== undefined) {
-        const value = raw['reward']
-        if (
-          !isRecord(value) ||
-          !Number.isSafeInteger(value['seq']) ||
-          (value['seq'] as number) < 1 ||
-          !isShortString(value['player'], 64) ||
-          !isShortString(value['word'], 20) ||
-          !Number.isSafeInteger(value['index']) ||
-          (value['index'] as number) < 0 ||
-          (value['index'] as number) >= MAX_WHITEBOARD_WORDS
-        ) return null
-        reward = {
-          seq: value['seq'] as number,
-          player: value['player'],
-          word: value['word'],
-          index: value['index'] as number,
-        }
-      }
-      const matchId = optionalShortString(raw['matchId'], 96)
-      return matchId === null
-        ? null
-        : { t: 'duelWhiteboard', words, ...(reward === undefined ? {} : { reward }), ...matchId }
-    }
     case 'duelResults': {
       if (!Array.isArray(raw['results'])) return null
       const results: DuelResult[] = []
@@ -488,7 +441,7 @@ function parseMessage(raw: unknown): Message | null {
         const placement = entry['placement'] as number
         if (placement < 1 || placement > MAX_PLAYERS) continue
         const outcome = entry['outcome']
-        if (outcome !== 'goal' && outcome !== 'out' && outcome !== 'survived') continue
+        if (outcome !== 'out' && outcome !== 'survived') continue
         ids.add(entry['id'])
         results.push({ id: entry['id'], placement, outcome: outcome as DuelOutcome })
         if (results.length >= MAX_PLAYERS) break
@@ -810,7 +763,6 @@ export type {
   Message,
   BodyFrame,
   DuelLedgeFrame,
-  DuelHeartReward,
   DuelDropSource,
   DuelAttackPhase,
   DuelAttackFrame,

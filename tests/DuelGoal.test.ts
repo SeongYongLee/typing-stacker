@@ -75,7 +75,7 @@ afterEach(() => {
 })
 
 describe('대결 생존전', () => {
-  it('골인선을 그리지 않고 각 타워의 이름만 보여준다', () => {
+  it('각 타워의 이름을 별도 목표선 없이 보여준다', () => {
     const { canvas, texts, dashes, strokeRects } = makeCanvas()
     new ArenaRenderer(canvas).draw({
       bodies: [],
@@ -118,7 +118,6 @@ describe('대결 생존전', () => {
       ],
     })
 
-    expect(texts).not.toContain('골인')
     expect(dashes.filter((dash) => dash.join(',') === '12,7')).toHaveLength(0)
     expect(texts).toContain('자두 · 나')
     expect(texts).toContain('매실')

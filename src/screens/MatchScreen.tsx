@@ -67,22 +67,9 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
     const names = new Map(state.players.map((player) => [player.id, player.nickname]))
     return state.wordClaims.map((claim) => {
       const nickname = names.get(claim.by) ?? '누군가'
-      const reward = claim.lifeReward ? ' · 생명 +1' : ''
-      return { ...claim, label: `${withSubject(nickname)} 가져감${reward}` }
+      return { ...claim, label: `${withSubject(nickname)} 가져감` }
     })
   }, [state.players, state.wordClaims])
-  const whiteboardClaim = useMemo(() => {
-    const reward = state.heartReward
-    if (reward === null) return null
-    const nickname = state.players.find((player) => player.id === reward.player)?.nickname
-      ?? '누군가'
-    return {
-      seq: reward.seq,
-      word: reward.word,
-      index: reward.index,
-      label: `${withSubject(nickname)} 가져감`,
-    }
-  }, [state.heartReward, state.players])
   const typingWords = state.matchMode === 'duel'
     ? state.words.filter((word) => (
         state.players[(word.id - 1) % state.players.length]?.id === state.selfId
@@ -111,9 +98,6 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
       <ArenaBackdrop
         mode="match"
         nightfall={nightfall}
-        whiteboard={state.whiteboard}
-        activeWhiteboard={state.activeWhiteboard}
-        whiteboardClaim={whiteboardClaim}
       />
       <Scoreboard state={state} onLeave={onLeave} />
 
@@ -128,8 +112,6 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             mergeSizes={state.wordMergeSizes}
             mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
-            recallWords={state.whiteboard}
-            recallMarker="heart"
             claims={wordClaims}
           />
           <div
@@ -163,12 +145,9 @@ function MatchScreen({ engine, state, onLeave }: MatchScreenProps) {
             mergeSizes={state.wordMergeSizes}
             mergeHints={state.wordMergeHints}
             pairPulse={state.pairPulse}
-            recallWords={state.whiteboard}
-            recallMarker="heart"
             claims={wordClaims}
           />
         </div>
-        <HeartRewardFlight state={state} />
         <DuelMergeFeedback state={state} />
         {state.phase === 'over' && (
           <Verdict
@@ -415,68 +394,6 @@ const complexMergeRingStyle: CSSProperties = {
   width: 104,
   height: 104,
   border: '4px solid rgba(255, 207, 92, 0.9)',
-}
-
-function HeartRewardFlight({ state }: { state: MatchViewState }) {
-  const ref = useRef<HTMLSpanElement | null>(null)
-  const reward = state.heartReward
-  const seq = reward?.seq
-
-  useLayoutEffect(() => {
-    const element = ref.current
-    if (reward === null || element === null) return
-    const screen = element.closest<HTMLElement>('[data-match-screen]')
-    const player = [...(screen?.querySelectorAll<HTMLElement>('[data-player-id]') ?? [])]
-      .find((candidate) => candidate.dataset.playerId === reward.player)
-    const hearts = [...(player?.querySelectorAll<HTMLElement>('[data-heart-slot]') ?? [])]
-    const target = hearts.findLast((heart) => Number(heart.dataset.heart) > 0) ?? hearts[0]
-    const layer = element.offsetParent as HTMLElement | null
-    if (target === undefined || layer === null) return
-
-    const layerRect = layer.getBoundingClientRect()
-    const targetRect = target.getBoundingClientRect()
-    const startLeft = [44, 50, 56][reward.index] ?? 50
-    const startX = layerRect.width * startLeft / 100
-    const startY = layerRect.height * 0.31
-    const targetX = targetRect.left + targetRect.width / 2 - layerRect.left
-    const targetY = targetRect.top + targetRect.height / 2 - layerRect.top
-    const animation = play(
-      element,
-      [
-        { left: `${startX}px`, top: `${startY}px`, transform: 'translate(-50%, -50%) scale(0.5)', opacity: 0 },
-        { left: `${startX}px`, top: `${startY - layerRect.height * 0.05}px`, transform: 'translate(-50%, -50%) scale(1.25)', opacity: 1, offset: 0.18 },
-        { left: `${(startX + targetX) / 2}px`, top: `${Math.min(startY, targetY) - layerRect.height * 0.14}px`, transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.54 },
-        { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -50%) scale(0.82)', opacity: 1, offset: 0.9 },
-        { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -50%) scale(0.72)', opacity: 0 },
-      ],
-      { duration: 2400, easing: 'cubic-bezier(0.32, 0.04, 0.3, 1)' },
-    )
-    return () => animation?.cancel()
-  }, [reward, seq])
-
-  if (reward === null) return null
-  return (
-    <span
-      key={reward.seq}
-      ref={ref}
-      aria-hidden
-      data-heart-reward={reward.player}
-      style={{
-        position: 'absolute',
-        left: '50%',
-        top: '31%',
-        zIndex: 6,
-        color: '#ff6b78',
-        fontSize: 34,
-        lineHeight: 1,
-        opacity: 0,
-        pointerEvents: 'none',
-        textShadow: '0 2px 0 #fff0e1, 0 0 14px rgba(255, 107, 120, 0.72)',
-      }}
-    >
-      ♥
-    </span>
-  )
 }
 
 /** 양쪽 이름·목숨·현재 턴. 색 점이 아레나의 물건 윤곽색과 대조된다 */

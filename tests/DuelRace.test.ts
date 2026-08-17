@@ -10,13 +10,12 @@ const PLAYERS: readonly PlayerInfo[] = ['a', 'b', 'c', 'd'].map((id) => ({
 }))
 
 describe('DuelRace', () => {
-  it('골인은 앞에서, 탈락은 뒤에서 순위를 채운다', () => {
+  it('탈락 순위를 뒤에서 채운다', () => {
     const race = new DuelRace(PLAYERS)
 
-    expect(race.finishGoals(['b'])).toEqual([{ id: 'b', placement: 1, outcome: 'goal' }])
     expect(race.eliminate(['d'])).toEqual([{ id: 'd', placement: 4, outcome: 'out' }])
-    expect(race.activeCount).toBe(2)
-    expect(race.winner()).toBe('b')
+    expect(race.activeCount).toBe(3)
+    expect(race.winner()).toBeNull()
   })
 
   it('같은 판정에서 탈락하면 공동 순위다', () => {
@@ -28,18 +27,19 @@ describe('DuelRace', () => {
     ])
   })
 
-  it('한 명만 남으면 골인자와 탈락자 사이의 순위를 확정한다', () => {
+  it('한 명만 남으면 마지막 생존자를 1위로 확정한다', () => {
     const race = new DuelRace(PLAYERS)
-    race.finishGoals(['b'])
-    race.eliminate(['d', 'c'])
+    race.eliminate(['d'])
+    race.eliminate(['c'])
+    race.eliminate(['b'])
 
-    expect(race.settleLast()).toEqual({ id: 'a', placement: 2, outcome: 'survived' })
+    expect(race.settleLast()).toEqual({ id: 'a', placement: 1, outcome: 'survived' })
     expect(race.activeCount).toBe(0)
     expect(race.results.map(({ id, placement }) => [id, placement])).toEqual([
-      ['b', 1],
-      ['a', 2],
+      ['a', 1],
+      ['b', 2],
       ['c', 3],
-      ['d', 3],
+      ['d', 4],
     ])
   })
 

@@ -74,7 +74,6 @@ interface RunResult {
   readonly nonIngredientDrops: number
   readonly pairWindows: number
   readonly sceneWindows: number
-  readonly feverDrops: number
   readonly capped: boolean
 }
 
@@ -92,7 +91,6 @@ describe('레시피 중심 스폰 실측', () => {
     let nonIngredientDrops = 0
     let pairWindows = 0
     let sceneWindows = 0
-    let feverDrops = 0
     const words = new Set<string>()
     const itemHistory: string[] = []
 
@@ -102,9 +100,7 @@ describe('레시피 중심 스폰 실측', () => {
     engine.onEvent((event: GameEvent) => {
       if (event.kind === 'drop') {
         drops += 1
-        if (event.source === 'fever') {
-          feverDrops += 1
-        } else {
+        if (event.source === 'input') {
           inputDrops += 1
         }
       }
@@ -156,7 +152,6 @@ describe('레시피 중심 스폰 실측', () => {
       nonIngredientDrops,
       pairWindows,
       sceneWindows,
-      feverDrops,
       capped: seconds >= MAX_RUN_SEC,
     }
   }
@@ -174,8 +169,8 @@ describe('레시피 중심 스폰 실측', () => {
     const rows: [string, string][] = [
       ['판 길이', `${mean((run) => run.seconds).toFixed(1)}초`],
       [
-        '전체 드롭 / 입력 / Fever',
-        `${mean((run) => run.drops).toFixed(1)} / ${mean((run) => run.inputDrops).toFixed(1)} / ${mean((run) => run.feverDrops).toFixed(1)}`,
+        '전체 드롭 / 입력',
+        `${mean((run) => run.drops).toFixed(1)} / ${mean((run) => run.inputDrops).toFixed(1)}`,
       ],
       ['고유 단어', mean((run) => run.uniqueWords).toFixed(1)],
       [

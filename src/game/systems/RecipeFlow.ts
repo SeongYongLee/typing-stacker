@@ -1,13 +1,9 @@
 import { craftKeyOf, ingredientCountForRecipe, type Recipe } from '../data/recipes.ts'
 import type { WordEntry } from '../types/game.ts'
-import type { Phase } from './DayNight.ts'
 import type { Rng } from './Rng.ts'
 
-/** 낮에는 재료 둘 뒤, 밤에는 셋 뒤에 다른 무리의 단어를 섞는다. */
-const RECIPE_PICKS_BEFORE_AMBIENT: Readonly<Record<Phase, number>> = {
-  day: 2,
-  night: 3,
-}
+/** 레시피 재료 둘 뒤에는 다른 무리의 단어를 섞는다. */
+const RECIPE_PICKS_BEFORE_AMBIENT = 2
 
 /** 히든이나 이탈로 재료가 사라져도 영원히 같은 조합에 갇히지 않게 하는 여유다. */
 const EXTRA_RECIPE_OFFERS = 2
@@ -73,7 +69,6 @@ function groupRecipes(
 class RecipeFlow {
   private readonly rng: Rng
   private readonly groups: RecipeGroups
-  private phase: Phase = 'day'
   private availableRaw: ReadonlyMap<string, number> = EMPTY_COUNTS
   private available: ReadonlyMap<string, number> = EMPTY_COUNTS
   private focus: Recipe | null = null
@@ -91,16 +86,6 @@ class RecipeFlow {
     this.groups = groupRecipes(entries, recipes)
   }
 
-  setPhase(phase: Phase): void {
-    if (phase === this.phase) {
-      return
-    }
-    this.phase = phase
-    this.focus = null
-    this.focusOffers = 0
-    this.recipePicksSinceAmbient = 0
-  }
-
   /** 지금 판에 존재하거나 곧 떨어질 재료 개수다. 호출부가 재료 구성이 바뀔 때 갱신한다. */
   observe(available: ReadonlyMap<string, number>): void {
     this.availableRaw = new Map(available)
@@ -110,9 +95,7 @@ class RecipeFlow {
   /**
    * 다음 스폰보다 먼저 집중 레시피를 확정하고, 그 레시피에서 단어로 낼 수 있는 재료를 돌려준다.
    *
-   * 화이트보드는 이 목록을 후보에서 뺀 뒤 자기 단어를 고른다. `pick()` 안에서 처음
-   * 레시피를 정하면 보드가 먼저 뽑혀 같은 재료를 회수 대상으로 잡을 수 있으므로,
-   * 선택 순서를 공개 계약으로 둔다.
+   * 외부에서 다음 스폰 전에 집중 재료를 확인해야 할 때 쓰는 공개 계약이다.
    */
   prepareFocusWords(): readonly string[] {
     const focus = this.ensureFocus()
@@ -136,8 +119,7 @@ class RecipeFlow {
     }
 
     const focus = this.ensureFocus()
-    const quota = RECIPE_PICKS_BEFORE_AMBIENT[this.phase]
-    if (this.recipePicksSinceAmbient >= quota) {
+    if (this.recipePicksSinceAmbient >= RECIPE_PICKS_BEFORE_AMBIENT) {
       const ambient = this.pickAmbient(candidates)
       if (ambient !== null) {
         return this.rememberAmbient(ambient)

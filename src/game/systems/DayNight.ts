@@ -1,14 +1,6 @@
-import { NIGHT_SCORE_TARGETS } from '../config.ts'
-
 /**
- * 판의 시간 — 낮과 Night Fever.
- *
- * 낮에는 평소처럼 타이핑해 쌓고, 밤에는 레시피 재료가 더 촘촘하게 나오며
- * `NightFever`가 레시피 묶음을 직접 떨군다. 화면·음악·무적 규칙이 모두 이 국면을
- * 함께 보므로, **화면이 밤이면 Fever**라는 한 가지 계약만 남는다.
- *
- * 낙하 속도와 단어 밀도는 여기서 바꾸지 않는다. 그쪽은 탑 높이를 따라가는
- * `Difficulty`의 책임이고, 시간은 어떤 종류의 기회가 열리는지만 정한다.
+ * 180초 조명 주기를 낮과 밤의 화면 상태로 바꾼다.
+ * 이 값은 배경과 시계 표현만 바꾸며 게임 규칙이나 난이도에는 영향을 주지 않는다.
  */
 type Phase = 'day' | 'night'
 
@@ -51,22 +43,6 @@ function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1)
 }
 
-/** 각 낮이 시작될 때 누적 점수에 맞는 목표를 정한다. 사이 값은 부드럽게 이어진다. */
-function nightScoreTargetAt(score: number): number {
-  const safe = Math.max(0, score)
-  const last = NIGHT_SCORE_TARGETS.at(-1)!
-  if (safe >= last.score) return last.target
-
-  for (let index = 1; index < NIGHT_SCORE_TARGETS.length; index += 1) {
-    const right = NIGHT_SCORE_TARGETS[index]!
-    if (safe > right.score) continue
-    const left = NIGHT_SCORE_TARGETS[index - 1]!
-    const progress = (safe - left.score) / (right.score - left.score)
-    return left.target + (right.target - left.target) * progress
-  }
-  return last.target
-}
-
 /**
  * 시계 한 바퀴 안에서 얼마나 왔는가(0 → 낮의 시작, 1 → 밤의 끝).
  *
@@ -83,7 +59,6 @@ function cycleOf(time: TimeOfDay): number {
 
 export {
   timeOfDay,
-  nightScoreTargetAt,
   cycleOf,
   DAY_CLOCK_SHARE,
   DUSK_PROGRESS,

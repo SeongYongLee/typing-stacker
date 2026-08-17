@@ -160,8 +160,6 @@ interface EscapeEvent {
    * 그쪽은 `owner`·`variant`·`x`·`y`만 본다.
    */
   readonly recalled?: boolean
-  /** Night Fever 중 움직였던 물건인가. 낮에 뒤늦게 떨어져도 목숨을 깎지 않는다. */
-  readonly nightProtected?: boolean
   /** 벗어난 자리(월드 좌표) */
   readonly x: number
   readonly y: number
@@ -230,12 +228,8 @@ interface TrackedBody {
    * 수도 있다. 떨어뜨릴 때 표를 달아두면 그 물건 하나만 정확히 가려낸다.
    */
   readonly recalled: boolean
-  /** Night Fever 자동 낙하인지. 물리에는 영향이 없고 렌더 스냅샷까지 전달한다. */
-  readonly fever: boolean
-  /** 혼잡 경보가 반입한 물건인지. Night Fever와 시각 연출을 분리한다. */
+  /** 혼잡 경보가 반입한 물건인지. 일반 입력과 시각 연출을 분리한다. */
   readonly congestion: boolean
-  /** Night Fever 중 한 번이라도 움직여 낮 이후 이탈까지 보호받는가. */
-  nightProtected: boolean
   /**
    * 한 번이라도 자리를 잃은 적이 있는지.
    * 되돌리지 않는다 — 흔들린 스택은 계속 불안정한 것으로 취급한다.
@@ -419,10 +413,9 @@ class PhysicsWorld {
     owner: OwnerId,
     itemId = 0,
     recalled = false,
-    fever = false,
     congestion = false,
   ): number {
-    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled, fever, congestion)
+    return this.spawnItemAt(variant, x, ARENA.spawnY, owner, itemId, recalled, congestion)
   }
 
   /**
@@ -436,7 +429,6 @@ class PhysicsWorld {
     owner: OwnerId,
     itemId = 0,
     recalled = false,
-    fever = false,
     congestion = false,
   ): number {
     return this.spawnItemMovingAt(
@@ -448,8 +440,6 @@ class PhysicsWorld {
       recalled,
       { x: 0, y: 0 },
       0,
-      fever,
-      fever,
       congestion,
     )
   }
@@ -463,8 +453,6 @@ class PhysicsWorld {
     recalled = false,
     velocity: Vec2 = { x: 0, y: 0 },
     angularVelocity = 0,
-    fever = false,
-    nightProtected = fever,
     congestion = false,
   ): number {
     const bodyDesc = rapier().RigidBodyDesc.dynamic()
@@ -513,9 +501,7 @@ class PhysicsWorld {
       owner,
       itemId,
       recalled,
-      fever,
       congestion,
-      nightProtected,
       // 콜라이더를 다 붙인 뒤라야 실제 질량이 나온다
       heavy: body.mass() >= HEAVY_MASS,
       shakes:
@@ -742,8 +728,6 @@ class PhysicsWorld {
     }
     const x = sumX / entries.length
     const y = sumY / entries.length
-    const nightProtected = entries.some((entry) => entry.nightProtected)
-
     for (const entry of entries) {
       this.forgetWelds(entry.body.handle)
       this.tracked.delete(entry.body.handle)
@@ -751,13 +735,10 @@ class PhysicsWorld {
     }
     this.noteCompositionChanged()
 
-    const created = this.spawnItemAt(result, x, y, owner, itemId)
-    const entry = this.tracked.get(created)
-    if (entry !== undefined) entry.nightProtected = nightProtected
-    return created
+    return this.spawnItemAt(result, x, y, owner, itemId)
   }
 
-  step(dt: number, protectNightMovement = false): StepResult {
+  step(dt: number): StepResult {
     this.accumulator += dt
     let steps = 0
     while (this.accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
@@ -801,13 +782,6 @@ class PhysicsWorld {
       entry.lastY = y
       const velocity = entry.body.linvel()
       const speed = Math.hypot(velocity.x, velocity.y)
-      if (
-        protectNightMovement &&
-        (!entry.settled || speed >= SETTLE_SPEED || Math.abs(entry.body.angvel()) >= 1)
-      ) {
-        entry.nightProtected = true
-      }
-
       // 화면 밖으로 완전히 나갔으면 이제 치운다
       if (isOutOfSight(x, y)) {
         goneHandles.push(handle)
@@ -830,7 +804,6 @@ class PhysicsWorld {
             x,
             y,
             recalled: entry.recalled,
-            nightProtected: entry.nightProtected,
           })
           goneHandles.push(handle)
         }
@@ -997,7 +970,6 @@ class PhysicsWorld {
         rotation: 0,
         settled: false,
         recalled: false,
-        fever: false,
         congestion: false,
       })
       slot.handle = handle
@@ -1008,7 +980,6 @@ class PhysicsWorld {
       slot.rotation = rotation
       slot.settled = entry.settled
       slot.recalled = entry.recalled
-      slot.fever = entry.fever
       slot.congestion = entry.congestion
       count += 1
     }

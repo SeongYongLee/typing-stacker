@@ -239,6 +239,10 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         locked={state.stage.congestionDemo === 'wordRush'}
       />
 
+      {state.complexMergeFocus !== null && (
+        <ComplexMergeSpotlight progress={state.complexMergeFocus} />
+      )}
+
       {/* 화면 전체를 덮는다. 아레나 안쪽에만 두면 HUD와 입력칸이 살아 있는 것처럼 보인다 */}
       {paused && !options && (
         <PauseOverlay
@@ -254,6 +258,33 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * 다중 합성 슬로모션이 성능 저하가 아니라 의도된 집중 장면으로 읽히게 한다.
+ * 실제 합성 공개 연출이 뜨는 상단 중앙은 비워 두고, 나머지 게임 화면만 부드럽게 누른다.
+ */
+function ComplexMergeSpotlight({ progress }: { progress: number }) {
+  const fadeIn = Math.min(progress / 0.16, 1)
+  const fadeOut = Math.min((1 - progress) / 0.28, 1)
+  const linearOpacity = Math.max(0, Math.min(fadeIn, fadeOut))
+  const opacity = linearOpacity * linearOpacity * (3 - 2 * linearOpacity)
+
+  return (
+    <div
+      aria-hidden
+      data-complex-merge-spotlight
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 7,
+        pointerEvents: 'none',
+        opacity,
+        background:
+          'radial-gradient(ellipse 290px 235px at 50% max(96px, 20%), transparent 0%, transparent 56%, rgba(5, 7, 12, 0.28) 76%, rgba(5, 7, 12, 0.76) 100%)',
+      }}
+    />
   )
 }
 

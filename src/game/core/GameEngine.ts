@@ -136,7 +136,7 @@ const TUTORIAL_STEPS = [
 const MERGE_REVEAL_SEC = 3
 /** 3개 이상 합성 직후 세계가 거의 멈춘 듯 보이는 시간과 속도 */
 const COMPLEX_MERGE_REVEAL_SEC = 4.2
-const COMPLEX_MERGE_SLOW_SEC = 0.8
+const COMPLEX_MERGE_SLOW_SEC = 1.2
 const COMPLEX_MERGE_TIME_SCALE = 0.035
 /** 회전한 큰 물체와 화면 경계 연출까지 남겨두는 렌더 월드 여백. */
 const RENDER_VERTICAL_MARGIN = 1.5
@@ -194,6 +194,8 @@ interface GameState {
   readonly aimNormalized: number
   readonly stats: RunStats
   readonly feedback: SubmitFeedback | null
+  /** 3개 이상 합성 슬로모션의 진행도. 해당 연출이 아니면 null이다. */
+  readonly complexMergeFocus: number | null
   /** 판이 새로 시작될 때마다 올라간다. UI가 입력창을 초기화하는 신호 */
   readonly runSeq: number
   /**
@@ -1753,6 +1755,10 @@ class GameEngine {
         this.elapsed,
       ),
       feedback: this.feedback,
+      complexMergeFocus:
+        this.complexMergeSlowLeft > 0
+          ? Math.min(Math.max(1 - this.complexMergeSlowLeft / COMPLEX_MERGE_SLOW_SEC, 0), 1)
+          : null,
       runSeq: this.runSeq,
       invulnerable: this.invulnerableLeft / INVULNERABLE_SEC,
       collected: this.collection.ids,

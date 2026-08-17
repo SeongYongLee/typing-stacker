@@ -113,27 +113,4 @@ describe('WordSpawner', () => {
     expect(spawner.words).toHaveLength(1)
   })
 
-  it('선호 단어는 더 자주 나온다', () => {
-    const pool = WORDS.slice(0, 2)
-    const preferred = pool[1]
-    const other = pool[0]
-    expect(preferred).toBeDefined()
-    expect(other).toBeDefined()
-
-    const spawner = new WordSpawner(createRng(20260810), WORDS)
-    spawner.restrict(pool)
-    spawner.prefer([preferred!.word])
-    const pickOnly = { ...DIFFICULTY, spawnInterval: 0, fallDuration: 1000, maxConcurrent: 1 }
-
-    const seen = new Map<string, number>()
-    for (let i = 0; i < 80; i += 1) {
-      spawner.update(1 / 60, pickOnly)
-      const word = spawner.words.find((entry) => entry.state === 'active')
-      expect(word).toBeDefined()
-      seen.set(word!.word, (seen.get(word!.word) ?? 0) + 1)
-      spawner.remove(word!.id)
-    }
-
-    expect(seen.get(preferred!.word) ?? 0).toBeGreaterThan(seen.get(other!.word) ?? 0)
-  })
 })

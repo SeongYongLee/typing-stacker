@@ -8,12 +8,10 @@
 
 - `src/game/systems/RecipeFlow.ts`
 - `src/game/systems/NightFever.ts`
-- `src/game/systems/Whiteboard.ts`
 - `src/game/systems/WordSpawner.ts`
 - `src/game/core/GameEngine.ts`
 - `tests/RecipeFlow.test.ts`
 - `tests/NightFever.test.ts`
-- `tests/Whiteboard.test.ts`
 - `tests/Recall.test.ts`
 - `tests/zz-recipe-flow.measure.test.ts`
 
@@ -216,14 +214,13 @@ GameEngine은 물리 세계, 활성 단어, 일반 드롭 대기열, Fever 예�
 - 연필이나 지우개 물체는 그리지 않고 글자, 번짐, 닦인 자국만 쓴다.
 - `prefers-reduced-motion: reduce`에서는 지우기 잔상을 숨기고 새 글자를 즉시 표시한다.
 
-애니메이션 중에도 게임 규칙의 `Whiteboard.words`는 이미 새 목록이다. 연출은 규칙을 늦추지 않으며, 교체가 드문 상태 설명이므로 짧은 지우기·쓰기 전환만 허용한다.
+애니메이션 중에도 `GameEngine`의 표시 단어 배열은 이미 새 목록이다. 연출은 규칙을 늦추지 않으며, 교체가 드문 상태 설명이므로 짧은 지우기·쓰기 전환만 허용한다.
 
 ## 난수와 결정론
 
 - RecipeFlow는 판 시드에서 분리한 전용 RNG를 쓴다.
 - NightFever도 레시피·x 선택에 별도 RNG를 쓴다.
-- `Whiteboard` 클래스 자체는 `0x5eed` 별도 RNG를 받지만, 현재 GameEngine의 물건 목표 선택은 판 RNG를 쓴다.
-- 화이트보드 추가 가중치 추첨은 현재 싱글 흐름에서 사용하지 않는다.
+- 화이트보드 물건 목표 선택은 판 RNG를 쓴다.
 
 RecipeFlow와 NightFever의 난수열은 화이트보드 선택과 분리되어 있다. 다만 현재 화이트보드 물건 목표는 WordSpawner와 히든 판정이 공유하는 판 RNG를 소비하므로, 보드 후보 수나 선택 횟수를 바꾸면 이후 판 난수열도 달라질 수 있다. 같은 코드·시드·입력 흐름 안에서는 여전히 결정론적이다.
 
@@ -282,7 +279,7 @@ RecipeFlow와 NightFever의 난수열은 화이트보드 선택과 분리되어 
 빠른 계약 검증:
 
 ```zsh
-pnpm exec vitest run tests/DayNight.test.ts tests/NightFever.test.ts tests/RecipeFlow.test.ts tests/Whiteboard.test.ts tests/Recall.test.ts tests/Vitals.test.ts
+pnpm exec vitest run tests/DayNight.test.ts tests/NightFever.test.ts tests/RecipeFlow.test.ts tests/Recall.test.ts tests/Vitals.test.ts
 ```
 
 전체 검증:

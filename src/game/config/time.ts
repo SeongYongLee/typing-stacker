@@ -1,9 +1,5 @@
 /**
- * 판의 시간 — **언제 어떤 기회가 열리는가**.
- *
- * 기본 난이도는 탑 높이를 따라가고, 싱글 장기 난이도는 누적 점수도 함께 본다.
- * 시간은 낮과 Night Fever를 가르고, 밤에만 레시피 묶음 낙하와 하트 보호를 연다.
- * 단어의 낙하 속도·동시 개수는 시간만으로 건드리지 않는다.
+ * 판의 시간과 단어 생성에 쓰는 공통 상수.
  */
 
 /**
@@ -62,45 +58,6 @@ const SOLO_START_MS = 450
  */
 const DIFFICULTY_FULL_HEIGHT = 1.6
 
-/**
- * Night Fever 진입 점수와 밤의 길이.
- *
- * 판은 낮에서 시작하고, 첫 낮에는 `NIGHT_SCORE_INTERVAL`만큼 점수를 얻으면 밤이 열린다.
- * 이후 낮의 목표는 누적 점수에 따라 `NIGHT_SCORE_TARGETS` 안에서 높아진다. 후반에는
- * 점수 배수도 커지므로 목표를 고정하면 방어 구간인 밤이 지나치게 자주 반복된다.
- * 밤에는 레시피 재료가 더 촘촘하게 나오면서 `NightFever`가 여섯 개를 1.8초에 걸쳐
- * 내리고 3초 쉬는 묶음을 직접 떨군다. 화면이 밤이면 하트도 함께 무적이 된다.
- */
-const NIGHT_SCORE_INTERVAL = 5_000
-
-/** 각 낮이 시작될 때 누적 점수로 정하는 다음 Night Fever 목표 */
-const NIGHT_SCORE_TARGETS = [
-  { score: 0, target: NIGHT_SCORE_INTERVAL },
-  { score: 5_000, target: 5_500 },
-  { score: 25_000, target: 6_500 },
-  { score: 50_000, target: 7_500 },
-  { score: 100_000, target: 9_000 },
-  { score: 150_000, target: 10_000 },
-] as const
-
-const NIGHT_SEC = 10
-
-/** Night Fever의 반복 낙하 규칙 */
-const NIGHT_FEVER = {
-  /** 한 묶음에서 내릴 물건 수 */
-  itemsPerSet: 6,
-  /** 여섯 개가 모두 떨어진 뒤 다음 묶음까지 쉬는 시간 */
-  restSec: 3,
-  /** 밤 진입과 묶음 시작 뒤 첫 물건까지의 간격 */
-  firstDropSec: 0.3,
-  /** 묶음 안 물건 간격. 여섯 개가 1.8초에 걸쳐 떨어진다 */
-  itemGapSec: 0.3,
-  /** 꼭대기에서 이 높이 안에 있는 물건만 합성 표적으로 본다 */
-  topBandHeight: 1.2,
-  /** 연속 낙하 x가 기계적으로 같은 점에 찍히지 않게 하는 최소 차이 */
-  minXGap: 0.08,
-} as const
-
 /** 물건을 연달아 쏟아내 물리를 망가뜨리는 것만 막는 최소 간격 */
 const DROP_COOLDOWN_MS = 300
 
@@ -119,10 +76,6 @@ export {
   SOLO_READY_MS,
   SOLO_START_MS,
   DIFFICULTY_FULL_HEIGHT,
-  NIGHT_SCORE_INTERVAL,
-  NIGHT_SCORE_TARGETS,
-  NIGHT_SEC,
-  NIGHT_FEVER,
   DROP_COOLDOWN_MS,
   WORD,
 }

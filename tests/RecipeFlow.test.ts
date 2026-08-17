@@ -60,7 +60,6 @@ describe('레시피 흐름', () => {
     const recipe = RECIPES.find((entry) => entry.result.id === 'sunflower')
     expect(recipe).toBeDefined()
     const flow = new RecipeFlow(createRng(3), WORDS, [recipe!])
-    flow.setPhase('day')
 
     const focusedWords = flow.prepareFocusWords()
     const focusedIds = focusedWords.map((word) => {
@@ -92,7 +91,6 @@ describe('레시피 흐름', () => {
     const groups = groupRecipes(WORDS, RECIPES)
     const ambientWords = new Set(groups.ambient.map((entry) => entry.word))
     const flow = new RecipeFlow(createRng(17), WORDS, RECIPES)
-    flow.setPhase('day')
 
     let consecutiveRecipe = 0
     let longest = 0
@@ -106,7 +104,7 @@ describe('레시피 흐름', () => {
       }
     }
 
-    expect(longest).toBeLessThanOrEqual(RECIPE_PICKS_BEFORE_AMBIENT.day)
+    expect(longest).toBeLessThanOrEqual(RECIPE_PICKS_BEFORE_AMBIENT)
   })
 
   it('완성 가능성이 높은 레시피 사이에 새 레시피 둘을 둔다', () => {
@@ -119,7 +117,6 @@ describe('레시피 흐름', () => {
     })
     expect(recipes).toHaveLength(resultIds.length)
     const flow = new RecipeFlow(createRng(23), WORDS, recipes)
-    flow.setPhase('day')
     flow.observe(new Map([['sunflower-seed', 1]]))
 
     const completion = focusedRecipe(flow, recipes)
@@ -143,7 +140,6 @@ describe('레시피 흐름', () => {
     const passport = RECIPES.find((recipe) => recipe.result.id === 'travel-passport')
     expect(passport).toBeDefined()
     const flow = new RecipeFlow(createRng(8), WORDS, [passport!])
-    flow.setPhase('day')
     flow.observe(new Map([['travel-suitcase', 1]]))
 
     const picked = baseId(flow.pick(WORDS))
@@ -154,7 +150,6 @@ describe('레시피 흐름', () => {
     const passport = RECIPES.find((recipe) => recipe.result.id === 'travel-passport')
     expect(passport).toBeDefined()
     const flow = new RecipeFlow(createRng(8), WORDS, [passport!])
-    flow.setPhase('day')
     flow.observe(new Map([['vintage-trunk', 1]]))
 
     const picked = baseId(flow.pick(WORDS))
@@ -165,7 +160,6 @@ describe('레시피 흐름', () => {
     const racing = RECIPES.find((recipe) => recipe.result.id === 'racing-flag')
     expect(racing).toBeDefined()
     const flow = new RecipeFlow(createRng(8), WORDS, [racing!])
-    flow.setPhase('day')
     flow.observe(new Map([['turtle-sea-turtle', 1]]))
 
     expect(flow.pick(WORDS).word).toBe('토끼')
@@ -175,7 +169,6 @@ describe('레시피 흐름', () => {
     const turtle = RECIPES.find((recipe) => recipe.result.id === 'turtle-sea-turtle')
     expect(turtle).toBeDefined()
     const flow = new RecipeFlow(createRng(8), WORDS, [turtle!])
-    flow.setPhase('day')
     flow.observe(new Map([['turtle-sea-turtle', 1]]))
 
     expect(flow.pick(WORDS).word).toBe('거북이')
@@ -184,7 +177,6 @@ describe('레시피 흐름', () => {
   it('같은 시드와 관측값이면 같은 순서를 낸다', () => {
     const sequence = (seed: number): string[] => {
       const flow = new RecipeFlow(createRng(seed), WORDS, RECIPES)
-      flow.setPhase('day')
       const result: string[] = []
       for (let index = 0; index < 80; index += 1) {
         result.push(flow.pick(WORDS).word)

@@ -15,9 +15,8 @@ interface ArenaClockProps {
  * 그래서 이제 벽의 시계는 **실제로 돈다** — 방의 물건 하나가 규칙을 말하는 계기판이
  * 된다. 어두워지는 것과 바늘이 밤 구간에 든 것이 같은 사실의 두 얼굴이다.
  *
- * 낮에는 다음 Night Fever까지 남은 5,000점이 바늘을 움직이고, 밤에는 남은 10초가
- * 이어서 바늘을 움직인다. `TimeOfDay.progress`는 각 국면 안의 값이므로 한 바퀴 안의
- * 실제 각도는 `cycleOf`가 낮 3분의 2와 밤 3분의 1로 이어준다.
+ * 180초 조명 주기를 따라 돈다. `TimeOfDay.progress`는 각 국면 안의 값이므로 한 바퀴
+ * 안의 실제 각도는 `cycleOf`가 낮 3분의 2와 밤 3분의 1로 이어준다.
  */
 function ArenaClock({ time }: ArenaClockProps) {
   const cycle = cycleOf(time)

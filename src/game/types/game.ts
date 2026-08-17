@@ -159,8 +159,6 @@ interface BodySnapshot {
   readonly rotation: number
   readonly settled: boolean
   readonly recalled?: boolean
-  /** Night Fever가 직접 떨어뜨린 물건. 별똥별 꼬리를 그리는 로컬 연출 표식이다. */
-  readonly fever?: boolean
   /** 혼잡 경보가 반입한 물건. 경보색 꼬리를 그리는 로컬 연출 표식이다. */
   readonly congestion?: boolean
 }

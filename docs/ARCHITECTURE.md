@@ -10,10 +10,8 @@ src/
                   Aimer        화살표 위치 (삼각파, 등속)
                   ItemResolver 단어 → 물건 + 히든 롤
                   Merger       접촉 그래프에서 레시피 찾기
-                  DayNight     흐른 시간 → 낮·Night Fever와 어둠 정도
-                  NightFever   상단 아이템을 완성하는 6개 낙하·3초 휴식 계획
+                  DayNight     흐른 시간 → 낮·밤 조명과 어둠 정도
                   RecipeFlow   현재 집중 레시피 → 부족한 재료 단어
-                  Whiteboard   벽에 표시할 회수 단어 목록
                   PairMarks    지금 서로 합칠 수 있는 것들에 표식 붙이기
                   Ledge        합성 보상으로 설 통나무 자리 고르기
                   Collection   도감 진행

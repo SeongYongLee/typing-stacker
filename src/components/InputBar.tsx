@@ -413,7 +413,7 @@ function InputBar({ input, feedback, stats, nightfall, locked = false }: InputBa
           locked={locked}
         />
         <div style={{ ...sideClusterStyle, justifyContent: 'flex-start' }}>
-          <Score score={stats.score} fever={false} size="bar" />
+          <Score score={stats.score} size="bar" />
           <Combo combo={stats.combo} size="bar" />
         </div>
       </div>

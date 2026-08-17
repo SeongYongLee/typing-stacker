@@ -26,8 +26,8 @@ type GameEvent =
    */
   | {
       readonly kind: 'drop'
-      /** 타이핑·Night Fever·혼잡 경보 중 무엇이 물건을 반입했는가 */
-      readonly source: 'input' | 'fever' | 'congestion'
+      /** 타이핑과 혼잡 경보 중 무엇이 물건을 반입했는가 */
+      readonly source: 'input' | 'congestion'
       readonly hidden: boolean
       readonly material: Material
       readonly tone: number

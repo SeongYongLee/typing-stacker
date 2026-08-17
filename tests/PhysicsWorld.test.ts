@@ -92,12 +92,6 @@ describe('PhysicsWorld', () => {
     expect(world.itemCount).toBe(0)
   })
 
-  it('Fever 자동 낙하 표식을 렌더 스냅샷까지 보존한다', () => {
-    world.reset()
-    world.spawnItem(stackable(), 0, SOLO_OWNER, 0, false, true)
-    expect(world.snapshots()[0]?.fever).toBe(true)
-  })
-
   it('대결 발판은 물리 바디 없이 네트워크로 직렬화할 수 있다', () => {
     world.reset()
     world.addLedge(1.2, ARENA.platformTop + 0.5, 0.7)
@@ -105,30 +99,6 @@ describe('PhysicsWorld', () => {
     expect(JSON.parse(JSON.stringify(world.ledges()))).toEqual([
       { x: 1.2, y: ARENA.platformTop + 0.5, halfWidth: 0.7 },
     ])
-  })
-
-  it('밤에 움직인 물건은 낮에 이탈해도 보호 표식을 유지한다', () => {
-    world.reset()
-    world.spawnItemMovingAt(
-      stackable(),
-      0,
-      ARENA.platformTop + 1,
-      SOLO_OWNER,
-      0,
-      false,
-      { x: 8, y: 0 },
-    )
-
-    world.step(1 / 60, true)
-    let protectedEscape = false
-    for (let frame = 0; frame < 180; frame += 1) {
-      const result = world.step(1 / 60, false)
-      if (result.escaped[0]?.nightProtected === true) {
-        protectedEscape = true
-        break
-      }
-    }
-    expect(protectedEscape).toBe(true)
   })
 
   it('이탈 기준선을 올리면 높은 카메라에서도 바로 이탈로 잡힌다', () => {

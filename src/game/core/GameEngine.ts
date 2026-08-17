@@ -28,7 +28,6 @@ import {
 } from '../systems/Merger.ts'
 import { pairMarks, pairPartners, pairPulse, pairSizes } from '../systems/PairMarks.ts'
 import { RecipeFlow } from '../systems/RecipeFlow.ts'
-import { NightFever } from '../systems/NightFever.ts'
 import { timeOfDay, type TimeOfDay } from '../systems/DayNight.ts'
 import { type CatchPlank } from '../systems/Catcher.ts'
 import { createRng, type Rng } from '../systems/Rng.ts'
@@ -298,14 +297,12 @@ class GameEngine {
   private onDiscover: ((ids: readonly string[]) => void) | null = null
   private rng: Rng
   private recipeFlow: RecipeFlow
-  private nightFever: NightFever
   private spawner: WordSpawner
   /** RecipeFlow에 넘길 개수표. 구성이 바뀐 때만 비워 다시 쓴다. */
   private readonly recipeCounts = new Map<string, number>()
   private recipePhysicsVersion = -1
   private recipeWordVersion = -1
   private recipeDropQueueVersion = -1
-  private recipeFeverVersion = -1
   private recipeStageId: SoloStageId | null = null
   private dropQueueVersion = 0
   private aimer = new Aimer(AIM_HALF_RANGE)
@@ -317,8 +314,6 @@ class GameEngine {
   private feedbackSeq = 0
 
   private sinceLastDrop = Number.POSITIVE_INFINITY
-  /** Night Fever 중 놓친 단어 수. 이 구간에는 정확도 점수 패널티를 매기지 않는다. */
-  private feverForgivenMisses = 0
   private collapseTimer = 0
   /** 게임오버 직전 고양이가 회수하는 물건. 화면 확대의 기준점이다. */
   private collapseFocus: { readonly x: number; readonly y: number } | null = null
@@ -366,10 +361,6 @@ class GameEngine {
   private lastMarks: ReadonlyMap<string, number> = NO_MARKS
   /** `lastMarks`가 선택한 레시피의 총 재료 수. */
   private lastMergeSizes: ReadonlyMap<string, number> = NO_MERGE_SIZES
-  /** 낮에 얻어 다음 Night Fever까지 쌓인 점수. 밤에 얻은 점수는 포함하지 않는다. */
-  /** 이번 낮에 채워야 하는 점수. 낮이 시작된 뒤에는 바꾸지 않아 시계가 역행하지 않는다. */
-  /** 현재 Night Fever에서 흐른 시간. 밤은 기존처럼 10초 동안 열린다. */
-  /** 프레임 사이 새로 얻은 점수만 낮 게이지에 더하기 위한 기준값. */
   /** 벽에 적힌 회수 목록. 실제 대상 배열과 같은 순서를 유지한다. */
   private whiteboardWords: readonly string[] = []
   /** 화이트보드는 단어 레인이 아니라 상자 안의 실제 변형을 가리킨다. */
@@ -426,7 +417,6 @@ class GameEngine {
     this.cats = new CatPickup(seed ^ 0x63617473)
     this.rng = createRng(seed)
     this.recipeFlow = new RecipeFlow(createRng(seed ^ 0x72656369), WORDS, RECIPES)
-    this.nightFever = new NightFever(createRng(seed ^ 0x66657672), RECIPES, VARIANT_BY_ID)
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
       { startImmediately: false },
@@ -473,7 +463,6 @@ class GameEngine {
     this.elapsed = 0
     this.feedback = null
     this.sinceLastDrop = Number.POSITIVE_INFINITY
-    this.feverForgivenMisses = 0
     this.collapseTimer = 0
     this.collapseFocus = null
     this.lives = SOLO_LIVES
@@ -491,11 +480,6 @@ class GameEngine {
     this.runSeq += 1
     this.rng = createRng(this.seed)
     this.recipeFlow = new RecipeFlow(createRng(this.seed ^ 0x72656369), WORDS, RECIPES)
-    this.nightFever = new NightFever(
-      createRng(this.seed ^ 0x66657672),
-      RECIPES,
-      VARIANT_BY_ID,
-    )
     this.spawner = new WordSpawner(this.rng, WORDS, (candidates) =>
       this.recipeFlow.pick(candidates),
       { startImmediately: false },
@@ -987,7 +971,7 @@ class GameEngine {
     variant: ItemVariant,
     x: number,
     recalled = false,
-    source: 'input' | 'fever' | 'congestion' = 'input',
+    source: 'input' | 'congestion' = 'input',
   ): void {
     this.physics.spawnItemAt(
       variant,
@@ -996,7 +980,6 @@ class GameEngine {
       SOLO_OWNER,
       0,
       recalled,
-      source === 'fever',
       source === 'congestion',
     )
     this.sinceLastDrop = 0
@@ -1138,8 +1121,7 @@ class GameEngine {
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
      * 놓친 단어는 판을 방해하지 않고 사라진다. 낮의 대가는 **콤보와 점수**다.
-     * Night Fever에는 자동 낙하를 지켜보는 동안 점수가 되감기지 않도록 정확도 패널티를
-     * 면제하되, 타자 콤보는 놓친 순간 그대로 끊는다.
+     * 놓치면 타자 콤보가 끊기고 혼잡 경보가 오른다.
      */
     this.refreshRecipeFlow()
     const missedWords = this.spawner.update(dt, difficulty)
@@ -1317,10 +1299,6 @@ class GameEngine {
         this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
       }
     }
-    for (const pending of this.nightFever.pending) {
-      const id = pending.variant.id
-      this.recipeCounts.set(id, (this.recipeCounts.get(id) ?? 0) + 1)
-    }
     this.recipeFlow.observe(this.recipeCounts)
   }
 
@@ -1328,12 +1306,10 @@ class GameEngine {
   private refreshRecipeFlow(): void {
     const physicsVersion = this.physics.version
     const wordVersion = this.spawner.version
-    const feverVersion = this.nightFever.version
     if (
       this.recipePhysicsVersion === physicsVersion &&
       this.recipeWordVersion === wordVersion &&
       this.recipeDropQueueVersion === this.dropQueueVersion &&
-      this.recipeFeverVersion === feverVersion &&
       this.recipeStageId === this.stageId
     ) {
       return
@@ -1343,7 +1319,6 @@ class GameEngine {
     this.recipePhysicsVersion = physicsVersion
     this.recipeWordVersion = wordVersion
     this.recipeDropQueueVersion = this.dropQueueVersion
-    this.recipeFeverVersion = feverVersion
     this.recipeStageId = this.stageId
   }
 
@@ -1492,12 +1467,7 @@ class GameEngine {
     this.showTutorialStep()
   }
 
-  /**
-   * 국면이 바뀌면 레시피 밀도와 Night Fever를 함께 바꾼다.
-   *
-   * 이미 내려오는 단어는 그대로 둔다. 밤에 들어가면 NightFever의 1.8초 낙하·3초 휴식 시계를 열고,
-   * 새벽에는 밤에 시작된 붕괴가 뒤늦게 목숨을 깎지 않도록 기존 보호막을 이어 붙인다.
-   */
+  /** 180초 조명 주기에서 현재 낮·밤 표시를 계산한다. */
   private timeView(): TimeOfDay {
     const cycle = (this.elapsed % 180) / 180
     return cycle < 2 / 3
@@ -1732,11 +1702,7 @@ class GameEngine {
       pairPulse: pairPulse(this.elapsed),
       timeOfDay: time,
       aimNormalized: this.aimer.normalized,
-      stats: this.score.stats(
-        Math.max(this.spawner.missedCount - this.feverForgivenMisses, 0),
-        this.lives,
-        this.elapsed,
-      ),
+      stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,
       complexMergeFocus:
         this.complexMergeSlowLeft > 0

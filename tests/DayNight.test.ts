@@ -4,7 +4,6 @@ import {
   DAWN_PROGRESS,
   DAY_CLOCK_SHARE,
   DUSK_PROGRESS,
-  nightScoreTargetAt,
   timeOfDay,
 } from '../src/game/systems/DayNight.ts'
 
@@ -43,21 +42,5 @@ describe('timeOfDay', () => {
   it('낮과 밤 경계에서 밝기가 튀지 않는다', () => {
     expect(timeOfDay('day', 1).nightfall).toBe(timeOfDay('night', 0).nightfall)
     expect(timeOfDay('night', 1).nightfall).toBe(timeOfDay('day', 0).nightfall)
-  })
-})
-
-describe('nightScoreTargetAt', () => {
-  it('후반으로 갈수록 다음 Night Fever까지 필요한 낮 점수가 늘어난다', () => {
-    expect(nightScoreTargetAt(0)).toBe(5_000)
-    expect(nightScoreTargetAt(5_000)).toBe(5_500)
-    expect(nightScoreTargetAt(25_000)).toBe(6_500)
-    expect(nightScoreTargetAt(50_000)).toBe(7_500)
-    expect(nightScoreTargetAt(100_000)).toBe(9_000)
-    expect(nightScoreTargetAt(150_000)).toBe(10_000)
-  })
-
-  it('이정표 사이는 이어지고 15만점 뒤에는 더 늘어나지 않는다', () => {
-    expect(nightScoreTargetAt(15_000)).toBe(6_000)
-    expect(nightScoreTargetAt(500_000)).toBe(10_000)
   })
 })

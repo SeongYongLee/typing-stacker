@@ -20,6 +20,18 @@ interface AutoMatchView {
   readonly cancel: () => void
 }
 
+function cancelAutoMatchSearch(
+  active: { current: boolean },
+  close: () => void,
+  leave: () => Promise<void> = leaveQueue,
+): void {
+  const wasActive = active.current
+  close()
+  if (wasActive) {
+    void leave()
+  }
+}
+
 function useAutoMatch(onMatched: (code: string) => void): AutoMatchView {
   const [searching, setSearching] = useState(false)
   const [status, setStatus] = useState<QueueStatus | null>(null)
@@ -40,11 +52,7 @@ function useAutoMatch(onMatched: (code: string) => void): AutoMatchView {
   }, [])
 
   const cancel = useCallback(() => {
-    if (!activeRef.current) {
-      return
-    }
-    stop()
-    void leaveQueue()
+    cancelAutoMatchSearch(activeRef, stop)
   }, [stop])
 
   const start = useCallback(() => {
@@ -142,5 +150,5 @@ function useAutoMatch(onMatched: (code: string) => void): AutoMatchView {
   return { searching, status, start, cancel }
 }
 
-export { useAutoMatch }
+export { useAutoMatch, cancelAutoMatchSearch }
 export type { AutoMatchView }

@@ -21,53 +21,56 @@ import type { ArenaView } from './arenaView.ts'
 const ARROW_CROP = { x: 208, y: 123, width: 621, height: 776 } as const
 
 /**
- * 상자 그림에서 **물건이 얹히는 선**이 위에서 몇 %인가.
+ * 투명 수납함의 **바닥 끝**을 물리 받침대 윗면에 맞춘다.
  *
- * 상자는 열린 채 비스듬히 보이므로 그림의 맨 위가 아니라 앞쪽 테두리가 바닥이다.
- * 그 선을 `ARENA.platformTop`에 맞춰야 물건이 상자 **안에** 담긴 것으로 보인다 —
- * 그림 위쪽(상자 안벽)이 물건 뒤로 남아 그렇게 읽힌다.
- *
- * 알파로는 잴 수 없는 값이라 눈으로 정했다. **그림을 다시 그리면 다시 봐야 한다.**
+ * 이전 열린 상자 기준값(0.46)을 그대로 쓰면 이미지 높이의 54%가 판정선 아래로 남아,
+ * 최근 스크린샷에서 물건들이 수납함 가운데에 뜬 것처럼 보였다. 잘라낸 이미지의 맨
+ * 아래가 실제 바닥이므로 1에 맞추면 org/front가 함께 위로 올라가고 물건이 바닥에 앉는다.
  */
-const PLATFORM_SURFACE = 0.46
+const PLATFORM_BASE = 1
+/** 판정선에 너무 딱 붙어 보이지 않도록 그림만 5px 아래로 내린다. */
+const PLATFORM_Y_OFFSET = 5
 
 /**
- * 상자 그림에서 **몸통이 차지하는 폭**의 비율. 나머지는 양옆으로 열린 덮개다.
+ * 스테이지 수납함 크기가 없는 화면(대전)의 기본 표시 폭.
  *
- * 그림 전체를 받침대 폭에 맞추면 덮개까지 안으로 들어와 몸통이 받침대보다 좁아지고,
- * 끝에 얹힌 물건이 허공에 뜬 것처럼 보인다. 몸통을 기준으로 맞추면 덮개는 밖으로
- * 삐져나가는데 그쪽이 옳다 — 덮개는 물건을 받지 않는다.
+ * 싱글은 단계마다 정해진 `box.halfWidth`를 그대로 써서 기존 갈색 경계와 같은 폭을
+ * 차지한다. 대전에는 그 값이 없으므로 물리 받침대 폭을 기존 표시 크기로 환산한다.
  */
-const PLATFORM_BODY = 0.88
+const DEFAULT_PLATFORM_BODY_RATIO = 0.88
 
 /**
- * 받침대를 놓을 화면 사각형. 앞뒤 두 장이 **같은 자리**에 그려져야 한다.
+ * 수납함을 놓을 화면 사각형. org/front 두 장이 **같은 자리**에 그려져야 한다.
  *
- * 파이프라인이 앞뒤를 한 묶음으로 잘라 두 장의 크기가 같으므로, 자리를 한 번만
- * 재서 둘 다에 쓴다. 따로 재면 잘린 양이 달라 앞벽이 어긋난다.
+ * `boxHalfWidth`가 있으면 수납함 그림 전체 폭을 기존 갈색 경계의 폭과 정확히 맞춘다.
+ * 높이는 생성된 이미지 비율에서 계산하므로 원본 비율은 바뀌지 않는다.
  */
-function platformRect(view: ArenaView): { left: number; top: number; width: number; height: number } {
+function platformRect(
+  view: ArenaView,
+  boxHalfWidth?: number,
+): { left: number; top: number; width: number; height: number } {
   const art = GENERATED_ART['platform-back-day']
-  const width = (ARENA.platformHalfWidth * 2 * view.scale) / PLATFORM_BODY
+  const worldWidth = boxHalfWidth === undefined
+    ? (ARENA.platformHalfWidth * 2) / DEFAULT_PLATFORM_BODY_RATIO
+    : boxHalfWidth * 2
+  const width = worldWidth * view.scale
   const height = width * (art.height / art.width)
   return {
     left: view.toScreenX(0) - width / 2,
-    top: view.toScreenY(ARENA.platformTop) - height * PLATFORM_SURFACE,
+    top: view.toScreenY(ARENA.platformTop) - height * PLATFORM_BASE + PLATFORM_Y_OFFSET,
     width,
     height,
   }
 }
 
 /**
- * 받침대의 **뒤쪽** — 안벽과 뒤 덮개. 물건보다 먼저 그린다.
+ * 수납함의 **org 원본**. 물건보다 먼저 그린다.
  *
- * 예전에는 통짜 그림 한 장이었다. 물건이 그 위에 그려지므로 상자 앞으로 아랫동이
- * 삐져나왔고, 담긴 것처럼 보이게 하려고 그림을 눈대중 비율만큼 올려 **담긴 척**만
- * 했다. 앞뒤가 갈라진 지금은 사이에 물건을 끼워 넣으면 그만이다.
+ * 같은 자리에 front를 나중에 덮어 두 그림 사이에 물건을 끼운다.
  */
-function drawPlatformBack(view: ArenaView): void {
+function drawPlatformBack(view: ArenaView, boxHalfWidth?: number): void {
   const { ctx } = view
-  const box = platformRect(view)
+  const box = platformRect(view, boxHalfWidth)
   if (box.top > view.cssHeight || box.top + box.height < 0) {
     return
   }
@@ -93,9 +96,9 @@ function drawPlatformBack(view: ArenaView): void {
  * 통나무(먼지 뭉치)는 이 앞에 둔다. 상자 밖 공중에 서는 것이라 앞벽에 가리면
  * 없는 것처럼 보인다.
  */
-function drawPlatformFront(view: ArenaView): void {
+function drawPlatformFront(view: ArenaView, boxHalfWidth?: number): void {
   const { ctx } = view
-  const box = platformRect(view)
+  const box = platformRect(view, boxHalfWidth)
   if (box.top > view.cssHeight || box.top + box.height < 0) {
     return
   }
@@ -541,4 +544,5 @@ export {
   drawLedges,
   drawPlatformBack,
   drawPlatformFront,
+  platformRect,
 }

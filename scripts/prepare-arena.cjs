@@ -55,14 +55,15 @@ const SOURCES = [
   { name: 'background-day', file: 'background-day.png', maxWidth: 1600, trim: false },
   { name: 'background-night', file: 'background-night.png', maxWidth: 1600, trim: false },
   /*
-   * 받침대는 **앞뒤로 갈라 그린다.** 뒤 → 물건 → 앞 순서로 그리면 물건이 상자
-   * 안에 담긴다. 예전에는 통짜 그림 한 장을 눈대중 비율(`PLATFORM_SURFACE`)로
-   * 올려 담긴 척했는데, 앞벽이 없으니 물건 아랫동이 상자 앞으로 삐져나왔다.
+   * 투명 수납함은 **원본(org) → 물건 → 전면(front)** 순서로 겹쳐 그린다.
+   * `org`가 상자 전체를 뒤에서 채우고, 가운데가 비어 있는 `front`가 물건 위를
+   * 덮는다. 두 이미지는 같은 2048×1024 좌표에 제작됐으므로 반드시 같은 그룹으로
+   * 잘라 같은 사각형에 그려야 투명한 벽 사이에 물건이 담긴 것으로 보인다.
    */
-  { name: 'platform-back-day', file: 'open-storage-box-day-back.png', maxWidth: 1200, trim: true, group: 'box' },
-  { name: 'platform-front-day', file: 'open-storage-box-day-front.png', maxWidth: 1200, trim: true, group: 'box' },
-  { name: 'platform-back-night', file: 'open-storage-box-night-back.png', maxWidth: 1200, trim: true, group: 'box' },
-  { name: 'platform-front-night', file: 'open-storage-box-night-front.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-back-day', file: 'clear-storage-box-day-org.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-front-day', file: 'clear-storage-box-day-front.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-back-night', file: 'clear-storage-box-night-org.png', maxWidth: 1200, trim: true, group: 'box' },
+  { name: 'platform-front-night', file: 'clear-storage-box-night-front.png', maxWidth: 1200, trim: true, group: 'box' },
   { name: 'ledge-day', file: 'dust-platform-day.png', maxWidth: 700, trim: true },
   { name: 'ledge-night', file: 'dust-platform-night.png', maxWidth: 700, trim: true },
   /*

@@ -220,8 +220,8 @@ interface ArenaRenderState {
     readonly y: number
     readonly progress: number
   } | null
-  /** 싱글 스테이지의 열린 택배 상자. */
-  readonly container?: { readonly halfWidth: number; readonly wallHeight: number } | null
+  /** 싱글 스테이지의 투명 수납함. 단계마다 표시 폭이 달라진다. */
+  readonly container?: { readonly halfWidth: number } | null
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
   readonly duelTowers?: readonly DuelTowerRenderState[]
@@ -433,10 +433,8 @@ class ArenaRenderer {
     if (state.hiddenReveal !== null) {
       drawHiddenReveal(view, state.hiddenReveal)
     }
-    drawPlatformBack(view)
-    if (state.container !== undefined && state.container !== null) {
-      drawContainer(view, state.container)
-    }
+    const platformHalfWidth = state.container?.halfWidth
+    drawPlatformBack(view, platformHalfWidth)
     if (state.formingLedge !== null) {
       drawFormingLedge(view, state.formingLedge)
     }
@@ -487,7 +485,7 @@ class ArenaRenderer {
      * 통나무는 그보다 더 앞이다. 상자 밖 공중에 서는 것이라 앞벽에 가리면 없는
      * 것처럼 보인다.
      */
-    drawPlatformFront(view)
+    drawPlatformFront(view, platformHalfWidth)
     drawLedges(view, state.ledges)
     /*
      * 고양이가 **가장 앞이다.** 목숨이 깎였다는 소식이라 이 프레임에서 가장 중요하고,
@@ -622,29 +620,6 @@ class ArenaRenderer {
       toScreenY: (worldY) => this.toScreenY(worldY),
     }
   }
-}
-
-function drawContainer(
-  view: ArenaView,
-  container: { readonly halfWidth: number; readonly wallHeight: number },
-): void {
-  const { ctx } = view
-  const left = view.toScreenX(-container.halfWidth)
-  const right = view.toScreenX(container.halfWidth)
-  const bottom = view.toScreenY(ARENA.platformTop)
-  const top = view.toScreenY(ARENA.platformTop + container.wallHeight)
-  ctx.save()
-  ctx.fillStyle = 'rgba(93, 56, 28, 0.1)'
-  ctx.fillRect(left, top, right - left, bottom - top)
-  ctx.strokeStyle = 'rgba(113, 72, 35, 0.92)'
-  ctx.lineWidth = Math.max(4, view.scale * 0.09)
-  ctx.beginPath()
-  ctx.moveTo(left, top)
-  ctx.lineTo(left, bottom)
-  ctx.lineTo(right, bottom)
-  ctx.lineTo(right, top)
-  ctx.stroke()
-  ctx.restore()
 }
 
 /** 회전해도 잘리지 않도록 그림 외접원의 반지름으로 화면 교차 여부를 본다. */

@@ -9,7 +9,8 @@
 | 메인 보관소 사무실 배경 | `background-day.png` | `background-night.png` | 불투명 PNG, 1774×887 |
 | 화이트보드 | `whiteboard-day.png` | `whiteboard-night.png` | 투명 PNG, 1898×829 |
 | 창문과 창밖 풍경 | `window-day.png` | `window-night.png` | 투명 PNG, 1402×1122 |
-| 펼쳐진 적재 상자 | `open-storage-box-day.png` | `open-storage-box-night.png` | 투명 PNG, 1983×793 |
+| 투명 수납함 원본 | `clear-storage-box-day-org.png` | `clear-storage-box-night-org.png` | 투명 PNG, 2048×1024 |
+| 투명 수납함 전면 | `clear-storage-box-day-front.png` | `clear-storage-box-night-front.png` | 투명 PNG, 2048×1024 |
 | 먼지 뭉치 받침 | `dust-platform-day.png` | `dust-platform-night.png` | 투명 PNG, 1854×849 |
 | 메모장 | `memo-pad-day.png` | `memo-pad-night.png` | 투명 PNG, 2101×749 |
 | 연필 | `pencil-day.png` | `pencil-night.png` | 투명 PNG, 1774×887 |
@@ -21,4 +22,6 @@
 - 메인 배경에는 창문, 화이트보드, 원형 타이머와 낮/밤 아이콘이 포함되어 있습니다.
 - 별도 창문·화이트보드 파일은 레이어 분리 또는 다른 화면에서 재사용하기 위한 에셋입니다.
 - 배경 중앙은 낙하 물건과 한글 단어가 잘 보이도록 저대비 여백으로 유지했습니다.
-- 상자는 기존 메인 통나무보다 긴 가로형 받침, 먼지 뭉치는 작은 통나무 대체 받침을 기준으로 제작했습니다.
+- 투명 수납함은 `org → 물건 → front` 순서로 같은 사각형에 겹쳐 그립니다. 두 파일을 따로 자르면 위치가 어긋나므로 `prepare-arena.cjs`에서 한 그룹으로 처리합니다.
+- 싱글에서는 단계별 `box.halfWidth`를 이미지 전체 폭으로 사용해 기존 갈색 경계를 대체하고, 높이는 원본 비율에서 계산합니다. 이미지의 바닥 끝은 물리 받침대 윗면에 맞춰 물건이 바닥에 앉아 보이게 합니다.
+- 투명 수납함은 기존 메인 통나무보다 긴 가로형 받침, 먼지 뭉치는 작은 통나무 대체 받침을 기준으로 제작했습니다.

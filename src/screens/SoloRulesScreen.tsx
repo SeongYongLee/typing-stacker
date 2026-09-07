@@ -10,7 +10,7 @@ interface SoloRulesScreenProps {
 const RULES: readonly ReactNode[] = [
   '단어를 입력해 상자 안에 분실물을 넣습니다.',
   '합성한 물건과 화이트보드의 동그라미 항목을 찾아 돌려보냅니다.',
-  '놓친 단어가 쌓이면 혼잡 경보가 차고 물건이 한꺼번에 떨어집니다.',
+  '단어를 놓치거나 오타를 내면 혼잡 경보가 차고 물건이 한꺼번에 떨어집니다.',
 ]
 
 const rootStyle: CSSProperties = {
@@ -90,10 +90,10 @@ function SoloRulesScreen({ onStart, onHideAndStart }: SoloRulesScreenProps) {
     <main style={rootStyle} data-solo-rules>
       <h1 style={titleStyle}>TUTORIAL</h1>
 
-      <div style={contentStyle}>
+      <div className="solo-rules-content" style={contentStyle}>
         <div style={rulesGroupStyle}>
-          <p style={introStyle}>튜토리얼을 다시 볼까요?</p>
-          <section style={panelStyle} aria-label="게임 규칙">
+          <p className="solo-rules-intro" style={introStyle}>튜토리얼을 다시 볼까요?</p>
+          <section className="solo-rules-panel" style={panelStyle} aria-label="게임 규칙">
             <ul style={listStyle} data-blurb="solo">
               {RULES.map((rule, index) => (
                 <li key={index}>{rule}</li>

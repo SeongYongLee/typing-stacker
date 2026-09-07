@@ -241,37 +241,40 @@ function catcherAlpha(progress: number): number {
   return Math.max(0, Math.min(catcherFadeIn(progress), catcherFadeOut(progress)))
 }
 
-function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
+function drawAim(view: ArenaView, worldX: number, stackTop: number, arrowOnly = false): void {
   const { ctx } = view
   const x = view.toScreenX(worldX)
-  const spawnY = view.toScreenY(ARENA.spawnY + view.cameraY)
+  const spawnY = arrowOnly ? 16 : view.toScreenY(ARENA.spawnY + view.cameraY)
   // 조준선은 쌓인 것의 꼭대기에서 끝난다 — 실제로 물건이 닿을 자리다
   const trackBottom = view.toScreenY(stackTop)
   const arrow = sprite(ARROW_ART)
-  const arrowWidth = Math.min(44, Math.max(32, view.scale * 0.36))
+  const arrowWidth = arrowOnly ? 12 : Math.min(44, Math.max(32, view.scale * 0.36))
   const arrowHeight = arrowWidth * (ARROW_CROP.height / ARROW_CROP.width)
   const arrowTop = arrow === null ? spawnY - 22 : spawnY - arrowHeight
   const trackTop = spawnY
 
-  ctx.save()
-  ctx.strokeStyle = 'rgba(58, 24, 20, 0.24)'
-  ctx.lineWidth = 4
-  ctx.setLineDash([6, 9])
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(x, trackTop)
-  ctx.lineTo(x, trackBottom)
-  ctx.stroke()
+  if (!arrowOnly) {
+    ctx.save()
+    ctx.strokeStyle = 'rgba(58, 24, 20, 0.24)'
+    ctx.lineWidth = 4
+    ctx.setLineDash([6, 9])
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, trackTop)
+    ctx.lineTo(x, trackBottom)
+    ctx.stroke()
 
-  ctx.strokeStyle = COLORS.aimTrack
-  ctx.lineWidth = 2.25
-  ctx.setLineDash([6, 9])
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(x, trackTop)
-  ctx.lineTo(x, trackBottom)
-  ctx.stroke()
-  ctx.restore()
+    ctx.strokeStyle = COLORS.aimTrack
+    ctx.lineWidth = 2.25
+    ctx.setLineDash([6, 9])
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, trackTop)
+    ctx.lineTo(x, trackBottom)
+    ctx.stroke()
+    ctx.restore()
+
+  }
 
   if (arrow !== null) {
     ctx.drawImage(
@@ -292,8 +295,8 @@ function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
   ctx.fillStyle = '#ffcf5c'
   ctx.beginPath()
   ctx.moveTo(x, spawnY)
-  ctx.lineTo(x - 9, spawnY - 18)
-  ctx.lineTo(x + 9, spawnY - 18)
+  ctx.lineTo(x - (arrowOnly ? 4 : 9), spawnY - (arrowOnly ? 8 : 18))
+  ctx.lineTo(x + (arrowOnly ? 4 : 9), spawnY - (arrowOnly ? 8 : 18))
   ctx.closePath()
   ctx.fill()
   ctx.restore()

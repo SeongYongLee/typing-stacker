@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { soundBoard } from '../audio/SoundBoard.ts'
+import { InputHint } from '../components/InputHint.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { ADJECTIVES, joinName, nouns, randomName } from '../game/data/nicknames.ts'
 import { hashOf } from '../game/data/materials.ts'
@@ -35,7 +36,8 @@ interface NameScreenProps {
 const rootStyle: CSSProperties = {
   height: '100%',
   display: 'grid',
-  placeItems: 'center',
+  placeItems: 'safe center',
+  overflowY: 'auto',
   padding: 24,
 }
 
@@ -181,7 +183,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
 
   return (
     <div style={rootStyle}>
-      <div style={{ textAlign: 'center', minWidth: 320 }}>
+      <div style={{ textAlign: 'center', width: 'min(320px, 100%)', minWidth: 0 }}>
         <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
           내 프로필
         </h1>
@@ -215,7 +217,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
                 onHover={() => menu.select(index)}
                 primary={row.primary}
               >
-                {row.label}
+                {row.label === '돌아가기 (Esc)' ? <InputHint desktop={row.label} mobile="돌아가기" /> : row.label}
               </MenuButton>
             ),
           )}
@@ -237,7 +239,7 @@ function NameScreen({ onBack, onChange }: NameScreenProps) {
           </p>
         </div>
         <p style={{ marginTop: 16, fontSize: 12, color: '#4a5171' }}>
-          ↑↓로 고르고 ←→로 값을 바꿉니다
+          <InputHint desktop="↑↓로 고르고 ←→로 값을 바꿉니다" mobile="양옆 화살표를 눌러 값을 바꿉니다" />
         </p>
       </div>
     </div>
@@ -262,7 +264,8 @@ interface PickRowProps {
  */
 function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps) {
   const arrowStyle: CSSProperties = {
-    width: 34,
+    width: 44,
+    minHeight: 44,
     padding: '6px 0',
     fontSize: 15,
     color: selected ? '#e4e68a' : '#6a7290',
@@ -276,7 +279,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
       onMouseEnter={onHover}
       style={{
         display: 'grid',
-        gridTemplateColumns: '34px 1fr 34px',
+        gridTemplateColumns: '44px minmax(0, 1fr) 44px',
         alignItems: 'center',
         padding: '7px 8px',
         borderRadius: 10,

@@ -8,7 +8,9 @@ describe('싱글 스테이지', () => {
       const previous = SOLO_STAGES[index - 1]!
       const stage = SOLO_STAGES[index]!
       expect(stage.difficulty.spawnInterval).toBeLessThanOrEqual(previous.difficulty.spawnInterval)
-      expect(stage.difficulty.fallDuration).toBeLessThanOrEqual(previous.difficulty.fallDuration)
+      if (stage.id > 1) {
+        expect(stage.difficulty.fallDuration).toBeLessThanOrEqual(previous.difficulty.fallDuration)
+      }
       expect(stage.box.halfWidth).toBeLessThanOrEqual(previous.box.halfWidth)
       expect(stage.congestionDrops).toBeGreaterThanOrEqual(previous.congestionDrops)
     }
@@ -27,23 +29,19 @@ describe('싱글 스테이지', () => {
     }
   })
 
-  it('정식 스테이지는 한 단계마다 낙하 시간이 0.5초씩 짧아진다', () => {
+  it('정식 스테이지는 12·11·10·9초로 여유를 줄이고 마지막에 6초가 된다', () => {
     const stages = SOLO_STAGES.filter((stage) => stage.id > 0)
-    for (let index = 1; index < stages.length; index += 1) {
-      const previous = stages[index - 1]!
-      const stage = stages[index]!
-      expect(stage.difficulty.fallDuration).toBe(previous.difficulty.fallDuration - 0.5)
-    }
+    expect(stages.map((stage) => stage.difficulty.fallDuration)).toEqual([12, 11, 10, 9, 6])
   })
 
-  it('정식 스테이지의 생성 간격은 2초에서 1.5초까지 일정하게 빨라진다', () => {
+  it('정식 스테이지는 생성 간격이 3초에서 2초까지 0.25초씩 짧아진다', () => {
+    expect(SOLO_STAGES[1]?.difficulty.spawnInterval).toBe(3)
     const stages = SOLO_STAGES.filter((stage) => stage.id > 0)
-    expect(stages[0]?.difficulty.spawnInterval).toBe(2)
-    expect(stages.at(-1)?.difficulty.spawnInterval).toBe(1.5)
+    expect(stages.at(-1)?.difficulty.spawnInterval).toBe(2)
     for (let index = 1; index < stages.length; index += 1) {
       const previous = stages[index - 1]!
       const stage = stages[index]!
-      expect(stage.difficulty.spawnInterval).toBe(previous.difficulty.spawnInterval - 0.125)
+      expect(stage.difficulty.spawnInterval).toBe(previous.difficulty.spawnInterval - 0.25)
     }
   })
 

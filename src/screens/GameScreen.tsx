@@ -186,6 +186,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         time={state.timeOfDay}
         whiteboard={state.whiteboard}
         activeWhiteboard={activeWhiteboard}
+        whiteboardReminder={state.whiteboardReminder}
       />
       {congestionImminent && <CongestionWarning />}
       <div style={fieldLayerStyle}>
@@ -683,6 +684,30 @@ function StageStatus({
             50% { transform: scale(1.34); filter: brightness(1.3); }
           }`}</style>}
           혼잡 경보
+        </span>
+      )}
+      {stage.id > 0 && stage.congestionRecovery?.combo === true && !stage.congestionRush && (
+        <span
+          key={congestionRecoverySeq}
+          data-combo-recovery={stage.congestionRecovery.amount}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            width: 'max-content',
+            color: '#8ff0af',
+            fontSize: 13,
+            fontWeight: 800,
+            textShadow: '0 1px 3px #111',
+            animation: 'combo-congestion-recovery 1.35s ease-out both',
+          }}
+        >
+          <style>{`@keyframes combo-congestion-recovery {
+            0% { opacity: 0; transform: translate(-50%, 4px); }
+            15%, 70% { opacity: 1; transform: translate(-50%, 0); }
+            100% { opacity: 0; transform: translate(-50%, -5px); }
+          }`}</style>
+          콤보 회복 −{stage.congestionRecovery.amount}
         </span>
       )}
       {stage.tutorialText !== null && (

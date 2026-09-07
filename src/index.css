@@ -105,3 +105,31 @@ button {
   outline-offset: 2px;
   border-radius: 10px;
 }
+
+
+.mobile-hint { display: none; }
+.options-panel {
+  width: min(280px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  text-align: center;
+}
+.options-list { display: grid; gap: 10px; overflow-y: auto; min-height: 0; padding: 4px; }
+.options-back { padding: 10px 4px 0; }
+@media (max-width: 1199px) {
+  .desktop-hint { display: none; }
+  .mobile-hint { display: inline; }
+}
+
+@media (max-width: 1199px) {
+  [data-solo-rules] { padding: 20px 16px !important; overflow-y: auto; }
+  .solo-rules-content { gap: 24px !important; align-content: start !important; }
+  .solo-rules-intro { font-size: 22px !important; }
+  .solo-rules-panel { width: 100% !important; padding: 16px !important; }
+}
+
+@media (max-width: 1199px) { :root { --collection-card-min: 130px; } }
+
+@media (max-width: 1199px) { [data-solo-start] { font-size: clamp(32px, 10vw, 72px) !important; } }

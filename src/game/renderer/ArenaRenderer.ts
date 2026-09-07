@@ -24,6 +24,7 @@ import {
 } from './effectPaint.ts'
 import type { ArenaView } from './arenaView.ts'
 import { canvasPixelRatio } from './canvasResolution.ts'
+import { compactCamera } from './compactCamera.ts'
 
 interface HiddenReveal {
   readonly label: string
@@ -347,6 +348,7 @@ function drawDuelResult(
 }
 
 class ArenaRenderer {
+  private readonly compact: boolean
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
   private scale = 1
@@ -360,7 +362,8 @@ class ArenaRenderer {
   /** 밤이 얼마나 왔는가. 프레임마다 상태에서 받아 낮/밤 그림을 겹치는 데 쓴다 */
   private nightfall = 0
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, compact = false) {
+    this.compact = compact
     const ctx = canvas.getContext('2d')
     if (ctx === null) {
       throw new Error('2D 컨텍스트를 얻을 수 없다')
@@ -386,6 +389,8 @@ class ArenaRenderer {
 
   draw(given: ArenaRenderState): void {
     const state = withDefaults(given)
+    const compactView = this.compact ? compactCamera(this.cssWidth, this.cssHeight, state.stackTop) : null
+    if (compactView !== null) this.scale = compactView.scale
     const { ctx } = this
     this.cameraY = state.cameraY
     this.nightfall = state.nightfall
@@ -430,7 +435,7 @@ class ArenaRenderer {
     }
 
     // 히든 연출은 배경에 깔린다 — 쌓인 물건을 가리지 않아야 한다
-    if (state.hiddenReveal !== null) {
+    if (state.hiddenReveal !== null && !this.compact) {
       drawHiddenReveal(view, state.hiddenReveal)
     }
     const platformHalfWidth = state.container?.halfWidth
@@ -439,7 +444,7 @@ class ArenaRenderer {
       drawFormingLedge(view, state.formingLedge)
     }
     if (state.showAim) {
-      drawAim(view, state.aimX, state.stackTop)
+      drawAim(view, state.aimX, state.stackTop, this.compact)
     }
     const visibleBodies = this.collectVisibleBodies(view, state.bodies)
     /*

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { InputHint } from '../components/InputHint.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { RECIPES } from '../game/data/recipes.ts'
@@ -102,7 +103,7 @@ const SILHOUETTE = { plain: '#2f3550', hidden: '#4d3f18' } as const
 
 const gridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--collection-card-min, 150px), 100%), 1fr))',
   gap: 12,
   maxWidth: 760,
   margin: '0 auto',
@@ -236,9 +237,9 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
 
       <div style={{ display: 'grid', justifyItems: 'center', gap: 8, paddingTop: 20 }}>
         <MenuButton selected onClick={onBack} style={{ width: 'auto' }}>
-          돌아가기 (Esc)
+          <InputHint desktop="돌아가기 (Esc)" mobile="돌아가기" />
         </MenuButton>
-        <span style={{ fontSize: 12, color: '#4a5171' }}>↑↓로 넘깁니다</span>
+        <span style={{ fontSize: 12, color: '#4a5171' }}><InputHint desktop="↑↓로 넘깁니다" mobile="위아래로 스크롤해 살펴보세요" /></span>
       </div>
     </div>
   )

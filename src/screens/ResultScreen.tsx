@@ -23,6 +23,7 @@ interface ResultScreenProps {
 const rootStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
+  zIndex: 20,
   display: 'grid',
   placeItems: 'center',
   padding: 20,
@@ -38,12 +39,13 @@ const rootStyle: CSSProperties = {
  * 같은 함정을 겪고 같은 구조로 풀었다.
  */
 const panelStyle: CSSProperties = {
-  minWidth: 380,
+  width: 'min(460px, 100%)',
+  minWidth: 0,
   maxWidth: 460,
   maxHeight: '100%',
   display: 'grid',
   gridTemplateRows: 'auto minmax(0, 1fr) auto',
-  padding: '28px 32px',
+  padding: 'clamp(16px, 4vw, 28px) clamp(12px, 4vw, 32px)',
   borderRadius: 14,
   border: '1px solid #262b3d',
   background: '#151824',

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { InputHint } from '../components/InputHint.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 
@@ -62,7 +63,7 @@ function PauseOverlay({ onResume, onRestart, onHome, onOptions }: PauseOverlayPr
           잠시 멈춤
         </p>
         <p style={{ fontSize: 12, color: '#6a7290', margin: '0 0 22px' }}>
-          Esc로 돌아간다
+          <InputHint desktop="Esc로 돌아간다" mobile="계속하기를 누르면 키보드가 열립니다" />
         </p>
 
         <div style={{ display: 'grid', gap: 10 }}>

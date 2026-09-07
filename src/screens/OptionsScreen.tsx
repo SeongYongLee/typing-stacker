@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { InputHint } from '../components/InputHint.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useDisplayMenu } from '../hooks/useDisplayMenu.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
@@ -13,6 +14,7 @@ const rootStyle: CSSProperties = {
   height: '100%',
   display: 'grid',
   placeItems: 'center',
+  minHeight: 0,
   padding: 24,
 }
 
@@ -56,15 +58,15 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
 
   return (
     <div style={rootStyle}>
-      <div style={{ textAlign: 'center', minWidth: 280 }}>
+      <div className="options-panel">
         <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
           옵션
         </h1>
         <p style={{ fontSize: 12, color: '#6a7290', margin: '10px 0 24px' }}>
-          Enter로 값을 바꿉니다
+          <InputHint desktop="Enter로 값을 바꿉니다" mobile="항목을 누르면 값이 바뀝니다" />
         </p>
 
-        <div style={{ display: 'grid', gap: 10 }} data-options>
+        <div className="options-list" data-options>
           {sections.map((section) => (
             <section key={section.title} style={{ display: 'grid', gap: 8 }}>
               <h2 style={sectionTitleStyle}>{section.title}</h2>
@@ -83,12 +85,14 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
               })}
             </section>
           ))}
+        </div>
+        <div className="options-back">
           <MenuButton
             selected={menu.index === items.length - 1}
             onClick={onBack}
             onHover={() => menu.select(items.length - 1)}
           >
-            돌아가기 (Esc)
+            <InputHint desktop="돌아가기 (Esc)" mobile="돌아가기" />
           </MenuButton>
         </div>
       </div>

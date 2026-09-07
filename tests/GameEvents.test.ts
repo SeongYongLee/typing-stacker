@@ -6,6 +6,7 @@ import { WORDS } from '../src/game/data/words.ts'
 import type { GameEvent } from '../src/game/types/events.ts'
 import type { ItemVariant } from '../src/game/types/game.ts'
 import { FrameClock } from './helpers/frameClock.ts'
+import { soloStage } from '../src/game/data/soloStages.ts'
 
 /**
  * 소리는 귀로만 확인할 수 있지만, **소리가 날 자리에 사건이 오는지**는 잴 수 있다.
@@ -118,7 +119,8 @@ describe('GameEngine이 사건을 흘린다', () => {
     expect(kinds(events)).toContain('runStart')
 
     // 단어가 내려올 때까지 돌린다
-    await clock.advance(4.2)
+    // 시작 안내가 끝난 뒤 첫 단어의 생성 간격만큼 기다린다.
+    await clock.advance(2 + soloStage(1).difficulty.spawnInterval)
     const words = state === null ? [] : (state as GameState).words
     expect(words.length).toBeGreaterThan(0)
 

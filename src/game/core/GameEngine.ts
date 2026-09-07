@@ -85,8 +85,9 @@ const COLLAPSE_VIEW_SEC = 2.8
 const CAT_EARLY_ESCAPE_MARGIN = 0.35
 /** 보드 단어가 물건으로 바뀌어 손과 함께 사라지는 시간 */
 const WHITEBOARD_RECALL_SEC = CATCH.holdSec
+const WHITEBOARD_REMINDER_DELAY_SEC = 12
 const CONGESTION_PER_MISSED_WORD = 20
-const CONGESTION_RECOVERY_PER_HIT = 2
+const CONGESTION_PER_INPUT_MISS = 5
 const CONGESTION_RUSH_INTERVAL = 0.5
 /** 실제 경보 물건 하나가 상단 보관함에서 내려오는 데 걸리는 시간. */
 const CONGESTION_BURST_SEC = 0.42
@@ -171,6 +172,13 @@ interface SubmitFeedback {
 }
 
 interface GameState {
+  /** 모바일처럼 캔버스 밖에서 합성 결과를 표시할 때 쓰는 현재 알림. */
+  readonly mergeReveal: {
+    readonly seq: number
+    readonly label: string
+    readonly sprite: string
+    readonly from: readonly { readonly label: string; readonly sprite: string }[]
+  } | null
   readonly phase: GamePhase
   readonly elapsed: number
   readonly words: readonly FallingWord[]
@@ -194,6 +202,8 @@ interface GameState {
   readonly whiteboard: readonly string[]
   /** 보드 대상 중 지금 상자 안에 실제로 있어 입력할 수 있는 항목. */
   readonly activeWhiteboard: readonly string[]
+  /** 회수 가능한 물건을 오래 두었을 때 입력을 안내할 단어. */
+  readonly whiteboardReminder: string | null
   /** 방금 보드 단어가 물건으로 바뀐 짧은 연출 */
   readonly whiteboardRecall: WhiteboardRecallView | null
   /**
@@ -231,6 +241,8 @@ interface GameState {
     readonly congestion: number
     /** 정상 입력으로 혼잡 경보가 줄어들 때마다 증가하는 테두리 연출 신호. */
     readonly congestionRecoverySeq: number
+    /** 가장 최근 정상 입력으로 실제 회복한 양과 콤보 보너스 여부. */
+    readonly congestionRecovery: { readonly amount: number; readonly combo: boolean } | null
     /** 경보 반입이 막 시작된 짧은 상단 보관함 연출. */
     readonly congestionBurst: number
     /** 혼잡 반입 물건이 아직 떨어지고 있는가. */
@@ -323,6 +335,7 @@ class GameEngine {
    * `from`이 있으면 **합성으로 얻은 것**이라 재료가 모이는 장면부터 보여준다.
    * 운으로 나온 히든은 재료가 없으므로 비어 있다 — 어느 길로 얻었는지가 이 하나로 갈린다.
    */
+  private mergeSeq = 0
   private hiddenReveal:
     | {
         variant: ItemVariant
@@ -372,11 +385,13 @@ class GameEngine {
   private catcherView: CatchPlank | null = null
   /** 보드 단어가 물건으로 바뀌는 짧은 연결 연출 */
   private whiteboardRecall: WhiteboardRecall | null = null
+  private whiteboardIdleSec = 0
   private stageId: SoloStageId = 0
   private stageReturns = 0
   private totalReturns = 0
   private congestion = 0
   private congestionRecoverySeq = 0
+  private congestionRecovery: GameState['stage']['congestionRecovery'] = null
   private congestionRushLeft = 0
   private congestionRushTimer = 0
   private congestionBurstLeft = 0
@@ -444,8 +459,8 @@ class GameEngine {
     this.events = sink
   }
 
-  attachCanvas(canvas: HTMLCanvasElement): void {
-    this.renderer = new ArenaRenderer(canvas)
+  attachCanvas(canvas: HTMLCanvasElement, compact = false): void {
+    this.renderer = new ArenaRenderer(canvas, compact)
     this.render()
   }
 
@@ -489,6 +504,7 @@ class GameEngine {
     this.totalReturns = 0
     this.congestion = 0
     this.congestionRecoverySeq = 0
+    this.congestionRecovery = null
     this.congestionRushLeft = 0
     this.congestionRushTimer = 0
     this.congestionBurstLeft = 0
@@ -536,6 +552,7 @@ class GameEngine {
 
   /** 스테이지 전환 시 단어 풀과 보드만 갈아끼운다. 물리 초기화는 호출부가 맡는다. */
   private configureStage(): void {
+    this.whiteboardIdleSec = 0
     const stage = soloStage(this.stageId)
     this.physics.setContainer(stage.box.halfWidth, stage.box.wallHeight)
     this.physics.setEscapeY(ARENA.killY + CAT_EARLY_ESCAPE_MARGIN)
@@ -631,6 +648,7 @@ class GameEngine {
     this.stageReturns = 0
     this.congestion = 0
     this.congestionRecoverySeq = 0
+    this.congestionRecovery = null
     this.congestionRushLeft = 0
     this.congestionRushTimer = 0
     this.congestionBurstLeft = 0
@@ -733,6 +751,7 @@ class GameEngine {
       const source = this.physics.snapshots().find((body) => body.variant.id === target.id)
       const recalled = this.physics.removeOneByVariant(target.id)
       if (recalled !== null) {
+        this.whiteboardIdleSec = 0
         const side = (source?.x ?? 0) < 0 ? 'left' : 'right'
         const sourceX = source?.x ?? 0
         const sourceY = source?.y ?? ARENA.platformTop
@@ -784,6 +803,7 @@ class GameEngine {
 
     if (result.kind === 'miss') {
       this.score.onInputMissed()
+      this.addCongestion(CONGESTION_PER_INPUT_MISS)
       this.feedback = {
         seq: this.feedbackSeq,
         text: result.input,
@@ -799,7 +819,11 @@ class GameEngine {
     this.spawner.remove(result.word.id)
     this.score.onWordMatched(result.word.word)
     if (this.congestion > 0) {
-      this.congestion = Math.max(0, this.congestion - CONGESTION_RECOVERY_PER_HIT)
+      const combo = this.score.comboCount
+      const recovery = combo >= 10 ? 4 : combo >= 5 ? 3 : 2
+      const amount = Math.min(this.congestion, recovery)
+      this.congestion -= amount
+      this.congestionRecovery = { amount, combo: combo >= 5 }
       this.congestionRecoverySeq += 1
     }
     this.fire({ kind: 'wordHit', combo: this.score.comboCount })
@@ -1127,14 +1151,7 @@ class GameEngine {
     const missedWords = this.spawner.update(dt, difficulty)
     if (missedWords.length > 0) {
       this.score.onWordMissed()
-      if (this.stageId !== 0) {
-        this.congestion = Math.min(100, this.congestion + missedWords.length * CONGESTION_PER_MISSED_WORD)
-        if (this.congestion >= 100) {
-          this.congestion = 0
-          this.congestionRushLeft = soloStage(this.stageId).congestionDrops
-          this.congestionRushTimer = 0
-        }
-      }
+      this.addCongestion(missedWords.length * CONGESTION_PER_MISSED_WORD)
     }
     if (this.stageId === 0 && missedWords.length > 0) {
       this.showTutorialStep()
@@ -1186,6 +1203,12 @@ class GameEngine {
       this.phase = 'collapsing'
       this.collapseTimer = 0
       this.fire({ kind: 'collapse' })
+    }
+
+    if (this.phase === 'playing' && this.stageId !== 0) {
+      const counts = this.physics.countsByVariant()
+      const canRecall = this.whiteboardTargets.some((target) => (counts.get(target.id) ?? 0) > 0)
+      this.whiteboardIdleSec = canRecall ? this.whiteboardIdleSec + dt : 0
     }
 
     this.emit()
@@ -1248,6 +1271,18 @@ class GameEngine {
     this.whiteboardRecall.elapsed += dt
     if (this.whiteboardRecall.elapsed >= WHITEBOARD_RECALL_SEC) {
       this.whiteboardRecall = null
+    }
+  }
+
+  /** 오타와 단어 만료는 같은 경보 반입 판정을 사용한다. 튜토리얼 경보는 데모가 맡는다. */
+  private addCongestion(amount: number): void {
+    if (this.stageId === 0) return
+    this.congestionRecovery = null
+    this.congestion = Math.min(100, this.congestion + amount)
+    if (this.congestion >= 100) {
+      this.congestion = 0
+      this.congestionRushLeft = soloStage(this.stageId).congestionDrops
+      this.congestionRushTimer = 0
     }
   }
 
@@ -1399,6 +1434,7 @@ class GameEngine {
      * 다만 **무엇으로 만들었는지**를 함께 넘긴다. 결과물만 띄우면 방금 무엇이
      * 사라졌는지 알 수 없어서, 붙여보고 싶은 짝을 다음 판에 기억하지 못한다.
      */
+    this.mergeSeq += 1
     this.hiddenReveal = {
       variant: result,
       from: match.recipe.inputs.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
@@ -1445,6 +1481,7 @@ class GameEngine {
     }
 
     this.recipeFlow.onMerged(recipe)
+    this.mergeSeq += 1
     this.hiddenReveal = {
       variant: result,
       from: [egg.variant, pan.variant],
@@ -1673,7 +1710,17 @@ class GameEngine {
   private emit(): void {
     const time = this.timeView()
     const marks = this.marks()
+    const counts = this.physics.countsByVariant()
+    const activeWhiteboard = this.whiteboardTargets
+      .filter((target) => (counts.get(target.id) ?? 0) > 0)
+      .map((target) => target.label)
     this.listener?.({
+      mergeReveal: this.hiddenReveal === null ? null : {
+        seq: this.mergeSeq,
+        label: this.hiddenReveal.variant.label,
+        sprite: this.hiddenReveal.variant.sprite,
+        from: this.hiddenReveal.from.map((item) => ({ label: item.label, sprite: item.sprite })),
+      },
       phase: this.phase,
       elapsed: this.elapsed,
       // 스포너가 목록을 바꿀 때 새 배열로 갈아치우므로 여기서 또 복사하지 않는다 —
@@ -1683,9 +1730,11 @@ class GameEngine {
       wordMergeSizes: this.wordMergeSizes(this.mergeSizes()),
       wordMergeHints: this.wordMergeHints(marks),
       whiteboard: this.whiteboardWords,
-      activeWhiteboard: this.whiteboardTargets
-        .filter((target) => (this.physics.countsByVariant().get(target.id) ?? 0) > 0)
-        .map((target) => target.label),
+      activeWhiteboard,
+      whiteboardReminder:
+        this.phase === 'playing' && this.stageId !== 0 && this.whiteboardIdleSec >= WHITEBOARD_REMINDER_DELAY_SEC
+          ? activeWhiteboard[0] ?? null
+          : null,
       whiteboardRecall:
         this.whiteboardRecall === null
           ? null
@@ -1726,6 +1775,7 @@ class GameEngine {
               : soloStage(this.stageId).returnTarget,
         congestion: this.congestion,
         congestionRecoverySeq: this.congestionRecoverySeq,
+        congestionRecovery: this.congestionRecovery,
         congestionBurst: this.congestionBurstLeft / CONGESTION_BURST_SEC,
         // 데모도 일반 플레이처럼 게이지가 가득 차면 같은 경보 상태로 그린다.
         congestionRush:
@@ -1742,7 +1792,7 @@ class GameEngine {
           this.congestionDemo === 'ready'
             ? '계란 프라이를 회수해 남은 횟수가 1개 줄었습니다. Enter를 누르세요.'
             : this.congestionDemo === 'congestionGuide'
-              ? '단어를 놓치면 혼잡 경보 게이지가 쌓입니다. Enter를 누르세요.'
+              ? '단어를 놓치거나 오타를 내면 혼잡 경보 게이지가 쌓입니다. Enter를 누르세요.'
             : this.congestionDemo === 'full'
               ? '혼잡 경보 게이지가 가득 찼습니다. Enter를 누르세요.'
             : this.stageId === 0 && this.tutorialStep === 2

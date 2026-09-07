@@ -138,5 +138,4 @@ function useGameEngine(enabled: boolean): UseGameEngine {
   return { engine, stateStore, ready, assetProgress }
 }
 
-export { useGameEngine }
-export type { EngineStateStore }
+export { useGameEngine, EngineStateStore }

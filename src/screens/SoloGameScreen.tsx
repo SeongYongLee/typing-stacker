@@ -1,10 +1,16 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore, lazy, Suspense } from 'react'
 import type { GameEngine } from '../game/core/GameEngine.ts'
 import type { EngineStateStore } from '../hooks/useGameEngine.ts'
 import { GameScreen } from './GameScreen.tsx'
 import { ResultScreen } from './ResultScreen.tsx'
 import type { Phase } from '../game/systems/DayNight.ts'
 import type { GamePhase } from '../game/types/game.ts'
+
+import { useTooNarrow } from '../hooks/useViewport.ts'
+const MobileGameScreen = lazy(() => import('./MobileGameScreen.tsx').then(({ MobileGame, MobileViewport }) => ({
+  default: ({ engine, stateStore, onHome, onRestart, children }: Pick<SoloGameScreenProps, 'engine' | 'stateStore' | 'onHome' | 'onRestart'> & { children: React.ReactNode }) =>
+    <MobileViewport engine={engine}><MobileGame engine={engine} store={stateStore} onHome={onHome} onRestart={onRestart} />{children}</MobileViewport>,
+})))
 
 interface SoloGameScreenProps {
   engine: GameEngine
@@ -29,6 +35,7 @@ function SoloGameScreen({
   onHome,
   onSceneChange,
 }: SoloGameScreenProps) {
+  const narrow = useTooNarrow()
   const state = useSyncExternalStore(
     stateStore.subscribe,
     stateStore.getSnapshot,
@@ -43,9 +50,8 @@ function SoloGameScreen({
 
   if (state === null) return null
 
-  return (
+  const overlays = (
     <>
-      <GameScreen engine={engine} state={state} onRestart={onRestart} onHome={onHome} />
       {state.phase === 'credits' && <CreditsOverlay onContinue={() => engine.continueEndless()} />}
       {state.phase === 'over' && (
         <ResultScreen
@@ -61,6 +67,8 @@ function SoloGameScreen({
       )}
     </>
   )
+  if (narrow) return <Suspense fallback={null}><MobileGameScreen engine={engine} stateStore={stateStore} onHome={onHome} onRestart={onRestart}>{overlays}</MobileGameScreen></Suspense>
+  return <><GameScreen engine={engine} state={state} onRestart={onRestart} onHome={onHome} />{overlays}</>
 }
 
 function CreditsOverlay({ onContinue }: { onContinue: () => void }) {

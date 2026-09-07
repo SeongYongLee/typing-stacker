@@ -34,7 +34,7 @@ const titleStyle: CSSProperties = {
   font: '400 42px/1 var(--display)',
   letterSpacing: '0.12em',
   textIndent: '0.12em',
-  color: '#f2f4fb',
+  color: 'var(--text-strong)',
   textShadow: '0 2px 14px rgba(5, 9, 17, 0.86)',
 }
 
@@ -49,7 +49,7 @@ const introStyle: CSSProperties = {
   fontSize: 30,
   fontWeight: 700,
   lineHeight: 1.4,
-  color: '#f2f4fb',
+  color: 'var(--text-strong)',
   textAlign: 'center',
   textShadow: '0 2px 14px rgba(5, 9, 17, 0.78)',
 }
@@ -59,9 +59,9 @@ const panelStyle: CSSProperties = {
   alignSelf: 'center',
   justifySelf: 'center',
   padding: '24px 28px',
-  border: '1px solid #262b3d',
-  borderRadius: 16,
-  background: '#151824',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
+  background: 'var(--paper)',
   boxShadow: '0 18px 48px rgba(5, 9, 17, 0.24)',
 }
 
@@ -73,7 +73,7 @@ const listStyle: CSSProperties = {
   // 혼자 하기 Primary 버튼과 같은 크기로 읽히게 한다
   fontSize: 17,
   lineHeight: 1.65,
-  color: '#b6bdd4',
+  color: 'var(--ink)',
 }
 
 function SoloRulesScreen({ onStart, onHideAndStart }: SoloRulesScreenProps) {
@@ -93,7 +93,7 @@ function SoloRulesScreen({ onStart, onHideAndStart }: SoloRulesScreenProps) {
       <div className="solo-rules-content" style={contentStyle}>
         <div style={rulesGroupStyle}>
           <p className="solo-rules-intro" style={introStyle}>튜토리얼을 다시 볼까요?</p>
-          <section className="solo-rules-panel" style={panelStyle} aria-label="게임 규칙">
+          <section className="solo-rules-panel paper-sheet" style={panelStyle} aria-label="게임 규칙">
             <ul style={listStyle} data-blurb="solo">
               {RULES.map((rule, index) => (
                 <li key={index}>{rule}</li>

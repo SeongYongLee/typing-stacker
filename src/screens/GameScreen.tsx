@@ -481,22 +481,22 @@ function StageNotice({ notice }: { notice: NonNullable<GameState['stage']['notic
           justifyItems: 'center',
           gap: 9,
           padding: '22px 30px',
-          border: '1px solid rgba(255, 225, 145, 0.8)',
-          borderRadius: 6,
-          background: 'rgba(20, 18, 23, 0.9)',
-          boxShadow: '0 12px 34px rgba(0, 0, 0, 0.5)',
-          color: '#fff4cb',
+          border: '1px solid var(--rule)',
+          borderRadius: 1,
+          background: 'var(--paper)',
+          boxShadow: '3px 4px 0 rgba(43, 37, 27, .25)',
+          color: 'var(--ink)',
           animation: `stage-notice-in-out ${duration} cubic-bezier(.22,.61,.36,1) both`,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 800, color: '#f5d779' }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--stamp)' }}>
           {isStart ? '새 보관함' : '보관함 정산'}
         </span>
         <strong style={{ fontSize: 28, lineHeight: 1.15 }}>{notice.title}</strong>
         {isStart ? (
-          <span style={{ fontSize: 16, color: '#d7d9e7' }}>{progress}</span>
+          <span style={{ fontSize: 16, color: 'var(--ink-muted)' }}>{progress}</span>
         ) : (
-          <span style={{ fontSize: 16, color: '#d7d9e7' }}>
+          <span style={{ fontSize: 16, color: 'var(--ink-muted)' }}>
             {progress} · +{notice.score.toLocaleString()}점
           </span>
         )}
@@ -592,10 +592,10 @@ function StageStatus({
             data-stage-title={stage.id}
             style={{
               padding: '5px 10px',
-              border: '1px solid rgba(255,255,255,0.45)',
-              borderRadius: 4,
-              background: 'rgba(17, 23, 34, 0.68)',
-              color: '#fff5cb',
+              border: '1px solid var(--rule)',
+              borderRadius: 1,
+              background: 'var(--paper)',
+              color: 'var(--ink)',
               fontWeight: 700,
               fontSize: 15,
             }}
@@ -606,10 +606,10 @@ function StageStatus({
           <div
             style={{
               padding: '5px 10px',
-              border: '1px solid rgba(255,255,255,0.45)',
-              borderRadius: 4,
-              background: 'rgba(17, 23, 34, 0.68)',
-              color: '#fff5cb',
+              border: '1px solid var(--rule)',
+              borderRadius: 1,
+              background: 'var(--paper)',
+              color: 'var(--ink)',
               fontWeight: 700,
               fontSize: 15,
             }}
@@ -622,10 +622,10 @@ function StageStatus({
             data-remaining-recalls={remaining}
             style={{
               padding: '5px 9px',
-              border: '1px solid rgba(255, 209, 125, 0.7)',
-              borderRadius: 4,
-              background: 'rgba(71, 49, 31, 0.76)',
-              color: '#fff0c5',
+              border: '1px solid var(--rule)',
+              borderRadius: 1,
+              background: 'var(--paper-shade)',
+              color: 'var(--ink)',
               fontWeight: 800,
               fontSize: 14,
               fontVariantNumeric: 'tabular-nums',
@@ -717,15 +717,15 @@ function StageStatus({
           style={{
             maxWidth: 360,
             padding: '9px 12px',
-            borderRadius: 6,
-            background: 'rgba(10, 14, 22, 0.78)',
-            color: '#fff',
+            borderRadius: 1,
+            background: 'var(--paper)',
+            color: 'var(--ink)',
             fontSize: 16,
             fontWeight: 600,
             textAlign: 'center',
           }}
         >
-          <strong style={{ display: 'block', marginBottom: 3, color: '#ffe1a0', fontSize: 13 }}>
+          <strong style={{ display: 'block', marginBottom: 3, color: 'var(--stamp)', fontSize: 13 }}>
             다음 행동
           </strong>
           {stage.tutorialText}

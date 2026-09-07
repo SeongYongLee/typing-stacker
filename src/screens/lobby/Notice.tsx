@@ -21,13 +21,13 @@ function Notice({
         <h2
           style={{
             font: '700 26px/1.3 var(--sans)',
-            color: danger ? '#ff6b6b' : '#f2f4fb',
+            color: danger ? 'var(--danger)' : 'var(--text-strong)',
             margin: 0,
           }}
         >
           {title}
         </h2>
-        <p style={{ color: '#b6bdd4', margin: 0, fontSize: 15, lineHeight: 1.7 }}>{detail}</p>
+        <p style={{ color: 'var(--ink)', margin: 0, fontSize: 15, lineHeight: 1.7 }}>{detail}</p>
         {retry !== undefined && (
           <button type="button" style={buttonStyle} onClick={retry.run}>
             {retry.label}

@@ -60,10 +60,9 @@ const menuStyle: CSSProperties = {
   alignContent: 'start',
   padding: 16,
   border: '1px solid rgba(181, 190, 211, 0.22)',
-  borderRadius: 16,
-  background: 'rgba(13, 16, 26, 0.82)',
+  borderRadius: 2,
+  background: 'var(--paper)',
   boxShadow: '0 18px 48px rgba(5, 9, 17, 0.24)',
-  backdropFilter: 'blur(12px) saturate(0.9)',
 }
 
 function MenuLayout({ title, titleSize = 32, menu, panel, hint }: MenuLayoutProps) {

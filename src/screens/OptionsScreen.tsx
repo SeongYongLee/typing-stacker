@@ -24,7 +24,7 @@ const sectionTitleStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
   letterSpacing: '0.08em',
-  color: '#8f97b8',
+  color: 'var(--ink-muted)',
 }
 
 /**
@@ -57,12 +57,12 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
   })
 
   return (
-    <div style={rootStyle}>
-      <div className="options-panel">
-        <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          옵션
+    <div className="office-screen" style={rootStyle}>
+      <div className="options-panel paper-sheet">
+        <h1 className="office-heading" style={{ font: '700 32px/1.2 var(--sans)', color: 'var(--text-strong)', margin: 0 }}>
+          보관소 관리표
         </h1>
-        <p style={{ fontSize: 12, color: '#6a7290', margin: '10px 0 24px' }}>
+        <p style={{ fontSize: 12, color: 'var(--ink-muted)', margin: '10px 0 24px' }}>
           <InputHint desktop="Enter로 값을 바꿉니다" mobile="항목을 누르면 값이 바뀝니다" />
         </p>
 
@@ -79,7 +79,8 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
                     onClick={item.run}
                     onHover={() => menu.select(index)}
                   >
-                    {item.label}
+                    <span>{item.label.split(' · ')[0]}</span>
+                    <strong>{item.label.includes(' · ') ? ` · ${item.label.split(' · ').slice(1).join(' · ')}` : ''}</strong>
                   </MenuButton>
                 )
               })}

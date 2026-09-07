@@ -114,7 +114,7 @@ function ManualMatch({
         }}
       >
         <div style={{ ...panelStyle, width: '100%', gap: 12 }}>
-          <h2 style={{ font: '700 24px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
+          <h2 style={{ font: '700 24px/1.3 var(--sans)', color: 'var(--text-strong)', margin: 0 }}>
             친선전
           </h2>
 
@@ -147,7 +147,7 @@ function ManualMatch({
             사람에게 아래를 가리키는 말은 아무것도 알려주지 않는다.
           */}
           {!named && (
-            <span style={{ ...pathLabelStyle, color: '#e4e68a' }} data-name-hint>
+            <span style={{ ...pathLabelStyle, color: 'var(--stamp)' }} data-name-hint>
               이름을 적으면 방을 만들거나 참가할 수 있습니다
             </span>
           )}

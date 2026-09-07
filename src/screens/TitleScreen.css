@@ -270,3 +270,30 @@
   .title-splash__menu button { min-height: 44px; }
   .title-splash__hint { flex: none; margin-top: 10px; }
 }
+
+/* Pinned entrance notice and a separate ledger for rankings. */
+.title-splash__menu {
+  position: relative;
+  padding: 24px;
+  gap: 0;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 4px 5px 0 #201b1740;
+  backdrop-filter: none;
+}
+.title-splash__menu::before { content: ''; position: absolute; top: -9px; left: calc(50% - 28px); width: 56px; height: 18px; background: #cbbd93cc; transform: rotate(-3deg); pointer-events: none; }
+.title-splash__content { grid-template-columns: 300px 300px; gap: 28px; }
+.title-splash__menu > .menu-button { text-align: left; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; padding: 13px 12px; }
+.title-splash__menu > .menu-button[data-primary='yes'] { margin-bottom: 5px; }
+.title-splash__menu > .menu-button[data-selected='yes'] .menu-arrow { display: inline; float: right; }
+.title-splash__content > [data-side-panel] > div { box-shadow: 3px 4px 0 #201b1726; }
+.title-splash__pc-notice { border-radius: 1px; background: var(--paper); color: var(--ink-muted); border-color: var(--rule); }
+.title-splash__mobile-ranking { border-radius: 1px; background: var(--paper); color: var(--ink); }
+.title-splash__mobile-ranking summary { color: var(--ink); }
+.title-splash__hint { border-radius: 1px; }
+@media (max-width: 1199px), (max-height: 680px) {
+  .title-splash__content { grid-template-columns: minmax(240px, 320px); }
+  .title-splash__menu { padding: 18px; }
+}

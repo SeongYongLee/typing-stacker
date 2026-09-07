@@ -34,7 +34,7 @@ function WaitingRoom({
         }}
       >
         <div style={panelStyle}>
-          <p style={{ color: '#6a7290', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
+          <p style={{ color: 'var(--ink-muted)', margin: 0, fontSize: 13, letterSpacing: '0.08em' }}>
             이 코드를 같이 할 사람들에게 알려주세요
           </p>
           <div
@@ -42,10 +42,10 @@ function WaitingRoom({
             style={{
               font: '700 40px/1.2 var(--mono)',
               letterSpacing: '0.14em',
-              color: '#e4e68a',
-              background: '#0d0f16',
-              border: '1px solid #2e3448',
-              borderRadius: 12,
+              color: 'var(--stamp)',
+              background: 'var(--paper)',
+              border: '1px solid var(--rule)',
+              borderRadius: 2,
               padding: '18px 12px',
               userSelect: 'all',
             }}
@@ -57,11 +57,11 @@ function WaitingRoom({
           </button>
           <p
             data-fixed-match-mode="duel"
-            style={{ color: '#f2f4fb', margin: 0, fontSize: 17, fontWeight: 700 }}
+            style={{ color: 'var(--text-strong)', margin: 0, fontSize: 17, fontWeight: 700 }}
           >
             모드 · {modeLabel(ACTIVE_MATCH_MODE)}
           </p>
-          <p style={{ color: '#b6bdd4', margin: 0, fontSize: 14 }}>
+          <p style={{ color: 'var(--ink)', margin: 0, fontSize: 14 }}>
             한 명이라도 들어오면 준비 화면으로 넘어갑니다. 더 기다렸다 시작해도 됩니다
           </p>
           <button type="button" style={ghostButtonStyle} onClick={onBack}>

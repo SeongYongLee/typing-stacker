@@ -105,7 +105,7 @@ function ReadyRoom({
       }}
       data-ready-room={ready.size}
     >
-      <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
+      <p style={{ color: 'var(--ink-muted)', margin: 0, letterSpacing: '0.08em' }}>
         같이 할 사람들
       </p>
 
@@ -130,9 +130,9 @@ function ReadyRoom({
                 gap: 12,
                 minHeight: PLAYER_ROW_HEIGHT,
                 padding: '14px 16px',
-                borderRadius: 12,
-                background: '#0d0f16',
-                border: `1px solid ${isReady ? '#3f7a55' : '#2e3448'}`,
+                borderRadius: 2,
+                background: 'var(--paper)',
+                border: `1px solid ${isReady ? '#3f7a55' : 'var(--rule)'}`,
               }}
             >
               {/*
@@ -146,7 +146,7 @@ function ReadyRoom({
                   flex: 1,
                   textAlign: 'left',
                   fontWeight: mine ? 700 : 500,
-                  color: '#f2f4fb',
+                  color: 'var(--text-strong)',
                 }}
               >
                 {player.nickname}
@@ -159,7 +159,7 @@ function ReadyRoom({
                   flex: `0 0 ${PLAYER_STATUS_WIDTH}px`,
                   textAlign: 'right',
                   whiteSpace: 'nowrap',
-                  color: isReady ? '#6bffb0' : '#6a7290',
+                  color: isReady ? 'var(--green)' : 'var(--ink-muted)',
                 }}
               >
                 {isReady ? '준비됨' : '기다리는 중…'}
@@ -181,12 +181,12 @@ function ReadyRoom({
   )
   const modePanel = (
     <div style={{ ...panelStyle, width: '100%', fontSize: READY_TEXT_SIZE }}>
-      <p style={{ color: '#6a7290', margin: 0, letterSpacing: '0.08em' }}>
+      <p style={{ color: 'var(--ink-muted)', margin: 0, letterSpacing: '0.08em' }}>
         모드 설정
       </p>
       <p
         data-fixed-match-mode="duel"
-        style={{ margin: 0, color: '#f2f4fb', fontSize: READY_TEXT_SIZE, fontWeight: 700 }}
+        style={{ margin: 0, color: 'var(--text-strong)', fontSize: READY_TEXT_SIZE, fontWeight: 700 }}
       >
         모드 · {modeLabel(ACTIVE_MATCH_MODE)}
       </p>

@@ -50,19 +50,19 @@ function PauseOverlay({ onResume, onRestart, onHome, onOptions }: PauseOverlayPr
 
   return (
     <div style={rootStyle} data-pause>
-      <div style={{ textAlign: 'center', minWidth: 240 }}>
-        <p
+      <div className="paper-sheet pause-sheet" style={{ textAlign: 'center', minWidth: 240 }}>
+        <p className="office-heading"
           style={{
             fontSize: 26,
             fontWeight: 700,
-            color: '#f2f4fb',
+            color: 'var(--text-strong)',
             margin: '0 0 6px',
             letterSpacing: '0.04em',
           }}
         >
-          잠시 멈춤
+          잠시 자리 비움
         </p>
-        <p style={{ fontSize: 12, color: '#6a7290', margin: '0 0 22px' }}>
+        <p style={{ fontSize: 12, color: 'var(--ink-muted)', margin: '0 0 22px' }}>
           <InputHint desktop="Esc로 돌아간다" mobile="계속하기를 누르면 키보드가 열립니다" />
         </p>
 

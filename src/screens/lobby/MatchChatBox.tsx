@@ -50,20 +50,20 @@ function MatchChatBox({
           overflowY: 'auto',
           textAlign: 'left',
           padding: '8px 10px',
-          borderRadius: 10,
-          background: '#0d0f16',
-          border: '1px solid #2e3448',
+          borderRadius: 2,
+          background: 'var(--paper)',
+          border: '1px solid var(--rule)',
           display: 'grid',
           gap: 4,
           alignContent: 'start',
         }}
       >
         {lines.length === 0 && notices.length === 0 && (
-          <span style={{ color: '#4a5171' }}>시작 전에 한마디 나눌 수 있습니다.</span>
+          <span style={{ color: 'var(--ink-muted)' }}>시작 전에 한마디 나눌 수 있습니다.</span>
         )}
         {lines.map((line) => (
-          <span key={line.seq} style={{ color: '#b6bdd4', lineHeight: 1.5 }}>
-            <b style={{ color: line.from === selfId ? '#e4e68a' : '#8bd6ff' }}>
+          <span key={line.seq} style={{ color: 'var(--ink)', lineHeight: 1.5 }}>
+            <b style={{ color: line.from === selfId ? 'var(--stamp)' : 'var(--green)' }}>
               {line.nickname}
             </b>{' '}
             {line.text}
@@ -73,7 +73,7 @@ function MatchChatBox({
           <span
             key={notice.id}
             data-chat-notice={notice.id}
-            style={{ color: '#8bd6ff', lineHeight: 1.5, fontWeight: 700 }}
+            style={{ color: 'var(--green)', lineHeight: 1.5, fontWeight: 700 }}
           >
             {notice.text}
           </span>

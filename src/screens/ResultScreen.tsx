@@ -28,7 +28,7 @@ const rootStyle: CSSProperties = {
   placeItems: 'center',
   padding: 20,
   background: 'rgba(13, 15, 22, 0.88)',
-  backdropFilter: 'blur(3px)',
+
 }
 
 /**
@@ -46,9 +46,9 @@ const panelStyle: CSSProperties = {
   display: 'grid',
   gridTemplateRows: 'auto minmax(0, 1fr) auto',
   padding: 'clamp(16px, 4vw, 28px) clamp(12px, 4vw, 32px)',
-  borderRadius: 14,
-  border: '1px solid #262b3d',
-  background: '#151824',
+  borderRadius: 2,
+  border: '1px solid var(--rule)',
+  background: 'var(--paper)',
   textAlign: 'center',
 }
 
@@ -127,24 +127,24 @@ function ResultScreen({
   if (tutorialEnd) {
     return (
       <div style={rootStyle}>
-        <div
+        <div className="paper-sheet tutorial-receipt"
           style={{
             width: 'min(420px, 100%)',
             display: 'grid',
             gap: 24,
             justifyItems: 'center',
             padding: '32px',
-            border: '1px solid #40354a',
-            borderRadius: 14,
-            background: '#151824',
+            border: '1px solid var(--rule)',
+            borderRadius: 2,
+            background: 'var(--paper)',
             textAlign: 'center',
           }}
         >
           <div>
-            <p style={{ margin: 0, color: '#ffcf80', fontSize: 13, letterSpacing: '0.12em' }}>
-              TUTORIAL COMPLETE
+            <p style={{ margin: 0, color: 'var(--stamp)', fontSize: 13, letterSpacing: '0.12em' }}>
+              업무 교육 이수
             </p>
-            <h1 style={{ margin: '8px 0 10px', color: '#fff4d2', fontSize: 32 }}>튜토리얼 완료</h1>
+            <h1 className="office-heading" style={{ margin: '8px 0 10px', color: 'var(--text-strong)', fontSize: 32 }}>튜토리얼 완료</h1>
           </div>
 
           <div style={{ width: 'min(240px, 100%)', display: 'grid', gap: 10 }}>
@@ -167,12 +167,14 @@ function ResultScreen({
 
   return (
     <div style={rootStyle}>
-      <div style={panelStyle}>
+      <div className="paper-sheet result-sheet" style={panelStyle}>
         <div>
+          <div className="office-caption"><span>분실물 보관소</span><span className="office-stamp">정리 종료</span></div>
+          <h1 className="report-heading">정리 보고서</h1>
           <div
             style={{
               font: '700 52px/1.1 var(--sans)',
-              color: '#e4e68a',
+              color: 'var(--stamp)',
               margin: '8px 0 6px',
               fontVariantNumeric: 'tabular-nums',
             }}
@@ -185,7 +187,7 @@ function ResultScreen({
               style={{
                 margin: '0 0 20px',
                 fontSize: 14,
-                color: ranking.isBest ? '#6bffb0' : '#8b93b0',
+                color: ranking.isBest ? 'var(--green)' : 'var(--ink-muted)',
               }}
             >
               {verdict}
@@ -205,10 +207,10 @@ function ResultScreen({
               style={{
                 marginBottom: 16,
                 padding: '10px 12px',
-                border: '1px solid #40354a',
-                borderRadius: 8,
-                background: '#11151f',
-                color: '#d7d9e7',
+                border: '1px solid var(--rule)',
+                borderRadius: 2,
+                background: 'var(--paper-shade)',
+                color: 'var(--ink)',
                 fontSize: 14,
                 lineHeight: 1.45,
               }}
@@ -276,7 +278,7 @@ function NewCollection({ items }: { items: readonly string[] }) {
 
   return (
     <div style={newCollectionStyle} data-new-collection>
-      <p style={{ fontSize: 12, color: '#6a7290', letterSpacing: '0.08em', margin: 0 }}>
+      <p style={{ fontSize: 12, color: 'var(--ink-muted)', letterSpacing: '0.08em', margin: 0 }}>
         도감에 새로 추가
       </p>
       <div style={newItemsStyle}>
@@ -287,13 +289,13 @@ function NewCollection({ items }: { items: readonly string[] }) {
               alt={item.label}
               style={{ width: 48, height: 48, objectFit: 'contain' }}
             />
-            <span style={{ fontSize: 12, fontWeight: 700, color: item.hidden ? '#e4e68a' : '#d9deef' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: item.hidden ? 'var(--stamp)' : 'var(--ink)' }}>
               {item.label}
             </span>
           </div>
         ))}
       </div>
-      <p style={{ fontSize: 12, color: '#8b93b0', margin: '8px 0 0' }}>
+      <p style={{ fontSize: 12, color: 'var(--ink-muted)', margin: '8px 0 0' }}>
         프로필에서 사진으로 쓸 수 있습니다
       </p>
     </div>
@@ -303,9 +305,9 @@ function NewCollection({ items }: { items: readonly string[] }) {
 const newCollectionStyle: CSSProperties = {
   marginTop: 18,
   padding: '12px 12px 10px',
-  border: '1px solid #2f3650',
-  borderRadius: 10,
-  background: '#11151f',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
+  background: 'var(--paper-shade)',
 }
 
 const newItemsStyle: CSSProperties = {
@@ -321,9 +323,9 @@ const newItemStyle: CSSProperties = {
   justifyItems: 'center',
   gap: 4,
   padding: '8px 6px',
-  border: '1px solid #2a3046',
-  borderRadius: 8,
-  background: '#181d2b',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
+  background: 'var(--paper-shade)',
 }
 
 const rowStyle: CSSProperties = {
@@ -338,7 +340,7 @@ const retryRankStyle: CSSProperties = {
   padding: 0,
   border: 0,
   background: 'transparent',
-  color: '#aeb8dc',
+  color: 'var(--ink)',
   font: '600 13px var(--sans)',
   textDecoration: 'underline',
   cursor: 'pointer',
@@ -366,7 +368,7 @@ function RankBoard({ ranking }: { ranking: RunRanking }) {
       <p
         style={{
           fontSize: 12,
-          color: '#6a7290',
+          color: 'var(--ink-muted)',
           letterSpacing: '0.06em',
           margin: '0 0 8px',
           textAlign: 'center',
@@ -382,11 +384,11 @@ function RankBoard({ ranking }: { ranking: RunRanking }) {
               display: 'flex',
               gap: 10,
               fontSize: 13,
-              color: run.id === profile.id ? '#e4e68a' : '#8b93b0',
+              color: run.id === profile.id ? 'var(--stamp)' : 'var(--ink-muted)',
               fontWeight: run.id === profile.id ? 700 : 400,
             }}
           >
-            <span style={{ width: 18, textAlign: 'right', color: '#4a5171' }}>
+            <span style={{ width: 18, textAlign: 'right', color: 'var(--ink-muted)' }}>
               {index + 1}
             </span>
             <span
@@ -420,12 +422,12 @@ function Stat({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-      <span style={{ fontSize: small ? 11 : 12, color: '#6a7290' }}>{label}</span>
+      <span style={{ fontSize: small ? 11 : 12, color: 'var(--ink-muted)' }}>{label}</span>
       <span
         style={{
           fontSize: small ? 13 : 16,
           fontWeight: 600,
-          color: small ? '#8b93b0' : '#f2f4fb',
+          color: small ? 'var(--ink-muted)' : 'var(--text-strong)',
           fontVariantNumeric: 'tabular-nums',
         }}
       >

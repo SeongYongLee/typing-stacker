@@ -25,7 +25,7 @@ const rootStyle: CSSProperties = {
   gap: 8,
   marginBottom: 14,
   paddingBottom: 14,
-  borderBottom: '1px solid #262b3d',
+  borderBottom: '1px solid var(--rule)',
   textAlign: 'center',
 }
 
@@ -36,7 +36,7 @@ function NameGreeting({ name, icon, selected, onSelect, onActivate }: NameGreeti
         style={{
           margin: 0,
           fontSize: 13,
-          color: '#8b93b0',
+          color: 'var(--ink-muted)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -46,7 +46,7 @@ function NameGreeting({ name, icon, selected, onSelect, onActivate }: NameGreeti
       >
         <Avatar icon={icon} size={26} />
         <span>
-          반가워요, <strong style={{ color: '#f2f4fb' }}>{name}</strong>님
+          반가워요, <strong style={{ color: 'var(--text-strong)' }}>{name}</strong>님
         </span>
       </p>
       <MenuButton

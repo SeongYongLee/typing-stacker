@@ -9,9 +9,9 @@ import { play } from './animate.ts'
  */
 const KEPT = '#ff6b6b'
 const LOST = '#2e3448'
-const SCORE_BACKGROUND = '#e4e68a'
-const COMBO_BACKGROUND = '#6bffb0'
-const CHIP_TEXT = '#0d0f16'
+const SCORE_BACKGROUND = '#f5efdd'
+const COMBO_BACKGROUND = '#d6dfc9'
+const CHIP_TEXT = '#433d32'
 const VITAL_LABEL_SIZE = 22
 const VITAL_VALUE_SIZE = 52
 const VITAL_GAP = 16
@@ -44,7 +44,7 @@ function valueChipStyleFor(size: VitalSize): CSSProperties {
       : size === 'bar'
         ? '5px 9px 7px'
         : valueChipStyle.padding,
-    borderRadius: size === 'regular' ? valueChipStyle.borderRadius : 8,
+    borderRadius: size === 'regular' ? valueChipStyle.borderRadius : 1,
     fontSize: size === 'compact'
       ? COMPACT_VALUE_SIZE
       : size === 'bar'
@@ -67,7 +67,7 @@ const vitalLabelStyle: CSSProperties = {
 
 const valueChipStyle: CSSProperties = {
   padding: '6px 10px 8px',
-  borderRadius: 10,
+  borderRadius: 1,
   color: CHIP_TEXT,
   fontSize: VITAL_VALUE_SIZE,
   fontWeight: 700,

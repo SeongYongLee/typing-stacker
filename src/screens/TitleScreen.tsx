@@ -117,6 +117,7 @@ function TitleScreen({
 
         <div className="title-splash__content">
           <div className="title-splash__menu">
+            <div className="office-caption"><span>보관소 이용 안내</span><span>접수 중</span></div>
             <NameGreeting
               name={me.name}
               icon={me.icon}

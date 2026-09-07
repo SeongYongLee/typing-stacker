@@ -28,31 +28,6 @@ function MenuButton({
   disabled = false,
   style,
 }: MenuButtonProps) {
-  const base: CSSProperties = {
-    display: 'block',
-    width: '100%',
-    padding: '13px 30px',
-    fontSize: 15,
-    fontWeight: 600,
-    borderRadius: 10,
-    cursor: disabled ? 'default' : 'pointer',
-    transition: 'background 120ms, border-color 120ms, color 120ms',
-  }
-
-  const look: CSSProperties = disabled
-    ? { border: '1px solid #3a3f52', background: 'transparent', color: '#4a5171' }
-    : primary
-      ? {
-          border: '1px solid #e4e68a',
-          background: selected ? '#e4e68a' : '#21211f',
-          color: selected ? '#21211f' : '#e4e68a',
-        }
-      : {
-          border: `1px solid ${selected ? '#e4e68a' : '#48507a'}`,
-          background: selected ? '#e4e68a' : 'transparent',
-          color: selected ? '#21211f' : '#b6bdd4',
-        }
-
   /* 키보드로 고르면 useMenuKeys가 소리를 낸다. 마우스로 누른 길에도 같은 소리가 나야 한다 */
   const activate = () => {
     soundBoard().handle({ kind: 'menuSelect' })
@@ -68,9 +43,11 @@ function MenuButton({
       className="menu-button"
       data-menu-item
       data-selected={selected ? 'yes' : 'no'}
-      style={{ ...base, ...look, ...style }}
+      data-primary={primary ? 'yes' : 'no'}
+      style={{ fontSize: 15, ...style }}
     >
       {children}
+      <span className="menu-arrow" aria-hidden="true">→</span>
     </button>
   )
 }

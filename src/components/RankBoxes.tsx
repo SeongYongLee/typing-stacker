@@ -11,10 +11,10 @@ import type { Leaderboard } from '../hooks/useLeaderboard.ts'
  */
 function Waiting({ board }: { board: Leaderboard }) {
   if (board.status === 'loading') {
-    return <p style={{ fontSize: 13, color: '#4a5171', margin: 0 }}>불러오는 중…</p>
+    return <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>불러오는 중…</p>
   }
   // 순위를 못 받아도 게임은 할 수 있다. 그 사실만 조용히 알린다
-  return <p style={{ fontSize: 13, color: '#4a5171', margin: 0 }}>순위를 불러오지 못했습니다</p>
+  return <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>순위를 불러오지 못했습니다</p>
 }
 
 function SoloRanking({ board }: { board: Leaderboard }) {
@@ -33,7 +33,7 @@ function SoloRanking({ board }: { board: Leaderboard }) {
     <>
       <p style={panelTitleStyle}>점수 순위</p>
       {view.top.length === 0 ? (
-        <p style={{ fontSize: 13, color: '#4a5171', margin: 0 }}>아직 기록이 없습니다</p>
+        <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>아직 기록이 없습니다</p>
       ) : (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 7 }}>
           {view.top.slice(0, 5).map((record, index) => (
@@ -45,10 +45,10 @@ function SoloRanking({ board }: { board: Leaderboard }) {
                 alignItems: 'center',
                 gap: 8,
                 fontSize: 13,
-                color: index === 0 ? '#e4e68a' : '#b6bdd4',
+                color: index === 0 ? 'var(--stamp)' : 'var(--ink)',
               }}
             >
-              <span style={{ color: '#6a7290' }}>{index + 1}</span>
+              <span style={{ color: 'var(--ink-muted)' }}>{index + 1}</span>
               {/* 안 고른 사람은 빈 동그라미가 같은 자리를 지킨다 — 줄이 어긋나지 않는다 */}
               <Avatar icon={record.icon ?? ''} size={22} />
               <span
@@ -69,15 +69,15 @@ function SoloRanking({ board }: { board: Leaderboard }) {
       )}
 
       {/* 내 자리는 따로 떼어 보여준다 — 5등 밖이면 위 목록에 없다 */}
-      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #262b3d' }}>
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--rule)' }}>
         <p style={{ ...panelTitleStyle, margin: '0 0 6px' }}>내 최고</p>
         {view.best === null ? (
-          <p style={{ fontSize: 13, color: '#4a5171', margin: 0 }}>아직 없습니다</p>
+          <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>아직 없습니다</p>
         ) : (
-          <p style={{ fontSize: 14, color: '#f2f4fb', margin: 0 }}>
+          <p style={{ fontSize: 14, color: 'var(--text-strong)', margin: 0 }}>
             {view.best.score.toLocaleString('ko-KR')}
             {view.rank !== null && (
-              <span style={{ color: '#6a7290', fontSize: 12 }}> · {view.rank}위</span>
+              <span style={{ color: 'var(--ink-muted)', fontSize: 12 }}> · {view.rank}위</span>
             )}
           </p>
         )}
@@ -114,7 +114,7 @@ function VersusTier({ board }: { board: Leaderboard }) {
     <>
       <p style={panelTitleStyle}>티어 순위</p>
       {view.ladder.length === 0 ? (
-        <p style={{ fontSize: 13, color: '#4a5171', margin: 0 }}>아직 기록이 없습니다</p>
+        <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>아직 기록이 없습니다</p>
       ) : (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 7 }}>
           {view.ladder.slice(0, 5).map((record, index) => {
@@ -128,10 +128,10 @@ function VersusTier({ board }: { board: Leaderboard }) {
                   alignItems: 'center',
                   gap: 8,
                   fontSize: 13,
-                  color: index === 0 ? '#e4e68a' : '#b6bdd4',
+                  color: index === 0 ? 'var(--stamp)' : 'var(--ink)',
                 }}
               >
-                <span style={{ color: '#6a7290' }}>{index + 1}</span>
+                <span style={{ color: 'var(--ink-muted)' }}>{index + 1}</span>
                 {/* 혼자 하기를 안 한 사람은 빈 동그라미가 자리를 지킨다 — 줄이 어긋나지 않는다 */}
                 <Avatar icon={record.icon ?? ''} size={22} />
                 <span
@@ -154,24 +154,24 @@ function VersusTier({ board }: { board: Leaderboard }) {
       )}
 
       {/* 내 자리는 따로 떼어 보여준다 — 5등 밖이면 위 목록에 없다 */}
-      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #262b3d' }}>
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--rule)' }}>
         <p style={{ ...panelTitleStyle, margin: '0 0 6px' }}>내 티어</p>
         <p style={{ fontSize: 14, margin: 0 }}>
           <span style={{ color: tier.color, fontWeight: 700 }}>{tier.name}</span>
-          <span style={{ color: '#6a7290' }}> · </span>
-          <span style={{ color: '#f2f4fb', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ color: 'var(--ink-muted)' }}> · </span>
+          <span style={{ color: 'var(--text-strong)', fontVariantNumeric: 'tabular-nums' }}>
             {Math.round(view.rating)}
           </span>
         </p>
         {played === 0 ? (
-          <p style={{ fontSize: 13, color: '#4a5171', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: '4px 0 0' }}>
             아직 붙어본 적이 없습니다
           </p>
         ) : (
           <p style={{ fontSize: 13, margin: '4px 0 0' }}>
-            <span style={{ color: '#6bffb0' }}>{view.wins}승</span>
-            <span style={{ color: '#6a7290' }}> · </span>
-            <span style={{ color: '#ff6b6b' }}>{view.losses}패</span>
+            <span style={{ color: 'var(--green)' }}>{view.wins}승</span>
+            <span style={{ color: 'var(--ink-muted)' }}> · </span>
+            <span style={{ color: 'var(--danger)' }}>{view.losses}패</span>
           </p>
         )}
       </div>

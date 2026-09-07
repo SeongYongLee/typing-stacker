@@ -71,3 +71,24 @@
 .mp-options { position: absolute; inset: 0; z-index: 15; background: #101a25; }
 .mp-tutorial, .mp-stage-notice { position: absolute; top: 8px; left: 8px; right: 8px; padding: 8px 10px; border-radius: 6px; background: #101a25e8; text-align: center; font-size: 14px; pointer-events: none; }
 .mp-stage-notice { top: auto; bottom: 8px; }
+
+/* Compact ledger: keep gameplay dimensions while sharing the office materials. */
+.mp-page { color: var(--ink); background: #c6c9b7; }
+.mp-hud { background: var(--paper); color: var(--ink); border-bottom: 1px solid var(--rule); }
+.mp-hud button { color: var(--ink); border-left: 1px solid var(--rule); }
+.mp-hud .mp-congestion { color: var(--stamp); }
+.mp-congestion-track { border-color: #9b8e75; border-radius: 1px; background: #dfd6c1; }
+.mp-congestion-track > div { background: #ab6543; }
+.mp-words { background: #e6decae8; }
+.mp-word { border-radius: 1px; border-bottom: 1px solid #b9a57d; }
+.mp-word[data-recall='true'] { background: #e2e9d6; outline-color: #738268; }
+.mp-feedback { background: var(--paper); color: var(--ink-muted); }
+.mp-feedback[data-ok='false'] { color: var(--stamp); }
+.mp-feedback[data-ok='true'] { color: #345c39; }
+.mp-input { background: var(--paper); border-top: 1px solid var(--rule); }
+.mp-input input { background: transparent; color: var(--ink); border-radius: 0; border-bottom: 2px solid var(--ink); }
+.mp-input input::placeholder { color: var(--ink-muted); }
+.mp-merge-toast { background: var(--paper-shade); border: 1px solid var(--stamp); color: var(--stamp); }
+.mp-tutorial, .mp-stage-notice { border-radius: 1px; background: #f5efddf5; color: var(--ink); border-left: 3px solid var(--stamp); }
+.mp-empty { color: var(--ink-muted); }
+.mp-options { background: var(--paper); }

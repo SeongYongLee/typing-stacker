@@ -92,3 +92,23 @@
 .mp-tutorial, .mp-stage-notice { border-radius: 1px; background: #f5efddf5; color: var(--ink); border-left: 3px solid var(--stamp); }
 .mp-empty { color: var(--ink-muted); }
 .mp-options { background: var(--paper); }
+
+/* Tutorial instructions occupy their own row, keeping the canvas unobstructed. */
+.mp-words[hidden] { display: none; }
+.mp-tutorial { position: relative; inset: auto; z-index: 1; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; text-align: left; pointer-events: auto; font-size: 13px; line-height: 1.35; }
+.mp-tutorial > div { min-width: 0; flex: 1; }
+.mp-tutorial p { margin: 0; }
+.mp-tutorial small { display: block; margin-top: 3px; font-size: 11px; color: var(--ink-muted); }
+.mp-tutorial-next { flex-shrink: 0; min-width: 48px; min-height: 44px; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 1px; background: var(--paper-shade); color: var(--ink); font: inherit; }
+.mp-tutorial-next:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.mp-tutorial-next:active { background: var(--paper); }
+
+/* Keep the focused native input mounted so advancing does not close the keyboard. */
+.mp-input[data-tutorial-action='true'] input { opacity: 0; pointer-events: none; }
+.mp-input .mp-tutorial-next { position: absolute; z-index: 1; inset: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); width: calc(100% - 16px); font-size: 18px; }
+
+.mp-tutorial-title { display: block; color: var(--stamp); font-size: 11px; margin-bottom: 2px; }
+
+.mp-board-slot[data-tutorial-guide='true'] { outline: 2px solid var(--stamp); outline-offset: -2px; }
+
+.mp-page[data-controls='pc'] { max-width: 900px; }

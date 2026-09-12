@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore, lazy, Suspense } from 'react'
+import { useEffect, useState, useSyncExternalStore, lazy, Suspense } from 'react'
 import type { GameEngine } from '../game/core/GameEngine.ts'
 import type { EngineStateStore } from '../hooks/useGameEngine.ts'
 import { GameScreen } from './GameScreen.tsx'
@@ -6,10 +6,10 @@ import { ResultScreen } from './ResultScreen.tsx'
 import type { Phase } from '../game/systems/DayNight.ts'
 import type { GamePhase } from '../game/types/game.ts'
 
-import { useTooNarrow } from '../hooks/useViewport.ts'
+import { useTooNarrow, useMobileControls } from '../hooks/useViewport.ts'
 const MobileGameScreen = lazy(() => import('./MobileGameScreen.tsx').then(({ MobileGame, MobileViewport }) => ({
-  default: ({ engine, stateStore, onHome, onRestart, children }: Pick<SoloGameScreenProps, 'engine' | 'stateStore' | 'onHome' | 'onRestart'> & { children: React.ReactNode }) =>
-    <MobileViewport engine={engine}><MobileGame engine={engine} store={stateStore} onHome={onHome} onRestart={onRestart} />{children}</MobileViewport>,
+  default: ({ engine, stateStore, onHome, onRestart, children, touch }: Pick<SoloGameScreenProps, 'engine' | 'stateStore' | 'onHome' | 'onRestart'> & { children: React.ReactNode; touch: boolean }) =>
+    <MobileViewport engine={engine} touch={touch}><MobileGame touch={touch} engine={engine} store={stateStore} onHome={onHome} onRestart={onRestart} />{children}</MobileViewport>,
 })))
 
 interface SoloGameScreenProps {
@@ -35,7 +35,11 @@ function SoloGameScreen({
   onHome,
   onSceneChange,
 }: SoloGameScreenProps) {
-  const narrow = useTooNarrow()
+  // The three-column field needs 676px; retain room for the HUD as well.
+  const narrow = useTooNarrow(800)
+  const preferredTouch = useMobileControls()
+  // Apply control changes to the next run, preserving an open pause/options menu.
+  const [touch] = useState(preferredTouch)
   const state = useSyncExternalStore(
     stateStore.subscribe,
     stateStore.getSnapshot,
@@ -67,7 +71,7 @@ function SoloGameScreen({
       )}
     </>
   )
-  if (narrow) return <Suspense fallback={null}><MobileGameScreen engine={engine} stateStore={stateStore} onHome={onHome} onRestart={onRestart}>{overlays}</MobileGameScreen></Suspense>
+  if (narrow || touch) return <Suspense fallback={null}><MobileGameScreen touch={touch} engine={engine} stateStore={stateStore} onHome={onHome} onRestart={onRestart}>{overlays}</MobileGameScreen></Suspense>
   return <><GameScreen engine={engine} state={state} onRestart={onRestart} onHome={onHome} />{overlays}</>
 }
 

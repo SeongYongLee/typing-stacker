@@ -26,13 +26,15 @@ const rootStyle: CSSProperties = {
   zIndex: 20,
   display: 'grid',
   placeItems: 'center',
+  gridTemplateRows: 'minmax(0, 1fr)',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  overflow: 'hidden',
   padding: 20,
   background: 'rgba(13, 15, 22, 0.88)',
-
 }
 
 /**
- * 머리(점수)와 발(버튼)은 제자리에 두고 가운데만 흐르게 한다.
+ * 결과 내용은 함께 스크롤하고, 하단 행동 버튼은 항상 화면 안에 둔다.
  *
  * 전부 한 덩어리로 두면 화면이 짧을 때 아래가 잘리는데, `body`가 `overflow: hidden`이라
  * **잘린 버튼에 닿을 방법이 없다.** 판이 끝난 화면에서 그러면 갇힌다. 도감이 이미
@@ -43,8 +45,10 @@ const panelStyle: CSSProperties = {
   minWidth: 0,
   maxWidth: 460,
   maxHeight: '100%',
+  minHeight: 0,
+  overflow: 'hidden',
   display: 'grid',
-  gridTemplateRows: 'auto minmax(0, 1fr) auto',
+  gridTemplateRows: 'minmax(0, 1fr) auto',
   padding: 'clamp(16px, 4vw, 28px) clamp(12px, 4vw, 32px)',
   borderRadius: 2,
   border: '1px solid var(--rule)',
@@ -126,9 +130,10 @@ function ResultScreen({
 
   if (tutorialEnd) {
     return (
-      <div style={rootStyle}>
+      <div className="result-overlay" style={rootStyle}>
         <div className="paper-sheet tutorial-receipt"
           style={{
+            ...panelStyle,
             width: 'min(420px, 100%)',
             display: 'grid',
             gap: 24,
@@ -140,14 +145,14 @@ function ResultScreen({
             textAlign: 'center',
           }}
         >
-          <div>
+          <div className="result-content">
             <p style={{ margin: 0, color: 'var(--stamp)', fontSize: 13, letterSpacing: '0.12em' }}>
               업무 교육 이수
             </p>
             <h1 className="office-heading" style={{ margin: '8px 0 10px', color: 'var(--text-strong)', fontSize: 32 }}>튜토리얼 완료</h1>
           </div>
 
-          <div style={{ width: 'min(240px, 100%)', display: 'grid', gap: 10 }}>
+          <div className="result-actions" style={{ width: 'min(240px, 100%)', display: 'grid', gap: 10 }}>
             {items.map((item, index) => (
               <MenuButton
                 key={item.label}
@@ -166,89 +171,90 @@ function ResultScreen({
   }
 
   return (
-    <div style={rootStyle}>
+    <div className="result-overlay" style={rootStyle}>
       <div className="paper-sheet result-sheet" style={panelStyle}>
-        <div>
-          <div className="office-caption"><span>분실물 보관소</span><span className="office-stamp">정리 종료</span></div>
-          <h1 className="report-heading">정리 보고서</h1>
-          <div
-            style={{
-              font: '700 52px/1.1 var(--sans)',
-              color: 'var(--stamp)',
-              margin: '8px 0 6px',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {stats.score.toLocaleString('ko-KR')}
-          </div>
-          {verdict !== null && (
-            <p
-              data-verdict
+        <div className="result-content">
+          <div>
+            <div className="office-caption"><span>분실물 보관소</span><span className="office-stamp">정리 종료</span></div>
+            <h1 className="report-heading">정리 보고서</h1>
+            <div
               style={{
-                margin: '0 0 20px',
-                fontSize: 14,
-                color: ranking.isBest ? 'var(--green)' : 'var(--ink-muted)',
+                font: '700 52px/1.1 var(--sans)',
+                color: 'var(--stamp)',
+                margin: '8px 0 6px',
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {verdict}
-            </p>
-          )}
-          {(ranking.status === 'offline' || ranking.status === 'rejected') && (
-            <button type="button" onClick={ranking.retry} style={retryRankStyle}>
-              기록 다시 보내기
-            </button>
-          )}
-        </div>
-
-        <div style={{ overflowY: 'auto', minHeight: 0 }}>
-          {totalReturns === 0 && (
-            <section
-              aria-label="회수 안내"
-              style={{
-                marginBottom: 16,
-                padding: '10px 12px',
-                border: '1px solid var(--rule)',
-                borderRadius: 2,
-                background: 'var(--paper-shade)',
-                color: 'var(--ink)',
-                fontSize: 14,
-                lineHeight: 1.45,
-              }}
-            >
-              화이트보드에 표시된 물건을 회수하면 다음 스테이지로 진행할 수 있습니다.
-            </section>
-          )}
-
-          {/* 이 게임의 성취. 쌓기·높이·콤보가 판을 요약한다 */}
-          <div style={rowStyle}>
-            <Stat label="쌓은 물건" value={`${stats.stackCount}개`} />
-            <Stat label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
-            <Stat label="최고 콤보" value={`x${stats.maxCombo}`} />
+              {stats.score.toLocaleString('ko-KR')}
+            </div>
+            {verdict !== null && (
+              <p
+                data-verdict
+                style={{
+                  margin: '0 0 20px',
+                  fontSize: 14,
+                  color: ranking.isBest ? 'var(--green)' : 'var(--ink-muted)',
+                }}
+              >
+                {verdict}
+              </p>
+            )}
+            {(ranking.status === 'offline' || ranking.status === 'rejected') && (
+              <button type="button" onClick={ranking.retry} style={retryRankStyle}>
+                기록 다시 보내기
+              </button>
+            )}
           </div>
 
-          {/* 참고값. 판을 요약하지는 않지만 다음 판에 참고가 된다 */}
-          <div style={{ ...rowStyle, marginTop: 8 }}>
-            <Stat label="타수" value={`${stats.kpm}타/분`} small />
-            <Stat label="놓친 단어" value={`${stats.missedWords}개`} small />
-            <Stat
-              label="정확도"
-              value={
-                lost > 0
-                  ? `${Math.round(stats.accuracy * 100)}% (−${lost.toLocaleString('ko-KR')})`
-                  : `${Math.round(stats.accuracy * 100)}%`
-              }
-              small
-            />
+          <div className="result-details">
+            {totalReturns === 0 && (
+              <section
+                aria-label="회수 안내"
+                style={{
+                  marginBottom: 16,
+                  padding: '10px 12px',
+                  border: '1px solid var(--rule)',
+                  borderRadius: 2,
+                  background: 'var(--paper-shade)',
+                  color: 'var(--ink)',
+                  fontSize: 14,
+                  lineHeight: 1.45,
+                }}
+              >
+                화이트보드에 표시된 물건을 회수하면 다음 스테이지로 진행할 수 있습니다.
+              </section>
+            )}
+
+            {/* 이 게임의 성취. 쌓기·높이·콤보가 판을 요약한다 */}
+            <div style={rowStyle}>
+              <Stat label="쌓은 물건" value={`${stats.stackCount}개`} />
+              <Stat label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
+              <Stat label="최고 콤보" value={`x${stats.maxCombo}`} />
+            </div>
+
+            {/* 참고값. 판을 요약하지는 않지만 다음 판에 참고가 된다 */}
+            <div style={{ ...rowStyle, marginTop: 8 }}>
+              <Stat label="타수" value={`${stats.kpm}타/분`} small />
+              <Stat label="놓친 단어" value={`${stats.missedWords}개`} small />
+              <Stat
+                label="정확도"
+                value={
+                  lost > 0
+                    ? `${Math.round(stats.accuracy * 100)}% (−${lost.toLocaleString('ko-KR')})`
+                    : `${Math.round(stats.accuracy * 100)}%`
+                }
+                small
+              />
+            </div>
+
+            {freshlyCollected.length > 0 && (
+              <NewCollection items={freshlyCollected} />
+            )}
+
+            <RankBoard ranking={ranking} />
           </div>
-
-          {freshlyCollected.length > 0 && (
-            <NewCollection items={freshlyCollected} />
-          )}
-
-          <RankBoard ranking={ranking} />
         </div>
-
-        <div style={{ display: 'grid', gap: 10, justifyItems: 'center', paddingTop: 20 }}>
+        <div className="result-actions">
           {items.map((item, index) => (
             <MenuButton
               key={item.label}
@@ -256,7 +262,6 @@ function ResultScreen({
               onClick={item.run}
               onHover={() => menu.select(index)}
               primary={item.primary}
-              style={{ width: 'auto', minWidth: 190 }}
             >
               {item.label}
             </MenuButton>

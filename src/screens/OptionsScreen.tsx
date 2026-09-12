@@ -45,7 +45,7 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
   // 이름은 여기 없다. 설정이 아니라 "내가 누구로 보이는가"라서 시작 화면 맨 위에 있다
   const sections = [
     { title: '사운드', items: sound },
-    { title: '그래픽', items: display },
+    { title: '화면과 조작', items: display },
     { title: '게임 규칙 보기', items: rules },
   ]
   const items = [...sound, ...display, ...rules, { label: '돌아가기 (Esc)', run: onBack }]
@@ -63,7 +63,7 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
           보관소 관리표
         </h1>
         <p style={{ fontSize: 12, color: 'var(--ink-muted)', margin: '10px 0 24px' }}>
-          <InputHint desktop="Enter로 값을 바꿉니다" mobile="항목을 누르면 값이 바뀝니다" />
+          <InputHint desktop="Enter로 값을 바꿉니다" mobile="항목을 누르면 값이 바뀝니다" /><br />조작 방식 변경은 다음 게임부터 적용됩니다.
         </p>
 
         <div className="options-list" data-options>

@@ -64,6 +64,8 @@ function useDisplayMenu(): readonly DisplayMenuItem[] {
 
   return useMemo(
     () => [
+      { label: `조작 방식 · ${{ auto: '자동', pc: 'PC', mobile: '모바일' }[settings.inputMode]}`,
+        run: () => updateDisplaySettings({ inputMode: settings.inputMode === 'auto' ? 'pc' : settings.inputMode === 'pc' ? 'mobile' : 'auto' }) },
       cycleItem('화면 흔들림', settings.shake, (shake) =>
         updateDisplaySettings({ shake }),
       ),

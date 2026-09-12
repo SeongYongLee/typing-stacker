@@ -10,6 +10,7 @@ import { ARENA_SCREEN_MAX_WIDTH } from '../game/config.ts'
 import type { GameEngine, GameState } from '../game/core/GameEngine.ts'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
 import { useTypingSound } from '../hooks/useAudio.ts'
+import { tutorialGuide } from './tutorialGuide.ts'
 import { play } from '../components/animate.ts'
 
 interface GameScreenProps {
@@ -31,7 +32,8 @@ const rootStyle: CSSProperties = {
   // 일시정지 화면이 이 안에서 전체를 덮으려면 기준점이 필요하다
   position: 'relative',
   display: 'grid',
-  gridTemplateRows: '1fr auto',
+  gridTemplateRows: 'minmax(0, 1fr) auto',
+  overflow: 'hidden',
   height: '100%',
 }
 
@@ -69,19 +71,12 @@ const fieldStyle: CSSProperties = {
 
 function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
 
-  const submit = useCallback((text: string) => engine.submit(text), [engine])
+  const guide = tutorialGuide(state.stage)
+  const submit = useCallback((text: string) => {
+    if (!guide?.waiting) engine.submit(guide?.action ? '' : text)
+  }, [engine, guide?.waiting, guide?.action])
   // 빈 Enter는 평소에는 무시한다. 경보 데모를 시작하는 이 짧은 순간에만 엔진으로 보낸다.
-  const input = useHangulInput(
-    submit,
-      state.stage.congestionDemo === 'ready' ||
-      state.stage.congestionDemo === 'congestionGuide' ||
-      state.stage.congestionDemo === 'full' ||
-      state.stage.congestionDemo === 'gameOverPrompt' ||
-      state.stage.tutorialStep === 0 ||
-      state.stage.tutorialStep === 4 ||
-      state.stage.tutorialStep === 5 ||
-      state.stage.tutorialStep === 6,
-  )
+  const input = useHangulInput(submit, guide?.action != null)
   const { focus, clear } = input
 
   const paused = state.phase === 'paused'
@@ -162,9 +157,9 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
     (state.stage.congestionDemo === 'congestionGuide' || state.stage.congestionDemo === 'full')
   const tutorialRemainingGuide =
     state.phase === 'playing' &&
-    (state.stage.tutorialStep === 6 || state.stage.congestionDemo === 'ready')
+    state.stage.congestionDemo === 'ready'
   const tutorialBoxGuide = state.phase === 'playing' && state.stage.tutorialStep === 0
-  const tutorialWhiteboardGuide = state.phase === 'playing' && state.stage.tutorialStep === 5
+  const tutorialWhiteboardGuide = state.phase === 'playing' && state.stage.tutorialStep === 7 && state.stage.congestionDemo === null
   const congestionImminent = state.phase === 'playing' && (
     (state.stage.id > 0 && state.stage.congestion >= 80) ||
     (state.stage.congestionRush && (
@@ -175,7 +170,7 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   )
 
   return (
-    <div style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
+    <div data-game-layout="desktop" data-phase={state.phase} style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
       {/*
        * 보관소는 **화면 전체**에 깔린다. 판이 도는 칸에만 두었더니 위아래 띠에서
        * 방이 끊겨, 배경이 아니라 판에 붙은 그림처럼 보였다. 위아래 띠를 반투명으로
@@ -220,7 +215,6 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             data-aim={state.aimNormalized.toFixed(3)}
           >
             {collapsing && <CollapseOverlay />}
-            {state.stage.congestionDemo === 'gameOverPrompt' && <TutorialGameOverPrompt />}
           </div>
           <TypingLane
             words={state.words}
@@ -241,7 +235,8 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
         feedback={state.feedback}
         stats={state.stats}
         nightfall={state.timeOfDay.nightfall}
-        locked={state.stage.congestionDemo === 'wordRush'}
+        locked={guide?.waiting}
+        instruction={guide ? guide.action ? `Enter · ${guide.action}` : guide.waiting ? '잠시 지켜보세요' : '단어를 입력하고 Enter' : undefined}
       />
 
       {state.complexMergeFocus !== null && (
@@ -521,11 +516,10 @@ function StageStatus({
       stage.congestionDemo === 'congestionGuide' ||
       stage.congestionDemo === 'full') ||
     stage.tutorialStep === 0 ||
-    stage.tutorialStep === 5 ||
+    stage.tutorialStep === 7 ||
     stage.tutorialStep === 6
-  const tutorialProgress = stage.tutorialStep === null || stage.tutorialTotal === null
-    ? null
-    : `${stage.tutorialStep + 1} / ${stage.tutorialTotal}`
+  const guide = tutorialGuide(stage)
+  const tutorialProgress = guide?.title.split(' · ')[0] ?? null
   const congestionGaugeRef = useRef<HTMLDivElement | null>(null)
   const congestionRef = useRef<HTMLDivElement | null>(null)
 
@@ -710,10 +704,10 @@ function StageStatus({
           콤보 회복 −{stage.congestionRecovery.amount}
         </span>
       )}
-      {stage.tutorialText !== null && (
+      {guide !== null && (
         <div
           aria-live="polite"
-          aria-label={`튜토리얼 ${tutorialProgress ?? ''}`}
+          aria-label={`튜토리얼 ${guide.title}`}
           style={{
             maxWidth: 360,
             padding: '9px 12px',
@@ -726,9 +720,9 @@ function StageStatus({
           }}
         >
           <strong style={{ display: 'block', marginBottom: 3, color: 'var(--stamp)', fontSize: 13 }}>
-            다음 행동
+            {guide.title}
           </strong>
-          {stage.tutorialText}
+          {guide.text}
         </div>
       )}
     </div>
@@ -757,48 +751,6 @@ function CollapseOverlay() {
       >
         무너졌다
       </span>
-    </div>
-  )
-}
-
-/** 고양이가 아직 화면에 남아 있는 마지막 프레임에서만 보이는 게임오버 안내. */
-function TutorialGameOverPrompt() {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 5,
-        display: 'grid',
-        placeItems: 'center',
-        pointerEvents: 'none',
-        textAlign: 'center',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 390,
-          padding: '18px 22px',
-          border: '1px solid rgba(255, 126, 116, .85)',
-          borderRadius: 8,
-          background: 'rgba(18, 20, 30, .9)',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, .55)',
-          color: '#fff7e2',
-        }}
-      >
-        <strong style={{ display: 'block', marginBottom: 9, color: '#ff8279', fontSize: 29, letterSpacing: '.08em' }}>
-          게임오버
-        </strong>
-        <span style={{ display: 'block', fontSize: 16, lineHeight: 1.55 }}>
-          물건이 밖으로 떨어지고 고양이가 나오면 게임오버입니다.
-        </span>
-        <span style={{ display: 'block', marginTop: 8, fontSize: 14, lineHeight: 1.5, color: '#d7d9e7' }}>
-          실제 게임에서는 방금처럼 물건이 많이 떨어지진 않습니다.
-        </span>
-        <span style={{ display: 'block', marginTop: 10, color: '#ffe1a0', fontSize: 14, fontWeight: 700 }}>
-          Enter를 누르세요
-        </span>
-      </div>
     </div>
   )
 }

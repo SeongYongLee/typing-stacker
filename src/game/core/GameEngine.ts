@@ -578,6 +578,7 @@ class GameEngine {
       return
     }
     if (step.kind === 'board') {
+      this.spawner.reset()
       const friedEgg = VARIANT_BY_ID.get('fried-egg')
       this.whiteboardTargets = friedEgg === undefined ? [] : [friedEgg]
       this.whiteboardWords = this.whiteboardTargets.map((target) => target.label)
@@ -678,8 +679,8 @@ class GameEngine {
 
     this.feedbackSeq += 1
 
-    // 화이트보드 규칙을 읽는 장면에서는 회수를 열지 않는다. Enter로 설명을 닫은 뒤
-    // 같은 보드를 그대로 쓰며 실제 회수 입력을 받는다.
+    // 시작 안내와 합성 도움말만 확인을 기다린다. 이후에는 바로 회수를 연다.
+    // 이전 안내 단계 5·6에서도 같은 회수 단계로 이어진다.
     if (
       this.stageId === 0 &&
       (this.tutorialStep === 0 ||
@@ -688,7 +689,7 @@ class GameEngine {
         this.tutorialStep === 6)
     ) {
       if (text.trim() === '') {
-        this.tutorialStep += 1
+        this.tutorialStep = this.tutorialStep === 0 ? 1 : 7
         this.showTutorialStep()
         this.emit()
       }
@@ -710,13 +711,7 @@ class GameEngine {
       return
     }
 
-    if (this.congestionDemo === 'ready' && text.trim() === '') {
-      this.congestionDemo = 'congestionGuide'
-      this.emit()
-      return
-    }
-
-    if (this.congestionDemo === 'congestionGuide' && text.trim() === '') {
+    if ((this.congestionDemo === 'ready' || this.congestionDemo === 'congestionGuide') && text.trim() === '') {
       this.congestion = 0
       this.congestionDemo = 'wordRush'
       this.congestionDemoElapsed = 0
@@ -1448,7 +1443,7 @@ class GameEngine {
     this.score.onCrafted(result)
     this.discover(result)
     if (this.stageId === 0 && this.tutorialStep === 3 && result.id === 'fried-egg') {
-      this.tutorialStep = 5
+      this.tutorialStep = 7
       this.showTutorialStep()
     }
   }

@@ -9,7 +9,7 @@ import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { loadProfile } from '../storage/profile.ts'
 import { TitleSidePanel } from './TitleSidePanel.tsx'
 import type { TitleTheme } from './titleTheme.ts'
-import { useTooNarrow } from '../hooks/useViewport.ts'
+import { useMobileControls } from '../hooks/useViewport.ts'
 import { SoloRanking } from '../components/RankBoxes.tsx'
 import { InputHint } from '../components/InputHint.tsx'
 import './TitleScreen.css'
@@ -45,7 +45,7 @@ function TitleScreen({
   theme,
   onReady,
 }: TitleScreenProps) {
-  const narrow = useTooNarrow()
+  const mobileControls = useMobileControls()
   const board = useLeaderboard()
   const [loadedAssets, setLoadedAssets] = useState(0)
   const title = SPLASH_TITLES[theme]
@@ -67,7 +67,7 @@ function TitleScreen({
       panel: 'solo',
     },
     // 여덟까지 붙는다. "1대1"은 정원을 늘린 뒤로 사실이 아니다
-    { label: narrow ? '함께 하기 · PC 전용' : '함께 하기', run: onMultiplayer, primary: false, disabled: !ready || narrow, panel: 'versus' },
+    { label: mobileControls ? '함께 하기 · PC 전용' : '함께 하기', run: onMultiplayer, primary: false, disabled: !ready || mobileControls, panel: 'versus' },
     { label: '도감', run: onCollection, primary: false, disabled: false, panel: 'collection' },
     // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
     { label: '옵션', run: onOptions, primary: false, disabled: false, panel: 'options' },
@@ -141,7 +141,7 @@ function TitleScreen({
           <TitleSidePanel kind={items[menu.index]?.panel ?? null} board={board} />
         </div>
 
-        <p className="title-splash__pc-notice">더 편한 플레이를 위해 PC 화면에서 플레이하는 것을 권장합니다.</p>
+        {mobileControls && <p className="title-splash__pc-notice" style={{ display: 'block' }}>더 편한 플레이를 위해 PC 화면에서 플레이하는 것을 권장합니다.</p>}
         <p className="title-splash__hint"><InputHint desktop="↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다" mobile="원하는 메뉴를 눌러 시작하세요" /></p>
         <details className="title-splash__mobile-ranking"><summary>점수 순위 보기</summary><SoloRanking board={board} /></details>
       </main>

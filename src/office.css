@@ -53,8 +53,17 @@
 .collection-office > div:last-child > span { color: var(--paper) !important; }
 .result-sheet .office-caption { margin-bottom: 10px; }
 .report-heading { font: 400 30px/1.2 var(--hand); margin: 0; }
-.result-sheet > div:last-child { border-top: 1px dashed var(--rule); margin-top: 14px; }
-.result-sheet > div:nth-child(2) { padding-top: 12px; }
+.result-sheet > .result-actions { border-top: 1px dashed var(--rule); margin-top: 14px; padding-top: 12px; }
+.result-details { padding-top: 12px; }
+.result-content { min-height: 0; width: 100%; overflow-y: auto; overflow-wrap: anywhere; overscroll-behavior: contain; padding: 2px 4px; }
+.result-actions { display: grid; gap: 10px; justify-items: center; width: 100%; }
+.result-actions .menu-button { width: min(240px, 100%); min-width: 0; }
+.result-overlay { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) !important; }
+@media (max-height: 480px) {
+  .result-overlay .paper-sheet { padding: 12px !important; gap: 12px !important; }
+  .result-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100% !important; gap: 8px !important; }
+  .result-actions .menu-button { padding: 8px; }
+}
 .pause-sheet { width: min(350px, calc(100% - 32px)); min-width: 0 !important; max-height: calc(100% - 32px); overflow-y: auto; border-top: 5px solid var(--green); }
 .pause-sheet .office-heading { margin-bottom: 12px !important; }
 .tutorial-receipt { border-top: 5px solid var(--green) !important; }

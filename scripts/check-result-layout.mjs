@@ -23,8 +23,8 @@ try {
         const act = value => () => { document.body.dataset.resultAction = value };
         return ReactFixture.createElement('main', {style:{position:'fixed',inset:0}},
           ReactFixture.createElement(ResultScreen, {
-            stats:{score:12345678,rawScore:15000000,accuracy:.82,stackCount:128,maxHeight:8.2,missedWords:23,lives:0,combo:0,maxCombo:32,kpm:280,durationSec:180,hiddenFound:[]},
-            freshlyCollected:ALL_VARIANTS.slice(0,4).map(item=>item.id),totalReturns:0,
+            stats:{score:12345678,rawScore:15000000,accuracy:.82,stackCount:128,maxHeight:8.2,missedWords:Number(new URLSearchParams(location.search).get('misses') ?? 23),lives:0,combo:0,maxCombo:32,kpm:280,durationSec:180,hiddenFound:[]},
+            freshlyCollected:ALL_VARIANTS.slice(0,4).map(item=>item.id),totalReturns:Number(new URLSearchParams(location.search).get('returns') ?? 0),
             congestionDemo:tutorial,onStartGame:act('start'),onReplayTutorial:act('tutorial'),onRestart:act('restart'),onHome:act('home')
           }));
       }
@@ -53,6 +53,17 @@ try {
       assert.equal(await page.locator('body').getAttribute('data-result-action'), tutorial ? 'start' : 'restart')
       console.log(`PASS ${tutorial?'tutorial':'result'} ${size.width}x${size.height}`)
     }
+  }
+  for(const [returns,misses,hint] of [[0,23,'이름을 입력해 회수'],[7,23,'경보를 최대 15'],[7,0,'자리를 만들어']]){
+    await page.setViewportSize({width:390,height:780})
+    await page.goto(`${base}/?returns=${returns}&misses=${misses}`)
+    const tip=page.getByRole('region',{name:'다음 판 안내'})
+    await tip.waitFor()
+    assert((await tip.innerText()).includes(hint))
+    assert(await page.getByText('회수한 물건',{exact:true}).count())
+    await tip.scrollIntoViewIfNeeded()
+    await page.screenshot({path:`/tmp/result-guidance-${returns}-${misses}.png`})
+    console.log(`PASS result guidance returns=${returns}, misses=${misses}`)
   }
   assert.deepEqual(errors,[])
 } finally {await browser.close()}

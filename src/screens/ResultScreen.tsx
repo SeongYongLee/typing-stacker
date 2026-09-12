@@ -207,27 +207,30 @@ function ResultScreen({
           </div>
 
           <div className="result-details">
-            {totalReturns === 0 && (
-              <section
-                aria-label="회수 안내"
-                style={{
-                  marginBottom: 16,
-                  padding: '10px 12px',
-                  border: '1px solid var(--rule)',
-                  borderRadius: 2,
-                  background: 'var(--paper-shade)',
-                  color: 'var(--ink)',
-                  fontSize: 14,
-                  lineHeight: 1.45,
-                }}
-              >
-                화이트보드에 표시된 물건을 회수하면 다음 스테이지로 진행할 수 있습니다.
-              </section>
-            )}
+            <section
+              aria-label="다음 판 안내"
+              style={{
+                marginBottom: 16,
+                padding: '10px 12px',
+                border: '1px solid var(--rule)',
+                borderRadius: 2,
+                background: 'var(--paper-shade)',
+                color: 'var(--ink)',
+                fontSize: 14,
+                lineHeight: 1.45,
+                wordBreak: 'keep-all',
+              }}
+            >
+              {totalReturns === 0
+                ? '화이트보드의 물건이 상자에 있으면 이름을 입력해 회수하세요.'
+                : stats.missedWords > 0
+                  ? '놓친 단어는 경보를 채워요. 재료를 합성하면 경보를 최대 15 낮출 수 있어요.'
+                  : '물건이 높이 쌓이기 전에 회수해 자리를 만들어보세요.'}
+            </section>
 
-            {/* 이 게임의 성취. 쌓기·높이·콤보가 판을 요약한다 */}
+            {/* 진행 목표인 회수를 먼저 보여준다 */}
             <div style={rowStyle}>
-              <Stat label="쌓은 물건" value={`${stats.stackCount}개`} />
+              <Stat label="회수한 물건" value={`${totalReturns}개`} />
               <Stat label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
               <Stat label="최고 콤보" value={`x${stats.maxCombo}`} />
             </div>

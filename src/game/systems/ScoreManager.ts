@@ -65,8 +65,9 @@ class ScoreManager {
     this.score += SCORE.craftBonus + variant.scoreBonus
   }
 
-  /** 화이트보드 물건은 정착하지 않으므로 회수 성공 순간 일반 안착 점수를 준다. */
+  /** 회수 입력의 타수를 기록하고 일반 안착 점수를 준다. 콤보는 유지한다. */
   onRecalled(variant: ItemVariant): void {
+    this.keystrokes += countKeystrokes(variant.label)
     this.score += Math.round((SCORE.perItem + variant.scoreBonus) * this.multiplier)
     if (variant.hidden) {
       this.remember(variant.label)

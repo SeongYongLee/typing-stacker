@@ -83,7 +83,10 @@ export function installStageExperiment(variant: string): () => void {
   const stage=soloStage(1) as unknown as {returnTarget:number;congestionDrops:number}
   const original={returnTarget:stage.returnTarget,congestionDrops:stage.congestionDrops}
   // Freeze the old baseline even after an accepted tuning reaches the live config.
-  stage.returnTarget=variant==='goal-10'||variant==='focus-request'?10:20
+  stage.returnTarget=variant==='goal-10'||variant==='focus-request'||variant==='stage2-18'?10:20
   stage.congestionDrops=variant==='alarm-5'?5:10
-  return ()=>Object.assign(stage,original)
+  const second=soloStage(2) as unknown as {returnTarget:number}
+  const secondOriginal=second.returnTarget
+  if(variant==='stage2-18')second.returnTarget=18
+  return ()=>{Object.assign(stage,original);second.returnTarget=secondOriginal}
 }

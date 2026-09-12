@@ -1,0 +1,69 @@
+{
+  "control": "docs/measurements/stage2-control.json",
+  "candidate": "docs/measurements/stage2-18.json",
+  "profiles": [
+    {
+      "profile": "steady",
+      "baseline": {
+        "runs": 12,
+        "entered": 9,
+        "completed": 1,
+        "meanObservedSeconds": 235.875,
+        "censored": 1,
+        "mergesPerMinute": 2.728463329452852,
+        "recallsPerMinute": 4.169091967403958,
+        "stage2MergesPerMinute": 2.496328928047053,
+        "stage2RecallsPerMinute": 3.9647577092512014,
+        "completedStage2MeanSeconds": 184.9000000000171
+      },
+      "variant": {
+        "runs": 12,
+        "entered": 9,
+        "completed": 1,
+        "meanObservedSeconds": 235.875,
+        "censored": 1,
+        "mergesPerMinute": 2.6629802095459834,
+        "recallsPerMinute": 4.038125727590221,
+        "stage2MergesPerMinute": 2.3797468354430955,
+        "stage2RecallsPerMinute": 3.594936708860846,
+        "completedStage2MeanSeconds": 144.1000000000078
+      },
+      "completedGain": 0,
+      "survivalRatio": 1,
+      "mergeRatio": 0.9759999999999999,
+      "pass": false
+    },
+    {
+      "profile": "slow",
+      "baseline": {
+        "runs": 12,
+        "entered": 8,
+        "completed": 0,
+        "meanObservedSeconds": 241.7166666666667,
+        "censored": 0,
+        "mergesPerMinute": 3.081937015126289,
+        "recallsPerMinute": 3.1244464911969962,
+        "stage2MergesPerMinute": 2.665679378008212,
+        "stage2RecallsPerMinute": 2.6101443909663744,
+        "completedStage2MeanSeconds": null
+      },
+      "variant": {
+        "runs": 12,
+        "entered": 8,
+        "completed": 1,
+        "meanObservedSeconds": 244.32500000000005,
+        "censored": 1,
+        "mergesPerMinute": 3.0486736517503594,
+        "recallsPerMinute": 3.090724322808985,
+        "stage2MergesPerMinute": 2.674839788241917,
+        "stage2RecallsPerMinute": 2.6191139593202104,
+        "completedStage2MeanSeconds": 178.7000000000092
+      },
+      "completedGain": 1,
+      "survivalRatio": 1.010790870854306,
+      "mergeRatio": 0.989206994428286,
+      "pass": false
+    }
+  ],
+  "pass": false
+}

@@ -11,7 +11,7 @@ export function installRecallExperiment(engine: GameEngine, variant: string) {
   const game=engine as unknown as {
     elapsed:number
     congestion:number
-    score:{onCrafted:(variant:ItemVariant)=>void}
+    mergeCongestionRelief:number
     recipeFlow:{focus:Recipe|null}
     stageId:SoloStageId
     whiteboardCandidates:readonly ItemVariant[]
@@ -23,6 +23,7 @@ export function installRecallExperiment(engine: GameEngine, variant: string) {
     spawner:{pickEntry:(candidates:readonly WordEntry[])=>WordEntry}
     refillWhiteboard():void
   }
+  game.mergeCongestionRelief=variant==='merge-relief'?15:0
   if(variant==='targets-only'||variant==='request-supply') {
     game.refillWhiteboard=()=>{
       if(game.stageId===0)return
@@ -42,14 +43,6 @@ export function installRecallExperiment(engine: GameEngine, variant: string) {
   }
   // startRun creates a new spawner, so supply interception must be installed afterwards.
   return ()=>{
-    if(variant==='merge-relief') {
-      const original=game.score.onCrafted.bind(game.score)
-      game.score.onCrafted=variant=>{
-        original(variant)
-        if(game.stageId>0)game.congestion=Math.max(0,game.congestion-15)
-      }
-      return
-    }
     if(variant==='physical-request') {
       const original=game.spawner.pickEntry
       let linked:string|null=null, linkedAt=0, stage=game.stageId

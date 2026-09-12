@@ -680,10 +680,11 @@ function StageStatus({
           혼잡 경보
         </span>
       )}
-      {stage.id > 0 && stage.congestionRecovery?.combo === true && !stage.congestionRush && (
+      {stage.id > 0 && (stage.congestionRecovery?.combo === true || stage.congestionRecovery?.crafted === true) && !stage.congestionRush && (
         <span
           key={congestionRecoverySeq}
-          data-combo-recovery={stage.congestionRecovery.amount}
+          data-combo-recovery={stage.congestionRecovery.combo ? stage.congestionRecovery.amount : undefined}
+          data-craft-recovery={stage.congestionRecovery.crafted ? stage.congestionRecovery.amount : undefined}
           style={{
             position: 'absolute',
             top: '100%',
@@ -701,7 +702,7 @@ function StageStatus({
             15%, 70% { opacity: 1; transform: translate(-50%, 0); }
             100% { opacity: 0; transform: translate(-50%, -5px); }
           }`}</style>
-          콤보 회복 −{stage.congestionRecovery.amount}
+          {stage.congestionRecovery.crafted ? '합성 정리' : '콤보 회복'} −{stage.congestionRecovery.amount}
         </span>
       )}
       {guide !== null && (

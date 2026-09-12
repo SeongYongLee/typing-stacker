@@ -242,7 +242,7 @@ interface GameState {
     /** 정상 입력으로 혼잡 경보가 줄어들 때마다 증가하는 테두리 연출 신호. */
     readonly congestionRecoverySeq: number
     /** 가장 최근 정상 입력으로 실제 회복한 양과 콤보 보너스 여부. */
-    readonly congestionRecovery: { readonly amount: number; readonly combo: boolean } | null
+    readonly congestionRecovery: { readonly amount: number; readonly combo: boolean; readonly crafted?: boolean } | null
     /** 경보 반입이 막 시작된 짧은 상단 보관함 연출. */
     readonly congestionBurst: number
     /** 혼잡 반입 물건이 아직 떨어지고 있는가. */
@@ -389,6 +389,8 @@ class GameEngine {
   private stageId: SoloStageId = 0
   private stageReturns = 0
   private totalReturns = 0
+  /** Lab playtest tuning; historical simulations override this per engine. */
+  private mergeCongestionRelief = 15
   private congestion = 0
   private congestionRecoverySeq = 0
   private congestionRecovery: GameState['stage']['congestionRecovery'] = null
@@ -1441,11 +1443,20 @@ class GameEngine {
     }
     this.fire({ kind: 'merge' })
     this.score.onCrafted(result)
+    this.recoverCraftCongestion()
     this.discover(result)
     if (this.stageId === 0 && this.tutorialStep === 3 && result.id === 'fried-egg') {
       this.tutorialStep = 7
       this.showTutorialStep()
     }
+  }
+
+  private recoverCraftCongestion(): void {
+    if (this.stageId === 0 || this.congestion <= 0 || this.mergeCongestionRelief <= 0) return
+    const amount = Math.min(this.congestion, this.mergeCongestionRelief)
+    this.congestion -= amount
+    this.congestionRecovery = { amount, combo: false, crafted: true }
+    this.congestionRecoverySeq += 1
   }
 
   /**

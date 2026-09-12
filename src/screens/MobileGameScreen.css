@@ -106,3 +106,7 @@
 .mp-board-slot[data-tutorial-guide='true'] { outline: 2px solid var(--stamp); outline-offset: -2px; }
 
 .mp-page[data-controls='pc'] { max-width: 900px; }
+
+.mp-congestion-label { position: relative; white-space: nowrap; }
+.mp-craft-recovery { position: absolute; inset: 0 auto 0 0; width: max-content; padding-right: 4px; background: var(--paper); color: var(--green); font-weight: 700; pointer-events: none; animation: mp-craft-recovery 2s linear both; }
+@keyframes mp-craft-recovery { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }

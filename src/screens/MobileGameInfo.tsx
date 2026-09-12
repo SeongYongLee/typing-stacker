@@ -28,10 +28,10 @@ export function MobileWhiteboard({ words, ready }: { words: readonly string[]; r
   </div>
 }
 
-export function MobileCongestion({ value, rushing }: { value: number; rushing: boolean }) {
+export function MobileCongestion({ value, rushing, recovery, recoverySeq }: { value: number; rushing: boolean; recovery?: GameState['stage']['congestionRecovery']; recoverySeq?: number }) {
   const percent = Math.min(100, Math.max(0, value))
   return <div className="mp-congestion" data-warning={rushing || percent >= 80}>
-    <span>{rushing ? '경보 · 물건 반입 중' : '혼잡 경보'}</span>
+    <span className="mp-congestion-label">{rushing ? '경보 · 물건 반입 중' : '혼잡 경보'}{!rushing && recovery?.crafted && <span key={recoverySeq} className="mp-craft-recovery" data-craft-recovery={recovery.amount}>합성 정리 −{recovery.amount}</span>}</span>
     <div className="mp-congestion-track" role="progressbar" aria-label="혼잡 경보" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)} aria-valuetext={rushing ? '경보 작동 · 물건 반입 중' : `${Math.round(percent)}%`}>
       <div style={{ width: `${rushing ? 100 : percent}%` }} />
     </div>

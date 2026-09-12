@@ -118,7 +118,7 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true }: {
 
   return <div className="mp-game" data-controls={touch ? 'mobile' : 'pc'} data-phase={state.phase} data-awaiting-start={awaitingStart}>
     <ArenaBackdrop mode="solo" time={state.timeOfDay} />
-    <header className="mp-hud"><div className="mp-summary"><strong>{state.stats.score.toLocaleString()}점</strong><span>회수 {state.stage.returns}/{state.stage.target ?? '∞'}</span><MobileMergeToast key={state.runSeq} reveal={state.mergeReveal} /></div><MobileCongestion value={state.stage.congestion} rushing={state.stage.congestionRush} /><button className="menu-button menu-button--compact" type="button" onClick={() => { setAwaitingStart(false); setOpeningKeyboard(false); engine.pause(); input.current?.blur() }}>{touch ? '일시정지' : '일시정지 · Esc'}</button></header>
+    <header className="mp-hud"><div className="mp-summary"><strong>{state.stats.score.toLocaleString()}점</strong><span>회수 {state.stage.returns}/{state.stage.target ?? '∞'}</span><MobileMergeToast key={state.runSeq} reveal={state.mergeReveal} /></div><MobileCongestion value={state.stage.congestion} rushing={state.stage.congestionRush} recovery={state.stage.congestionRecovery} recoverySeq={state.stage.congestionRecoverySeq} /><button className="menu-button menu-button--compact" type="button" onClick={() => { setAwaitingStart(false); setOpeningKeyboard(false); engine.pause(); input.current?.blur() }}>{touch ? '일시정지' : '일시정지 · Esc'}</button></header>
     <div className="mp-board-slot" data-tutorial-guide={playing && tutorialStep === 7 && demo === null}>
       <MobileWhiteboard words={state.whiteboard} ready={state.activeWhiteboard} />
     </div>

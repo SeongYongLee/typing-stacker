@@ -621,24 +621,9 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
         나가기는 줄 바깥에 세운다. `marginLeft: auto`로 밀면 그 버튼이 남는 공간을
         전부 먹어서, 이름표를 가운데로 모으려는 것이 무력해진다.
       */}
-      <button
-        type="button"
-        onClick={onLeave}
-        style={{
-          position: 'absolute',
-          right: 20,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          background: 'transparent',
-          border: '1px solid #2e3448',
-          borderRadius: 8,
-          color: 'var(--ink-muted)',
-          fontSize: 13,
-          padding: '6px 12px',
-        }}
-      >
+      <MenuButton onClick={onLeave} style={{ position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)', width: 'auto' }}>
         나가기
-      </button>
+      </MenuButton>
     </div>
   )
 }

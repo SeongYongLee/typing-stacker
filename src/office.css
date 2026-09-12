@@ -1,22 +1,36 @@
 /* The office uses the same paper, ink, and ruling on every screen. */
+/* Standard action buttons: shared by every menu and dialog. */
 .menu-button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
-  min-height: 44px;
-  padding: 12px 18px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 14px;
   border: 1px solid var(--rule);
   border-radius: 2px;
   background: var(--paper);
   color: var(--ink);
-  font-weight: 600;
-  transition: background 120ms, color 120ms, transform 120ms;
+  font: 600 15px/1.3 var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
   touch-action: manipulation;
 }
-.menu-button[data-primary='yes'] { border-color: var(--green); color: var(--green); }
-.menu-button[data-selected='yes']:not(:disabled), .menu-button:hover:not(:disabled) { background: var(--paper-shade); border-color: var(--ink); }
-.menu-button[data-primary='yes'][data-selected='yes']:not(:disabled) { background: var(--green); color: var(--paper); }
-.menu-button:active:not(:disabled) { transform: translateY(2px); }
-.menu-button:disabled { color: #8b826f; border-color: #cbc2ad; background: transparent; cursor: default; }
+.menu-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.menu-button[data-primary='yes'] { border-color: var(--green); background: var(--green); color: var(--paper); }
+.menu-button[data-selected='yes']:not(:disabled) { background: var(--paper-shade); border-color: var(--ink); }
+.menu-button[data-primary='yes'][data-selected='yes']:not(:disabled) { background: var(--green); color: var(--paper); border-color: var(--ink); }
+@media (hover: hover) { .menu-button:hover:not(:disabled) { border-color: var(--ink); box-shadow: inset 0 0 0 1px currentColor; } }
+.menu-button:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }
+.menu-button:active:not(:disabled) { box-shadow: inset 0 0 0 2px currentColor; }
+.menu-button:disabled { color: #8b826f; border-color: #cbc2ad; background: var(--paper-shade); cursor: default; }
+.menu-arrow { flex: none; width: 1em; opacity: 0; }
+.menu-button[data-selected='yes']:not(:disabled) .menu-arrow, .menu-button:focus-visible .menu-arrow { opacity: 1; }
+.menu-button--compact { min-height: 44px; padding: 8px 10px; }
+.menu-button--icon { width: 44px; min-height: 44px; padding: 8px; justify-content: center; }
 .office-screen {
   position: relative;
   isolation: isolate;
@@ -37,10 +51,10 @@
 .office-stamp { display: inline-block; padding: 3px 7px; border: 2px solid var(--stamp); color: var(--stamp); font-size: 12px; font-weight: 700; transform: rotate(-4deg); white-space: nowrap; }
 .options-panel { width: min(430px, 100%); }
 .options-list { gap: 16px; overscroll-behavior: contain; }
-.options-list section { gap: 0 !important; }
+.options-list section { gap: 8px !important; }
 .options-list h2 { margin-bottom: 6px !important; }
-.options-list .menu-button { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-bottom: 1px solid var(--rule); text-align: left; padding: 12px 8px; font-weight: 400; }
-.options-list .menu-button strong { font-size: 13px; white-space: nowrap; color: var(--green); }
+.options-list .menu-label { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; }
+.options-list .menu-button strong { font-size: inherit; color: var(--green); }
 .profile-sheet [data-pick-row] { border-width: 0 0 1px !important; }
 .profile-sheet [data-my-name] { font-family: var(--hand) !important; }
 .collection-heading { width: min(760px, 100%); background: var(--paper); padding: 16px 24px; border-top: 4px solid var(--ink); border-bottom: 1px solid var(--rule); }
@@ -76,6 +90,3 @@
 @media (prefers-reduced-motion: reduce) { .menu-button { transition: none; } }
 
 [data-solo-rules] > h1, .solo-rules-intro { color: #f5efdd !important; }
-[data-solo-rules] .menu-button { box-shadow: 2px 3px 0 #201b1740; }
-
-.menu-arrow { display: none; }

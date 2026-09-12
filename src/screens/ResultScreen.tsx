@@ -200,9 +200,9 @@ function ResultScreen({
               </p>
             )}
             {(ranking.status === 'offline' || ranking.status === 'rejected') && (
-              <button type="button" onClick={ranking.retry} style={retryRankStyle}>
+              <MenuButton onClick={ranking.retry}>
                 기록 다시 보내기
-              </button>
+              </MenuButton>
             )}
           </div>
 
@@ -338,17 +338,6 @@ const rowStyle: CSSProperties = {
   justifyContent: 'center',
   gap: 20,
   flexWrap: 'wrap',
-}
-
-const retryRankStyle: CSSProperties = {
-  margin: '-10px 0 18px',
-  padding: 0,
-  border: 0,
-  background: 'transparent',
-  color: 'var(--ink)',
-  font: '600 13px var(--sans)',
-  textDecoration: 'underline',
-  cursor: 'pointer',
 }
 
 /**

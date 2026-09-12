@@ -1,3 +1,4 @@
+import { MenuButton } from '../components/MenuButton.tsx'
 import type { CSSProperties } from 'react'
 import { useLoopbackMatch, type LoopbackSide } from '../hooks/useLoopbackMatch.ts'
 import { MatchScreen } from './MatchScreen.tsx'
@@ -49,20 +50,7 @@ function LoopbackScreen({ onBack }: LoopbackScreenProps) {
     <div style={rootStyle}>
       <div style={bannerStyle}>
         <span>루프백 (개발용). 네트워크를 쓰지 않습니다. 칠 쪽을 클릭한 뒤 입력합니다</span>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            padding: '2px 10px',
-            fontSize: 12,
-            borderRadius: 6,
-            border: '1px solid #21211f',
-            background: 'transparent',
-            color: '#e4e68a',
-          }}
-        >
-          나가기
-        </button>
+        <MenuButton onClick={onBack} style={{ width: 'auto' }}>나가기</MenuButton>
       </div>
       <div style={splitStyle}>
         <Pane label="방장" side={host} onBack={onBack} />

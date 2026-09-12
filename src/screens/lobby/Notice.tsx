@@ -1,4 +1,5 @@
-import { buttonStyle, ghostButtonStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
+import { MenuButton } from '../../components/MenuButton.tsx'
+import { panelStyle, rootStyle } from './lobbyStyle.ts'
 
 /** 한 줄짜리 알림. 연결 중·실패처럼 화면을 통째로 덮는 상태에 쓴다 */
 function Notice({
@@ -29,13 +30,13 @@ function Notice({
         </h2>
         <p style={{ color: 'var(--ink)', margin: 0, fontSize: 15, lineHeight: 1.7 }}>{detail}</p>
         {retry !== undefined && (
-          <button type="button" style={buttonStyle} onClick={retry.run}>
+          <MenuButton primary onClick={retry.run}>
             {retry.label}
-          </button>
+          </MenuButton>
         )}
-        <button type="button" style={ghostButtonStyle} onClick={onBack}>
+        <MenuButton onClick={onBack}>
           돌아가기
-        </button>
+        </MenuButton>
       </div>
     </div>
   )

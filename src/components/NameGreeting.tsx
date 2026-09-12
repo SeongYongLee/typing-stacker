@@ -53,7 +53,6 @@ function NameGreeting({ name, icon, selected, onSelect, onActivate }: NameGreeti
         selected={selected}
         onClick={onActivate}
         onHover={onSelect}
-        style={{ padding: '7px 14px', fontSize: 13 }}
       >
         프로필 바꾸기
       </MenuButton>

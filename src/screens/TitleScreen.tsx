@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import titleDay from '../assets/splash/title-day.webp'
 import titleNight from '../assets/splash/title-night.webp'
 import { MenuButton } from '../components/MenuButton.tsx'
@@ -47,6 +47,7 @@ function TitleScreen({
 }: TitleScreenProps) {
   const mobileControls = useMobileControls()
   const board = useLeaderboard()
+  const [rankingOpen, setRankingOpen] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState(0)
   const title = SPLASH_TITLES[theme]
 
@@ -56,7 +57,7 @@ function TitleScreen({
     run: () => void
     primary: boolean
     disabled: boolean
-    panel: 'name' | 'solo' | 'versus' | 'collection' | 'options'
+    panel: 'name' | 'solo' | 'versus' | 'collection' | 'options' | null
   }[] = [
     { label: '프로필 바꾸기', run: onName, primary: false, disabled: false, panel: 'name' },
     {
@@ -69,6 +70,7 @@ function TitleScreen({
     // 여덟까지 붙는다. "1대1"은 정원을 늘린 뒤로 사실이 아니다
     { label: mobileControls ? '함께 하기 · PC 전용' : '함께 하기', run: onMultiplayer, primary: false, disabled: !ready || mobileControls, panel: 'versus' },
     { label: '도감', run: onCollection, primary: false, disabled: false, panel: 'collection' },
+    { label: '순위표', run: () => setRankingOpen(true), primary: false, disabled: false, panel: null },
     // 소리와 화면 설정은 옵션 안에 있다. 여기 늘어놓으면 시작하는 길이 설정에 묻힌다
     { label: '옵션', run: onOptions, primary: false, disabled: false, panel: 'options' },
   ]
@@ -77,6 +79,7 @@ function TitleScreen({
 
   const menu = useMenuKeys({
     count: items.length,
+    active: !rankingOpen,
     // 손은 '혼자 하기'에서 시작한다. 이름은 위에 있되 하러 온 일은 게임이다
     initialIndex: 1,
     // 준비되지 않은 항목은 눌러도 아무 일이 없어야 한다 — 키보드도 마우스와 같게
@@ -143,10 +146,28 @@ function TitleScreen({
 
         {mobileControls && <p className="title-splash__pc-notice" style={{ display: 'block' }}>더 편한 플레이를 위해 PC 화면에서 플레이하는 것을 권장합니다.</p>}
         <p className="title-splash__hint"><InputHint desktop="↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다" mobile="원하는 메뉴를 눌러 시작하세요" /></p>
-        <details className="title-splash__mobile-ranking"><summary>점수 순위 보기</summary><SoloRanking board={board} /></details>
+        {rankingOpen && <RankingDialog board={board} onClose={() => setRankingOpen(false)} />}
       </main>
     </SplashBackdrop>
   )
+}
+
+function RankingDialog({ board, onClose }: { board: ReturnType<typeof useLeaderboard>; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const element = dialog.current
+    const previous = document.activeElement
+    element?.showModal()
+    return () => {
+      element?.close()
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus()
+    }
+  }, [])
+  return <dialog ref={dialog} className="ranking-dialog paper-sheet" aria-labelledby="ranking-title" onCancel={(event) => { event.preventDefault(); onClose() }}>
+    <h2 id="ranking-title" className="office-heading">보관소 순위표</h2>
+    <div className="ranking-dialog__content"><SoloRanking board={board} showTitle={false} /></div>
+    <MenuButton selected onClick={onClose}>돌아가기</MenuButton>
+  </dialog>
 }
 
 export { TitleScreen }

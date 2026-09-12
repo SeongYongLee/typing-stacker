@@ -118,7 +118,7 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true }: {
 
   return <div className="mp-game" data-controls={touch ? 'mobile' : 'pc'} data-phase={state.phase} data-awaiting-start={awaitingStart}>
     <ArenaBackdrop mode="solo" time={state.timeOfDay} />
-    <header className="mp-hud"><div className="mp-summary"><strong>{state.stats.score.toLocaleString()}점</strong><span>회수 {state.stage.returns}/{state.stage.target ?? '∞'}</span><MobileMergeToast key={state.runSeq} reveal={state.mergeReveal} /></div><MobileCongestion value={state.stage.congestion} rushing={state.stage.congestionRush} /><button type="button" onClick={() => { setAwaitingStart(false); setOpeningKeyboard(false); engine.pause(); input.current?.blur() }}>{touch ? '일시정지' : '일시정지 · Esc'}</button></header>
+    <header className="mp-hud"><div className="mp-summary"><strong>{state.stats.score.toLocaleString()}점</strong><span>회수 {state.stage.returns}/{state.stage.target ?? '∞'}</span><MobileMergeToast key={state.runSeq} reveal={state.mergeReveal} /></div><MobileCongestion value={state.stage.congestion} rushing={state.stage.congestionRush} /><button className="menu-button menu-button--compact" type="button" onClick={() => { setAwaitingStart(false); setOpeningKeyboard(false); engine.pause(); input.current?.blur() }}>{touch ? '일시정지' : '일시정지 · Esc'}</button></header>
     <div className="mp-board-slot" data-tutorial-guide={playing && tutorialStep === 7 && demo === null}>
       <MobileWhiteboard words={state.whiteboard} ready={state.activeWhiteboard} />
     </div>
@@ -136,14 +136,14 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true }: {
     <div className="mp-arena">
       <canvas ref={canvas} aria-label="상자와 쌓인 물건" />
       {playing && state.stage.notice !== null && <div className="mp-stage-notice">{state.stage.notice.title}</div>}
-      {idle && onHome === undefined && <div className="mp-overlay"><strong>{state.phase === 'paused' ? '잠시 멈췄어요' : state.phase === 'over' ? '게임 끝' : '모바일 쌓기 실험'}</strong><p>단어를 입력하면 위에서 물건이 떨어집니다</p><button type="button" onClick={start}>{state.phase === 'paused' ? '계속하기' : '입력하고 시작'}</button><a href="?mobile-readability=1">배치 비교로 돌아가기</a></div>}
+      {idle && onHome === undefined && <div className="mp-overlay"><strong>{state.phase === 'paused' ? '잠시 멈췄어요' : state.phase === 'over' ? '게임 끝' : '모바일 쌓기 실험'}</strong><p>단어를 입력하면 위에서 물건이 떨어집니다</p><button className="menu-button" data-primary="yes" type="button" onClick={start}>{state.phase === 'paused' ? '계속하기' : '입력하고 시작'}</button><a href="?mobile-readability=1">배치 비교로 돌아가기</a></div>}
       {state.phase === 'collapsing' && <div className="mp-overlay">무너지고 있어요…</div>}
     </div>
     <div className="mp-feedback" role="status" data-ok={feedback?.ok}>{awaitingStart ? openingKeyboard ? '키보드 준비 중…' : '아래 입력창을 누르면 시작합니다' : feedback === null ? '일반 단어는 쌓기 · 화이트보드는 회수' : feedback.seq === recallFeedbackSeq ? `${feedback.text} 회수 완료 ✓` : `${feedback.text} ${feedback.ok ? '✓' : '✗'}${feedback.hidden ? ` → ${feedback.itemLabel}` : ''}`}</div>
     {onHome !== undefined && !awaitingStart && state.phase === 'paused' && !options && <PauseOverlay onResume={start} onRestart={onRestart ?? start} onHome={onHome} onOptions={() => setOptions(true)} />}
     {onHome !== undefined && state.phase === 'paused' && options && <div className="mp-options"><OptionsScreen onBack={() => setOptions(false)} /></div>}
     <form className="mp-input" data-tutorial-action={showTutorialAction} onSubmit={(event) => { event.preventDefault(); submit() }}>
-      {showTutorialAction && <button className="mp-tutorial-next" type="button" data-tutorial-next onPointerDown={(event) => event.preventDefault()} onClick={advanceTutorial}>{guide?.action}</button>}
+      {showTutorialAction && <button className="menu-button menu-button--compact mp-tutorial-next" data-primary="yes" type="button" data-tutorial-next onPointerDown={(event) => event.preventDefault()} onClick={advanceTutorial}>{guide?.action}</button>}
       <input ref={input} tabIndex={showTutorialAction ? -1 : undefined} onBeforeInput={(event) => { if (showTutorialAction || guide?.waiting) event.preventDefault() }} aria-label="단어 입력" name="word" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="enter" placeholder={awaitingStart ? '눌러서 시작' : guide?.waiting ? '시연을 보고 있어요…' : !touch && guide?.action ? `Enter · ${guide.action}` : '단어 입력…'}
         onFocus={() => { if (awaitingStart) setOpeningKeyboard(true) }}
         onBlur={(event) => { if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.matches('[data-tutorial-next]')) return; setOpeningKeyboard(false); engine.pause() }}

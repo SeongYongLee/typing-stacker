@@ -264,16 +264,7 @@ interface PickRowProps {
  * 알려야 하기 때문이다. 버튼과 같은 모양이면 Enter만 눌러보고 좌우가 있는 줄 모른다.
  */
 function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps) {
-  const arrowStyle: CSSProperties = {
-    width: 44,
-    minHeight: 44,
-    padding: '6px 0',
-    fontSize: 15,
-    color: selected ? 'var(--stamp)' : 'var(--ink-muted)',
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-  }
+
 
   return (
     <div
@@ -290,7 +281,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
       data-pick-row={label}
       data-selected={selected ? 'yes' : 'no'}
     >
-      <button type="button" style={arrowStyle} onClick={() => onStep(-1)} aria-label={`${label} 이전`}>
+      <button type="button" className="menu-button menu-button--icon" onClick={() => onStep(-1)} aria-label={`${label} 이전`}>
         ◀
       </button>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
@@ -302,7 +293,7 @@ function PickRow({ label, value, selected, onHover, onStep, icon }: PickRowProps
           </div>
         </div>
       </div>
-      <button type="button" style={arrowStyle} onClick={() => onStep(1)} aria-label={`${label} 다음`}>
+      <button type="button" className="menu-button menu-button--icon" onClick={() => onStep(1)} aria-label={`${label} 다음`}>
         ▶
       </button>
     </div>

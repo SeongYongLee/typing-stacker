@@ -43,16 +43,6 @@ const rootStyle: CSSProperties = {
   background: 'var(--paper)',
 }
 
-const arrowStyle: CSSProperties = {
-  width: 30,
-  padding: '4px 0',
-  fontSize: 14,
-  color: 'var(--ink-muted)',
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-}
-
 function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerProps) {
   const options = useMemo(
     () => ['', ...loadCollection().sort((a, b) => hashOf(a) - hashOf(b))],
@@ -118,7 +108,7 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       data-icon-picker={icon === '' ? 'none' : icon}
       data-selected={selected ? 'yes' : 'no'}
     >
-      <button type="button" style={arrowStyle} onClick={() => step(-1)} aria-label="이전 아이콘">
+      <button type="button" className="menu-button menu-button--icon" onClick={() => step(-1)} aria-label="이전 아이콘">
         ◀
       </button>
       <Avatar icon={icon} size={34} />
@@ -127,7 +117,7 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       >
         {label}
       </span>
-      <button type="button" style={arrowStyle} onClick={() => step(1)} aria-label="다음 아이콘">
+      <button type="button" className="menu-button menu-button--icon" onClick={() => step(1)} aria-label="다음 아이콘">
         ▶
       </button>
     </div>

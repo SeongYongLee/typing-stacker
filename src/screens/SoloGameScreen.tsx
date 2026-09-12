@@ -1,3 +1,4 @@
+import { MenuButton } from '../components/MenuButton.tsx'
 import { useEffect, useState, useSyncExternalStore, lazy, Suspense } from 'react'
 import type { GameEngine } from '../game/core/GameEngine.ts'
 import type { EngineStateStore } from '../hooks/useGameEngine.ts'
@@ -86,13 +87,11 @@ function CreditsOverlay({ onContinue }: { onContinue: () => void }) {
       <div className="paper-sheet" style={{ display: 'grid', gap: 18, justifyItems: 'center', maxWidth: 'calc(100% - 32px)' }}>
         <h1 className="office-heading" style={{ margin: 0, fontSize: 36 }}>모든 주인을 찾았습니다</h1>
         <p style={{ margin: 0, fontSize: 18, color: 'var(--ink-muted)' }}>수상한 분실물 보관소</p>
-        <button
-          type="button"
+        <MenuButton primary selected
           onClick={onContinue}
-          style={{ padding: '11px 18px', border: '1px solid var(--green)', borderRadius: 1, background: 'var(--green)', color: 'var(--paper)', fontSize: 17, fontWeight: 700 }}
         >
           계속 정리하기
-        </button>
+        </MenuButton>
       </div>
     </div>
   )

@@ -38,16 +38,16 @@ const rootStyle: CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '8px 10px',
-  border: '1px solid #2e3448',
-  borderRadius: 10,
-  background: '#0d0f16',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
+  background: 'var(--paper)',
 }
 
 const arrowStyle: CSSProperties = {
   width: 30,
   padding: '4px 0',
   fontSize: 14,
-  color: '#8b93b0',
+  color: 'var(--ink-muted)',
   background: 'transparent',
   border: 'none',
   cursor: 'pointer',
@@ -97,8 +97,8 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
     <div
       style={{
         ...rootStyle,
-        borderColor: selected ? '#e4e68a' : '#2e3448',
-        background: selected ? '#21211f' : '#0d0f16',
+        borderColor: selected ? 'var(--stamp)' : 'var(--rule)',
+        background: selected ? 'var(--paper-shade)' : 'var(--paper)',
       }}
       onMouseEnter={onHover}
       /*
@@ -123,7 +123,7 @@ function IconPicker({ icon, onChange, selected = false, onHover }: IconPickerPro
       </button>
       <Avatar icon={icon} size={34} />
       <span
-        style={{ flex: 1, fontSize: 14, color: selected ? '#e4e68a' : '#b6bdd4', textAlign: 'left' }}
+        style={{ flex: 1, fontSize: 14, color: selected ? 'var(--stamp)' : 'var(--ink)', textAlign: 'left' }}
       >
         {label}
       </span>

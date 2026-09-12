@@ -1,3 +1,5 @@
+import { drawMergeWait } from './mergeWaitPaint.ts'
+import type { MergeWaitView } from '../systems/MergeGrace.ts'
 import { shakeScale } from './displayPrefs.ts'
 import { TrailField, type TrailHit } from '../systems/TrailField.ts'
 import type { CatView } from '../systems/CatPickup.ts'
@@ -24,8 +26,13 @@ import {
 } from './effectPaint.ts'
 import type { ArenaView } from './arenaView.ts'
 import { canvasPixelRatio } from './canvasResolution.ts'
+import { compactCamera } from './compactCamera.ts'
 
 interface HiddenReveal {
+  readonly seq?: number
+  /** Renderer-local presentation anchor. */
+  readonly origin?: { x: number; y: number }
+  readonly duration?: number
   readonly label: string
   readonly sprite: string
   /**
@@ -118,6 +125,8 @@ interface ArenaRenderState {
   readonly bodies: readonly BodySnapshot[]
   readonly aimX: number
   readonly showAim: boolean
+  readonly congestionLevel?: number
+  readonly mergeWait?: MergeWaitView | null
   readonly hiddenReveal?: HiddenReveal | null
   readonly whiteboardRecall?: WhiteboardRecall | null
   /** 방금 얹힌 물건의 색. 없으면 null */
@@ -221,7 +230,7 @@ interface ArenaRenderState {
     readonly progress: number
   } | null
   /** 싱글 스테이지의 투명 수납함. 단계마다 표시 폭이 달라진다. */
-  readonly container?: { readonly halfWidth: number } | null
+  readonly container?: { readonly halfWidth: number; readonly wallHeight?: number } | null
   /** 실제 이동이 아닌 표시 보정 중이라 꼬리 속도 계산에서 뺄 바디들 */
   readonly suppressTrails?: ReadonlySet<number>
   readonly duelTowers?: readonly DuelTowerRenderState[]
@@ -347,6 +356,7 @@ function drawDuelResult(
 }
 
 class ArenaRenderer {
+  private readonly compact: boolean
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
   private scale = 1
@@ -360,7 +370,8 @@ class ArenaRenderer {
   /** 밤이 얼마나 왔는가. 프레임마다 상태에서 받아 낮/밤 그림을 겹치는 데 쓴다 */
   private nightfall = 0
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, compact = false) {
+    this.compact = compact
     const ctx = canvas.getContext('2d')
     if (ctx === null) {
       throw new Error('2D 컨텍스트를 얻을 수 없다')
@@ -368,6 +379,11 @@ class ArenaRenderer {
     this.canvas = canvas
     this.ctx = ctx
     this.resize()
+  }
+
+  dispose(): void {
+    this.visibleBodies.length = 0
+    this.ctx.clearRect(0, 0, this.cssWidth, this.cssHeight)
   }
 
   resize(): void {
@@ -386,6 +402,8 @@ class ArenaRenderer {
 
   draw(given: ArenaRenderState): void {
     const state = withDefaults(given)
+    const compactView = this.compact ? compactCamera(this.cssWidth, this.cssHeight, state.stackTop) : null
+    if (compactView !== null) this.scale = compactView.scale
     const { ctx } = this
     this.cameraY = state.cameraY
     this.nightfall = state.nightfall
@@ -430,7 +448,7 @@ class ArenaRenderer {
     }
 
     // 히든 연출은 배경에 깔린다 — 쌓인 물건을 가리지 않아야 한다
-    if (state.hiddenReveal !== null) {
+    if (state.hiddenReveal !== null && !this.compact) {
       drawHiddenReveal(view, state.hiddenReveal)
     }
     const platformHalfWidth = state.container?.halfWidth
@@ -439,7 +457,7 @@ class ArenaRenderer {
       drawFormingLedge(view, state.formingLedge)
     }
     if (state.showAim) {
-      drawAim(view, state.aimX, state.stackTop)
+      drawAim(view, state.aimX, state.stackTop, this.compact)
     }
     const visibleBodies = this.collectVisibleBodies(view, state.bodies)
     /*
@@ -463,7 +481,7 @@ class ArenaRenderer {
       if (recalled) {
         const side = state.catcher.x < 0 ? 'left' : 'right'
         ctx.save()
-        ctx.translate(catcherVisualOffset(side), 0)
+        ctx.translate(catcherVisualOffset(side, this.compact), 0)
       }
       drawBody(
         view,
@@ -487,6 +505,7 @@ class ArenaRenderer {
      */
     drawPlatformFront(view, platformHalfWidth)
     drawLedges(view, state.ledges)
+    if (state.mergeWait != null) drawMergeWait(view, state, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
     /*
      * 고양이가 **가장 앞이다.** 목숨이 깎였다는 소식이라 이 프레임에서 가장 중요하고,
      * 무엇에 가리면 그 소식이 안 닿는다. 흔들림 안에 두는 것은 같은 방 안의 것이기
@@ -610,6 +629,7 @@ class ArenaRenderer {
 
   private view(): ArenaView {
     return {
+      compact: this.compact,
       ctx: this.ctx,
       scale: this.scale,
       cssWidth: this.cssWidth,

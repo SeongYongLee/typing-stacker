@@ -189,6 +189,9 @@ class SoundBoard {
       case 'drop':
         voices.dropWhoosh(voice, event.material, event.tone, event.hidden)
         break
+      case 'congestionCreak':
+        voices.congestionCreak(voice, event.strength)
+        break
       case 'quake':
         voices.quake(voice, event.strength)
         break

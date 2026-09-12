@@ -9,6 +9,8 @@ import { Combo, Score } from './Vitals.tsx'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 
 interface InputBarProps {
+  showRanking?: boolean
+  instruction?: string
   input: HangulInput
   feedback: SubmitFeedback | null
   stats: RunStats
@@ -303,6 +305,7 @@ const rowStyle: CSSProperties = {
 
 const sideClusterStyle: CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
   gap: 18,
   minWidth: 0,
@@ -399,7 +402,7 @@ function MemoInput({
   )
 }
 
-function InputBar({ input, feedback, stats, nightfall, locked = false }: InputBarProps) {
+function InputBar({ input, feedback, stats, nightfall, locked = false, instruction, showRanking = true }: InputBarProps) {
   return (
     <div style={wrapStyle}>
       <div style={rowStyle}>
@@ -430,9 +433,9 @@ function InputBar({ input, feedback, stats, nightfall, locked = false }: InputBa
         }}
       >
         <span />
-        <FeedbackChip feedback={feedback} />
+        {instruction ? <span style={labelStyle}>{instruction}{feedback?.ok === false ? ` · ‘${feedback.text}’ 다시 확인해주세요` : ''}</span> : <FeedbackChip feedback={feedback} />}
         <div style={{ justifySelf: 'end' }}>
-          <RunChase score={stats.score} />
+          {showRanking && <RunChase score={stats.score} />}
         </div>
       </div>
     </div>

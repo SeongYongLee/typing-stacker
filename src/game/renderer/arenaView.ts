@@ -1,4 +1,5 @@
 interface ArenaView {
+  readonly compact?: boolean
   readonly ctx: CanvasRenderingContext2D
   readonly scale: number
   readonly cssWidth: number

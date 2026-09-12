@@ -109,17 +109,17 @@ function DuelCountdownArena({ players, selfId, seed, nightfall }: DuelCountdownA
               minWidth: 0,
               padding: '0 8px',
               textAlign: 'center',
-              color: '#f2f4fb',
+              color: 'var(--text-strong)',
               fontSize: 22,
               fontWeight: 900,
               lineHeight: 1.15,
-              textShadow: '0 3px 12px #0d0f16, 0 0 18px #0d0f16',
+              textShadow: '0 3px 12px var(--paper), 0 0 18px var(--paper)',
             }}
           >
             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {self.nickname}
             </div>
-            <div style={{ color: '#6bffb0', fontSize: 15, marginTop: 5 }}>내 위치</div>
+            <div style={{ color: 'var(--green)', fontSize: 15, marginTop: 5 }}>내 위치</div>
           </div>
         </div>
       )}

@@ -56,7 +56,7 @@ function Blurb({
         gap: 8,
         fontSize,
         lineHeight: 1.65,
-        color: '#b6bdd4',
+        color: 'var(--ink)',
       }}
       data-blurb={kind}
     >
@@ -68,11 +68,11 @@ function Blurb({
 }
 
 function Key({ children }: { children: ReactNode }) {
-  return <strong style={{ color: '#e4e68a' }}>{children}</strong>
+  return <strong style={{ color: 'var(--stamp)' }}>{children}</strong>
 }
 
 function Danger({ children }: { children: ReactNode }) {
-  return <strong style={{ color: '#ff6b6b' }}>{children}</strong>
+  return <strong style={{ color: 'var(--danger)' }}>{children}</strong>
 }
 
 export { SidePanel, Blurb, Key, Danger }

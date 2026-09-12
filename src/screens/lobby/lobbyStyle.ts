@@ -23,21 +23,20 @@ const panelStyle: CSSProperties = {
   display: 'grid',
   gap: 18,
   padding: 20,
-  border: '1px solid rgba(181, 190, 211, 0.22)',
-  borderRadius: 16,
-  background: 'rgba(13, 16, 26, 0.82)',
-  boxShadow: '0 18px 48px rgba(5, 9, 17, 0.24)',
-  backdropFilter: 'blur(12px) saturate(0.9)',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
+  background: 'var(--paper)',
+  boxShadow: '3px 4px 0 rgba(43, 37, 27, .25)',
   textAlign: 'center',
 }
 
 const fieldStyle: CSSProperties = {
   width: '100%',
   font: '600 20px/1.3 var(--sans)',
-  color: '#f2f4fb',
-  background: '#0d0f16',
-  border: '1px solid #2e3448',
-  borderRadius: 10,
+  color: 'var(--text-strong)',
+  background: 'var(--paper)',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
   padding: '12px 14px',
   textAlign: 'center',
 }
@@ -46,28 +45,28 @@ const buttonStyle: CSSProperties = {
   padding: '13px 20px',
   fontSize: 16,
   fontWeight: 600,
-  borderRadius: 10,
-  border: '1px solid #e4e68a',
-  background: '#21211f',
-  color: '#e4e68a',
+  borderRadius: 2,
+  border: '1px solid var(--stamp)',
+  background: 'var(--paper-shade)',
+  color: 'var(--stamp)',
 }
 
 const pathLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: '#6a7290',
+  color: 'var(--ink-muted)',
   letterSpacing: '0.06em',
 }
 
 const ghostButtonStyle: CSSProperties = {
   ...buttonStyle,
   background: 'transparent',
-  color: '#b6bdd4',
+  color: 'var(--ink)',
 }
 
 /** 랭크 게임 버튼 아래의 대기 인원. 버튼에 딸린 값이라 붙여둔다 */
 const queueNoteStyle: CSSProperties = {
   fontSize: 12,
-  color: '#6a7290',
+  color: 'var(--ink-muted)',
   textAlign: 'center',
   marginTop: -4,
 }

@@ -51,6 +51,7 @@ type GameEvent =
     }
   /** 무겁고 큰 물건이 부딪혀 화면이 흔들린다. strength는 0~1 */
   | { readonly kind: 'quake'; readonly strength: number }
+  | { readonly kind: 'congestionCreak'; readonly strength: number }
   /** 재료가 합쳐져 새 물건이 됐다 */
   | { readonly kind: 'merge' }
   /** 물건이 받침대를 벗어나 목숨이 깎였다 */

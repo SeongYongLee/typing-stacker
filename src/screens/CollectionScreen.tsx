@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { InputHint } from '../components/InputHint.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
 import { RECIPES } from '../game/data/recipes.ts'
@@ -98,11 +99,11 @@ const ICON_SIZE = 72
  * (`mask-image`). `filter: brightness(0)`으로도 검게는 되지만 색을 고를 수 없어서
  * 배경에 묻히거나 반대로 튄다. 히든과 기본형의 색을 가르려면 색을 쥐고 있어야 한다.
  */
-const SILHOUETTE = { plain: '#2f3550', hidden: '#4d3f18' } as const
+const SILHOUETTE = { plain: '#aaa28e', hidden: '#9f8e66' } as const
 
 const gridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--collection-card-min, 150px), 100%), 1fr))',
   gap: 12,
   maxWidth: 760,
   margin: '0 auto',
@@ -136,11 +137,11 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
   const total = ORDERED.length
 
   return (
-    <div style={rootStyle}>
-      <div style={{ maxWidth: 760, margin: '0 auto 24px', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>도감</h1>
-        <p style={{ color: '#e4e68a', fontSize: 15, fontWeight: 600, margin: '12px 0 0' }}>
-          {found.size} / {total}
+    <div className="office-screen collection-office" style={rootStyle}>
+      <div className="collection-heading" style={{ maxWidth: 760, margin: '0 auto 24px', textAlign: 'center' }}>
+        <h1 className="office-heading" style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>분실물 도감</h1>
+        <p style={{ color: 'var(--stamp)', fontSize: 15, fontWeight: 600, margin: '12px 0 0' }}>
+          등록 {found.size} / {total}종
         </p>
       </div>
 
@@ -152,6 +153,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
           return (
             <div
               key={item.id}
+              className="collection-record"
               data-entry={item.id}
               data-owned={owned ? 'yes' : 'no'}
               style={{
@@ -166,17 +168,18 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
                       ? '#8a6d1f'
                       : '#3a2f10'
                     : owned
-                      ? '#48507a'
-                      : '#242a3d'
+                      ? 'var(--rule)'
+                      : 'var(--rule)'
                 }`,
-                borderRadius: 12,
+                borderRadius: 2,
                 padding: 12,
-                background: item.hidden && owned ? '#221d0f' : owned ? '#1b2032' : '#12151f',
+                background: item.hidden && owned ? 'var(--paper-shade)' : owned ? 'var(--paper)' : 'var(--paper-shade)',
                 display: 'grid',
                 justifyItems: 'center',
                 gap: 6,
               }}
             >
+              <span className="collection-status">{owned ? '등록 완료' : '미발견'}</span>
               {owned ? (
                 <img
                   src={item.sprite}
@@ -210,11 +213,11 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
                   fontWeight: 600,
                   color: item.hidden
                     ? owned
-                      ? '#e4e68a'
+                      ? 'var(--stamp)'
                       : '#5c4a1c'
                     : owned
-                      ? '#f2f4fb'
-                      : '#525a7d',
+                      ? 'var(--text-strong)'
+                      : 'var(--ink-muted)',
                 }}
               >
                 {owned ? item.label : '???'}
@@ -224,7 +227,7 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
                 무엇이 나올지 모른 채 부딪혀보는 재미가 사라진다.
               */}
               {owned && inputs !== null && (
-                <span style={{ fontSize: 11, color: '#7c85a8', textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--ink-muted)', textAlign: 'center' }}>
                   {inputs.map(labelOf).join(' + ')}
                 </span>
               )}
@@ -236,9 +239,9 @@ function CollectionScreen({ collected, onBack }: CollectionScreenProps) {
 
       <div style={{ display: 'grid', justifyItems: 'center', gap: 8, paddingTop: 20 }}>
         <MenuButton selected onClick={onBack} style={{ width: 'auto' }}>
-          돌아가기 (Esc)
+          <InputHint desktop="돌아가기 (Esc)" mobile="돌아가기" />
         </MenuButton>
-        <span style={{ fontSize: 12, color: '#4a5171' }}>↑↓로 넘깁니다</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}><InputHint desktop="↑↓로 넘깁니다" mobile="위아래로 스크롤해 살펴보세요" /></span>
       </div>
     </div>
   )

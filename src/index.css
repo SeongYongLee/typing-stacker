@@ -15,16 +15,24 @@
 }
 
 :root {
-  --bg: #0d0f16;
-  --bg-panel: #151824;
-  --border: #262b3d;
-  --text: #b6bdd4;
-  --text-dim: #6a7290;
-  --text-strong: #f2f4fb;
-  --accent: #e4e68a;
-  --accent-dim: #8a6d1f;
-  --danger: #ff6b6b;
-  --ok: #6bffb0;
+  --paper: #f5efdd;
+  --paper-shade: #e9dfc7;
+  --ink: #433d32;
+  --ink-muted: #756a56;
+  --rule: #b8ac93;
+  --stamp: #9d4935;
+  --green: #52634c;
+  --hand: 'GriunXHangeul A Foreign Hand', var(--sans);
+  --bg: #d3ceba;
+  --bg-panel: var(--paper);
+  --border: var(--rule);
+  --text: var(--ink);
+  --text-dim: var(--ink-muted);
+  --text-strong: #302c24;
+  --accent: var(--stamp);
+  --accent-dim: #865b35;
+  --danger: #a53e30;
+  --ok: var(--green);
 
   --sans: system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --display: 'Rubik Mono One', var(--sans);
@@ -33,7 +41,7 @@
   font: 16px/1.45 var(--sans);
   color: var(--text);
   background: var(--bg);
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -103,5 +111,33 @@ button {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 10px;
+  border-radius: 2px;
 }
+
+
+.mobile-hint { display: none; }
+.options-panel {
+  width: min(280px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  text-align: center;
+}
+.options-list { display: grid; gap: 10px; overflow-y: auto; min-height: 0; padding: 4px; }
+.options-back { padding: 10px 4px 0; }
+@media (max-width: 1199px) {
+  .desktop-hint { display: none; }
+  .mobile-hint { display: inline; }
+}
+
+@media (max-width: 1199px) {
+  [data-solo-rules] { padding: 20px 16px !important; overflow-y: auto; }
+  .solo-rules-content { gap: 24px !important; align-content: start !important; }
+  .solo-rules-intro { font-size: 22px !important; }
+  .solo-rules-panel { width: 100% !important; padding: 16px !important; }
+}
+
+@media (max-width: 1199px) { :root { --collection-card-min: 130px; } }
+
+@media (max-width: 1199px) { [data-solo-start] { font-size: clamp(32px, 10vw, 72px) !important; } }

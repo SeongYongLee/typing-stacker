@@ -51,6 +51,12 @@ describe('화면 설정 저장', () => {
     })
   })
 
+  it('이전 설정과 잘못된 조작 방식은 자동으로 복구한다', () => {
+    for (const inputMode of [undefined, 'invalid', null]) {
+      withStorage(JSON.stringify({inputMode}), () => expect(loadDisplaySettings().inputMode).toBe('auto'))
+    }
+  })
+
   it('저장한 값을 그대로 읽는다', () => {
     withStorage(null, () => {
       saveDisplaySettings({
@@ -58,8 +64,10 @@ describe('화면 설정 저장', () => {
         glow: 0,
         trail: 0,
         soloTutorial: 'disabled',
+        inputMode: 'pc',
       })
       expect(loadDisplaySettings().shake).toBe(0)
+      expect(loadDisplaySettings().inputMode).toBe('pc')
     })
   })
 
@@ -99,6 +107,7 @@ describe('화면 설정 저장', () => {
           glow: 0,
           trail: 0,
           soloTutorial: 'disabled',
+        inputMode: 'pc',
         }),
       ).not.toThrow()
     } finally {

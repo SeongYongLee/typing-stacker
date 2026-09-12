@@ -4,7 +4,7 @@ import { ArenaClock } from './ArenaClock.tsx'
 import { WHITEBOARD_SCALE, whiteboardWordChanges } from './whiteboardTransition.ts'
 import type { TimeOfDay } from '../game/systems/DayNight.ts'
 
-type ArenaBackdropProps =
+type ArenaBackdropProps = { windowLight?: boolean } & (
   | {
       mode: 'solo'
       /** 판의 국면. 조명과 벽시계가 이것을 따라간다. */
@@ -13,6 +13,8 @@ type ArenaBackdropProps =
       whiteboard?: readonly string[]
       /** 회수 목록 중 지금 레인에 내려와 있는 단어. 이때만 보드에 작은 표시를 남긴다. */
       activeWhiteboard?: readonly string[]
+      /** 오래 회수하지 않았을 때 입력을 안내할, 현재 회수 가능한 단어. */
+      whiteboardReminder?: string | null
     }
   | {
       mode: 'match'
@@ -23,6 +25,8 @@ type ArenaBackdropProps =
       /** 대결에서 방금 화이트보드 단어를 회수한 사람과 원래 자리. */
       whiteboardClaim?: WhiteboardClaimNotice | null
     }
+
+)
 
 interface WhiteboardClaimNotice {
   readonly seq: number
@@ -47,6 +51,7 @@ function ArenaBackdrop(props: ArenaBackdropProps) {
   if (props.mode === 'match') {
     return (
       <BackdropLayers
+        windowLight={props.windowLight}
         nightfall={props.nightfall}
         whiteboard={props.whiteboard ?? []}
         activeWhiteboard={props.activeWhiteboard ?? []}
@@ -56,19 +61,23 @@ function ArenaBackdrop(props: ArenaBackdropProps) {
   }
   return (
     <SoloArenaBackdrop
+      windowLight={props.windowLight}
       time={props.time}
       whiteboard={props.whiteboard ?? []}
       activeWhiteboard={props.activeWhiteboard ?? []}
+      whiteboardReminder={props.whiteboardReminder ?? null}
     />
   )
 }
 
 function BackdropLayers({
+  windowLight = true,
   nightfall,
   whiteboard,
   activeWhiteboard,
   whiteboardClaim,
 }: {
+  windowLight?: boolean
   nightfall: number
   whiteboard: readonly string[]
   activeWhiteboard: readonly string[]
@@ -77,12 +86,12 @@ function BackdropLayers({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wall = useWallBox(rootRef)
   return (
-    <div ref={rootRef} aria-hidden style={rootStyle}>
+    <div ref={rootRef} data-arena-room aria-hidden style={rootStyle}>
       <div style={layerStyle('background-day', 1)} />
       <div style={layerStyle('background-night', nightfall)} />
       {wall !== null && (
         <div style={wall}>
-          <WindowLight nightfall={nightfall} />
+          {windowLight && <WindowLight nightfall={nightfall} />}
           <Whiteboard
             words={whiteboard}
             activeWords={activeWhiteboard}
@@ -96,18 +105,22 @@ function BackdropLayers({
 }
 
 function SoloArenaBackdrop({
+  windowLight = true,
   time,
   whiteboard,
   activeWhiteboard,
+  whiteboardReminder,
 }: {
+  windowLight?: boolean
   time: TimeOfDay
   whiteboard: readonly string[]
   activeWhiteboard: readonly string[]
+  whiteboardReminder: string | null
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wall = useWallBox(rootRef)
   return (
-    <div ref={rootRef} style={rootStyle}>
+    <div ref={rootRef} data-arena-room style={rootStyle}>
       <div aria-hidden style={layerStyle('background-day', 1)} />
       <div aria-hidden style={layerStyle('background-night', time.nightfall)} />
       {/*
@@ -116,11 +129,12 @@ function SoloArenaBackdrop({
       */}
       {wall !== null && (
         <div style={wall}>
-          <WindowLight nightfall={time.nightfall} />
+          {windowLight && <WindowLight nightfall={time.nightfall} />}
           <Whiteboard
             words={whiteboard}
             activeWords={activeWhiteboard}
             nightfall={time.nightfall}
+            reminder={whiteboardReminder}
           />
           <ArenaClock time={time} />
         </div>
@@ -221,11 +235,13 @@ function Whiteboard({
   activeWords,
   nightfall,
   claim = null,
+  reminder = null,
 }: {
   words: readonly string[]
   activeWords: readonly string[]
   nightfall: number
   claim?: WhiteboardClaimNotice | null
+  reminder?: string | null
 }) {
   const { erasedWords, writingWords } = useWhiteboardTransitions(words)
   const active = new Set(activeWords)
@@ -235,6 +251,11 @@ function Whiteboard({
       <div aria-hidden style={fill('whiteboard-night', nightfall)} />
       <style>{whiteboardAnimationCss}</style>
       <span aria-hidden data-whiteboard-status style={ownerStatusStyle}>주인 찾는 중</span>
+      {reminder !== null && active.has(reminder) && (
+        <div role="status" data-whiteboard-reminder style={reminderStyle}>
+          <strong>‘{reminder}’</strong> 입력 후 <kbd>Enter</kbd>를 눌러 돌려주세요.
+        </div>
+      )}
       {(words.length > 0 || erasedWords.length > 0) && (
         <div style={wordListStyle}>
           {words.map((word, index) => {
@@ -532,6 +553,25 @@ const boardStyle: CSSProperties = {
   aspectRatio: `${ARENA_ART['whiteboard-day'].width / ARENA_ART['whiteboard-day'].height}`,
   top: `${BOARD_CENTER_Y}%`,
   transform: 'translateY(-50%)',
+}
+
+const reminderStyle: CSSProperties = {
+  position: 'absolute',
+  bottom: 'calc(100% + 8px)',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  width: 'max-content',
+  maxWidth: '100%',
+  boxSizing: 'border-box',
+  padding: '9px 13px',
+  border: '1px solid #e6bd68',
+  borderRadius: 10,
+  background: 'rgba(255, 248, 218, .97)',
+  color: '#47341b',
+  fontSize: 16,
+  lineHeight: 1.5,
+  textAlign: 'center',
+  boxShadow: '0 3px 12px rgba(0, 0, 0, .25)',
 }
 
 const wordListStyle: CSSProperties = {

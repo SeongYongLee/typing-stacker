@@ -1,0 +1,96 @@
+{
+  "assumptions": {
+    "browserHeight": 64,
+    "defaultKeyboardHeight": 320,
+    "deviceScaleFactor": 1,
+    "scene": "fixed fixtures, existing renderer, no physics/IME validation"
+  },
+  "results": [
+    {
+      "preset": "compact",
+      "dense": false,
+      "canvas": {
+        "width": 360,
+        "height": 131,
+        "scale": 15.022935779816512
+      },
+      "metrics": "게임 가시 높이\n356px\n아레나 영역\n360 × 131px\n단어 글꼴\n20px\n계란 그림 높이\n6.0px\n클로버 그림 높이\n6.3px",
+      "overflow": []
+    },
+    {
+      "preset": "compact",
+      "dense": true,
+      "canvas": {
+        "width": 360,
+        "height": 11,
+        "scale": 1.2614678899082568
+      },
+      "metrics": "게임 가시 높이\n356px\n아레나 영역\n360 × 11px\n단어 글꼴\n20px\n계란 그림 높이\n0.5px\n클로버 그림 높이\n0.5px",
+      "overflow": []
+    },
+    {
+      "preset": "standard",
+      "dense": false,
+      "canvas": {
+        "width": 390,
+        "height": 235,
+        "scale": 26.94954128440367
+      },
+      "metrics": "게임 가시 높이\n460px\n아레나 영역\n390 × 235px\n단어 글꼴\n20px\n계란 그림 높이\n10.8px\n클로버 그림 높이\n11.3px",
+      "overflow": []
+    },
+    {
+      "preset": "standard",
+      "dense": true,
+      "canvas": {
+        "width": 390,
+        "height": 115,
+        "scale": 13.188073394495412
+      },
+      "metrics": "게임 가시 높이\n460px\n아레나 영역\n390 × 115px\n단어 글꼴\n20px\n계란 그림 높이\n5.3px\n클로버 그림 높이\n5.5px",
+      "overflow": []
+    },
+    {
+      "preset": "large",
+      "dense": false,
+      "canvas": {
+        "width": 430,
+        "height": 323,
+        "scale": 37.04128440366972
+      },
+      "metrics": "게임 가시 높이\n548px\n아레나 영역\n430 × 323px\n단어 글꼴\n20px\n계란 그림 높이\n14.8px\n클로버 그림 높이\n15.6px",
+      "overflow": []
+    },
+    {
+      "preset": "large",
+      "dense": true,
+      "canvas": {
+        "width": 430,
+        "height": 203,
+        "scale": 23.279816513761467
+      },
+      "metrics": "게임 가시 높이\n548px\n아레나 영역\n430 × 203px\n단어 글꼴\n20px\n계란 그림 높이\n9.3px\n클로버 그림 높이\n9.8px",
+      "overflow": []
+    },
+    {
+      "layout": "original",
+      "metrics": "게임 가시 높이\n460px\n아레나 영역\n390 × 326px\n단어 글꼴\n11.4px\n계란 그림 높이\n15.0px\n클로버 그림 높이\n15.7px"
+    },
+    {
+      "preset": "standard",
+      "keyboard": "280",
+      "metrics": "게임 가시 높이\n500px\n아레나 영역\n390 × 275px\n단어 글꼴\n20px\n계란 그림 높이\n12.6px\n클로버 그림 높이\n13.2px"
+    },
+    {
+      "preset": "standard",
+      "keyboard": "360",
+      "metrics": "게임 가시 높이\n420px\n아레나 영역\n390 × 195px\n단어 글꼴\n20px\n계란 그림 높이\n8.9px\n클로버 그림 높이\n9.4px"
+    },
+    {
+      "preset": "standard",
+      "keyboard": "0",
+      "metrics": "게임 가시 높이\n780px\n아레나 영역\n390 × 555px\n단어 글꼴\n20px\n계란 그림 높이\n24.4px\n클로버 그림 높이\n25.6px"
+    }
+  ],
+  "errors": []
+}

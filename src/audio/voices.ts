@@ -695,6 +695,11 @@ function impact(
 }
 
 /** 무겁고 큰 것이 떨어졌다. 화면이 흔들리는 그 순간의 저음 */
+function congestionCreak(voice: Voice, strength: number): void {
+  tone(voice, { type: 'triangle', freq: 155, toFreq: 105, gain: 0.015 + strength * 0.015, duration: 0.24, attack: 0.04 })
+  burst(voice, { filter: 'bandpass', freq: 420, toFreq: 230, gain: 0.008, duration: 0.2, attack: 0.035 })
+}
+
 function quake(voice: Voice, strength: number): void {
   tone(voice, {
     type: 'sine',
@@ -863,6 +868,7 @@ function chat(voice: Voice): void {
 }
 
 export {
+  congestionCreak,
   // 재질별 폭(spread)이 여기 있어서, 개체값이 실제로 몇 반음 벌어지는지는
   // 이 표를 봐야 안다. tests/materials.test.ts가 그 간격을 지킨다
   MATERIAL_VOICES,

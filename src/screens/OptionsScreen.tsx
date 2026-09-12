@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { InputHint } from '../components/InputHint.tsx'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useDisplayMenu } from '../hooks/useDisplayMenu.ts'
 import { useMenuKeys } from '../hooks/useMenuKeys.ts'
@@ -13,6 +14,7 @@ const rootStyle: CSSProperties = {
   height: '100%',
   display: 'grid',
   placeItems: 'center',
+  minHeight: 0,
   padding: 24,
 }
 
@@ -22,7 +24,7 @@ const sectionTitleStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
   letterSpacing: '0.08em',
-  color: '#8f97b8',
+  color: 'var(--ink-muted)',
 }
 
 /**
@@ -43,7 +45,7 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
   // 이름은 여기 없다. 설정이 아니라 "내가 누구로 보이는가"라서 시작 화면 맨 위에 있다
   const sections = [
     { title: '사운드', items: sound },
-    { title: '그래픽', items: display },
+    { title: '화면과 조작', items: display },
     { title: '게임 규칙 보기', items: rules },
   ]
   const items = [...sound, ...display, ...rules, { label: '돌아가기 (Esc)', run: onBack }]
@@ -55,16 +57,16 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
   })
 
   return (
-    <div style={rootStyle}>
-      <div style={{ textAlign: 'center', minWidth: 280 }}>
-        <h1 style={{ font: '700 32px/1.2 var(--sans)', color: '#f2f4fb', margin: 0 }}>
-          옵션
+    <div className="office-screen" style={rootStyle}>
+      <div className="options-panel paper-sheet">
+        <h1 className="office-heading" style={{ font: '700 32px/1.2 var(--sans)', color: 'var(--text-strong)', margin: 0 }}>
+          보관소 관리표
         </h1>
-        <p style={{ fontSize: 12, color: '#6a7290', margin: '10px 0 24px' }}>
-          Enter로 값을 바꿉니다
+        <p style={{ fontSize: 12, color: 'var(--ink-muted)', margin: '10px 0 24px' }}>
+          <InputHint desktop="Enter로 값을 바꿉니다" mobile="항목을 누르면 값이 바뀝니다" /><br />조작 방식 변경은 다음 게임부터 적용됩니다.
         </p>
 
-        <div style={{ display: 'grid', gap: 10 }} data-options>
+        <div className="options-list" data-options>
           {sections.map((section) => (
             <section key={section.title} style={{ display: 'grid', gap: 8 }}>
               <h2 style={sectionTitleStyle}>{section.title}</h2>
@@ -77,18 +79,21 @@ function OptionsScreen({ onBack }: OptionsScreenProps) {
                     onClick={item.run}
                     onHover={() => menu.select(index)}
                   >
-                    {item.label}
+                    <span>{item.label.split(' · ')[0]}</span>
+                    <strong>{item.label.includes(' · ') ? ` · ${item.label.split(' · ').slice(1).join(' · ')}` : ''}</strong>
                   </MenuButton>
                 )
               })}
             </section>
           ))}
+        </div>
+        <div className="options-back">
           <MenuButton
             selected={menu.index === items.length - 1}
             onClick={onBack}
             onHover={() => menu.select(items.length - 1)}
           >
-            돌아가기 (Esc)
+            <InputHint desktop="돌아가기 (Esc)" mobile="돌아가기" />
           </MenuButton>
         </div>
       </div>

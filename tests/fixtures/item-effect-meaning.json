@@ -1,0 +1,2050 @@
+[
+  {
+    "id": "clover",
+    "label": "세잎클로버",
+    "shape": "petal",
+    "palette": [
+      "#7baf68",
+      "#bdc979"
+    ],
+    "reason": "그림에 꽃이 없으므로 분홍 꽃잎 대신 초록 잎; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "clover-lucky",
+    "label": "네잎클로버",
+    "shape": "petal",
+    "palette": [
+      "#7baf68",
+      "#bdc979"
+    ],
+    "reason": "그림에 꽃이 없으므로 분홍 꽃잎 대신 초록 잎; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "leaf",
+    "label": "나뭇잎",
+    "shape": "petal",
+    "palette": [
+      "#7baf68",
+      "#bdc979"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "leaf-maple",
+    "label": "단풍잎",
+    "shape": "petal",
+    "palette": [
+      "#ca703e",
+      "#e6b854"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "snail",
+    "label": "달팽이",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "snail-curled",
+    "label": "웅크린 달팽이",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sausage",
+    "label": "소시지",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "octopus",
+    "label": "문어소시지",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "문어소시지 그림이므로 소시지와 같은 따뜻한 음식 계열; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "iced-drink",
+    "label": "칵테일",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "cocktail",
+    "label": "마티니 칵테일",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "tumbler",
+    "label": "텀블러",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "닫힌 용기는 누수 대신 짧은 접촉 파문; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "pizza-slice",
+    "label": "피자 조각",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "pizza-box",
+    "label": "피자 한 판",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "bolt",
+    "label": "번개",
+    "shape": "spark",
+    "palette": [
+      "#ffdc50",
+      "#fff3a0"
+    ],
+    "reason": "금속색 대신 노란 전기 섬광; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "bento",
+    "label": "도시락",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "lunchbox-bear-omelet-rice",
+    "label": "곰돌이 오므라이스",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "laptop",
+    "label": "노트북",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "laptop-closed",
+    "label": "접힌 노트북",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "umbrella",
+    "label": "우산",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "umbrella-folded",
+    "label": "접힌 우산",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "airplane",
+    "label": "비행기",
+    "shape": "steam",
+    "palette": [
+      "#d1e3dc",
+      "#f3eada"
+    ],
+    "reason": "이동 궤적은 실제 이동 방향 반대쪽으로 방출; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "airplane-biplane",
+    "label": "복엽기",
+    "shape": "steam",
+    "palette": [
+      "#d1e3dc",
+      "#f3eada"
+    ],
+    "reason": "이동 궤적은 실제 이동 방향 반대쪽으로 방출; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "ladybug",
+    "label": "무당벌레",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "cricket",
+    "label": "귀뚜라미",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "butterfly",
+    "label": "호랑나비",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sunglasses",
+    "label": "선글라스",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sunglasses-black-narrow-frame",
+    "label": "좁은 선글라스",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "chocolate-donut",
+    "label": "초코도넛",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "fish-bread",
+    "label": "붕어빵",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "americano",
+    "label": "아메리카노",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "americano-iced",
+    "label": "아이스 아메리카노",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "milk-carton",
+    "label": "우유",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "닫힌 용기는 누수 대신 짧은 접촉 파문; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "strawberry-milk",
+    "label": "딸기우유",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "닫힌 용기는 누수 대신 짧은 접촉 파문; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "milk-vintage-cart",
+    "label": "우유 수레",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "flashlight",
+    "label": "손전등",
+    "shape": "puff",
+    "palette": [
+      "#ffe8a0",
+      "#fff7d6"
+    ],
+    "reason": "광원은 금속 불꽃 대신 빛무리; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "alarm-clock",
+    "label": "알람시계",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "금속 불꽃 대신 소리와 진동의 파문; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "alarm-clock-digital",
+    "label": "디지털 알람시계",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "beer",
+    "label": "맥주",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "beer-bottle",
+    "label": "병맥주",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "닫힌 용기는 누수 대신 짧은 접촉 파문; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "french-fries",
+    "label": "감자튀김",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "ice-cream-cone",
+    "label": "아이스크림",
+    "shape": "puff",
+    "palette": [
+      "#f5dce3",
+      "#f8edcb"
+    ],
+    "reason": "그림의 분홍·크림색에 맞는 옅은 냉기; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "shampoo-bottle",
+    "label": "샴푸통",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "거품은 착지 때의 주제 표식으로만 허용. 낙하 중 사용 연출 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "squirrel",
+    "label": "다람쥐",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "wool-hat",
+    "label": "털모자",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "wool-hat-nordic-earflap",
+    "label": "귀덮개 털모자",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "soccer-ball",
+    "label": "축구공",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "cactus",
+    "label": "선인장",
+    "shape": "puff",
+    "palette": [
+      "#d8b682",
+      "#ebd0a2"
+    ],
+    "reason": "넓은 잎이 없는 선인장은 옅은 사막 먼지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "cactus-mexican-character",
+    "label": "멕시칸 선인장",
+    "shape": "puff",
+    "palette": [
+      "#d8b682",
+      "#ebd0a2"
+    ],
+    "reason": "넓은 잎이 없는 선인장은 옅은 사막 먼지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "binoculars",
+    "label": "쌍안경",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "scarf",
+    "label": "목도리",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "rubber-gloves",
+    "label": "고무장갑",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "거품은 착지 때의 주제 표식으로만 허용. 낙하 중 사용 연출 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "sneakers",
+    "label": "운동화",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "watering-can",
+    "label": "물뿌리개",
+    "shape": "droplet",
+    "palette": [
+      "#86c9e1",
+      "#c7eaf2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "electric-kettle",
+    "label": "전기주전자",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "electric-kettle-gooseneck",
+    "label": "구즈넥 주전자",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "dinosaur-toy",
+    "label": "공룡인형",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "dinosaur-toy-triceratops",
+    "label": "트리케라톱스",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "roller-skates",
+    "label": "롤러스케이트",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sunflower-seed",
+    "label": "씨앗",
+    "shape": "chip",
+    "palette": [
+      "#d3ad50",
+      "#ead080"
+    ],
+    "reason": "씨앗 종류로 분리하여 낟알 색의 작은 입자를 사용; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sunflower",
+    "label": "해바라기",
+    "shape": "petal",
+    "palette": [
+      "#efc54b",
+      "#f4dd87"
+    ],
+    "reason": "해바라기 꽃잎은 노란색; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "toy-train",
+    "label": "장난감기차",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "toy-train-bullet-train",
+    "label": "고속열차",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "school-backpack",
+    "label": "책가방",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "frying-pan",
+    "label": "프라이팬",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "badminton-racket",
+    "label": "배드민턴채",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "microwave",
+    "label": "전자레인지",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "작동 상태가 없으므로 김·냉기·거품을 방출하지 않음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "pine-tree",
+    "label": "소나무",
+    "shape": "spark",
+    "palette": [
+      "#65954e",
+      "#96ad60"
+    ],
+    "reason": "짧고 가는 초록 솔잎. 꽃잎이나 금속색은 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "christmas-tree",
+    "label": "크리스마스트리",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "washing-machine",
+    "label": "세탁기",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "작동 상태가 없으므로 김·냉기·거품을 방출하지 않음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "refrigerator",
+    "label": "냉장고",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "작동 상태가 없으므로 김·냉기·거품을 방출하지 않음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "bicycle",
+    "label": "자전거",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "bicycle-folding",
+    "label": "접이식 자전거",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "iron",
+    "label": "다리미",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "blue-shirt",
+    "label": "셔츠",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "egg",
+    "label": "계란",
+    "shape": "puff",
+    "palette": [
+      "#fff0c9",
+      "#e9c987"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "gold-star",
+    "label": "별",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "crescent-moon",
+    "label": "달",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "rice-plant",
+    "label": "벼",
+    "shape": "chip",
+    "palette": [
+      "#d3ad50",
+      "#ead080"
+    ],
+    "reason": "벼의 노란 낟알을 표현하며 꽃잎은 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "salmon-fish",
+    "label": "생선",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "hand-mirror",
+    "label": "거울",
+    "shape": "spark",
+    "palette": [
+      "#b8e4f2",
+      "#e4f4f6"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "desk-globe",
+    "label": "지구본",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "window",
+    "label": "창문",
+    "shape": "spark",
+    "palette": [
+      "#b8e4f2",
+      "#e4f4f6"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "baseball-bat",
+    "label": "야구 배트",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "heart",
+    "label": "하트",
+    "shape": "heart",
+    "palette": [
+      "#e75a62",
+      "#f4acaa"
+    ],
+    "reason": "흙먼지 대신 붉은 하트 맥박; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "candle",
+    "label": "촛불",
+    "shape": "puff",
+    "palette": [
+      "#ffbd65",
+      "#ffe0a1"
+    ],
+    "reason": "그림에 켜진 심지가 있으므로 작고 따뜻한 불빛; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "rabbit",
+    "label": "토끼",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "turtle",
+    "label": "거북이",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "등껍질 접촉을 표현하며 나무 입자는 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "turtle-sea-turtle",
+    "label": "바다거북",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "등껍질 접촉을 표현하며 나무 입자는 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "old-key",
+    "label": "열쇠",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "treasure-map",
+    "label": "지도",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "map-world-map",
+    "label": "세계지도",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "padlock",
+    "label": "자물쇠",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "quill-feather",
+    "label": "깃털",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "telescope",
+    "label": "망원경",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "telescope-spyglass",
+    "label": "손망원경",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "shooting-star",
+    "label": "별똥별",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "camera",
+    "label": "카메라",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "digital-camera",
+    "label": "디지털카메라",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "footprints",
+    "label": "발자국",
+    "shape": "puff",
+    "palette": [
+      "#b39a77",
+      "#d0bb96"
+    ],
+    "reason": "발자국은 천이 아니므로 흙색 접촉 먼지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "footprints-dinosaur",
+    "label": "공룡 발자국",
+    "shape": "puff",
+    "palette": [
+      "#b39a77",
+      "#d0bb96"
+    ],
+    "reason": "발자국은 천이 아니므로 흙색 접촉 먼지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "round-glasses",
+    "label": "안경",
+    "shape": "spark",
+    "palette": [
+      "#b8e4f2",
+      "#e4f4f6"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "study-book",
+    "label": "책",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "broom",
+    "label": "빗자루",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "작동 중 흡입을 꾸며내지 않고 접촉 먼지만; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "stardust",
+    "label": "별가루",
+    "shape": "star",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "spider-web",
+    "label": "거미줄",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "compass",
+    "label": "나침반",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "paper-airplane",
+    "label": "종이비행기",
+    "shape": "steam",
+    "palette": [
+      "#d1e3dc",
+      "#f3eada"
+    ],
+    "reason": "이동 궤적은 실제 이동 방향 반대쪽으로 방출; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "smartphone",
+    "label": "스마트폰",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "desk-phone",
+    "label": "유선전화",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "traffic-light",
+    "label": "신호등",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "headphones",
+    "label": "헤드폰",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "음향 기기는 불꽃·파편 대신 짧은 음파 표식; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "trash-bin",
+    "label": "철망 휴지통",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "tv-remote",
+    "label": "리모컨",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "keyboard",
+    "label": "무선 키보드",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "speaker",
+    "label": "탁상 스피커",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "음향 기기는 불꽃·파편 대신 짧은 음파 표식; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "stick-vacuum",
+    "label": "스틱청소기",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "작동 중 흡입을 꾸며내지 않고 접촉 먼지만; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "robot-vacuum",
+    "label": "로봇청소기",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "작동 중 흡입을 꾸며내지 않고 접촉 먼지만; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "toilet-paper",
+    "label": "두루마리 화장지",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "tissue-box",
+    "label": "각티슈",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "crank-sharpener",
+    "label": "탁상 연필깎이",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "handheld-sharpener",
+    "label": "손 연필깎이",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "desk-lamp",
+    "label": "탁상조명",
+    "shape": "puff",
+    "palette": [
+      "#ffe8a0",
+      "#fff7d6"
+    ],
+    "reason": "광원은 금속 불꽃 대신 빛무리; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "gooseneck-lamp",
+    "label": "구부러진 조명",
+    "shape": "puff",
+    "palette": [
+      "#ffe8a0",
+      "#fff7d6"
+    ],
+    "reason": "광원은 금속 불꽃 대신 빛무리; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "fire-extinguisher",
+    "label": "소화기",
+    "shape": "puff",
+    "palette": [
+      "#e8e5db",
+      "#c7c6bf"
+    ],
+    "reason": "불꽃 금지. 작동 입력이 없으므로 분사 없이 착지 때만 먼지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "first-aid-kit",
+    "label": "구급상자",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "wristwatch",
+    "label": "손목시계",
+    "shape": "spark",
+    "palette": [
+      "#ffe6a2",
+      "#f2a548",
+      "#d9e6e8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "smartwatch",
+    "label": "스마트워치",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "laundry-basket",
+    "label": "빨래바구니",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "clothes-hanger",
+    "label": "옷걸이",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "triangle-gimbap",
+    "label": "삼각김밥",
+    "shape": "chip",
+    "palette": [
+      "#f5efdc",
+      "#566447"
+    ],
+    "reason": "김밥을 뜨겁다고 가정하지 않고 쌀알·김 조각; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "toy-car",
+    "label": "장난감자동차",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "dump-truck",
+    "label": "덤프트럭",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "macaron",
+    "label": "마카롱",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "macaron-bear",
+    "label": "곰돌이 마카롱",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "snowflake",
+    "label": "눈송이",
+    "shape": "snow",
+    "palette": [
+      "#d4eef5",
+      "#ffffff"
+    ],
+    "reason": "5각별과 구분되는 6갈래 눈 결정; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sketchbook",
+    "label": "스케치북",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sketchbook-open",
+    "label": "펼친 스케치북",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "pencil-set",
+    "label": "색연필세트",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "bubble-bottle",
+    "label": "비눗방울통",
+    "shape": "bubble",
+    "palette": [
+      "#c6e8ee",
+      "#d9c5ef"
+    ],
+    "reason": "거품은 착지 때의 주제 표식으로만 허용. 낙하 중 사용 연출 금지; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "hand-fan",
+    "label": "휴대용선풍기",
+    "shape": "steam",
+    "palette": [
+      "#d1e3dc",
+      "#f3eada"
+    ],
+    "reason": "이동 궤적은 실제 이동 방향 반대쪽으로 방출; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "kids-bottle",
+    "label": "어린이물병",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "닫힌 용기는 누수 대신 짧은 접촉 파문; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "wooden-door",
+    "label": "나무문",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "biscuit",
+    "label": "비스킷",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "mushroom",
+    "label": "버섯",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "crystal",
+    "label": "크리스탈",
+    "shape": "spark",
+    "palette": [
+      "#b39ade",
+      "#dac7f1"
+    ],
+    "reason": "보라색 크리스털의 짧은 반사광, 지속 마법 방출 없음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "burnt-hole-shirt",
+    "label": "구멍 난 셔츠",
+    "shape": "puff",
+    "palette": [
+      "#6c6358",
+      "#8a8071"
+    ],
+    "reason": "탄 구멍과 맞는 어두운 그을음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "fried-egg",
+    "label": "계란 프라이",
+    "shape": "steam",
+    "palette": [
+      "#f5edd8",
+      "#d8d6c9"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "fart-cloud",
+    "label": "방귀 냄새",
+    "shape": "steam",
+    "palette": [
+      "#a6bd48",
+      "#c7d96d"
+    ],
+    "reason": "원본의 녹색 기체·소용돌이를 표현; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sunlight",
+    "label": "햇빛",
+    "shape": "puff",
+    "palette": [
+      "#ffe8a0",
+      "#fff7d6"
+    ],
+    "reason": "마법 별 대신 빛과 조명의 빛무리; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "salmon-sushi",
+    "label": "초밥",
+    "shape": "puff",
+    "palette": [
+      "#f5d7ac",
+      "#fae8ca"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "mirror-ball",
+    "label": "미러볼",
+    "shape": "spark",
+    "palette": [
+      "#9ccedf",
+      "#d5a3dc",
+      "#edcf87"
+    ],
+    "reason": "색색의 반사광; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "glass-shards",
+    "label": "유리조각",
+    "shape": "spark",
+    "palette": [
+      "#b8e4f2",
+      "#e4f4f6"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "heart-ring",
+    "label": "반지",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "보석·금속 장식의 짧은 반사광, 지속 마법 방출 없음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "racing-flag",
+    "label": "레이싱 깃발",
+    "shape": "steam",
+    "palette": [
+      "#d1e3dc",
+      "#f3eada"
+    ],
+    "reason": "이동 궤적은 실제 이동 방향 반대쪽으로 방출; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "gold-medal",
+    "label": "금메달",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "보석·금속 장식의 짧은 반사광, 지속 마법 방출 없음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "treasure-chest",
+    "label": "보물상자",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "secret-diary",
+    "label": "비밀일기",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "spaceship",
+    "label": "우주선",
+    "shape": "spark",
+    "palette": [
+      "#ffc158",
+      "#f29245"
+    ],
+    "reason": "원본에 추진불꽃이 있으므로 이동 뒤편의 주황 추진광; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "travel-album",
+    "label": "여행앨범",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "graduation-cap",
+    "label": "졸업모자",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "magic-wand",
+    "label": "마법봉",
+    "shape": "star",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "internet-router",
+    "label": "인터넷 공유기",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "travel-suitcase",
+    "label": "여행가방",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "travel-passport",
+    "label": "세계여행 여권",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "speed-course",
+    "label": "스피드 코스",
+    "shape": "steam",
+    "palette": [
+      "#d1e3dc",
+      "#f3eada"
+    ],
+    "reason": "이동 궤적은 실제 이동 방향 반대쪽으로 방출; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "space-poster",
+    "label": "우주여행 포스터",
+    "shape": "paper",
+    "palette": [
+      "#fff1c8",
+      "#d7be83"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "explorer-badge",
+    "label": "탐험가 배지",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "보석·금속 장식의 짧은 반사광, 지속 마법 방출 없음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "picnic-basket",
+    "label": "피크닉 바구니",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "pub-platter",
+    "label": "펍 플래터",
+    "shape": "chip",
+    "palette": [
+      "#d9a65f",
+      "#f1cd8b"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "dessert-tower",
+    "label": "디저트 타워",
+    "shape": "chip",
+    "palette": [
+      "#ecd6b0",
+      "#fff0d2"
+    ],
+    "reason": "접시보다 디저트의 과자·설탕을 강조; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "lucky-flowerpot",
+    "label": "행운의 화분",
+    "shape": "petal",
+    "palette": [
+      "#efb8c2",
+      "#f5d580"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "terrarium",
+    "label": "테라리움",
+    "shape": "petal",
+    "palette": [
+      "#7baf68",
+      "#bdc979"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "snow-globe",
+    "label": "스노우볼",
+    "shape": "snow",
+    "palette": [
+      "#d4eef5",
+      "#ffffff"
+    ],
+    "reason": "5각별과 구분되는 6갈래 눈 결정; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "repair-shop",
+    "label": "옷 수선소",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "art-bag",
+    "label": "미술학원 가방",
+    "shape": "puff",
+    "palette": [
+      "#eae0ce",
+      "#d5c7b4"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "cleaning-set",
+    "label": "욕실 청소 세트",
+    "shape": "bubble",
+    "palette": [
+      "#c6e8ee",
+      "#d9c5ef"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "survival-kit",
+    "label": "사막 생존 키트",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "sports-trophy",
+    "label": "운동회 트로피",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "보석·금속 장식의 짧은 반사광, 지속 마법 방출 없음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  },
+  {
+    "id": "magic-book",
+    "label": "마법 비밀책",
+    "shape": "star",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "mirror-door",
+    "label": "거울 속 마법문",
+    "shape": "steam",
+    "palette": [
+      "#ac80da",
+      "#d6b1f0"
+    ],
+    "reason": "거울 속 마법문의 보라색 소용돌이; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "spaceship-saucer",
+    "label": "비행접시",
+    "shape": "puff",
+    "palette": [
+      "#caba9d",
+      "#e6dcc2"
+    ],
+    "reason": "원형 비행접시는 로켓과 다른 부양 고리; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 작동·누출을 암시하는 고리 대신 접촉 먼지",
+    "moveAllowed": false
+  },
+  {
+    "id": "vintage-trunk",
+    "label": "빈티지 트렁크",
+    "shape": "chip",
+    "palette": [
+      "#c9b295",
+      "#ead7b8"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "winged-wand",
+    "label": "날개 마법봉",
+    "shape": "star",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "hanging-terrarium",
+    "label": "행잉 테라리움",
+    "shape": "petal",
+    "palette": [
+      "#7baf68",
+      "#bdc979"
+    ],
+    "reason": "원본 그림 검토에서 유지 가능한 것으로 판정한 시각 테마. 충돌 입자는 착지에 한정.; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응",
+    "moveAllowed": false
+  },
+  {
+    "id": "diamond-ring",
+    "label": "다이아반지",
+    "shape": "spark",
+    "palette": [
+      "#f7d16e",
+      "#fff0b5"
+    ],
+    "reason": "보석·금속 장식의 짧은 반사광, 지속 마법 방출 없음; 보관소 연출: 이동 중 장식 없이 사건 순간에만 작은 반응; 별 모양 장식 대신 짧은 반사광",
+    "moveAllowed": false
+  }
+]

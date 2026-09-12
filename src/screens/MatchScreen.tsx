@@ -515,8 +515,8 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
         justifyContent: crowded ? 'flex-start' : 'center',
         gap: crowded ? 10 : 24,
         padding: crowded ? '8px 14px' : '12px 20px',
-        borderBottom: '1px solid #262b3d',
-        background: '#151824',
+        borderBottom: '1px solid var(--rule)',
+        background: 'var(--paper)',
         /*
          * 말풍선이 이 줄 **아래로 삐져나와** 아레나 위에 뜬다. `hidden`이면 그 자리에서
          * 잘린다 — 이름이 넘치는 것은 이름표 안에서 이미 잘라내므로 여기서 또 막을 필요가 없다.
@@ -547,9 +547,9 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               alignItems: 'center',
               gap: crowded ? 6 : 10,
               padding: crowded ? '4px 8px' : '6px 12px',
-              borderRadius: 999,
+              borderRadius: 2,
               minWidth: 0,
-              border: `1px solid ${active ? '#e4e68a' : 'transparent'}`,
+              border: `1px solid ${active ? 'var(--stamp)' : 'transparent'}`,
               background: active ? 'rgba(255, 207, 92, 0.1)' : 'transparent',
             }}
           >
@@ -569,7 +569,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
             <span
               style={{
                 fontSize: crowded ? 13 : 15,
-                color: '#f2f4fb',
+                color: 'var(--ink)',
                 fontWeight: mine ? 700 : 500,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -589,7 +589,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
                   textAlign: 'center',
                   fontSize: crowded ? 12 : 14,
                   fontWeight: 800,
-                  color: duelResult.placement === 1 ? '#e4e68a' : '#b6bdd4',
+                  color: duelResult.placement === 1 ? 'var(--stamp)' : 'var(--ink)',
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
@@ -609,7 +609,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
               아니라 상대가 하나 줄어든 것이다.
             */}
             {gone.has(player.id) && (
-              <span style={{ fontSize: 11, color: '#6a7290' }} data-gone>
+              <span style={{ fontSize: 11, color: 'var(--ink-muted)' }} data-gone>
                 나감
               </span>
             )}
@@ -632,7 +632,7 @@ function Scoreboard({ state, onLeave }: { state: MatchViewState; onLeave: () => 
           background: 'transparent',
           border: '1px solid #2e3448',
           borderRadius: 8,
-          color: '#6a7290',
+          color: 'var(--ink-muted)',
           fontSize: 13,
           padding: '6px 12px',
         }}
@@ -1152,17 +1152,17 @@ function Verdict({
           gap: 28,
         }}
       >
-        <div style={{ textAlign: 'center', display: 'grid', gap: 14, minWidth: 0 }}>
+        <div className="paper-sheet" style={{ textAlign: 'center', display: 'grid', gap: 14, minWidth: 0 }}>
         <span
           style={{
             font: '700 46px/1.1 var(--sans)',
-            color: draw ? '#b6bdd4' : won ? '#6bffb0' : '#ff6b6b',
+            color: draw ? 'var(--ink)' : won ? 'var(--green)' : 'var(--danger)',
           }}
         >
           {text}
         </span>
         {winnerName !== null && !draw && (
-          <span style={{ color: '#b6bdd4', fontSize: 15 }}>{withSubject(winnerName)} 이겼습니다</span>
+          <span style={{ color: 'var(--ink)', fontSize: 15 }}>{withSubject(winnerName)} 이겼습니다</span>
         )}
         {/*
           * 순위. **"이겼다/졌다"만으로는 여덟이 붙는 판에서 아무것도 알 수 없다** —
@@ -1177,8 +1177,8 @@ function Verdict({
             listStyle: 'none',
             display: 'grid',
             gap: 5,
-            borderRadius: 12,
-            border: '1px solid #232839',
+            borderRadius: 2,
+            border: '1px solid var(--rule)',
             background: 'rgba(255, 255, 255, 0.025)',
             textAlign: 'left',
             minWidth: 260,
@@ -1195,7 +1195,7 @@ function Verdict({
                   gap: 10,
                   alignItems: 'baseline',
                   fontSize: 14,
-                  color: mine ? '#e4e68a' : '#b6bdd4',
+                  color: mine ? 'var(--stamp)' : 'var(--ink)',
                   fontWeight: mine ? 700 : 400,
                 }}
               >
@@ -1203,7 +1203,7 @@ function Verdict({
                   style={{
                     width: 26,
                     textAlign: 'right',
-                    color: row.placement === 1 ? '#e4e68a' : '#4a5171',
+                    color: row.placement === 1 ? 'var(--stamp)' : 'var(--ink-muted)',
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
@@ -1220,7 +1220,7 @@ function Verdict({
                   {nameOf(row.id)}
                   {mine && ' (나)'}
                 </span>
-                <span style={{ fontSize: 13, color: wins > 0 ? '#e4e68a' : '#3a4160' }}>
+                <span style={{ fontSize: 13, color: wins > 0 ? 'var(--stamp)' : 'var(--ink-muted)' }}>
                   {wins > 0 ? `${wins}승` : '—'}
                 </span>
               </li>
@@ -1234,7 +1234,7 @@ function Verdict({
           * 아예 치운다 — 누를 수 없는 버튼은 "왜 안 되지"를 만든다.
           */}
         {peerUnavailable ? (
-          <span data-opponent-left style={{ color: '#ff6b6b', fontSize: 15 }}>
+          <span data-opponent-left style={{ color: 'var(--danger)', fontSize: 15 }}>
             {state.opponentLeft ? '상대가 로비로 나갔습니다' : '상대와의 연결이 끊겼습니다'}
           </span>
         ) : (
@@ -1269,19 +1269,20 @@ function Verdict({
           로비로 나가기 (Esc)
         </MenuButton>
 
-        <span style={{ fontSize: 12, color: '#4a5171' }}>
+        <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
           ↑↓ 또는 Tab으로 고르고 Enter로 들어갑니다
         </span>
         </div>
         {showChat && (
           <div
+            className="paper-sheet"
             data-result-chat-panel
             style={{
               display: 'grid',
               alignContent: 'center',
               gap: 18,
               minWidth: 0,
-              padding: '18px 0',
+              padding: '18px',
             }}
           >
             <MatchChatBox
@@ -1513,20 +1514,20 @@ function TierPanel({ state }: { state: MatchViewState }) {
    */
   if (ranking.status === 'casual') {
     return (
-      <span style={{ fontSize: 13, color: '#6a7290' }} data-tier-casual>
+      <span style={{ fontSize: 13, color: 'var(--ink-muted)' }} data-tier-casual>
         친선전이라 티어 점수는 그대로입니다
       </span>
     )
   }
   if (ranking.status === 'offline') {
-    return <span style={{ fontSize: 13, color: '#4a5171' }}>티어를 받지 못했습니다</span>
+    return <span style={{ fontSize: 13, color: 'var(--ink-muted)' }}>티어를 받지 못했습니다</span>
   }
   if (ranking.status === 'pending') {
-    return <span style={{ fontSize: 13, color: '#6a7290' }}>상대의 보고를 기다립니다…</span>
+    return <span style={{ fontSize: 13, color: 'var(--ink-muted)' }}>상대의 보고를 기다립니다…</span>
   }
   if (ranking.status === 'disputed') {
     return (
-      <span style={{ fontSize: 13, color: '#ff6b6b' }}>
+      <span style={{ fontSize: 13, color: 'var(--danger)' }}>
         양쪽 기록이 어긋나 이 판은 티어에 반영되지 않았습니다
       </span>
     )
@@ -1539,7 +1540,7 @@ function TierPanel({ state }: { state: MatchViewState }) {
     <div data-tier={tier.name} style={{ display: 'grid', gap: 6, justifyItems: 'center' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 17, fontWeight: 700, color: tier.color }}>{tier.name}</span>
-        <span style={{ fontSize: 15, color: '#b6bdd4', fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ fontSize: 15, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
           {ranking.rating}
         </span>
         {ranking.delta !== null && ranking.delta !== 0 && (
@@ -1548,7 +1549,7 @@ function TierPanel({ state }: { state: MatchViewState }) {
             style={{
               fontSize: 14,
               fontWeight: 700,
-              color: ranking.delta > 0 ? '#6bffb0' : '#ff6b6b',
+              color: ranking.delta > 0 ? 'var(--green)' : 'var(--danger)',
             }}
           >
             {ranking.delta > 0 ? '+' : '−'}
@@ -1561,8 +1562,8 @@ function TierPanel({ state }: { state: MatchViewState }) {
         style={{
           width: 160,
           height: 4,
-          borderRadius: 999,
-          background: '#232839',
+          borderRadius: 2,
+          background: 'var(--rule)',
           overflow: 'hidden',
         }}
       >
@@ -1575,7 +1576,7 @@ function TierPanel({ state }: { state: MatchViewState }) {
           }}
         />
       </div>
-      <span style={{ fontSize: 12, color: '#4a5171' }}>
+      <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
         {ranking.wins}승 {ranking.losses}패
       </span>
     </div>

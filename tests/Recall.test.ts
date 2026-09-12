@@ -316,18 +316,14 @@ describe('화이트보드 상자 회수', () => {
       returns: 0,
       target: 20,
     })
-    internals.tutorialStep = 5
+    // One acknowledgement after an assisted merge leads directly to recall.
+    internals.tutorialStep = 4
     internals.showTutorialStep()
     engine.submit('')
     expect((state as unknown as GameState).stage).toMatchObject({
-      tutorialStep: 6,
+      tutorialStep: 7,
       target: 20,
       returns: 0,
-      tutorialText: expect.stringContaining('게임 클리어'),
-    })
-    engine.submit('')
-    expect((state as unknown as GameState).stage).toMatchObject({
-      tutorialStep: 7,
       tutorialText: expect.stringContaining('계란 프라이를 입력'),
     })
     const friedEgg = VARIANT_BY_ID.get('fried-egg')
@@ -346,8 +342,6 @@ describe('화이트보드 상자 회수', () => {
       tutorialText: expect.stringContaining('1개 줄었습니다'),
     })
 
-    engine.submit('')
-    expect((state as unknown as GameState).stage.congestionDemo).toBe('congestionGuide')
     engine.submit('')
     expect((state as unknown as GameState).stage).toMatchObject({
       congestion: 0,

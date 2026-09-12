@@ -17,17 +17,17 @@
   gap: 14px;
   padding: 22px 24px 24px;
   overflow: hidden;
-  border: 1px solid rgba(228, 230, 138, 0.58);
-  border-radius: 8px;
-  background: rgba(13, 16, 26, 0.96);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
   box-shadow: 0 24px 64px rgba(5, 9, 17, 0.48);
-  color: #f2f4fb;
+  color: var(--ink);
   text-align: center;
 }
 
 .mode-roulette__eyebrow {
   margin: 0;
-  color: #b6bdd4;
+  color: var(--ink-muted);
   font-size: 15px;
   font-weight: 700;
 }
@@ -96,7 +96,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px 18px;
-  color: #b6bdd4;
+  color: var(--ink-muted);
   font-size: 14px;
 }
 
@@ -129,13 +129,13 @@
 }
 
 .mode-roulette__result strong {
-  color: #f2f4fb;
+  color: var(--ink);
   font-size: 28px;
   line-height: 1.2;
 }
 
 .mode-roulette__result span {
-  color: #b6bdd4;
+  color: var(--ink-muted);
   font-size: 15px;
 }
 

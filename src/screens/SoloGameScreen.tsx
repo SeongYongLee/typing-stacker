@@ -1,10 +1,17 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore, lazy, Suspense } from 'react'
 import type { GameEngine } from '../game/core/GameEngine.ts'
 import type { EngineStateStore } from '../hooks/useGameEngine.ts'
+import { GameArena } from '../components/GameArena.tsx'
 import { GameScreen } from './GameScreen.tsx'
 import { ResultScreen } from './ResultScreen.tsx'
 import type { Phase } from '../game/systems/DayNight.ts'
 import type { GamePhase } from '../game/types/game.ts'
+
+import { useTooNarrow, useMobileControls } from '../hooks/useViewport.ts'
+const MobileGameScreen = lazy(() => import('./MobileGameScreen.tsx').then(({ MobileGame, MobileViewport }) => ({
+  default: ({ engine, stateStore, onHome, onRestart, children, touch, arena, three }: Pick<SoloGameScreenProps, 'engine' | 'stateStore' | 'onHome' | 'onRestart'> & { children: React.ReactNode; touch: boolean; arena: React.ReactNode; three: boolean }) =>
+    <MobileViewport engine={engine} touch={touch}><MobileGame arena={arena} windowLight={!three} showMergeToast={!three} touch={touch} engine={engine} store={stateStore} onHome={onHome} onRestart={onRestart} />{children}</MobileViewport>,
+})))
 
 interface SoloGameScreenProps {
   engine: GameEngine
@@ -29,6 +36,12 @@ function SoloGameScreen({
   onHome,
   onSceneChange,
 }: SoloGameScreenProps) {
+  // The three-column field needs 676px; retain room for the HUD as well.
+  const [three, setThree] = useState(false)
+  const narrow = useTooNarrow(800)
+  const preferredTouch = useMobileControls()
+  // Apply control changes to the next run, preserving an open pause/options menu.
+  const [touch] = useState(preferredTouch)
   const state = useSyncExternalStore(
     stateStore.subscribe,
     stateStore.getSnapshot,
@@ -43,9 +56,9 @@ function SoloGameScreen({
 
   if (state === null) return null
 
-  return (
+  const arena = <GameArena engine={engine} compact={narrow || touch} onThreeChange={setThree} />
+  const overlays = (
     <>
-      <GameScreen engine={engine} state={state} onRestart={onRestart} onHome={onHome} />
       {state.phase === 'credits' && <CreditsOverlay onContinue={() => engine.continueEndless()} />}
       {state.phase === 'over' && (
         <ResultScreen
@@ -61,6 +74,8 @@ function SoloGameScreen({
       )}
     </>
   )
+  if (narrow || touch) return <Suspense fallback={null}><MobileGameScreen arena={arena} three={three} touch={touch} engine={engine} stateStore={stateStore} onHome={onHome} onRestart={onRestart}>{overlays}</MobileGameScreen></Suspense>
+  return <><GameScreen arena={arena} windowLight={!three} engine={engine} state={state} onRestart={onRestart} onHome={onHome} />{overlays}</>
 }
 
 function CreditsOverlay({ onContinue }: { onContinue: () => void }) {
@@ -71,13 +86,13 @@ function CreditsOverlay({ onContinue }: { onContinue: () => void }) {
         background: 'rgba(7, 10, 18, 0.88)', color: '#fff7d7', textAlign: 'center',
       }}
     >
-      <div style={{ display: 'grid', gap: 18, justifyItems: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: 36 }}>모든 주인을 찾았습니다</h1>
-        <p style={{ margin: 0, fontSize: 18, color: '#d7d9e7' }}>수상한 분실물 보관소</p>
+      <div className="paper-sheet" style={{ display: 'grid', gap: 18, justifyItems: 'center', maxWidth: 'calc(100% - 32px)' }}>
+        <h1 className="office-heading" style={{ margin: 0, fontSize: 36 }}>모든 주인을 찾았습니다</h1>
+        <p style={{ margin: 0, fontSize: 18, color: 'var(--ink-muted)' }}>수상한 분실물 보관소</p>
         <button
           type="button"
           onClick={onContinue}
-          style={{ padding: '11px 18px', border: '1px solid #f6d76f', borderRadius: 5, background: '#2b2730', color: '#fff7d7', fontSize: 17, fontWeight: 700 }}
+          style={{ padding: '11px 18px', border: '1px solid var(--green)', borderRadius: 1, background: 'var(--green)', color: 'var(--paper)', fontSize: 17, fontWeight: 700 }}
         >
           계속 정리하기
         </button>

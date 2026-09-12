@@ -36,19 +36,19 @@ function Searching({
   return (
     <div style={rootStyle}>
       <div style={panelStyle} data-searching={waiting?.waitedSec ?? 0}>
-        <h2 style={{ font: '700 26px/1.3 var(--sans)', color: '#f2f4fb', margin: 0 }}>
+        <h2 style={{ font: '700 26px/1.3 var(--sans)', color: 'var(--text-strong)', margin: 0 }}>
           {unsupported ? '랭크 게임을 쓸 수 없습니다' : '상대를 찾는 중…'}
         </h2>
 
         {unsupported ? (
           <p
-            style={{ color: '#e4e68a', margin: 0, fontSize: 15, lineHeight: 1.7 }}
+            style={{ color: 'var(--stamp)', margin: 0, fontSize: 15, lineHeight: 1.7 }}
             data-queue-unsupported
           >
             서버가 아직 랭크 게임을 모릅니다. 친선전으로 방을 만들어 주세요.
           </p>
         ) : unreachable ? (
-          <p style={{ color: '#e4e68a', margin: 0, fontSize: 15, lineHeight: 1.7 }}>
+          <p style={{ color: 'var(--stamp)', margin: 0, fontSize: 15, lineHeight: 1.7 }}>
             서버에 닿지 못했습니다. 잠시 뒤 다시 시도합니다.
           </p>
         ) : (
@@ -63,7 +63,7 @@ function Searching({
               <Figure label="대기 인원" value={`${waiting?.waiting ?? 1}명`} />
               <Figure label="기다린 시간" value={`${waiting?.waitedSec ?? 0}초`} />
             </div>
-            <p style={{ color: '#b6bdd4', margin: 0, fontSize: 14, lineHeight: 1.7 }}>
+            <p style={{ color: 'var(--ink)', margin: 0, fontSize: 14, lineHeight: 1.7 }}>
               {bandText(waiting?.band ?? 0)}
             </p>
           </>
@@ -94,16 +94,16 @@ function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        background: '#0d0f16',
-        border: '1px solid #2e3448',
-        borderRadius: 10,
+        background: 'var(--paper)',
+        border: '1px solid var(--rule)',
+        borderRadius: 2,
         padding: '12px 14px',
         display: 'grid',
         gap: 4,
       }}
     >
-      <span style={{ color: '#6a7290', fontSize: 12, letterSpacing: '0.06em' }}>{label}</span>
-      <span style={{ font: '700 20px/1.2 var(--sans)', color: '#f2f4fb' }}>{value}</span>
+      <span style={{ color: 'var(--ink-muted)', fontSize: 12, letterSpacing: '0.06em' }}>{label}</span>
+      <span style={{ font: '700 20px/1.2 var(--sans)', color: 'var(--text-strong)' }}>{value}</span>
     </div>
   )
 }

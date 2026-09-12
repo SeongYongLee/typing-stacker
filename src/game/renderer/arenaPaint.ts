@@ -163,12 +163,12 @@ function drawCatcher(
    * 연출이지 길이가 변하는 도구가 아니므로, 이미지가 가진 비율과 화면 크기만 따른다.
    * 손바닥은 읽히고 팔 끝은 화면 밖에 걸치도록 기준 표시 크기의 3.24배로 그린다.
    */
-  const width = catcherImageWidth(view.scale)
+  const width = catcherImageWidth(view.scale, view.compact)
   const height = width * (art.height / art.width)
   const x = view.toScreenX(catcher.x)
   const y = view.toScreenY(catcher.y)
   const side = catcher.x < 0 ? 'left' : 'right'
-  const pose = catcherPose(catcher.progress, side, width, height)
+  const pose = catcherPose(catcher.progress, side, width, height, view.compact)
   /*
    * 손 그림은 원본부터 왼쪽 아래 → 오른쪽 위로 45도쯤 뻗어 있다. 물리 각도를 그대로
    * 더하면 그림이 두 번 기울어져 뒤집히므로, 원본 기울기에서 회수 판 기울기만큼만 보정한다.
@@ -202,12 +202,12 @@ function drawCatcher(
   ctx.restore()
 }
 
-function catcherImageWidth(scale: number): number {
-  return Math.min(260, Math.max(190, scale * 2.25)) * 3.24
+function catcherImageWidth(scale: number, compact = false): number {
+  return compact ? scale * 3.6 : Math.min(260, Math.max(190, scale * 2.25)) * 3.24
 }
 
-function catcherVisualOffset(side: 'left' | 'right'): number {
-  return side === 'left' ? -200 : 200
+function catcherVisualOffset(side: 'left' | 'right', compact = false): number {
+  return compact ? 0 : side === 'left' ? -200 : 200
 }
 
 function catcherPose(
@@ -215,6 +215,7 @@ function catcherPose(
   side: 'left' | 'right',
   width: number,
   height: number,
+  compact = false,
 ): { readonly x: number; readonly y: number; readonly alpha: number } {
   const fadeIn = catcherFadeIn(progress)
   const fadeOut = catcherFadeOut(progress)
@@ -222,7 +223,7 @@ function catcherPose(
   const outward = side === 'left' ? -1 : 1
   return {
     /* 손바닥을 바깥으로 누적 200px 옮기고, 등장할 때는 거기서 더 바깥에 머문다 */
-    x: catcherVisualOffset(side) + outward * motion * width * 0.28,
+    x: catcherVisualOffset(side, compact) + outward * motion * width * 0.28,
     /* 같은 순간 조금 위로 올라와 떨어지는 물건을 받는다 */
     y: motion * height * 0.14,
     alpha: catcherAlpha(progress),
@@ -241,37 +242,40 @@ function catcherAlpha(progress: number): number {
   return Math.max(0, Math.min(catcherFadeIn(progress), catcherFadeOut(progress)))
 }
 
-function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
+function drawAim(view: ArenaView, worldX: number, stackTop: number, arrowOnly = false): void {
   const { ctx } = view
   const x = view.toScreenX(worldX)
-  const spawnY = view.toScreenY(ARENA.spawnY + view.cameraY)
+  const spawnY = arrowOnly ? 16 : view.toScreenY(ARENA.spawnY + view.cameraY)
   // 조준선은 쌓인 것의 꼭대기에서 끝난다 — 실제로 물건이 닿을 자리다
   const trackBottom = view.toScreenY(stackTop)
   const arrow = sprite(ARROW_ART)
-  const arrowWidth = Math.min(44, Math.max(32, view.scale * 0.36))
+  const arrowWidth = arrowOnly ? 12 : Math.min(44, Math.max(32, view.scale * 0.36))
   const arrowHeight = arrowWidth * (ARROW_CROP.height / ARROW_CROP.width)
   const arrowTop = arrow === null ? spawnY - 22 : spawnY - arrowHeight
   const trackTop = spawnY
 
-  ctx.save()
-  ctx.strokeStyle = 'rgba(58, 24, 20, 0.24)'
-  ctx.lineWidth = 4
-  ctx.setLineDash([6, 9])
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(x, trackTop)
-  ctx.lineTo(x, trackBottom)
-  ctx.stroke()
+  if (!arrowOnly) {
+    ctx.save()
+    ctx.strokeStyle = 'rgba(58, 24, 20, 0.24)'
+    ctx.lineWidth = 4
+    ctx.setLineDash([6, 9])
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, trackTop)
+    ctx.lineTo(x, trackBottom)
+    ctx.stroke()
 
-  ctx.strokeStyle = COLORS.aimTrack
-  ctx.lineWidth = 2.25
-  ctx.setLineDash([6, 9])
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(x, trackTop)
-  ctx.lineTo(x, trackBottom)
-  ctx.stroke()
-  ctx.restore()
+    ctx.strokeStyle = COLORS.aimTrack
+    ctx.lineWidth = 2.25
+    ctx.setLineDash([6, 9])
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, trackTop)
+    ctx.lineTo(x, trackBottom)
+    ctx.stroke()
+    ctx.restore()
+
+  }
 
   if (arrow !== null) {
     ctx.drawImage(
@@ -292,8 +296,8 @@ function drawAim(view: ArenaView, worldX: number, stackTop: number): void {
   ctx.fillStyle = '#ffcf5c'
   ctx.beginPath()
   ctx.moveTo(x, spawnY)
-  ctx.lineTo(x - 9, spawnY - 18)
-  ctx.lineTo(x + 9, spawnY - 18)
+  ctx.lineTo(x - (arrowOnly ? 4 : 9), spawnY - (arrowOnly ? 8 : 18))
+  ctx.lineTo(x + (arrowOnly ? 4 : 9), spawnY - (arrowOnly ? 8 : 18))
   ctx.closePath()
   ctx.fill()
   ctx.restore()

@@ -178,7 +178,7 @@ function forEachConnectedSubset(
  *
  * 물리도 화면도 모르는 순수 함수다. 같은 그래프면 언제나 같은 답을 준다.
  */
-function findMerge(graph: ContactGraph, recipes: readonly Recipe[]): MergeMatch | null {
+function findMerge(graph: ContactGraph, recipes: readonly Recipe[], requiredIds: readonly number[] = []): MergeMatch | null {
   if (graph.nodes.length < 2 || graph.nodes.length > MAX_SEARCH_NODES) {
     return null
   }
@@ -208,6 +208,7 @@ function findMerge(graph: ContactGraph, recipes: readonly Recipe[]): MergeMatch 
     let found: MergeMatch | null = null
 
     forEachConnectedSubset(nodeIds, adjacency, candidate.inputs.length, (subset) => {
+      if (!requiredIds.every(id => subset.includes(id))) return false
       const have = sortedKey(subset.map((id) => variantOf.get(id) ?? ''))
       if (have !== want) {
         return false

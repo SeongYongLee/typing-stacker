@@ -60,16 +60,16 @@ const panelColumnStyle: CSSProperties = {
  * 그래서 기둥 높이를 가장 긴 경우가 그대로 들어가는 값으로 잡아뒀다.
  */
 const panelBoxStyle: CSSProperties = {
-  padding: '16px 18px',
-  border: '1px solid #262b3d',
-  borderRadius: 12,
-  background: '#151824',
+  padding: '20px 22px',
+  border: '1px solid var(--rule)',
+  borderRadius: 2,
+  background: 'var(--paper)',
 }
 
 /** 상자 안 칸의 머리 */
 const panelTitleStyle: CSSProperties = {
   fontSize: 12,
-  color: '#6a7290',
+  color: 'var(--ink-muted)',
   letterSpacing: '0.08em',
   margin: '0 0 14px',
 }

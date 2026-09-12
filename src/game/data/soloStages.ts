@@ -26,6 +26,7 @@ interface SoloStage {
 /**
  * 스테이지의 기본 속도는 점수와 무관하다. 실력에 따라 다음 보관함에 빨리 가는 것이 아니라,
  * 화이트보드 반환을 끝내야 다음 규칙으로 넘어간다.
+ * 정식 1~5단계는 생성 간격을 3→2초로 고르게 줄이고, 낙하 시간은 12→11→10→9→6초다.
  */
 const SOLO_STAGES: readonly SoloStage[] = [
   {
@@ -45,7 +46,8 @@ const SOLO_STAGES: readonly SoloStage[] = [
     title: '교실 분실물',
     endless: false,
     returnTarget: 20,
-    difficulty: { spawnInterval: 2, fallDuration: 8, aimSpeed: 0.38, maxConcurrent: 10 },
+    // 첫 보관함에서는 단어 입력 뒤 조준·합성·회수를 살펴볼 여유를 준다.
+    difficulty: { spawnInterval: 3, fallDuration: 12, aimSpeed: 0.38, maxConcurrent: 10 },
     congestionDrops: 10,
     box: { halfWidth: 2.4, wallHeight: 1.52 },
     featuredWords: ['책', '색연필세트', '스케치북', '책가방', '연필깎이', '탁상조명'],
@@ -57,7 +59,7 @@ const SOLO_STAGES: readonly SoloStage[] = [
     title: '급식실 보관함',
     endless: false,
     returnTarget: 28,
-    difficulty: { spawnInterval: 1.875, fallDuration: 7.5, aimSpeed: 0.42, maxConcurrent: 10 },
+    difficulty: { spawnInterval: 2.75, fallDuration: 11, aimSpeed: 0.42, maxConcurrent: 10 },
     congestionDrops: 13,
     box: { halfWidth: 2.25, wallHeight: 1.44 },
     featuredWords: ['계란', '프라이팬', '피자', '감자튀김', '아이스크림', '마카롱', '우유'],
@@ -66,34 +68,34 @@ const SOLO_STAGES: readonly SoloStage[] = [
   },
   {
     id: 3,
-    title: '체육관 장비함',
-    endless: false,
-    returnTarget: 36,
-    difficulty: { spawnInterval: 1.75, fallDuration: 7, aimSpeed: 0.46, maxConcurrent: 10 },
-    congestionDrops: 16,
-    box: { halfWidth: 2.1, wallHeight: 1.36 },
-    featuredWords: ['토끼', '거북이', '축구공', '배드민턴채', '운동화', '장난감자동차'],
-    tags: ['sports'],
-    hiddenResults: ['racing-flag', 'gold-medal', 'speed-course', 'sports-trophy'],
-  },
-  {
-    id: 4,
     title: '잡화·여행 창고',
     endless: false,
-    returnTarget: 44,
-    difficulty: { spawnInterval: 1.625, fallDuration: 6.5, aimSpeed: 0.5, maxConcurrent: 10 },
-    congestionDrops: 19,
-    box: { halfWidth: 1.95, wallHeight: 1.28 },
+    returnTarget: 36,
+    difficulty: { spawnInterval: 2.5, fallDuration: 10, aimSpeed: 0.46, maxConcurrent: 10 },
+    congestionDrops: 16,
+    box: { halfWidth: 2.1, wallHeight: 1.36 },
     featuredWords: ['다리미', '세탁기', '카메라', '나침반', '지도', '망원경', '청소기'],
     tags: ['storage', 'travel', 'heavy'],
     hiddenResults: ['glass-shards', 'treasure-chest', 'travel-suitcase', 'vintage-trunk', 'travel-album', 'travel-passport', 'explorer-badge', 'repair-shop', 'cleaning-set', 'survival-kit'],
+  },
+  {
+    id: 4,
+    title: '체육관 장비함',
+    endless: false,
+    returnTarget: 44,
+    difficulty: { spawnInterval: 2.25, fallDuration: 9, aimSpeed: 0.5, maxConcurrent: 10 },
+    congestionDrops: 19,
+    box: { halfWidth: 1.95, wallHeight: 1.28 },
+    featuredWords: ['토끼', '거북이', '축구공', '배드민턴채', '운동화', '장난감자동차'],
+    tags: ['sports'],
+    hiddenResults: ['racing-flag', 'gold-medal', 'speed-course', 'sports-trophy'],
   },
   {
     id: 5,
     title: '밤의 특수 보관함',
     endless: true,
     returnTarget: 60,
-    difficulty: { spawnInterval: 1.5, fallDuration: 6, aimSpeed: 0.54, maxConcurrent: 10 },
+    difficulty: { spawnInterval: 2, fallDuration: 6, aimSpeed: 0.54, maxConcurrent: 10 },
     congestionDrops: 22,
     box: { halfWidth: 1.84, wallHeight: 1.2 },
     featuredWords: ['별가루', '달', '별똥별', '크리스탈', '촛불', '하트', '클로버'],

@@ -6,6 +6,7 @@
  * 기본값으로 돌아간다. 화면 설정 하나 때문에 게임이 열리지 않으면 안 된다.
  */
 interface DisplaySettings {
+  readonly inputMode: 'auto' | 'pc' | 'mobile'
   /**
    * 화면 흔들림의 세기 배수(0~1). 0이면 흔들리지 않는다.
    *
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   glow: 1,
   trail: 1,
   soloTutorial: 'required',
+  inputMode: 'auto',
 }
 
 function clampLevel(value: unknown, fallback: number): number {
@@ -71,6 +73,7 @@ function loadDisplaySettings(): DisplaySettings {
       glow: clampLevel(record.glow, DEFAULT_SETTINGS.glow),
       trail: clampLevel(record.trail, DEFAULT_SETTINGS.trail),
       soloTutorial: tutorialSetting(record.soloTutorial),
+      inputMode: record.inputMode === 'pc' || record.inputMode === 'mobile' ? record.inputMode : 'auto',
     }
   } catch {
     // 저장소가 막혀 있어도(시크릿 모드) 게임은 열려야 한다

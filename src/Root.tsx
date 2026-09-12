@@ -1,18 +1,22 @@
 import { App } from './App.tsx'
-import { useTooNarrow } from './hooks/useViewport.ts'
-import { TooNarrowScreen } from './screens/TooNarrowScreen.tsx'
+import { lazy, Suspense } from 'react'
 
-/**
- * 화면이 좁으면 **앱을 아예 만들지 않는다.**
- *
- * `App` 안에서 갈라도 보이는 것은 같지만, 그러면 판을 못 여는 기기에서도
- * `useGameEngine`이 돌아 **Rapier WASM 1.6MB와 스프라이트 185장을 받는다.**
- * 좁은 화면은 대개 손에 든 기기이고 그쪽이 데이터도 비싸다.
- *
- * 안내를 보다가 창을 넓히면 그때 앱이 만들어진다 — 새로고침이 필요 없다.
- */
+const MobileReadability = import.meta.env.DEV
+  ? lazy(() => import('./dev/MobileReadability.tsx'))
+  : null
+const MobilePlay = import.meta.env.DEV ? lazy(() => import('./dev/MobilePlay.tsx')) : null
+
+const ThreePrototype = import.meta.env.DEV ? lazy(() => import('./dev/ThreePrototype.tsx')) : null
+
 function Root() {
-  return useTooNarrow() ? <TooNarrowScreen /> : <App />
+  if (ThreePrototype !== null && new URLSearchParams(window.location.search).has('three-prototype')) return <Suspense fallback={null}><ThreePrototype /></Suspense>
+  if (MobilePlay !== null && new URLSearchParams(window.location.search).has('mobile-play')) {
+    return <Suspense fallback={<p>플레이 준비 중…</p>}><MobilePlay /></Suspense>
+  }
+  if (MobileReadability !== null && new URLSearchParams(window.location.search).has('mobile-readability')) {
+    return <Suspense fallback={<p>미리보기 준비 중…</p>}><MobileReadability /></Suspense>
+  }
+  return <App />
 }
 
 export { Root }

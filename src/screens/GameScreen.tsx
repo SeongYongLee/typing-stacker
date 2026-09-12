@@ -1,5 +1,7 @@
+import { useCongestionTone } from '../hooks/useCongestionTone.ts'
+import { congestionLevel, congestionPeriod } from '../game/renderer/congestionSignal.ts'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { InputBar } from '../components/InputBar.tsx'
 import { StackArena } from '../components/StackArena.tsx'
 import { ArenaBackdrop } from '../components/ArenaBackdrop.tsx'
@@ -10,6 +12,7 @@ import { ARENA_SCREEN_MAX_WIDTH } from '../game/config.ts'
 import type { GameEngine, GameState } from '../game/core/GameEngine.ts'
 import { useHangulInput } from '../hooks/useHangulInput.ts'
 import { useTypingSound } from '../hooks/useAudio.ts'
+import { tutorialGuide } from './tutorialGuide.ts'
 import { play } from '../components/animate.ts'
 
 interface GameScreenProps {
@@ -17,6 +20,9 @@ interface GameScreenProps {
   state: GameState
   onRestart: () => void
   onHome: () => void
+  arena?: ReactNode
+  windowLight?: boolean
+  showRanking?: boolean
 }
 
 /** 옵션이 판 위에 뜰 때 쓰는 층. 일시정지 화면과 같은 어둡기라 자리가 이어져 보인다 */
@@ -31,7 +37,8 @@ const rootStyle: CSSProperties = {
   // 일시정지 화면이 이 안에서 전체를 덮으려면 기준점이 필요하다
   position: 'relative',
   display: 'grid',
-  gridTemplateRows: '1fr auto',
+  gridTemplateRows: 'minmax(0, 1fr) auto',
+  overflow: 'hidden',
   height: '100%',
 }
 
@@ -67,21 +74,14 @@ const fieldStyle: CSSProperties = {
   minHeight: 0,
 }
 
-function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
+function GameScreen({ engine, state, onRestart, onHome, arena, showRanking = true, windowLight = true }: GameScreenProps) {
 
-  const submit = useCallback((text: string) => engine.submit(text), [engine])
+  const guide = tutorialGuide(state.stage)
+  const submit = useCallback((text: string) => {
+    if (!guide?.waiting) engine.submit(guide?.action ? '' : text)
+  }, [engine, guide?.waiting, guide?.action])
   // 빈 Enter는 평소에는 무시한다. 경보 데모를 시작하는 이 짧은 순간에만 엔진으로 보낸다.
-  const input = useHangulInput(
-    submit,
-      state.stage.congestionDemo === 'ready' ||
-      state.stage.congestionDemo === 'congestionGuide' ||
-      state.stage.congestionDemo === 'full' ||
-      state.stage.congestionDemo === 'gameOverPrompt' ||
-      state.stage.tutorialStep === 0 ||
-      state.stage.tutorialStep === 4 ||
-      state.stage.tutorialStep === 5 ||
-      state.stage.tutorialStep === 6,
-  )
+  const input = useHangulInput(submit, guide?.action != null)
   const { focus, clear } = input
 
   const paused = state.phase === 'paused'
@@ -162,9 +162,9 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
     (state.stage.congestionDemo === 'congestionGuide' || state.stage.congestionDemo === 'full')
   const tutorialRemainingGuide =
     state.phase === 'playing' &&
-    (state.stage.tutorialStep === 6 || state.stage.congestionDemo === 'ready')
+    state.stage.congestionDemo === 'ready'
   const tutorialBoxGuide = state.phase === 'playing' && state.stage.tutorialStep === 0
-  const tutorialWhiteboardGuide = state.phase === 'playing' && state.stage.tutorialStep === 5
+  const tutorialWhiteboardGuide = state.phase === 'playing' && state.stage.tutorialStep === 7 && state.stage.congestionDemo === null
   const congestionImminent = state.phase === 'playing' && (
     (state.stage.id > 0 && state.stage.congestion >= 80) ||
     (state.stage.congestionRush && (
@@ -175,26 +175,28 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
   )
 
   return (
-    <div style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
+    <div data-game-screen data-paused={state.phase === 'paused'} data-game-layout="desktop" data-phase={state.phase} style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
       {/*
        * 보관소는 **화면 전체**에 깔린다. 판이 도는 칸에만 두었더니 위아래 띠에서
        * 방이 끊겨, 배경이 아니라 판에 붙은 그림처럼 보였다. 위아래 띠를 반투명으로
        * 두고 그 뒤로 같은 방이 이어지게 하면 판이 방 안에 놓인 것으로 읽힌다.
        */}
       <ArenaBackdrop
+        windowLight={windowLight}
         mode="solo"
         time={state.timeOfDay}
         whiteboard={state.whiteboard}
         activeWhiteboard={activeWhiteboard}
+        whiteboardReminder={state.whiteboardReminder}
       />
-      {congestionImminent && <CongestionWarning />}
+      {windowLight && congestionImminent && <CongestionWarning />}
       <div style={fieldLayerStyle}>
-        <StackArena engine={engine} />
+        {arena ?? <StackArena engine={engine} />}
         {tutorialGaugeGuide && <TutorialGaugeSpotlight />}
         {tutorialRemainingGuide && <TutorialRemainingSpotlight />}
         {tutorialBoxGuide && <TutorialBoxSpotlight />}
         {tutorialWhiteboardGuide && <TutorialWhiteboardSpotlight />}
-        {state.stage.congestionBurst > 0 && <CongestionBurst />}
+        {windowLight && state.stage.congestionBurst > 0 && <CongestionBurst />}
         <StageStatus
           stage={state.stage}
           missSeq={state.stats.missedWords}
@@ -219,7 +221,6 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
             data-aim={state.aimNormalized.toFixed(3)}
           >
             {collapsing && <CollapseOverlay />}
-            {state.stage.congestionDemo === 'gameOverPrompt' && <TutorialGameOverPrompt />}
           </div>
           <TypingLane
             words={state.words}
@@ -236,11 +237,13 @@ function GameScreen({ engine, state, onRestart, onHome }: GameScreenProps) {
       </div>
 
       <InputBar
+        showRanking={showRanking}
         input={input}
         feedback={state.feedback}
         stats={state.stats}
         nightfall={state.timeOfDay.nightfall}
-        locked={state.stage.congestionDemo === 'wordRush'}
+        locked={guide?.waiting}
+        instruction={guide ? guide.action ? `Enter · ${guide.action}` : guide.waiting ? '잠시 지켜보세요' : '단어를 입력하고 Enter' : undefined}
       />
 
       {state.complexMergeFocus !== null && (
@@ -480,22 +483,22 @@ function StageNotice({ notice }: { notice: NonNullable<GameState['stage']['notic
           justifyItems: 'center',
           gap: 9,
           padding: '22px 30px',
-          border: '1px solid rgba(255, 225, 145, 0.8)',
-          borderRadius: 6,
-          background: 'rgba(20, 18, 23, 0.9)',
-          boxShadow: '0 12px 34px rgba(0, 0, 0, 0.5)',
-          color: '#fff4cb',
+          border: '1px solid var(--rule)',
+          borderRadius: 1,
+          background: 'var(--paper)',
+          boxShadow: '3px 4px 0 rgba(43, 37, 27, .25)',
+          color: 'var(--ink)',
           animation: `stage-notice-in-out ${duration} cubic-bezier(.22,.61,.36,1) both`,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 800, color: '#f5d779' }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--stamp)' }}>
           {isStart ? '새 보관함' : '보관함 정산'}
         </span>
         <strong style={{ fontSize: 28, lineHeight: 1.15 }}>{notice.title}</strong>
         {isStart ? (
-          <span style={{ fontSize: 16, color: '#d7d9e7' }}>{progress}</span>
+          <span style={{ fontSize: 16, color: 'var(--ink-muted)' }}>{progress}</span>
         ) : (
-          <span style={{ fontSize: 16, color: '#d7d9e7' }}>
+          <span style={{ fontSize: 16, color: 'var(--ink-muted)' }}>
             {progress} · +{notice.score.toLocaleString()}점
           </span>
         )}
@@ -513,6 +516,8 @@ function StageStatus({
   missSeq: number
   congestionRecoverySeq: number
 }) {
+  const alarm = congestionLevel(stage.congestion, stage.congestionRush)
+  const congestionTone = useCongestionTone(stage.congestion, stage.congestionRush, congestionRecoverySeq)
   const remaining = stage.target === null ? null : Math.max(stage.target - stage.returns, 0)
   // 경보를 처음 설명할 때 게이지와 행동 안내는 하나의 정보다. 딤보다 위에 함께 둔다.
   const tutorialGuideActive =
@@ -520,11 +525,10 @@ function StageStatus({
       stage.congestionDemo === 'congestionGuide' ||
       stage.congestionDemo === 'full') ||
     stage.tutorialStep === 0 ||
-    stage.tutorialStep === 5 ||
+    stage.tutorialStep === 7 ||
     stage.tutorialStep === 6
-  const tutorialProgress = stage.tutorialStep === null || stage.tutorialTotal === null
-    ? null
-    : `${stage.tutorialStep + 1} / ${stage.tutorialTotal}`
+  const guide = tutorialGuide(stage)
+  const tutorialProgress = guide?.title.split(' · ')[0] ?? null
   const congestionGaugeRef = useRef<HTMLDivElement | null>(null)
   const congestionRef = useRef<HTMLDivElement | null>(null)
 
@@ -591,10 +595,10 @@ function StageStatus({
             data-stage-title={stage.id}
             style={{
               padding: '5px 10px',
-              border: '1px solid rgba(255,255,255,0.45)',
-              borderRadius: 4,
-              background: 'rgba(17, 23, 34, 0.68)',
-              color: '#fff5cb',
+              border: '1px solid var(--rule)',
+              borderRadius: 1,
+              background: 'var(--paper)',
+              color: 'var(--ink)',
               fontWeight: 700,
               fontSize: 15,
             }}
@@ -605,10 +609,10 @@ function StageStatus({
           <div
             style={{
               padding: '5px 10px',
-              border: '1px solid rgba(255,255,255,0.45)',
-              borderRadius: 4,
-              background: 'rgba(17, 23, 34, 0.68)',
-              color: '#fff5cb',
+              border: '1px solid var(--rule)',
+              borderRadius: 1,
+              background: 'var(--paper)',
+              color: 'var(--ink)',
               fontWeight: 700,
               fontSize: 15,
             }}
@@ -621,10 +625,10 @@ function StageStatus({
             data-remaining-recalls={remaining}
             style={{
               padding: '5px 9px',
-              border: '1px solid rgba(255, 209, 125, 0.7)',
-              borderRadius: 4,
-              background: 'rgba(71, 49, 31, 0.76)',
-              color: '#fff0c5',
+              border: '1px solid var(--rule)',
+              borderRadius: 1,
+              background: 'var(--paper-shade)',
+              color: 'var(--ink)',
               fontWeight: 800,
               fontSize: 14,
               fontVariantNumeric: 'tabular-nums',
@@ -656,10 +660,10 @@ function StageStatus({
               height: '100%',
               borderRadius: 3,
               background: stage.congestionRush
-                ? 'linear-gradient(90deg, #ff8b61, #ff3f48)'
-                : 'linear-gradient(90deg, #f6c36b, #ff695f)',
+                ? 'linear-gradient(90deg, #d49a54, #b86338)'
+                : 'linear-gradient(90deg, #e5c17b, #c88849)',
               transition: 'width 1.3s cubic-bezier(.18,.78,.28,1)',
-              boxShadow: stage.congestionRush ? '0 0 10px rgba(255, 70, 70, .9)' : undefined,
+              boxShadow: undefined,
             }}
             ref={congestionRef}
           />
@@ -669,41 +673,66 @@ function StageStatus({
         <span
           style={{
             display: 'inline-block',
+            padding: '2px 8px',
             fontSize: 12,
             fontWeight: 800,
-            color: stage.congestionRush ? '#ff5959' : '#ffe1a0',
-            textShadow: stage.congestionRush
-              ? '0 0 10px rgba(255, 73, 73, .95), 0 1px 3px #111'
-              : '0 1px 3px #111',
-            animation: stage.congestionRush ? 'congestion-label-alarm 1.15s ease-in-out infinite' : undefined,
+            ...congestionTone.style,
+            animation: alarm > 0 ? `congestion-stamp ${congestionPeriod(alarm)}s ease-in-out infinite` : undefined,
           }}
+          data-congestion-tone={congestionTone.tone}
+          data-congestion-stamp
         >
-          {stage.congestionRush && <style>{`@keyframes congestion-label-alarm {
-            0%, 100% { transform: scale(1); filter: brightness(1); }
-            50% { transform: scale(1.34); filter: brightness(1.3); }
-          }`}</style>}
+          <style>{`@keyframes congestion-stamp {
+            0%, 100% { opacity: .88; } 50% { opacity: 1; }
+          }
+          @media (prefers-reduced-motion: reduce) { [data-congestion-stamp] { animation: none !important; } }
+          [data-game-screen][data-paused="true"] [data-congestion-stamp] { animation-play-state: paused !important; }`}</style>
           혼잡 경보
         </span>
       )}
-      {stage.tutorialText !== null && (
+      {stage.id > 0 && stage.congestionRecovery?.combo === true && !stage.congestionRush && (
+        <span
+          key={congestionRecoverySeq}
+          data-combo-recovery={stage.congestionRecovery.amount}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            width: 'max-content',
+            color: '#8ff0af',
+            fontSize: 13,
+            fontWeight: 800,
+            textShadow: '0 1px 3px #111',
+            animation: 'combo-congestion-recovery 1.35s ease-out both',
+          }}
+        >
+          <style>{`@keyframes combo-congestion-recovery {
+            0% { opacity: 0; transform: translate(-50%, 4px); }
+            15%, 70% { opacity: 1; transform: translate(-50%, 0); }
+            100% { opacity: 0; transform: translate(-50%, -5px); }
+          }`}</style>
+          콤보 회복 −{stage.congestionRecovery.amount}
+        </span>
+      )}
+      {guide !== null && (
         <div
           aria-live="polite"
-          aria-label={`튜토리얼 ${tutorialProgress ?? ''}`}
+          aria-label={`튜토리얼 ${guide.title}`}
           style={{
             maxWidth: 360,
             padding: '9px 12px',
-            borderRadius: 6,
-            background: 'rgba(10, 14, 22, 0.78)',
-            color: '#fff',
+            borderRadius: 1,
+            background: 'var(--paper)',
+            color: 'var(--ink)',
             fontSize: 16,
             fontWeight: 600,
             textAlign: 'center',
           }}
         >
-          <strong style={{ display: 'block', marginBottom: 3, color: '#ffe1a0', fontSize: 13 }}>
-            다음 행동
+          <strong style={{ display: 'block', marginBottom: 3, color: 'var(--stamp)', fontSize: 13 }}>
+            {guide.title}
           </strong>
-          {stage.tutorialText}
+          {guide.text}
         </div>
       )}
     </div>
@@ -732,48 +761,6 @@ function CollapseOverlay() {
       >
         무너졌다
       </span>
-    </div>
-  )
-}
-
-/** 고양이가 아직 화면에 남아 있는 마지막 프레임에서만 보이는 게임오버 안내. */
-function TutorialGameOverPrompt() {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 5,
-        display: 'grid',
-        placeItems: 'center',
-        pointerEvents: 'none',
-        textAlign: 'center',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 390,
-          padding: '18px 22px',
-          border: '1px solid rgba(255, 126, 116, .85)',
-          borderRadius: 8,
-          background: 'rgba(18, 20, 30, .9)',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, .55)',
-          color: '#fff7e2',
-        }}
-      >
-        <strong style={{ display: 'block', marginBottom: 9, color: '#ff8279', fontSize: 29, letterSpacing: '.08em' }}>
-          게임오버
-        </strong>
-        <span style={{ display: 'block', fontSize: 16, lineHeight: 1.55 }}>
-          물건이 밖으로 떨어지고 고양이가 나오면 게임오버입니다.
-        </span>
-        <span style={{ display: 'block', marginTop: 8, fontSize: 14, lineHeight: 1.5, color: '#d7d9e7' }}>
-          실제 게임에서는 방금처럼 물건이 많이 떨어지진 않습니다.
-        </span>
-        <span style={{ display: 'block', marginTop: 10, color: '#ffe1a0', fontSize: 14, fontWeight: 700 }}>
-          Enter를 누르세요
-        </span>
-      </div>
     </div>
   )
 }

@@ -1,0 +1,41 @@
+.mr-page { height: 100%; overflow: auto; display: flex; align-items: flex-start; justify-content: center; gap: 32px; padding: 24px; background: #111722; }
+.mr-controls { width: 300px; flex-shrink: 0; font-size: 14px; }
+.mr-controls h1 { font-size: 23px; color: #fff2cb; }
+.mr-controls p { line-height: 1.6; color: #b6bdd4; }
+.mr-controls label { display: grid; gap: 7px; margin: 18px 0; }
+.mr-controls select { padding: 10px; color: white; background: #232e40; border: 1px solid #536078; border-radius: 6px; font: inherit; }
+.mr-controls .mr-check { display: flex; align-items: center; }
+.mr-controls dl { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 16px; background: #1e2838; border-radius: 8px; }
+.mr-controls dd { margin: 0; color: #ffe39e; font-variant-numeric: tabular-nums; }
+.mr-phone { flex-shrink: 0; overflow: hidden; outline: 1px solid #657085; box-shadow: 0 12px 50px #0008; }
+.mr-browser { height: 64px; display: grid; place-items: center; background: #263143; font: 13px var(--sans); color: #d7deea; }
+.mr-game { position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.mr-hud { position: relative; z-index: 1; display: flex; height: 48px; flex-shrink: 0; align-items: center; justify-content: space-between; padding: 0 10px; color: #fff4d9; background: #101827dd; font-size: 14px; }
+.mr-hud button { height: 44px; min-width: 44px; border: 0; background: transparent; color: #fff4d9; }
+.mr-recall { position: relative; z-index: 1; flex-shrink: 0; height: 28px; padding: 4px 10px; color: #fff4d9; background: #273b31ed; font-size: 13px; }
+.mr-words { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 8px; background: #111827bb; flex-shrink: 0; }
+.mr-word { position: relative; min-width: 0; height: 35px; display: flex; align-items: center; justify-content: space-between; gap: 2px; padding: 3px 5px 5px; border-radius: 5px; background: #f0e6cd; color: #2f2718; }
+.mr-word-label { font: 20px/1.15 'GriunXHangeul A Foreign Hand', var(--sans); white-space: nowrap; }
+.mr-word img { flex-shrink: 0; object-fit: contain; }
+.mr-lifetime { position: absolute; left: 0; bottom: 0; height: 3px; border-radius: 3px; background: #a47424; }
+.mr-field { position: relative; flex: 1; min-height: 0; }
+.mr-scene { position: relative; width: 100%; height: 100%; }
+.mr-canvas { width: 100%; height: 100%; display: block; }
+.mr-original-lanes { position: absolute; inset: 0; display: grid; grid-template-columns: 340px 448px 340px; gap: 16px; padding: 12px 20px 0; }
+.mr-input { position: relative; z-index: 1; height: 58px; flex-shrink: 0; display: flex; gap: 8px; padding: 7px 8px; background: #101827ed; }
+.mr-input > div { flex: 1; padding: 6px 12px; border-radius: 6px; background: #f0e6cd; color: #302917; font-size: 22px; }
+.mr-caret { color: #925e13; }
+.mr-input button { width: 64px; border: 0; border-radius: 6px; background: #ead092; color: #302917; opacity: 1; }
+.mr-keyboard { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: repeating-linear-gradient(0deg, #29313c, #29313c 47px, #333e4c 48px, #333e4c 50px); color: #e2e6ec; font-size: 14px; }
+.mr-keyboard span { font-size: 12px; color: #bcc6d4; }
+@media (max-width: 760px) { .mr-page { justify-content: flex-start; flex-direction: column; padding: 12px; } }
+.mr-controls a { color: #ffe39e; }
+.mr-phone[data-layout='compact'] .mr-game { background: radial-gradient(ellipse at bottom, #64523a, #202934 85%); }
+.mr-phone[data-layout='compact'] .mr-words { height: 64px; align-content: start; padding: 3px 8px; gap: 3px; }
+.mr-phone[data-layout='compact'] .mr-word { height: 27px; padding: 1px 4px 3px; }
+.mr-word[data-recall='true'] { background: #dcf2df; outline: 1px solid #508c65; }
+.mr-phone[data-layout='compact'][data-words='10'] .mr-words { height: 116px; }
+.mr-phone[data-layout='compact'][data-words='10'] .mr-words { gap: 2px; padding: 4px 8px; }
+.mr-phone[data-layout='compact'][data-words='10'] .mr-word { height: 20px; padding: 0 4px 2px; }
+.mr-phone[data-layout='compact'][data-words='10'] .mr-word-label { font-size: 17px; }
+.mr-phone[data-layout='compact'][data-words='10'] .mr-word img { width: 16px; height: 16px; }

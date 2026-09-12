@@ -91,8 +91,8 @@ function CountdownScoreboard({
         justifyContent: crowded ? 'flex-start' : 'center',
         gap: crowded ? 10 : 24,
         padding: crowded ? '8px 14px' : '12px 20px',
-        borderBottom: '1px solid #262b3d',
-        background: '#151824',
+        borderBottom: '1px solid var(--rule)',
+        background: 'var(--paper)',
         position: 'relative',
         zIndex: 5,
       }}
@@ -122,7 +122,7 @@ function CountdownScoreboard({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                color: '#f2f4fb',
+                color: 'var(--text-strong)',
                 fontSize: crowded ? 13 : 15,
                 fontWeight: mine ? 700 : 500,
               }}
@@ -169,7 +169,7 @@ function CountdownInputRow() {
           borderBottom: '2px solid rgba(90, 74, 46, 0.45)',
         }}
       />
-      <span style={{ height: 17, fontSize: 14, color: '#6a7290' }}>곧 입력할 수 있습니다</span>
+      <span style={{ height: 17, fontSize: 14, color: 'var(--ink-muted)' }}>곧 입력할 수 있습니다</span>
     </div>
   )
 }

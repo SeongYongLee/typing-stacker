@@ -125,7 +125,7 @@ function ResultScreen({
   // 튜토리얼 데모는 실제 기록이 아니다. 완료 UI만 보여주고 순위 서버에는 보내지 않는다.
   const ranking = useRunRanking(stats, !tutorialEnd)
   const verdict = verdictOf(stats, ranking)
-  // 정확도가 깎아간 몫. 원점수를 그대로 보여주면 왜 깎였는지는 여전히 모른다
+  // 현행 점수 보정으로 빠진 실제 점수. 입력 정확도와 혼동하지 않게 감점만 표시한다
   const lost = Math.max(0, stats.rawScore - stats.score)
 
   if (tutorialEnd) {
@@ -240,12 +240,8 @@ function ResultScreen({
               <Stat label="타수" value={`${stats.kpm}타/분`} small />
               <Stat label="놓친 단어" value={`${stats.missedWords}개`} small />
               <Stat
-                label="정확도"
-                value={
-                  lost > 0
-                    ? `${Math.round(stats.accuracy * 100)}% (−${lost.toLocaleString('ko-KR')})`
-                    : `${Math.round(stats.accuracy * 100)}%`
-                }
+                label="놓침 감점"
+                value={lost > 0 ? `−${lost.toLocaleString('ko-KR')}점` : '없음'}
                 small
               />
             </div>

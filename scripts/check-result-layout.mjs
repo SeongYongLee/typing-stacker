@@ -61,6 +61,8 @@ try {
     await tip.waitFor()
     assert((await tip.innerText()).includes(hint))
     assert(await page.getByText('회수한 물건',{exact:true}).count())
+    assert(await page.getByText('놓침 감점',{exact:true}).count())
+    assert.equal(await page.getByText('정확도',{exact:true}).count(),0)
     await tip.scrollIntoViewIfNeeded()
     await page.screenshot({path:`/tmp/result-guidance-${returns}-${misses}.png`})
     console.log(`PASS result guidance returns=${returns}, misses=${misses}`)

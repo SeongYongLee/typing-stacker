@@ -10,6 +10,8 @@ import { physicalRecipeRequest } from './PhysicalRecipeRequest.ts'
 export function installRecallExperiment(engine: GameEngine, variant: string) {
   const game=engine as unknown as {
     elapsed:number
+    congestion:number
+    score:{onCrafted:(variant:ItemVariant)=>void}
     recipeFlow:{focus:Recipe|null}
     stageId:SoloStageId
     whiteboardCandidates:readonly ItemVariant[]
@@ -40,6 +42,14 @@ export function installRecallExperiment(engine: GameEngine, variant: string) {
   }
   // startRun creates a new spawner, so supply interception must be installed afterwards.
   return ()=>{
+    if(variant==='merge-relief') {
+      const original=game.score.onCrafted.bind(game.score)
+      game.score.onCrafted=variant=>{
+        original(variant)
+        if(game.stageId>0)game.congestion=Math.max(0,game.congestion-15)
+      }
+      return
+    }
     if(variant==='physical-request') {
       const original=game.spawner.pickEntry
       let linked:string|null=null, linkedAt=0, stage=game.stageId
@@ -107,7 +117,7 @@ export function installStageExperiment(variant: string): () => void {
   const stage=soloStage(1) as unknown as {returnTarget:number;congestionDrops:number}
   const original={returnTarget:stage.returnTarget,congestionDrops:stage.congestionDrops}
   // Freeze the old baseline even after an accepted tuning reaches the live config.
-  stage.returnTarget=variant==='goal-10'||variant==='focus-request'||variant==='stage2-18'||variant==='physical-request'?10:20
+  stage.returnTarget=variant==='goal-10'||variant==='focus-request'||variant==='stage2-18'||variant==='physical-request'||variant==='merge-relief'?10:20
   stage.congestionDrops=variant==='alarm-5'?5:10
   const second=soloStage(2) as unknown as {returnTarget:number}
   const secondOriginal=second.returnTarget

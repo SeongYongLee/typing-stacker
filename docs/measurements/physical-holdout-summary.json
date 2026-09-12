@@ -1,0 +1,52 @@
+[
+  {
+    "profile": "steady",
+    "control": {
+      "runs": 12,
+      "recallsPerMinute": 4.0033102306816994,
+      "mergesPerMinute": 3.0102410261715105,
+      "seconds": 165.61666666666665,
+      "clears": 8,
+      "blockedFraction": 0.9326057722147527
+    },
+    "candidate": {
+      "runs": 12,
+      "recallsPerMinute": 4.632972322503008,
+      "mergesPerMinute": 2.5571600481347767,
+      "seconds": 170.72499999999994,
+      "clears": 10,
+      "blockedFraction": 0.9313076614520672
+    },
+    "ratios": {
+      "recallsPerMinute": 1.1572853602490074,
+      "mergesPerMinute": 0.8494868104920582,
+      "seconds": 1.0308443192110293
+    },
+    "passed": true
+  },
+  {
+    "profile": "slow",
+    "control": {
+      "runs": 12,
+      "recallsPerMinute": 3.6144578313253004,
+      "mergesPerMinute": 3.584831127789847,
+      "seconds": 172.99166666666665,
+      "clears": 9,
+      "blockedFraction": 0.8706300612285236
+    },
+    "candidate": {
+      "runs": 12,
+      "recallsPerMinute": 4.44697833523375,
+      "mergesPerMinute": 2.7936145952109457,
+      "seconds": 180.09999999999994,
+      "clears": 12,
+      "blockedFraction": 0.8582288103382778
+    },
+    "ratios": {
+      "recallsPerMinute": 1.2303306727480043,
+      "mergesPerMinute": 0.7792876416282657,
+      "seconds": 1.0410906113011222
+    },
+    "passed": false
+  }
+]

@@ -4,6 +4,7 @@ import type { ItemVariant, WordEntry } from '../../src/game/types/game.ts'
 import type { Rng } from '../../src/game/systems/Rng.ts'
 import { featuredEntries, soloStage, type SoloStageId } from '../../src/game/data/soloStages.ts'
 import { recallIngredient, reachableRecallIds } from './RecallSupply.ts'
+import { physicalRecipeRequest } from './PhysicalRecipeRequest.ts'
 
 /** Deliberately test-only: exploratory rules must not silently become live game rules. */
 export function installRecallExperiment(engine: GameEngine, variant: string) {
@@ -39,6 +40,29 @@ export function installRecallExperiment(engine: GameEngine, variant: string) {
   }
   // startRun creates a new spawner, so supply interception must be installed afterwards.
   return ()=>{
+    if(variant==='physical-request') {
+      const original=game.spawner.pickEntry
+      let linked:string|null=null, linkedAt=0, stage=game.stageId
+      game.spawner.pickEntry=candidates=>{
+        const selected=original(candidates)
+        if(stage!==game.stageId){linked=null;stage=game.stageId}
+        if(game.stageId===0)return selected
+        const counts=game.physics.countsByVariant()
+        if(linked && !game.whiteboardTargets.some(item=>item.id===linked))linked=null
+        const slot=linked?game.whiteboardTargets.findIndex(item=>item.id===linked):0
+        const current=game.whiteboardTargets[slot]
+        if(!current || (counts.get(current.id)??0)>0 || (linked && game.elapsed-linkedAt<30))return selected
+        const requested=physicalRecipeRequest(counts,game.whiteboardTargets)
+        if(requested){
+          game.whiteboardTargets[slot]=requested
+          linked=requested.id
+          linkedAt=game.elapsed
+          game.whiteboardWords=game.whiteboardTargets.map(item=>item.label)
+        }
+        return selected
+      }
+      return
+    }
     if(variant==='focus-request') {
       const original=game.spawner.pickEntry
       let linked:string|null=null, linkedAt=0, stage=game.stageId
@@ -83,7 +107,7 @@ export function installStageExperiment(variant: string): () => void {
   const stage=soloStage(1) as unknown as {returnTarget:number;congestionDrops:number}
   const original={returnTarget:stage.returnTarget,congestionDrops:stage.congestionDrops}
   // Freeze the old baseline even after an accepted tuning reaches the live config.
-  stage.returnTarget=variant==='goal-10'||variant==='focus-request'||variant==='stage2-18'?10:20
+  stage.returnTarget=variant==='goal-10'||variant==='focus-request'||variant==='stage2-18'||variant==='physical-request'?10:20
   stage.congestionDrops=variant==='alarm-5'?5:10
   const second=soloStage(2) as unknown as {returnTarget:number}
   const secondOriginal=second.returnTarget

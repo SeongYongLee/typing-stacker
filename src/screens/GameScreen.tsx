@@ -175,7 +175,7 @@ function GameScreen({ engine, state, onRestart, onHome, arena, showRanking = tru
   )
 
   return (
-    <div data-game-screen data-paused={state.phase === 'paused'} data-game-layout="desktop" data-phase={state.phase} style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
+    <div inert={state.stage.storyOpen} data-game-screen data-paused={state.phase === 'paused'} data-game-layout="desktop" data-phase={state.phase} style={rootStyle} onMouseDown={paused ? undefined : input.keepFocus}>
       {/*
        * 보관소는 **화면 전체**에 깔린다. 판이 도는 칸에만 두었더니 위아래 띠에서
        * 방이 끊겨, 배경이 아니라 판에 붙은 그림처럼 보였다. 위아래 띠를 반투명으로

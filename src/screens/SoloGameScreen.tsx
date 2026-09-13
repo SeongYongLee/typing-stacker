@@ -1,3 +1,6 @@
+import { flushSync } from 'react-dom'
+import { StageStoryScreen } from './StageStoryScreen.tsx'
+import { STAGE_STORIES } from './stageStories.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
 import { useEffect, useState, useSyncExternalStore, lazy, Suspense } from 'react'
 import type { GameEngine } from '../game/core/GameEngine.ts'
@@ -57,9 +60,15 @@ function SoloGameScreen({
 
   if (state === null) return null
 
+  const story = STAGE_STORIES[state.stage.id]
+
   const arena = <GameArena engine={engine} compact={narrow || touch} onThreeChange={setThree} />
   const overlays = (
     <>
+      {state.stage.storyOpen && story && (<StageStoryScreen key={`${state.runSeq}-${state.stage.id}`} story={story} touch={touch} onFinish={() => {
+        flushSync(() => engine.finishStageStory(touch))
+        document.querySelector<HTMLInputElement>('[data-game-word-input], input[aria-label="단어 입력"]')?.focus()
+      }} />)}
       {state.phase === 'credits' && <CreditsOverlay onContinue={() => engine.continueEndless()} />}
       {state.phase === 'over' && (
         <ResultScreen

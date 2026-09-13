@@ -256,6 +256,7 @@ interface GameState {
     readonly tutorialStep: number | null
     readonly tutorialTotal: number | null
     readonly tutorialText: string | null
+    readonly storyOpen?: boolean
     readonly endlessUnlocked: boolean
     readonly notice: {
       readonly kind: 'start' | 'complete'
@@ -408,6 +409,8 @@ class GameEngine {
   private tutorialEggDrops = 0
   private endlessUnlocked = false
   private stageScoreStart = 0
+  private storiesEnabled = false
+  private storyOpen = false
   private stageNotice: GameState['stage']['notice'] = null
   private stageTransitionLeft = 0
   private pendingStageId: SoloStageId | null = null
@@ -480,6 +483,19 @@ class GameEngine {
   handleResize(): void {
     this.renderer?.resize()
     this.render()
+  }
+
+  setStageStoriesEnabled(enabled: boolean): void {
+    this.storiesEnabled = enabled
+  }
+
+  finishStageStory(waitForInput = false): void {
+    if (!this.storyOpen) return
+    this.storyOpen = false
+    this.stageNotice = null
+    this.stageTransitionLeft = 0
+    this.phase = waitForInput ? 'paused' : 'playing'
+    this.emit()
   }
 
   startRun(showTutorial = true): void {
@@ -558,6 +574,7 @@ class GameEngine {
   toTitle(): void {
     this.loop.stop()
     this.phase = 'title'
+    this.storyOpen = false
     this.emit()
   }
 
@@ -621,6 +638,7 @@ class GameEngine {
   }
 
   private openStageNotice(): void {
+    this.storyOpen = this.storiesEnabled && this.stageId > 0
     const stage = soloStage(this.stageId)
     this.stageNotice = {
       kind: 'start',
@@ -1024,6 +1042,7 @@ class GameEngine {
   }
 
   private readonly update = (frameDt: number): void => {
+    if (this.storyOpen) return
     const slowingComplexMerge = this.phase === 'playing' && this.complexMergeSlowLeft > 0
     if (slowingComplexMerge) {
       this.complexMergeSlowLeft = Math.max(this.complexMergeSlowLeft - frameDt, 0)
@@ -1821,6 +1840,7 @@ class GameEngine {
               ? `${TUTORIAL_STEPS[this.tutorialStep].text} (${this.tutorialEggDrops} / ${TUTORIAL_EGG_DROPS_REQUIRED})`
               : this.stageId === 0 ? (TUTORIAL_STEPS[this.tutorialStep]?.text ?? null) : null,
         endlessUnlocked: this.endlessUnlocked,
+        storyOpen: this.storyOpen,
         notice: this.stageNotice,
       },
     })

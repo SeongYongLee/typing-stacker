@@ -80,6 +80,13 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true, are
       window.visualViewport?.removeEventListener('scroll', resized)
     }
   }, [engine, openingKeyboard])
+  useEffect(() => {
+    if (state?.stage.storyOpen) {
+      setAwaitingStart(true)
+      setOpeningKeyboard(false)
+      input.current?.blur()
+    }
+  }, [state?.stage.storyOpen])
   if (state === null) return null
 
   const playing = state.phase === 'playing'
@@ -116,7 +123,7 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true, are
   const feedback = state.feedback
   const idle = !playing && state.phase !== 'collapsing'
 
-  return <div className="mp-game" data-game-screen data-paused={state.phase === 'paused'} data-controls={touch ? 'mobile' : 'pc'} data-phase={state.phase} data-awaiting-start={awaitingStart}>
+  return <div className="mp-game" inert={state.stage.storyOpen} data-game-screen data-paused={state.phase === 'paused'} data-controls={touch ? 'mobile' : 'pc'} data-phase={state.phase} data-awaiting-start={awaitingStart}>
     <ArenaBackdrop mode="solo" time={state.timeOfDay} windowLight={windowLight} />
     <header className="mp-hud"><div className="mp-summary"><strong>{state.stats.score.toLocaleString()}점</strong><span>회수 {state.stage.returns}/{state.stage.target ?? '∞'}</span>{showMergeToast && <MobileMergeToast key={state.runSeq} reveal={state.mergeReveal} />}</div><MobileCongestion recovery={state.stage.congestionRecovery} recoverySeq={state.stage.congestionRecoverySeq} value={state.stage.congestion} rushing={state.stage.congestionRush} /><button className="menu-button menu-button--compact" type="button" onClick={() => { setAwaitingStart(false); setOpeningKeyboard(false); engine.pause(); input.current?.blur() }}>{touch ? '일시정지' : '일시정지 · Esc'}</button></header>
     <div className="mp-board-slot" data-tutorial-guide={playing && tutorialStep === 7 && demo === null}>

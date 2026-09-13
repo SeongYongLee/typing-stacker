@@ -1,8 +1,17 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import './RoomLight.css'
 import { canvasPixelRatio } from '../game/renderer/canvasResolution.ts'
 
-/** Shared room lighting without starting a gameplay engine behind the menu. */
-export function RoomLight({ night }: { night: boolean }) {
+/** Shared window lighting for preparation, countdown and Canvas gameplay screens. */
+export function RoomLight({ nightfall, className = 'arena-room-light' }: {
+  nightfall: number; className?: string
+}) {
+  const brightness = useRef(nightfall)
+  const invalidate = useRef<(() => void) | null>(null)
+  useLayoutEffect(() => {
+    brightness.current = Math.max(0, Math.min(1, nightfall))
+    invalidate.current?.()
+  }, [nightfall])
   const canvas = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     let disposed = false
@@ -35,9 +44,10 @@ export function RoomLight({ night }: { night: boolean }) {
           camera.lookAt(0, p.centerY, 0)
           camera.updateProjectionMatrix()
           light.update(width, height, 0, 0, { width, height, offsetX: 0, offsetY: 0, alignment: 'bottom' },
-            night ? 1 : 0, now / 1000, reduced.matches, dpr)
+            brightness.current, now / 1000, reduced.matches, dpr)
           renderer.render(scene, camera)
           element.dataset.ready = 'true'
+          element.dataset.nightfall = String(brightness.current)
         }
         if (!reduced.matches) frame = requestAnimationFrame(paint)
       }
@@ -58,8 +68,10 @@ export function RoomLight({ night }: { night: boolean }) {
       element.addEventListener('webglcontextlost', contextLost)
       document.addEventListener('visibilitychange', restart)
       reduced.addEventListener('change', restart)
+      invalidate.current = () => { if (reduced.matches) restart() }
       resize()
       cleanup = () => {
+        invalidate.current = null
         cancelAnimationFrame(frame); observer.disconnect()
         element.removeEventListener('webglcontextlost', contextLost)
         document.removeEventListener('visibilitychange', restart)
@@ -68,6 +80,6 @@ export function RoomLight({ night }: { night: boolean }) {
       }
     }).catch(() => { /* The original room image remains usable without WebGL. */ })
     return () => { disposed = true; cleanup() }
-  }, [night])
-  return <canvas ref={canvas} className="title-splash__room-light" data-room-light="3d" aria-hidden="true" />
+  }, [])
+  return <canvas ref={canvas} className={`room-light ${className}`} data-room-light="3d" aria-hidden="true" />
 }

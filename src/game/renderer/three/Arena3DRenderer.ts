@@ -60,6 +60,7 @@ class Arena3DRenderer implements ArenaRendererPort {
   private width = 1
   private height = 1
   private dpr = 1
+  private handVisible = false
   private disposed = false
   private jellyStrength = 0
   private readonly jelly = new Jelly()
@@ -74,10 +75,12 @@ class Arena3DRenderer implements ArenaRendererPort {
     this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true })
     this.renderer.setClearColor(0, 0)
     this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.autoUpdate = false
     this.renderer.shadowMap.type = PCFSoftShadowMap
     this.sun.position.set(-3, 8, 6)
     this.sun.castShadow = true
-    this.sun.shadow.mapSize.set(1024, 1024)
+    const shadowSize = options.compact ? 512 : 1024
+    this.sun.shadow.mapSize.set(shadowSize, shadowSize)
     Object.assign(this.sun.shadow.camera, { left: -5, right: 5, top: 10, bottom: -3, near: 0.1, far: 30 })
     this.sun.shadow.bias = -0.001
     this.sun.shadow.normalBias = 0.015
@@ -108,7 +111,7 @@ class Arena3DRenderer implements ArenaRendererPort {
       ?? this.canvas.parentElement?.querySelector('.three-gallery-background')?.getBoundingClientRect() ?? rect
     this.roomLayout = { width: room.width, height: room.height, offsetX: room.left - rect.left, offsetY: room.top - rect.top,
       alignment: this.options.backgroundAlignment ?? 'bottom' }
-    this.dpr = canvasPixelRatio(this.width, this.height, window.devicePixelRatio)
+    this.dpr = canvasPixelRatio(this.width, this.height, this.options.compact ? Math.min(1.5, window.devicePixelRatio) : window.devicePixelRatio)
     this.renderer.setPixelRatio(this.dpr)
     this.renderer.setSize(this.width, this.height, false)
     this.overlayCanvas.width = Math.round(this.width * this.dpr)
@@ -175,12 +178,17 @@ class Arena3DRenderer implements ArenaRendererPort {
     const dy = -Math.cos(phase * 31) * shake * 0.7
     const focus = state.collapseFocus
     const zoom = focus == null ? 1 : 1 + Math.sin(Math.PI * Math.max(0, Math.min(1, focus.progress))) * 0.45
+    let shadowDirty = this.sun.shadow.map === null || this.world.scale.x !== zoom ||
+      this.world.position.x !== dx + (1 - zoom) * (focus?.x ?? 0) ||
+      this.world.position.y !== dy + (1 - zoom) * (focus?.y ?? 0)
     this.world.scale.setScalar(zoom)
     this.world.position.set(dx + (1 - zoom) * (focus?.x ?? 0), dy + (1 - zoom) * (focus?.y ?? 0), 0)
     this.sky.intensity = 2.3 - night * 1.0
     this.sun.intensity = 3 - night * 1.1
     this.sun.color.copy(this.dayColor).lerp(this.nightColor, night)
+    const previousContainer = this.containerKey
     this.updateContainer(state)
+    shadowDirty ||= previousContainer !== this.containerKey
     const alarm = this.alarm.update(state.time, state.congestionLevel ?? 0,
       state.container?.halfWidth ?? ARENA.platformHalfWidth, state.container?.wallHeight ?? 1.52, this.reducedMotion.matches)
     this.trim.emissive.set('#b76028'); this.trim.emissiveIntensity = alarm * 0.7
@@ -195,16 +203,23 @@ class Arena3DRenderer implements ArenaRendererPort {
         this.assets.release(model); this.models.delete(body.handle); model = undefined
       }
       if (model === undefined) {
+        shadowDirty = true
         model = this.assets.create(body.variant, style)
         this.models.set(body.handle, model); this.world.add(model.group)
       }
+      const wasLoaded = model.asset.loaded
       this.assets.update(model)
+      shadowDirty ||= wasLoaded !== model.asset.loaded
       const recalled = body.recalled === true && state.catcher != null
       const offset = recalled ? catcherVisualOffset(state.catcher!.x < 0 ? 'left' : 'right', this.options.compact) / scale : 0
       const stretch = this.jelly.scale(body, state.time, colliders || this.reducedMotion.matches ? 0 : this.jellyStrength)
       const bottomExtent = Math.abs(Math.cos(body.rotation)) * body.variant.artBounds.hh
         + Math.abs(Math.sin(body.rotation)) * body.variant.artBounds.hw
-      model.group.position.set(body.x + offset, body.y - bottomExtent * (1 - stretch.y), 0)
+      const x = body.x + offset, y = body.y - bottomExtent * (1 - stretch.y)
+      shadowDirty ||= model.group.position.x !== x || model.group.position.y !== y ||
+        model.group.scale.x !== stretch.x || model.group.scale.y !== stretch.y ||
+        model.art.rotation.z !== body.rotation || recalled
+      model.group.position.set(x, y, 0)
       if (recalled) {
         const exit = recallExit(state.catcher!.progress, state.catcher!.x < 0 ? 'left' : 'right', scale, yaw, this.options.compact)
         model.group.position.x += exit.x; model.group.position.y += exit.y
@@ -218,9 +233,10 @@ class Arena3DRenderer implements ArenaRendererPort {
       }
     }
     for (const [handle, model] of this.models) {
-      if (!seen.has(handle)) { this.assets.release(model); this.models.delete(handle) }
+      if (!seen.has(handle)) { shadowDirty = true; this.assets.release(model); this.models.delete(handle) }
     }
     const ledges = state.ledges ?? []
+    shadowDirty ||= ledges.length > 0 || this.ledges.length > 0
     while (this.ledges.length > ledges.length) this.ledges.pop()!.removeFromParent()
     ledges.forEach((ledge, i) => {
       const mesh = this.ledges[i] ?? this.block(this.world, 0, 0, 0, 1, 1, 1)
@@ -230,6 +246,7 @@ class Arena3DRenderer implements ArenaRendererPort {
     })
     this.effects.update(state, scale, !this.reducedMotion.matches, yaw, this.options.compact)
     this.windowLight.update(this.width, this.height, state.cameraY, yaw, this.roomLayout, night, state.time, this.reducedMotion.matches, this.dpr, scale)
+    this.renderer.shadowMap.needsUpdate = shadowDirty
     this.renderer.info.reset()
     this.renderer.render(this.scene, this.camera)
     if (state.hiddenReveal != null) {
@@ -255,22 +272,25 @@ class Arena3DRenderer implements ArenaRendererPort {
     }
     // Filter the composited hand silhouette once, including the day/night blend.
     // CSS pixels keep the shadow consistent across device pixel ratios.
-    const catcherProgress = state.catcher?.progress ?? 0
-    const arrival = Math.max(0, Math.min(1, catcherProgress / 0.18, (1 - catcherProgress) / 0.22))
-    const softness = 7 + (1 - arrival) * 9
-    const offset = 7 + (1 - arrival) * 7
-    const shadowAlpha = (0.12 + arrival * 0.13) * (1 - night * 0.25)
-    this.handCanvas.style.filter = state.catcher == null ? 'none'
-      : `drop-shadow(${offset}px ${offset * 1.3}px ${softness}px rgba(40, 34, 30, ${shadowAlpha}))`
-    const hand = this.handCtx
-    hand.setTransform(this.ctx.getTransform())
-    // Clear in device coordinates, then restore the shared shake/zoom transform.
-    hand.save(); hand.resetTransform(); hand.clearRect(0, 0, this.handCanvas.width, this.handCanvas.height); hand.restore()
-    if (state.catcher != null) drawCatcher({
-      compact: this.options.compact, ctx: hand, cssWidth: this.width, cssHeight: this.height, scale,
-      cameraY: state.cameraY, nightfall: night,
-      toScreenX: projection.toScreenX, toScreenY: projection.toScreenY,
-    }, state.catcher)
+    if (state.catcher != null || this.handVisible) {
+      const catcherProgress = state.catcher?.progress ?? 0
+      const arrival = Math.max(0, Math.min(1, catcherProgress / 0.18, (1 - catcherProgress) / 0.22))
+      const softness = 7 + (1 - arrival) * 9
+      const offset = 7 + (1 - arrival) * 7
+      const shadowAlpha = (0.12 + arrival * 0.13) * (1 - night * 0.25)
+      this.handCanvas.style.filter = state.catcher == null ? 'none'
+        : `drop-shadow(${offset}px ${offset * 1.3}px ${softness}px rgba(40, 34, 30, ${shadowAlpha}))`
+      const hand = this.handCtx
+      hand.setTransform(this.ctx.getTransform())
+      // Clear in device coordinates, then restore the shared shake/zoom transform.
+      hand.save(); hand.resetTransform(); hand.clearRect(0, 0, this.handCanvas.width, this.handCanvas.height); hand.restore()
+      if (state.catcher != null) drawCatcher({
+        compact: this.options.compact, ctx: hand, cssWidth: this.width, cssHeight: this.height, scale,
+        cameraY: state.cameraY, nightfall: night,
+        toScreenX: projection.toScreenX, toScreenY: projection.toScreenY,
+      }, state.catcher)
+      this.handVisible = state.catcher != null
+    }
     this.overlay.draw({
       compact: this.options.compact, ctx: this.ctx, cssWidth: this.width, cssHeight: this.height, scale,
       cameraY: state.cameraY, nightfall: night,

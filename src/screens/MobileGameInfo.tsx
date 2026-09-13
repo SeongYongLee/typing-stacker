@@ -1,8 +1,8 @@
 import { useCongestionTone } from '../hooks/useCongestionTone.ts'
 import type { GameState } from '../game/core/GameEngine.ts'
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 
-export function MobileMergeToast({ reveal }: { reveal: GameState['mergeReveal'] }) {
+function MobileMergeToastView({ reveal }: { reveal: GameState['mergeReveal'] }) {
   const [current, setCurrent] = useState<GameState['mergeReveal']>(null)
   const lastSeq = useRef<number | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -22,14 +22,14 @@ export function MobileMergeToast({ reveal }: { reveal: GameState['mergeReveal'] 
   </div>
 }
 
-export function MobileWhiteboard({ words, ready }: { words: readonly string[]; ready: readonly string[] }) {
+function MobileWhiteboardView({ words, ready }: { words: readonly string[]; ready: readonly string[] }) {
   return <div className="mp-whiteboard">
     <div className="mp-board-title"><strong>화이트보드</strong><span>입력하면 회수</span></div>
     <div className="mp-recall" aria-label="화이트보드 회수 단어">{words.map((word) => <span className="mp-recall-chip" key={word} data-ready={ready.includes(word)}><span>{word}</span><small>{ready.includes(word) ? '회수 가능' : '상자에 없음'}</small></span>)}{words.length === 0 && '물건을 쌓아보세요'}</div>
   </div>
 }
 
-export function MobileCongestion({ value, rushing, recoverySeq = 0 }: { value: number; rushing: boolean; recoverySeq?: number }) {
+function MobileCongestionView({ value, rushing, recoverySeq = 0 }: { value: number; rushing: boolean; recoverySeq?: number }) {
   const congestionTone = useCongestionTone(value, rushing, recoverySeq)
   const percent = Math.min(100, Math.max(0, value))
   return <div className="mp-congestion" style={congestionTone.style} data-congestion-tone={congestionTone.tone} data-warning={rushing || percent >= 80}>
@@ -40,3 +40,8 @@ export function MobileCongestion({ value, rushing, recoverySeq = 0 }: { value: n
     <strong>{Math.round(percent)}%</strong>
   </div>
 }
+
+const sameWords = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((word, i) => word === b[i])
+export const MobileWhiteboard = memo(MobileWhiteboardView, (a, b) => sameWords(a.words, b.words) && sameWords(a.ready, b.ready))
+export const MobileCongestion = memo(MobileCongestionView)
+export const MobileMergeToast = memo(MobileMergeToastView, (a, b) => a.reveal?.seq === b.reveal?.seq)

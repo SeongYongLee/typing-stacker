@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { SOLO_READY_MS, SOLO_START_MS } from './game/config/time.ts'
+import { DoorEntrance } from './components/DoorEntrance.tsx'
 import { SoloStart, type SoloStep } from './components/SoloStart.tsx'
 import { SplashBackdrop } from './components/SplashBackdrop.tsx'
 import { StartBackdrop } from './components/StartBackdrop.tsx'
@@ -48,7 +49,7 @@ function initialRoute(): Route {
   return 'title'
 }
 
-type SoloStage = 'rules' | SoloStep
+type SoloStage = 'entrance' | 'rules' | SoloStep
 type SoloGameScreenComponent = typeof import('./screens/SoloGameScreen.tsx')['SoloGameScreen']
 
 function DeferredRoute({ children, theme }: { children: ReactNode; theme: TitleTheme }) {
@@ -128,8 +129,12 @@ function App() {
     const tutorial = displaySettings().soloTutorial
     setShowSoloTutorial(tutorial !== 'disabled')
     setRoute('solo')
-    setSoloStage(tutorial === 'ask' ? 'rules' : 'ready')
-  }, [engine])
+    setSoloStage(route === 'title' ? 'entrance' : tutorial === 'ask' ? 'rules' : 'ready')
+  }, [engine, route])
+
+  const finishEntrance = useCallback(() => {
+    setSoloStage(displaySettings().soloTutorial === 'ask' ? 'rules' : 'ready')
+  }, [])
 
   const beginSolo = useCallback(() => {
     setShowSoloTutorial(true)
@@ -156,7 +161,7 @@ function App() {
   }, [engine])
 
   useEffect(() => {
-    if (soloStage === null || soloStage === 'rules' || engine === null) {
+    if (soloStage === null || soloStage === 'rules' || soloStage === 'entrance' || engine === null) {
       return
     }
     // START 뒤에 지연 청크의 fallback이 잠깐 끼면 StartBackdrop이 다시 어두워져 깜빡인다.
@@ -294,6 +299,10 @@ function App() {
    * 안 들고 있어서 위의 제약에 걸리지 않으면서, 손을 올리는 그 몇 초가 빈 화면이
    * 아니라 들어가는 구간이 된다.
    */
+  if (soloStage === 'entrance') {
+    return <DoorEntrance theme={titleTheme} onFinish={finishEntrance} />
+  }
+
   if (soloStage !== null) {
     return (
       <StartBackdrop>

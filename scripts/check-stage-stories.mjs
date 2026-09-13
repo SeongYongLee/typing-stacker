@@ -18,6 +18,17 @@ try {for(const touch of [false,true]){
   await page.waitForTimeout(350)
   assert.equal(await page.evaluate(()=>window.__story.store.getSnapshot().stats.durationSec),before)
   assert(await dialog.locator('button').evaluateAll(es=>es.every(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth})))
+  if(stage===1)await page.screenshot({path:`/tmp/stage-arrival-${touch?'mobile':'pc'}.png`})
+  if(stage===1&&touch) {
+    await page.setViewportSize({width:320,height:240})
+    assert(await dialog.locator('button').evaluateAll(es=>es.every(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})))
+    await page.setViewportSize({width:390,height:780})
+  }
+  if(stage===1) {
+    await dialog.getByRole('button',{name:/다음 이야기/}).waitFor()
+  } else {
+    await dialog.getByRole('button',{name:/이야기 보기/}).click()
+  }
   if(stage===1&&touch){
     await page.setViewportSize({width:320,height:240})
     assert(await dialog.locator('button').evaluateAll(es=>es.every(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth})))
@@ -30,6 +41,10 @@ try {for(const touch of [false,true]){
   assert.equal(await page.evaluate(()=>window.__story.store.getSnapshot().stage.storyOpen),false)
   assert.equal(await page.locator('input[aria-label="단어 입력"]').evaluate(e=>e===document.activeElement),true)
  }
+ await page.emulateMedia({reducedMotion:'reduce'})
+ await page.evaluate(()=>{window.__story.engine.enterStage(1);window.__story.engine.emit()})
+ await page.getByRole('button',{name:/다음 이야기/}).waitFor({timeout:1000})
+ assert.equal(await page.locator('.stage-story-sheet').evaluate(e=>getComputedStyle(e).animationName),'none')
  assert.deepEqual(errors,[]);console.log(`PASS ${touch?'mobile':'PC'} five stage stories, freeze, skip, input focus`)
  await page.close()
 }}finally{await browser.close()}

@@ -82,7 +82,7 @@ const EMPTY: RankView = {
 }
 
 /** 판이 끝나면 기록을 보내고 순위를 받는다 */
-async function submitRun(stats: RunStats): Promise<RankView | null> {
+async function submitRun(stats: RunStats, signal?: AbortSignal): Promise<RankView | null> {
   const profile = loadProfile()
   const pending = queuePendingRun({
     id: profile.id,
@@ -95,7 +95,7 @@ async function submitRun(stats: RunStats): Promise<RankView | null> {
     kpm: stats.kpm,
     durationSec: stats.durationSec,
   })
-  return sendPendingRun(pending)
+  return sendPendingRun(pending, signal)
 }
 
 /** 타이틀 재진입이나 온라인 복귀 때 남아 있는 기록을 다시 보낸다. */
@@ -104,12 +104,12 @@ async function flushPendingRun(): Promise<RankView | null> {
   return pending === null ? null : sendPendingRun(pending)
 }
 
-async function sendPendingRun(pending: PendingRun): Promise<RankView | null> {
+async function sendPendingRun(pending: PendingRun, signal?: AbortSignal): Promise<RankView | null> {
   const profile = loadProfile()
   const current = profile.id === pending.id
     ? { ...pending, name: profile.name, icon: profile.icon }
     : pending
-  const result = await post('/rank/run', current)
+  const result = await post('/rank/run', current, signal)
   if (result !== null && result.error === undefined) {
     // 서버가 실제로 받은 기록만 치운다. 제한 불일치는 서버 배포 뒤 나아질 수 있다.
     clearPendingRun(pending)
@@ -188,9 +188,10 @@ async function fetchRank(): Promise<RankView | null> {
   return { ...EMPTY, ...(me ?? {}), ...(top ?? {}) }
 }
 
-async function post(path: string, body: unknown): Promise<RankView | null> {
+async function post(path: string, body: unknown, signal?: AbortSignal): Promise<RankView | null> {
   const raw = await request(path, {
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -203,6 +204,9 @@ async function get(path: string): Promise<Partial<RankView> | null> {
 
 async function request(path: string, init: RequestInit): Promise<Partial<RankView> | null> {
   const abort = new AbortController()
+  const cancel = () => abort.abort()
+  if (init.signal?.aborted) return null
+  init.signal?.addEventListener('abort', cancel, { once: true })
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS)
   try {
     const response = await fetch(`${BASE}${path}`, { ...init, signal: abort.signal })
@@ -216,6 +220,7 @@ async function request(path: string, init: RequestInit): Promise<Partial<RankVie
     return null
   } finally {
     clearTimeout(timer)
+    init.signal?.removeEventListener('abort', cancel)
   }
 }
 

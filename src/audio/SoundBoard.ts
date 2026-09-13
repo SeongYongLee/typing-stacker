@@ -141,6 +141,7 @@ class SoundBoard {
   }
 
   handle(event: GameEvent): void {
+    if (event.kind === 'merge' && event.deferredSound) return
     const ctx = this.bus.context
     const out = this.bus.sfx
     const noise = this.bus.noiseBuffer
@@ -196,6 +197,7 @@ class SoundBoard {
         voices.quake(voice, event.strength)
         break
       case 'merge':
+      case 'mergePresented':
         voices.merge(voice)
         break
       case 'lifeLost':

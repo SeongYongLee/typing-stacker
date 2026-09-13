@@ -1,3 +1,4 @@
+import { complexMergeFocus } from '../systems/mergePresentationTiming.ts'
 import { MergeRevealQueue } from '../systems/MergeRevealQueue.ts'
 import { congestionLevel, congestionPeriod } from '../renderer/congestionSignal.ts'
 import { MergeGrace } from '../systems/MergeGrace.ts'
@@ -158,8 +159,6 @@ const TUTORIAL_STEPS = [
 const MERGE_REVEAL_SEC = 3
 /** 3개 이상 합성 직후 세계가 거의 멈춘 듯 보이는 시간과 속도 */
 const COMPLEX_MERGE_REVEAL_SEC = 4.2
-const COMPLEX_MERGE_SLOW_SEC = 1.2
-const COMPLEX_MERGE_TIME_SCALE = 0.035
 /** 회전한 큰 물체와 화면 경계 연출까지 남겨두는 렌더 월드 여백. */
 const RENDER_VERTICAL_MARGIN = 1.5
 /** 점수를 나눠 더했을 때 생기는 부동소수점 경계 오차. */
@@ -225,7 +224,7 @@ interface GameState {
   readonly aimNormalized: number
   readonly stats: RunStats
   readonly feedback: SubmitFeedback | null
-  /** 3개 이상 합성 슬로모션의 진행도. 해당 연출이 아니면 null이다. */
+  /** 화면에 표시 중인 4개 이상 합성의 강조 진행도. 해당 연출이 아니면 null이다. */
   readonly complexMergeFocus: number | null
   /** 판이 새로 시작될 때마다 올라간다. UI가 입력창을 초기화하는 신호 */
   readonly runSeq: number
@@ -341,8 +340,6 @@ class GameEngine {
    */
   private readonly mergeReveals = new MergeRevealQueue()
   private get hiddenReveal() { return this.mergeReveals.current }
-  /** 3개 이상 합성의 짧은 슬로모션. 연출 시간은 이 값과 무관하게 정상 속도로 흐른다. */
-  private complexMergeSlowLeft = 0
   /** 접촉 그래프를 매 렌더 프레임 만들지 않기 위한 합성 검사 시계. */
   private readonly mergeIngredientKeys = new Set(RECIPES.flatMap(recipe => recipe.inputs.map(craftKeyOf)))
   private readonly mergeGrace = new MergeGrace()
@@ -511,7 +508,6 @@ class GameEngine {
     this.markPhysicsVersion = -1
     this.markWordVersion = -1
     this.mergeReveals.reset()
-    this.complexMergeSlowLeft = 0
     this.mergeGrace.reset()
     this.mergeCheckElapsed = 0
     this.quakeLeft = 0
@@ -1043,11 +1039,7 @@ class GameEngine {
 
   private readonly update = (frameDt: number): void => {
     if (this.storyOpen) return
-    const slowingComplexMerge = this.phase === 'playing' && this.complexMergeSlowLeft > 0
-    if (slowingComplexMerge) {
-      this.complexMergeSlowLeft = Math.max(this.complexMergeSlowLeft - frameDt, 0)
-    }
-    const dt = slowingComplexMerge ? frameDt * COMPLEX_MERGE_TIME_SCALE : frameDt
+    const dt = frameDt
     this.congestionBurstLeft = Math.max(this.congestionBurstLeft - frameDt, 0)
     this.advanceQuake(dt)
     // 색은 판이 멈춰 있어도(일시정지·무너짐) 계속 사라져야 한다 — 그리기가 매 프레임 돈다
@@ -1160,8 +1152,9 @@ class GameEngine {
 
     this.elapsed += dt
     this.sinceLastDrop += dt
-    // Presentation time stays independent of the multi-merge physics slowdown.
-    this.mergeReveals.advance(frameDt)
+    // Sound and emphasis follow the visible reveal, not the earlier physics merge.
+    const presented = this.mergeReveals.advance(frameDt)
+    if (presented !== null) this.fire({ kind: 'mergePresented' })
     const difficulty = soloStage(this.stageId).difficulty
     this.aimer.update(dt, difficulty.aimSpeed)
     /*
@@ -1470,10 +1463,7 @@ class GameEngine {
       match.recipe.inputs.map((id) => VARIANT_BY_ID.get(id)).filter(isVariant),
       match.recipe.inputs.length >= 3 ? COMPLEX_MERGE_REVEAL_SEC : MERGE_REVEAL_SEC)
 
-    if (match.recipe.inputs.length >= 3) {
-      this.complexMergeSlowLeft = COMPLEX_MERGE_SLOW_SEC
-    }
-    this.fire({ kind: 'merge' })
+    this.fire({ kind: 'merge', deferredSound: true })
     this.score.onCrafted(result)
     this.recoverCraftCongestion()
     this.discover(result)
@@ -1528,7 +1518,7 @@ class GameEngine {
       itemLabel: result.label,
       hidden: result.hidden,
     }
-    this.fire({ kind: 'merge' })
+    this.fire({ kind: 'merge', deferredSound: true })
     this.score.onCrafted(result)
     this.discover(result)
     // 방금 친 세 번째 프라이팬 Enter가 안내까지 넘기지 않도록, 전용 멈춤 단계를 연다.
@@ -1797,9 +1787,7 @@ class GameEngine {
       stats: this.score.stats(this.spawner.missedCount, this.lives, this.elapsed),
       feedback: this.feedback,
       complexMergeFocus:
-        this.complexMergeSlowLeft > 0
-          ? Math.min(Math.max(1 - this.complexMergeSlowLeft / COMPLEX_MERGE_SLOW_SEC, 0), 1)
-          : null,
+        this.hiddenReveal === null ? null : complexMergeFocus(this.hiddenReveal.from.length, this.hiddenReveal.elapsed),
       runSeq: this.runSeq,
       collected: this.collection.ids,
       freshlyCollected: this.collection.freshIds,

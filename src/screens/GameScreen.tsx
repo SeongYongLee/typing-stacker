@@ -289,7 +289,7 @@ function ComplexMergeSpotlight({ progress }: { progress: number }) {
         pointerEvents: 'none',
         opacity,
         background:
-          'radial-gradient(ellipse 290px 235px at 50% max(96px, 20%), transparent 0%, transparent 56%, rgba(5, 7, 12, 0.28) 76%, rgba(5, 7, 12, 0.76) 100%)',
+          'radial-gradient(ellipse 290px 235px at 50% max(96px, 20%), transparent 0%, transparent 56%, rgba(66, 47, 28, 0.08) 76%, rgba(66, 47, 28, 0.22) 100%)',
       }}
     />
   )

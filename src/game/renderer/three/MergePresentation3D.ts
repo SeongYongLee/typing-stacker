@@ -3,12 +3,9 @@ import type { ArenaRenderState } from '../ArenaRenderer.ts'
 import { ALL_VARIANTS } from '../../data/words.ts'
 import { ItemAssets, type ItemModel } from './ItemAssets.ts'
 
-export const MERGE_HOLD_SECONDS = 0.55
-export const MERGE_CONTACT_SECONDS = MERGE_HOLD_SECONDS + 0.15
+import { mergeHoldSeconds, mergeStagger, mergeGatherEnd } from '../../systems/mergePresentationTiming.ts'
+export { MERGE_HOLD_SECONDS, MERGE_CONTACT_SECONDS, mergeHoldSeconds, mergeStagger, mergeGatherEnd } from '../../systems/mergePresentationTiming.ts'
 
-export function mergeHoldSeconds(count: number): number { return count >= 4 ? 1 : MERGE_HOLD_SECONDS }
-export function mergeStagger(count: number): number { return count >= 5 ? 0.09 : count >= 4 ? 0.06 : 0 }
-export function mergeGatherEnd(count: number): number { return 0.15 + Math.max(0, count - 1) * mergeStagger(count) }
 export function mergeSlots(count: number): { x: number; y: number }[] {
   const columns = count <= 3 ? count : count === 4 ? 2 : 3
   const rows = Math.ceil(count / Math.max(1, columns))

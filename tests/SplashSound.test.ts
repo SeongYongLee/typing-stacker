@@ -114,3 +114,18 @@ describe('스플래시 사무실 문', () => {
     board.dispose()
   })
 })
+
+
+it('defers solo merge audio until presentation while keeping immediate match audio', async () => {
+  const board = new SoundBoard()
+  const { bus, starts } = installFakeBus(board)
+  await bus.unlock()
+  board.handle({ kind: 'merge', deferredSound: true })
+  expect(starts).toHaveLength(0)
+  board.handle({ kind: 'mergePresented' })
+  expect(starts.length).toBeGreaterThan(0)
+  const presented = starts.length
+  board.handle({ kind: 'merge' })
+  expect(starts.length).toBeGreaterThan(presented)
+  board.dispose()
+})

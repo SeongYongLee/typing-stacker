@@ -123,4 +123,32 @@ describe('미전송 싱글 기록', () => {
     expect(loadPendingRun()).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('화면을 떠나면 진행 중인 요청을 취소하고 기록은 남긴다', async () => {
+    const abort = new AbortController()
+    let requestSignal: AbortSignal | undefined
+    vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => {
+      requestSignal = init.signal as AbortSignal
+      return new Promise((_resolve, reject) => {
+        requestSignal!.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      })
+    }))
+    const stats: RunStats = { ...lower, rawScore: lower.score, accuracy: 1, missedWords: 0, lives: 0, combo: 0, hiddenFound: [] }
+    const result = submitRun(stats, abort.signal)
+    abort.abort()
+    expect(await result).toBeNull()
+    expect(requestSignal?.aborted).toBe(true)
+    expect(loadPendingRun()?.score).toBe(lower.score)
+  })
+
+  it('이미 취소된 요청을 전송하지 않는다', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const abort = new AbortController()
+    abort.abort()
+    const stats: RunStats = { ...lower, rawScore: lower.score, accuracy: 1, missedWords: 0, lives: 0, combo: 0, hiddenFound: [] }
+    expect(await submitRun(stats, abort.signal)).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
 })

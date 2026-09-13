@@ -66,10 +66,13 @@ const panelStyle: CSSProperties = {
  */
 function verdictOf(stats: RunStats, ranking: RunRanking): string | null {
   if (ranking.status === 'sending') {
-    return '기록을 보내는 중…'
+    return ranking.attemptNumber === 1 ? '기록을 보내는 중…' : `기록을 다시 보내는 중… (${ranking.attemptNumber}/4)`
+  }
+  if (ranking.status === 'retrying') {
+    return '아직 전송되지 않아 3초 뒤 다시 시도합니다'
   }
   if (ranking.status === 'offline') {
-    return '연결되지 않아 기록을 보관했다'
+    return '여러 번 시도했지만 연결되지 않아 기록을 보관했습니다'
   }
   if (ranking.status === 'rejected') {
     const reason = ranking.view?.reason
@@ -190,6 +193,7 @@ function ResultScreen({
             {verdict !== null && (
               <p
                 data-verdict
+                role="status"
                 style={{
                   margin: '0 0 20px',
                   fontSize: 14,
@@ -199,9 +203,9 @@ function ResultScreen({
                 {verdict}
               </p>
             )}
-            {(ranking.status === 'offline' || ranking.status === 'rejected') && (
-              <MenuButton onClick={ranking.retry}>
-                기록 다시 보내기
+            {ranking.status !== 'ready' && (
+              <MenuButton onClick={ranking.retry} disabled={ranking.status === 'sending' || ranking.status === 'retrying'}>
+                {ranking.status === 'sending' ? '기록 보내는 중…' : ranking.status === 'retrying' ? '자동 재시도 대기 중…' : '기록 다시 보내기'}
               </MenuButton>
             )}
           </div>

@@ -43,3 +43,21 @@ it('clears active and pending results on a new run and gives repeated recipes di
   queue.advance(3)
   expect(queue.current).toBeNull()
 })
+
+
+it('emits one contact cue per visible reveal, never when enqueuing or paused', () => {
+  const queue = new MergeRevealQueue()
+  queue.enqueue(egg, [egg, egg], 3)
+  queue.enqueue(book, [egg, egg, egg, egg], 4.2)
+  expect(queue.advance(0.69)).toBeNull()
+  expect(queue.advance(0.02)?.variant).toBe(egg)
+  expect(queue.advance(0)).toBeNull()
+  expect(queue.advance(0.2)).toBeNull()
+  expect(queue.advance(3)).toBeNull()
+  expect(queue.current?.variant).toBe(book)
+  expect(queue.advance(1.32)).toBeNull()
+  expect(queue.advance(0.02)?.variant).toBe(book)
+  expect(queue.advance(0.2)).toBeNull()
+  queue.reset()
+  expect(queue.advance(5)).toBeNull()
+})

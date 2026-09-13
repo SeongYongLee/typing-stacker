@@ -53,7 +53,9 @@ type GameEvent =
   | { readonly kind: 'quake'; readonly strength: number }
   | { readonly kind: 'congestionCreak'; readonly strength: number }
   /** 재료가 합쳐져 새 물건이 됐다 */
-  | { readonly kind: 'merge' }
+  | { readonly kind: 'merge'; readonly deferredSound?: boolean }
+  /** 대기열에서 재료가 실제로 합쳐지는 표시 시점 */
+  | { readonly kind: 'mergePresented' }
   /** 물건이 받침대를 벗어나 목숨이 깎였다 */
   | { readonly kind: 'lifeLost'; readonly livesLeft: number }
   /** 목숨을 다 잃어 탑이 무너지기 시작했다 */

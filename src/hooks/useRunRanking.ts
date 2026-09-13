@@ -2,85 +2,85 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RunStats } from '../game/types/game.ts'
 import { submitRun, type RankView } from '../rank/client.ts'
 
-type RankingStatus = 'sending' | 'ready' | 'offline' | 'rejected'
+const RETRY_DELAY_MS = 3000
+const MAX_ATTEMPTS = 4
+
+type RankingStatus = 'sending' | 'retrying' | 'ready' | 'offline' | 'rejected'
 
 interface RunRanking {
   readonly status: RankingStatus
   readonly view: RankView | null
+  readonly attemptNumber: number
   /** 이번 판이 내 최고 기록을 갈아치웠는지 */
   readonly isBest: boolean
   readonly retry: () => void
 }
 
-/**
- * 판이 끝나면 기록을 한 번 보내고 순위를 받아온다.
- *
- * **판을 가리는 기준은 객체가 아니라 내용이다.** 엔진은 매 프레임 새 `stats` 객체를
- * 만들므로 객체 정체성에 매달면 초당 60번 보낸다. 반대로 "한 번 보냈으면 건너뛴다"는
- * 방식도 쓸 수 없다 — StrictMode가 이펙트를 두 번 돌릴 때 첫 요청은 정리 단계에서
- * 버려지고 두 번째는 건너뛰어 영원히 "보내는 중"에 머문다.
- *
- * 그래서 내용 열쇠가 바뀔 때만 다시 보낸다. 같은 열쇠로 두 번 가더라도 서버는
- * 최고 기록 하나만 남기므로 결과가 달라지지 않는다.
- *
- * 실패는 조용히 넘긴다. 서버가 죽었다고 결과 화면을 못 보면 안 된다.
- */
+/** One request at a time, with a bounded retry cycle owned by this result screen. */
 function useRunRanking(stats: RunStats, enabled = true): RunRanking {
   const [status, setStatus] = useState<RankingStatus>('sending')
   const [view, setView] = useState<RankView | null>(null)
   const [isBest, setIsBest] = useState(false)
-  const [attempt, setAttempt] = useState(0)
+  const [cycle, setCycle] = useState(0)
+  const [attemptNumber, setAttemptNumber] = useState(1)
+  const busy = useRef(true)
   const latest = useRef(stats)
   latest.current = stats
 
-  // 판이 끝나면 더 이상 바뀌지 않는 값들이다. 경과 시간은 넣지 않는다 — 흐르는 값이다
+  // Engine snapshots are fresh objects every frame; retry only for a new result or explicit request.
   const key = `${Math.round(stats.score)}|${stats.stackCount}|${stats.maxCombo}|${stats.kpm}`
-
-  const retry = useCallback(() => setAttempt((value) => value + 1), [])
+  const retry = useCallback(() => {
+    if (busy.current) return
+    busy.current = true
+    setStatus('sending')
+    setAttemptNumber(1)
+    setCycle(value => value + 1)
+  }, [])
 
   useEffect(() => {
     if (!enabled) {
+      busy.current = true
       setStatus('ready')
       setView(null)
       setIsBest(false)
       return
     }
-    let alive = true
-    setStatus('sending')
+    const abort = new AbortController()
+    const resultStats = latest.current
+    let timer: ReturnType<typeof setTimeout> | undefined
+    busy.current = true
     setView(null)
     setIsBest(false)
 
-    void submitRun(latest.current).then((next) => {
-      if (!alive) {
-        return
-      }
-      if (next === null) {
-        setStatus('offline')
-        return
-      }
-      if (next.error !== undefined) {
-        // 거절 사유를 결과 화면에 보여주고 같은 기록을 다시 보낼 수 있게 보존한다.
+    const send = async (attempt: number) => {
+      setAttemptNumber(attempt)
+      setStatus('sending')
+      const next = await submitRun(resultStats, abort.signal).catch(() => null)
+      if (abort.signal.aborted) return
+      if (next !== null && next.error === undefined) {
         setView(next)
-        setStatus('rejected')
+        setIsBest(next.best !== null && next.best.score === Math.round(resultStats.score))
+        setStatus('ready')
+        // Success is terminal; stale clicks must not start another submission.
         return
       }
-      setStatus('ready')
+      if (attempt < MAX_ATTEMPTS) {
+        setStatus('retrying')
+        timer = setTimeout(() => { void send(attempt + 1) }, RETRY_DELAY_MS)
+        return
+      }
       setView(next)
-      // 서버가 돌려준 최고 기록이 이번 판이면 갈아치운 것이다
-      setIsBest(next.best !== null && next.best.score === Math.round(latest.current.score))
-    })
-    return () => {
-      alive = false
+      setStatus(next === null ? 'offline' : 'rejected')
+      busy.current = false
     }
-  }, [key, attempt, enabled])
+    void send(1)
+    return () => {
+      clearTimeout(timer)
+      abort.abort()
+    }
+  }, [key, cycle, enabled])
 
-  useEffect(() => {
-    if (status !== 'offline') return
-    window.addEventListener('online', retry)
-    return () => window.removeEventListener('online', retry)
-  }, [retry, status])
-
-  return { status, view, isBest, retry }
+  return { status, view, attemptNumber, isBest, retry }
 }
 
 export { useRunRanking }

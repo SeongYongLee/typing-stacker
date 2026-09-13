@@ -1,3 +1,4 @@
+import { mergeContactSeconds } from './mergePresentationTiming.ts'
 import type { ItemVariant } from '../types/game.ts'
 
 export interface MergeReveal {
@@ -20,13 +21,17 @@ export class MergeRevealQueue {
     else this.pending.push(reveal)
   }
 
-  advance(dt: number): void {
-    if (this.current === null || dt <= 0) return
+  advance(dt: number): MergeReveal | null {
+    if (this.current === null || dt <= 0) return null
+    const before = this.current.elapsed
     this.current.elapsed += dt
     if (this.current.elapsed >= this.current.duration) {
       // Start at zero even after a slow frame: never skip a queued presentation.
       this.current = this.pending.shift() ?? null
+      return null
     }
+    const contact = mergeContactSeconds(this.current.from.length)
+    return before < contact && this.current.elapsed >= contact ? this.current : null
   }
 
   reset(): void {

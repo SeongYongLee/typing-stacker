@@ -1677,6 +1677,8 @@ class GameEngine {
   }
 
   private readonly render = (): void => {
+    // The opaque story scene hides the arena; do not build snapshots or draw WebGL behind it.
+    if (this.storyOpen) return
     const time = this.timeView()
     const reveal = this.hiddenReveal
     const renderBounds = renderVerticalBounds(0, RENDER_VERTICAL_MARGIN)

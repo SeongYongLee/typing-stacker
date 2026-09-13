@@ -31,6 +31,9 @@ export default defineConfig(({ command, isPreview }) => ({
     },
   },
   test: {
+    // Keep local verification responsive; measured simulations use one CPU worker.
+    // Vitest's --maxWorkers flag can override this on a dedicated machine.
+    maxWorkers: process.env.MEASURE === '1' ? 1 : 2,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     /*

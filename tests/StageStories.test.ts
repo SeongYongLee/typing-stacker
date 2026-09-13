@@ -1,4 +1,4 @@
-import {afterEach,beforeEach,expect,it} from 'vitest'
+import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {GameEngine,type GameState} from '../src/game/core/GameEngine.ts'
 import {FrameClock} from './helpers/frameClock.ts'
 import {STAGE_STORIES} from '../src/screens/stageStories.ts'
@@ -37,4 +37,16 @@ it('does not replace the tutorial and resets story on restart and title',()=>{
  engine.startRun(false);engine.toTitle();expect(state.stage.storyOpen).toBe(false)
  engine.startRun(true);expect(state.stage.storyOpen).toBe(false)
  engine.startRun(false);expect(state.stage.storyOpen).toBe(true)
+})
+
+it('does not redraw the hidden arena during a story and resumes drawing afterwards',async()=>{
+ const draw=vi.fn()
+ const internal=engine as unknown as {renderer:unknown}
+ internal.renderer={draw,dispose:vi.fn()}
+ engine.startRun(false)
+ await clock.advance(1)
+ expect(draw).not.toHaveBeenCalled()
+ engine.finishStageStory()
+ await clock.advance(.1)
+ expect(draw).toHaveBeenCalled()
 })

@@ -29,11 +29,11 @@ function MobileWhiteboardView({ words, ready }: { words: readonly string[]; read
   </div>
 }
 
-function MobileCongestionView({ value, rushing, recoverySeq = 0 }: { value: number; rushing: boolean; recoverySeq?: number }) {
+function MobileCongestionView({ value, rushing, recovery, recoverySeq = 0 }: { value: number; rushing: boolean; recovery?: GameState['stage']['congestionRecovery']; recoverySeq?: number }) {
   const congestionTone = useCongestionTone(value, rushing, recoverySeq)
   const percent = Math.min(100, Math.max(0, value))
   return <div className="mp-congestion" style={congestionTone.style} data-congestion-tone={congestionTone.tone} data-warning={rushing || percent >= 80}>
-    <span>{rushing ? '경보 · 물건 반입 중' : '혼잡 경보'}</span>
+    <span className="mp-congestion-label">{rushing ? '경보 · 물건 반입 중' : '혼잡 경보'}{!rushing && recovery?.crafted && <span key={recoverySeq} className="mp-craft-recovery" data-craft-recovery={recovery.amount}>합성 정리 −{recovery.amount}</span>}</span>
     <div className="mp-congestion-track" role="progressbar" aria-label="혼잡 경보" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)} aria-valuetext={rushing ? '경보 작동 · 물건 반입 중' : `${Math.round(percent)}%`}>
       <div style={{ width: `${rushing ? 100 : percent}%` }} />
     </div>

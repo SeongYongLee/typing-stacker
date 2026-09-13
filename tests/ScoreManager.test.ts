@@ -78,6 +78,18 @@ describe('ScoreManager', () => {
     expect(stats.stackCount).toBe(0)
   })
 
+  it('회수에 성공한 입력도 타수에 포함하고 콤보는 그대로 유지한다', () => {
+    const score = new ScoreManager()
+    const recalled = { ...anyVariant(false), label: '사과' }
+    score.onWordMatched('번개') // 5타
+    score.onRecalled(recalled) // 5타
+    expect(score.stats(0, 3, 30).kpm).toBe(20)
+    expect(score.comboCount).toBe(1)
+    expect(score.stats(0, 3, 30).stackCount).toBe(0)
+    score.reset()
+    expect(score.stats(0, 3, 30).kpm).toBe(0)
+  })
+
   it('같은 히든을 또 찾아도 목록에는 한 번만 남는다', () => {
     const score = new ScoreManager()
     const hidden = anyVariant(true)

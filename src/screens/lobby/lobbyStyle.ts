@@ -41,26 +41,10 @@ const fieldStyle: CSSProperties = {
   textAlign: 'center',
 }
 
-const buttonStyle: CSSProperties = {
-  padding: '13px 20px',
-  fontSize: 16,
-  fontWeight: 600,
-  borderRadius: 2,
-  border: '1px solid var(--stamp)',
-  background: 'var(--paper-shade)',
-  color: 'var(--stamp)',
-}
-
 const pathLabelStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--ink-muted)',
   letterSpacing: '0.06em',
-}
-
-const ghostButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  background: 'transparent',
-  color: 'var(--ink)',
 }
 
 /** 랭크 게임 버튼 아래의 대기 인원. 버튼에 딸린 값이라 붙여둔다 */
@@ -75,8 +59,6 @@ export {
   rootStyle,
   panelStyle,
   fieldStyle,
-  buttonStyle,
   pathLabelStyle,
-  ghostButtonStyle,
   queueNoteStyle,
 }

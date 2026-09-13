@@ -1,0 +1,90 @@
+[
+  {
+    "group": "initial",
+    "profile": "steady",
+    "control": {
+      "merges": 3.306116315183089,
+      "returns": 4.808896458448129,
+      "seconds": 168.94999999999996,
+      "clears": 2
+    },
+    "candidate": {
+      "merges": 2.6556776556776556,
+      "returns": 3.907203907203907,
+      "seconds": 168.61666666666665,
+      "clears": 9
+    },
+    "ratios": {
+      "merges": 0.8032620157620157,
+      "returns": 0.8124949124949125,
+      "seconds": 0.9980270296932032
+    },
+    "passed": true
+  },
+  {
+    "group": "initial",
+    "profile": "slow",
+    "control": {
+      "merges": 3.3480176211453747,
+      "returns": 3.788546255506608,
+      "seconds": 173.3333333333333,
+      "clears": 2
+    },
+    "candidate": {
+      "merges": 3.153745072273324,
+      "returns": 3.095342385749744,
+      "seconds": 175.24166666666665,
+      "clears": 7
+    },
+    "ratios": {
+      "merges": 0.9419738571132165,
+      "returns": 0.8170264204246418,
+      "seconds": 1.0110096153846155
+    },
+    "passed": true
+  },
+  {
+    "group": "holdout",
+    "profile": "steady",
+    "control": {
+      "merges": 3.7400367872470874,
+      "returns": 4.261189454322501,
+      "seconds": 165.61666666666665,
+      "clears": 1
+    },
+    "candidate": {
+      "merges": 3.0102410261715105,
+      "returns": 4.0033102306816994,
+      "seconds": 165.61666666666665,
+      "clears": 8
+    },
+    "ratios": {
+      "merges": 0.8048693628993007,
+      "returns": 0.9394818685240075,
+      "seconds": 1.0
+    },
+    "passed": true
+  },
+  {
+    "group": "holdout",
+    "profile": "slow",
+    "control": {
+      "merges": 4.085007051500267,
+      "returns": 4.7269367310217385,
+      "seconds": 172.99166666666665,
+      "clears": 0
+    },
+    "candidate": {
+      "merges": 3.584831127789847,
+      "returns": 3.6144578313253004,
+      "seconds": 172.99166666666665,
+      "clears": 9
+    },
+    "ratios": {
+      "merges": 0.8775581247707456,
+      "returns": 0.7646511973821208,
+      "seconds": 1.0
+    },
+    "passed": true
+  }
+]

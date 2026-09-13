@@ -1,11 +1,12 @@
 import { chromium } from 'playwright-core'
 import assert from 'node:assert/strict'
+const base=process.argv[2]??'http://127.0.0.1:5183'
 const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true})
 try {for(const mobile of [false,true]){
  const page=await browser.newPage({viewport:mobile?{width:390,height:780}:{width:1440,height:900},hasTouch:mobile});const errors=[];page.on('pageerror',e=>errors.push(e.message))
- await page.route('**/*',r=>new URL(r.request().url()).origin==='http://127.0.0.1:5183'?r.continue():r.abort())
+ await page.route('**/*',r=>new URL(r.request().url()).origin===new URL(base).origin?r.continue():r.abort())
  await page.route('**/src/hooks/useGameEngine.ts*',async r=>{const response=await r.fetch();await r.fulfill({response,body:(await response.text()).replace('instance.onStateChange(store.update);','instance.onStateChange(store.update); window.__live = {engine:instance,store};')})})
- await page.goto('http://127.0.0.1:5183/');assert.equal(await page.locator('.game-arena').count(),0)
+ await page.goto(base);assert.equal(await page.locator('.game-arena').count(),0)
  await page.getByRole('button',{name:'혼자 하기',exact:true}).click();await page.waitForSelector('[data-renderer-mode="3d"]');
  if(mobile) await page.getByPlaceholder('눌러서 시작').click()
  await page.waitForTimeout(900);assert.equal(await page.locator('.game-arena > canvas').count(),3)

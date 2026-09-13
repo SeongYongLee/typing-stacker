@@ -17,13 +17,13 @@ function Waiting({ board }: { board: Leaderboard }) {
   return <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>순위를 불러오지 못했습니다</p>
 }
 
-function SoloRanking({ board }: { board: Leaderboard }) {
+function SoloRanking({ board, showTitle = true }: { board: Leaderboard; showTitle?: boolean }) {
   const view = board.view
 
   if (view === null) {
     return (
       <>
-        <p style={panelTitleStyle}>점수 순위</p>
+        {showTitle && <p style={panelTitleStyle}>점수 순위</p>}
         <Waiting board={board} />
       </>
     )
@@ -31,7 +31,7 @@ function SoloRanking({ board }: { board: Leaderboard }) {
 
   return (
     <>
-      <p style={panelTitleStyle}>점수 순위</p>
+      {showTitle && <p style={panelTitleStyle}>점수 순위</p>}
       {view.top.length === 0 ? (
         <p style={{ fontSize: 13, color: 'var(--ink-muted)', margin: 0 }}>아직 기록이 없습니다</p>
       ) : (

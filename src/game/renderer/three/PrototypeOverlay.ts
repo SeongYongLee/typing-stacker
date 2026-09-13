@@ -42,6 +42,7 @@ function drawCollider(view: ArenaView, body: BodySnapshot): void {
 }
 
 class PrototypeOverlay {
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 
   drawMergeLabel(view: ArenaView, state: ArenaRenderState): void {
     const { ctx } = view
@@ -82,7 +83,7 @@ class PrototypeOverlay {
       }
       ctx.restore()
     }
-    drawMergeWait(view, state, window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    drawMergeWait(view, state, this.reducedMotion.matches)
     for (const cat of state.cats ?? []) drawCat(view, cat)
   }
 }

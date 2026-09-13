@@ -1,16 +1,18 @@
 import { useState, type ReactNode } from 'react'
-import backgroundDay from '../assets/splash/background-day.webp'
-import backgroundNight from '../assets/splash/background-night.webp'
+import doorDay from '../assets/splash/background-day.webp'
+import doorNight from '../assets/splash/background-night.webp'
+import { RoomLight } from './RoomLight.tsx'
 import { titleThemeForHour, type TitleTheme } from '../screens/titleTheme.ts'
 import '../screens/TitleScreen.css'
 
 const SPLASH_BACKGROUNDS: Record<TitleTheme, string> = {
-  day: backgroundDay,
-  night: backgroundNight,
+  day: `${import.meta.env.BASE_URL}arena/background-day.webp`,
+  night: `${import.meta.env.BASE_URL}arena/background-night.webp`,
 }
 
 interface SplashBackdropProps {
   children: ReactNode
+  doorway?: boolean
   /** 타이틀은 로고까지 받은 뒤 함께 열기 위해 진입 시각을 직접 넘긴다. */
   theme?: TitleTheme
   /** false면 배경과 자식의 진입 연출을 아직 시작하지 않는다. */
@@ -28,6 +30,7 @@ interface SplashBackdropProps {
  */
 function SplashBackdrop({
   children,
+  doorway = false,
   theme,
   ready = true,
   animated = true,
@@ -45,12 +48,13 @@ function SplashBackdrop({
     >
       <img
         className="title-splash__background"
-        src={SPLASH_BACKGROUNDS[resolvedTheme]}
+        src={doorway ? (resolvedTheme === 'day' ? doorDay : doorNight) : SPLASH_BACKGROUNDS[resolvedTheme]}
         alt=""
         aria-hidden="true"
         onLoad={onBackgroundSettled}
         onError={onBackgroundSettled}
       />
+      <RoomLight night={resolvedTheme === 'night'} />
       <div className="title-splash__veil" aria-hidden="true" />
       {children}
     </div>

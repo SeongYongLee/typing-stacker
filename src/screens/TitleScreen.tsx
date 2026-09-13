@@ -103,6 +103,7 @@ function TitleScreen({
 
   return (
     <SplashBackdrop
+      doorway
       theme={theme}
       ready={loadedAssets === 2}
       onBackgroundSettled={markAssetLoaded}

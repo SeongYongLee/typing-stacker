@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
 import { WHITEBOARD_SCALE, whiteboardWordChanges } from './whiteboardTransition.ts'
@@ -230,7 +230,7 @@ function useWallBox(ref: React.RefObject<HTMLDivElement | null>): CSSProperties 
  * 문제라, 보드를 비켜 세우는 것으로는 그때 다시 막힌다. 그래서 판 쪽을 내렸다
  * (`CAMERA_HEADROOM`).
  */
-function Whiteboard({
+function WhiteboardView({
   words,
   activeWords,
   nightfall,
@@ -316,6 +316,12 @@ function Whiteboard({
     </div>
   )
 }
+
+// The engine emits fresh arrays each frame, but the board changes only on a recall.
+const Whiteboard = memo(WhiteboardView, (a, b) =>
+  a.nightfall === b.nightfall && a.claim === b.claim && a.reminder === b.reminder &&
+  a.words.length === b.words.length && a.words.every((word, i) => word === b.words[i]) &&
+  a.activeWords.length === b.activeWords.length && a.activeWords.every((word, i) => word === b.activeWords[i]))
 
 type ErasedWord = {
   readonly id: string

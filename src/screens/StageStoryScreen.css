@@ -45,3 +45,6 @@
 @media(max-width:600px) { .stage-story-window { left:8%; width:42%; border-width:8px; } .stage-story-sign { right:5%; top:22%; padding:12px; } .stage-story-scene > img { right:18%; } }
 @media(max-height:480px) { .stage-story-arrival { margin:auto; padding:12px; } .stage-story-arrival-time { font-size:28px; margin:6px 0; } .stage-story-arrival h1 { margin:6px 0; } .stage-story-arrival-visitor { margin:8px 0; } }
 @media(prefers-reduced-motion:reduce) { .stage-story *, .stage-story[data-arriving="true"] .stage-story-scene, .stage-story[data-arriving="true"] .stage-story-rain, .stage-story[data-arriving="true"] .stage-story-light { animation:none; } }
+
+.stage-story-start { position:absolute; inset:0; display:grid; place-items:center; background:#19272499; }
+.stage-story-start > .menu-button { width:min(280px,calc(100% - 32px)); }

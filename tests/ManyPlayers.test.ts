@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { MatchSession, type SessionPhase } from '../src/multi/MatchSession.ts'
+import { attachSession, type SessionSeat as Seat } from './helpers/session.ts'
 import { MAX_PLAYERS } from '../src/multi/protocol.ts'
 import { Hub } from './helpers/hub.ts'
 import { FrameClock } from './helpers/frameClock.ts'
@@ -17,28 +17,10 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-interface Seat {
-  session: MatchSession
-  phase: () => SessionPhase | null
-}
 
 function seatsOf(count: number): Seat[] {
   clock.install()
-  const links = Hub.of(count)
-  return links.map((link, index) => {
-    let phase: SessionPhase | null = null
-    const session = MatchSession.attach(link, (on) => link.listen(on), {
-      nickname: `사람${index}`,
-      deviceId: `dev-${index}`,
-      icon: '',
-      // 셈은 따로 시험한다 — 판이 열리는지 보려는 여기서는 건너뛴다
-      countdownSec: 0,
-      onPhase: (next) => {
-        phase = next
-      },
-    })
-    return { session, phase: () => phase }
-  })
+  return Hub.of(count).map((link, index) => attachSession(link, `사람${index}`, `dev-${index}`))
 }
 
 let seats: Seat[] = []

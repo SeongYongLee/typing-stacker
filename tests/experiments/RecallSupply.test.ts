@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { recallIngredient, reachableRecallIds } from './helpers/RecallSupply.ts'
-import { WORDS, VARIANT_BY_ID } from '../src/game/data/words.ts'
+import { WORDS, VARIANT_BY_ID } from '../../src/game/data/words.ts'
 
 const food = WORDS.filter(entry => ['계란', '프라이팬'].includes(entry.word))
 const friedEgg = VARIANT_BY_ID.get('fried-egg')!

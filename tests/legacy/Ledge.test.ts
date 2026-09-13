@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { AIM_HALF_RANGE, ARENA, LEDGE, MAX_ITEM_HALF_WIDTH } from '../src/game/config.ts'
+import { AIM_HALF_RANGE, ARENA, LEDGE, MAX_ITEM_HALF_WIDTH } from '../../src/game/config.ts'
 import {
   placeLedge,
   soloLedgeWidthAt,
   type Occupied,
-} from '../src/game/systems/Ledge.ts'
-import { createRng } from '../src/game/systems/Rng.ts'
+} from '../../src/game/systems/Ledge.ts'
+import { createRng } from '../../src/game/systems/Rng.ts'
 
 function item(x: number, y: number, hw = 0.3, hh = 0.3): Occupied {
   return { x, y, hw, hh }
@@ -152,13 +152,13 @@ describe('통나무를 놓을 자리', () => {
     const items = [-1.5, -1.1, -0.7, -0.3].map((x) => item(x, 1.8, 0.4, 0.4))
     for (let i = 0; i < 30; i += 1) {
       const spot = placeLedge(items, [], 2.2, rng)
-      if (spot === null) continue
+      if (spot === null) throw new Error('장애물을 피할 발판 후보가 없다')
       for (const other of items) {
         const gap = Math.abs(spot.x - other.x)
         const vertical = Math.abs(spot.y - other.y)
         expect(
           gap >= spot.halfWidth + other.hw + LEDGE.margin ||
-            vertical >= LEDGE.halfHeight + other.hh + LEDGE.margin,
+          vertical >= LEDGE.halfHeight + other.hh + LEDGE.margin,
         ).toBe(true)
       }
     }

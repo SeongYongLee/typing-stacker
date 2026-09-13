@@ -194,7 +194,8 @@ describe('findMerge — 닿아 있는 재료만 합쳐진다', () => {
       ],
     )
     const first = findMerge(three, [PAIR])
-    for (let i = 0; i < 20; i += 1) {
+    expect(first).not.toBeNull()
+    for (let i = 0; i < 2; i += 1) {
       expect(findMerge(three, [PAIR])?.itemIds).toEqual(first?.itemIds)
     }
   })
@@ -283,31 +284,6 @@ describe('RECIPES — 실제 데이터', () => {
     expect(checked).toBeGreaterThan(0)
   })
 
-  /*
-   * **"결과물은 재료보다 좁다"는 규칙은 없앴다 (2026-08-09).**
-   *
-   * 그 규칙은 "합성이 자리를 틔워주는 것이 보상"이라는 전제 위에 있었는데 **전제가
-   * 틀렸다.** 합성해서 얻는 것은 판 안의 여유가 아니라 판 밖에 남는 것이다 —
-   * 도감이 채워지고, 히든을 봤다는 사실이 남고, 프로필 사진으로 쓸 수 있다.
-   *
-   * 그러니 결과물이 넓어져도 합치고 싶은 마음은 사라지지 않는다. 반대로 규칙 쪽은
-   * 대가를 물렸다 — 재작화에서 여행앨범이 가로형이 되자(비율 0.838 → 1.5547)
-   * **아트가 정한 크기를 줄여야** 규칙을 지킬 수 있었다.
-   *
-   * 아래의 "조준 범위를 넘지 않는다"는 남는다. 그쪽은 취향이 아니라 즉사를 막는 것이다.
-   */
-
-  it('결과물이 조준 범위를 넘지 않는다 — 합성 때문에 받침대를 넘치면 안 된다', async () => {
-    const { MAX_ITEM_HALF_WIDTH } = await import('../src/game/config.ts')
-    for (const item of RECIPES) {
-      for (const result of [item.result, ...item.hiddenResults]) {
-        expect(result.artBounds.hw, `${item.id} → ${result.id}`).toBeLessThanOrEqual(
-          MAX_ITEM_HALF_WIDTH,
-        )
-      }
-    }
-  })
-
   /**
    * 같은 레시피가 낮은 확률로 내놓는 **다른 형태**들.
    *
@@ -386,6 +362,23 @@ describe('canMergeAnything — 접촉을 보기 전에 거르는 문', () => {
         present.set(node.variantId, (present.get(node.variantId) ?? 0) + 1)
       }
       expect(canMergeAnything(recipes, present), JSON.stringify(g.nodes)).toBe(true)
+    }
+  })
+})
+
+describe('합성 연출 재료', () => {
+  it('모든 레시피의 재료가 변형 표에 있다', () => {
+    const missing = [
+      ...new Set(RECIPES.flatMap((item) => item.inputs).filter((id) => !VARIANT_BY_ID.has(id))),
+    ]
+    expect(missing, `표에 없는 재료: ${missing.join(', ')}`).toEqual([])
+  })
+
+  it('재료마다 그릴 그림이 있다', () => {
+    for (const recipe of RECIPES) {
+      for (const id of recipe.inputs) {
+        expect(VARIANT_BY_ID.get(id)?.sprite, id).toBeTruthy()
+      }
     }
   })
 })

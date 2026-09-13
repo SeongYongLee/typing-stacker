@@ -78,7 +78,7 @@ afterEach(() => {
 
 describe('drop 적용 tick', () => {
   it('같은 시간이 흘렀다면 프레임 간격이 달라도 적용 tick이 같다', async () => {
-    const fast = await makePair(() => 0)
+    const fast = pair = await makePair(() => 0)
     await fast.clock.advance(0.96, 16)
     dropSomething(fast)
     await fast.clock.flush()
@@ -86,8 +86,9 @@ describe('drop 적용 tick', () => {
     fast.host.dispose()
     fast.guest.dispose()
     fast.clock.uninstall()
+    pair = null
 
-    const slow = await makePair(() => 0)
+    const slow = pair = await makePair(() => 0)
     await slow.clock.advance(0.96, 32)
     dropSomething(slow)
     await slow.clock.flush()
@@ -95,6 +96,7 @@ describe('drop 적용 tick', () => {
     slow.host.dispose()
     slow.guest.dispose()
     slow.clock.uninstall()
+    pair = null
 
     expect(fastDrop?.t).toBe('dropped')
     expect(slowDrop?.t).toBe('dropped')

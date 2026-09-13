@@ -12,7 +12,7 @@
 ## 재현
 
 ```sh
-MEASURE=1 MEASURE_FLOW=1 FLOW_VARIANT=baseline FLOW_LABEL=baseline FLOW_OUTPUT=docs/measurements/flow-baseline.json pnpm exec vitest run tests/whiteboard-flow.measure.test.ts
+MEASURE=1 MEASURE_FLOW=1 FLOW_VARIANT=baseline FLOW_LABEL=baseline FLOW_OUTPUT=docs/measurements/flow-baseline.json pnpm exec vitest run tests/measure/whiteboard-flow.measure.test.ts
 ```
 
 `FLOW_VARIANT`는 `baseline`, `request-supply`, `targets-only`, `supply-only`, `goal-10`, `alarm-5`를 지원한다. `FLOW_PROFILE=pressure`는 느려서 단어 만료가 일어나는 정책을 사용한다. `FLOW_SEED_OFFSET=104729`는 탐색에 사용하지 않은 검증 시드 묶음이다. label과 output은 결과가 덮이지 않도록 바꾼다.

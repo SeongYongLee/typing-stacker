@@ -1,10 +1,10 @@
-import { beforeAll, describe, expect, it } from 'vitest'
-import { ARENA, SOLO_OWNER } from '../src/game/config.ts'
-import { BOUNCE, bounceOf } from '../src/game/data/materials.ts'
-import { ALL_VARIANTS, WORDS } from '../src/game/data/words.ts'
-import { PhysicsWorld } from '../src/game/physics/PhysicsWorld.ts'
-import { createRng } from '../src/game/systems/Rng.ts'
-import type { Material } from '../src/game/types/game.ts'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { ARENA, SOLO_OWNER } from '../../src/game/config.ts'
+import { BOUNCE, bounceOf } from '../../src/game/data/materials.ts'
+import { ALL_VARIANTS, WORDS } from '../../src/game/data/words.ts'
+import { PhysicsWorld } from '../../src/game/physics/PhysicsWorld.ts'
+import { createRng } from '../../src/game/systems/Rng.ts'
+import type { Material } from '../../src/game/types/game.ts'
 
 /**
  * 튐(restitution)과 그 대가를 잰다.
@@ -18,6 +18,8 @@ import type { Material } from '../src/game/types/game.ts'
  */
 
 let world: PhysicsWorld
+
+afterAll(() => world?.dispose())
 
 beforeAll(async () => {
   world = await PhysicsWorld.create()

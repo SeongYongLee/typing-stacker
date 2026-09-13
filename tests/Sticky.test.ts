@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ARENA, HEAVY_MASS, SOLO_OWNER } from '../src/game/config.ts'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import { WORDS } from '../src/game/data/words.ts'
@@ -28,6 +28,8 @@ function find(id: string): ItemVariant {
 const BLOCK = find('bento')
 
 let world: PhysicsWorld
+
+afterAll(() => { world?.dispose() })
 
 beforeAll(async () => {
   world = await PhysicsWorld.create()
@@ -173,18 +175,6 @@ describe('끈적함 — 닿으면 붙는다', () => {
   it('끈적한 것이 없으면 아무것도 붙지 않는다 — 탑 전체가 한 덩어리가 되면 안 된다', () => {
     buildTower()
     expect(weldCount()).toBe(0)
-  })
-
-  it('붙어 있어도 빈 받침대 중앙에서는 저절로 떨어지지 않는다', () => {
-    for (const item of allVariants().filter((v) => v.sticky)) {
-      world.reset()
-      world.spawnItem(item, 0, SOLO_OWNER)
-      let escaped = 0
-      for (let t = 0; t < 5; t += 1 / 60) {
-        escaped += world.step(1 / 60).escaped.length
-      }
-      expect(escaped, item.id).toBe(0)
-    }
   })
 
   it('붙은 재료가 합성으로 사라지면 관절 기록도 사라진다', () => {

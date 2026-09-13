@@ -13,7 +13,9 @@ try {
   await page.route('**/src/main.tsx*', async route => {
     const response = await route.fetch()
     const original = await response.text()
-    const reactPath = original.match(/from "([^"]*\/react\.js[^"]*)"/)[1]
+    const reactMatch = original.match(/from "([^"]*\/react\.js[^"]*)"/)
+    assert(reactMatch, 'Vite React import was not found')
+    const reactPath = reactMatch[1]
     const body = original.replace(/import \{ Root \} from "[^"]+";/, `
       import ReactFixture from ${JSON.stringify(reactPath)};
       import {ResultScreen} from '/src/screens/ResultScreen.tsx';
@@ -29,6 +31,7 @@ try {
           }));
       }
     `)
+    assert.notEqual(body, original, 'Result fixture was not installed')
     await route.fulfill({response,body})
   })
   for (const tutorial of [false,true]) {
@@ -42,12 +45,14 @@ try {
         const button=page.getByRole('button',{name,exact:true})
         const rect=await button.boundingBox()
         assert(rect && rect.x>=0 && rect.y>=0 && rect.x+rect.width<=size.width+.5 && rect.y+rect.height<=size.height+.5, `${tutorial?'tutorial':'result'} ${size.width}x${size.height}: ${name} outside viewport ${JSON.stringify(rect)}`)
+        await page.evaluate(() => { delete document.body.dataset.resultAction })
         await button.click()
-        assert(await page.locator('body').getAttribute('data-result-action'))
+        assert.equal(await page.locator('body').getAttribute('data-result-action'), ({'게임 시작하기':'start','튜토리얼 다시 보기':'tutorial','다시 하기':'restart','처음으로':'home'})[name])
       }
       const content = page.locator('.result-content')
       assert.equal(await content.count(), 1)
       await content.evaluate(element => { element.scrollTop = element.scrollHeight })
+      await page.evaluate(() => { delete document.body.dataset.resultAction })
       await page.keyboard.press('ArrowUp')
       await page.keyboard.press('Enter')
       assert.equal(await page.locator('body').getAttribute('data-result-action'), tutorial ? 'start' : 'restart')

@@ -112,6 +112,6 @@ describe('짝 고르기', () => {
 
   it('자기 자신과는 붙지 않는다', () => {
     // 같은 기기가 두 번 들어오는 일은 막아야 하지만, 그래도 짝이 되어서는 안 된다
-    expect(findPair([person('가', SILVER, 100)], NOW)).toBeNull()
+    expect(findPair([person('가', SILVER, 100), person('가', SILVER, 90)], NOW)).toBeNull()
   })
 })

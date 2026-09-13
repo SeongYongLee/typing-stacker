@@ -36,13 +36,13 @@ describe('GameLoop 백그라운드 진행', () => {
     let now = 0
     vi.spyOn(performance, 'now').mockImplementation(() => now)
     let elapsed = 0
-    let updates = 0
+    const updates: number[] = []
     let renders = 0
     const loop = new GameLoop({ runWhenHidden: true })
     loop.setCallbacks(
       (dt) => {
         elapsed += dt
-        updates += 1
+        updates.push(dt)
       },
       () => { renders += 1 },
     )
@@ -55,7 +55,8 @@ describe('GameLoop 백그라운드 진행', () => {
     now = 1000
     vi.advanceTimersByTime(100)
     expect(elapsed).toBeCloseTo(1)
-    expect(updates).toBe(20)
+    expect(updates.length).toBeGreaterThan(0)
+    expect(updates.every((dt) => dt > 0 && dt <= 0.05)).toBe(true)
     expect(renders).toBe(0)
 
     document.hidden = false

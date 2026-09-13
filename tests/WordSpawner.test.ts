@@ -29,41 +29,23 @@ describe('WordSpawner', () => {
     expect(spawner.words).toHaveLength(1)
   })
 
-  it('활성 단어에 같은 글자가 둘 이상 있지 않다', () => {
-    const spawner = new WordSpawner(createRng(42), WORDS)
+  it.each([42, 7, 3])('seed %i: 활성 글자·슬롯이 중복되지 않고 용량을 지킨다', (seed) => {
+    const spawner = new WordSpawner(createRng(seed), WORDS)
     const dt = 1 / 60
-    for (let t = 0; t < 240; t += dt) {
+    for (let t = 0; t < 60; t += dt) {
       spawner.update(dt, DIFFICULTY)
       const active = spawner.words.filter((word) => word.state === 'active')
       const texts = active.map((word) => word.word)
       expect(new Set(texts).size).toBe(texts.length)
-    }
-  })
-
-  it('같은 쪽에서 슬롯이 겹치지 않는다', () => {
-    const spawner = new WordSpawner(createRng(7), WORDS)
-    const dt = 1 / 60
-    for (let t = 0; t < 240; t += dt) {
-      spawner.update(dt, DIFFICULTY)
+      expect(active.length).toBeLessThanOrEqual(DIFFICULTY.maxConcurrent)
       for (const side of ['left', 'right'] as const) {
-        const slots = spawner.words
-          .filter((word) => word.state === 'active' && word.side === side)
-          .map((word) => word.slot)
+        const slots = active.filter((word) => word.side === side).map((word) => word.slot)
         expect(new Set(slots).size).toBe(slots.length)
         for (const slot of slots) {
+          expect(slot).toBeGreaterThanOrEqual(0)
           expect(slot).toBeLessThan(WORD.slotsPerSide)
         }
       }
-    }
-  })
-
-  it('동시 낙하 수가 난이도 상한을 넘지 않는다', () => {
-    const spawner = new WordSpawner(createRng(3), WORDS)
-    const dt = 1 / 60
-    for (let t = 0; t < 240; t += dt) {
-      spawner.update(dt, DIFFICULTY)
-      const active = spawner.words.filter((word) => word.state === 'active')
-      expect(active.length).toBeLessThanOrEqual(DIFFICULTY.maxConcurrent)
     }
   })
 
@@ -75,12 +57,14 @@ describe('WordSpawner', () => {
 
   it('missed 단어는 페이드 후 목록에서 사라진다', () => {
     const spawner = new WordSpawner(createRng(5), WORDS)
-    run(spawner, 30)
-    const stillFading = spawner.words.filter((word) => word.state === 'missed')
-    for (const word of stillFading) {
-      expect(word.fade).toBeGreaterThan(0)
-      expect(word.fade).toBeLessThanOrEqual(1)
-    }
+    spawner.setScripted(true)
+    spawner.spawnScripted(WORDS[0]!.word)
+    const id = spawner.words[0]!.id
+    expect(spawner.words[0]!.state).toBe('active')
+    run(spawner, DIFFICULTY.fallDuration + 0.1)
+    expect(spawner.words.find((word) => word.id === id)?.state).toBe('missed')
+    run(spawner, 5)
+    expect(spawner.words.some((word) => word.id === id)).toBe(false)
   })
 
   it('remove는 해당 단어만 즉시 지운다', () => {

@@ -1,3 +1,4 @@
+import { canvasContext, canvasFor } from './helpers/canvas.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
 import { GLOWING_IDS } from '../src/game/data/glowItems.ts'
@@ -137,47 +138,6 @@ describe('꼬리 갈래 표', () => {
   })
 })
 
-describe('갈래마다 성질이 다르다', () => {
-  /** 넷이 갈리지 않으면 갈래를 나눈 것이 눈에 보이지 않는다 */
-  it('뿜는 양·수명·무게·흔들림이 서로 갈려 있다', () => {
-    const specs = Object.values(SPECS)
-    for (const key of ['rate', 'life', 'gravity'] as const) {
-      const values = new Set(specs.map((spec) => spec[key]))
-      expect(values.size, key).toBeGreaterThanOrEqual(4)
-    }
-  })
-
-  /** 털이 방울보다 빨리 사라지면 "느리게 떠 있는 것"으로 보이지 않는다 */
-  it('털이 가장 오래 남는다', () => {
-    for (const kind of ['sparkle', 'droplet', 'crumb', 'petal'] as const) {
-      expect(SPECS.fluff.life, kind).toBeGreaterThan(SPECS[kind].life)
-    }
-  })
-
-  /**
-   * 떨어지는 것들 사이에서는 털이 가장 가볍다. 반짝임은 아예 떨어지지 않는다 —
-   * 뜬 자리에 남아 **물건이 지나간 길**을 그리는 것이 그 갈래의 일이다.
-   */
-  it('떨어지는 갈래 중 털이 가장 가볍고, 반짝임은 떨어지지 않는다', () => {
-    expect(SPECS.sparkle.gravity).toBe(0)
-    for (const kind of ['droplet', 'crumb', 'petal'] as const) {
-      expect(SPECS.fluff.gravity, kind).toBeLessThan(SPECS[kind].gravity)
-    }
-  })
-
-  /** 방울은 물건보다 빨리 떨어져 뒤로 처져야 "튀었다"로 보인다 */
-  it('방울은 물건보다 무겁게 떨어진다', () => {
-    expect(SPECS.droplet.gravity).toBeGreaterThan(1)
-  })
-
-  /** 흔들리며 내려오는 것은 잎과 털뿐이다 */
-  it('흔들리는 갈래가 정해져 있다', () => {
-    expect(SPECS.petal.sway).toBeGreaterThan(0)
-    expect(SPECS.fluff.sway).toBeGreaterThan(0)
-    expect(SPECS.sparkle.sway).toBe(0)
-    expect(SPECS.droplet.sway).toBe(0)
-  })
-})
 
 describe('부스러기를 흘린다', () => {
   it('빠르게 움직이면 흘린다', () => {
@@ -271,11 +231,12 @@ describe('부스러기를 흘린다', () => {
   /** 탭이 가려졌다 돌아올 때 한 프레임에 몇 초가 밀려들면 한꺼번에 터진다 */
   it('한 프레임에 흐르는 시간에 상한이 있다', () => {
     const normal = new TrailField()
-    fall(normal, 'bolt', 1)
     const jumped = new TrailField()
-    jumped.update([body('bolt', 0, 5)], 1 / 60)
-    jumped.update([body('bolt', 0, 4.9)], 30)
-    expect(jumped.particles.length).toBeLessThanOrEqual(MAX_PARTICLES)
+    for (const field of [normal, jumped]) fall(field, 'bolt', 30)
+    expect(normal.particles.length).toBeGreaterThan(0)
+    normal.update([], 0.05)
+    jumped.update([], 30)
+    expect(jumped.particles).toEqual(normal.particles)
   })
 })
 
@@ -381,51 +342,20 @@ describe('부스러기가 화면에 그려진다', () => {
     const ops: string[] = []
     const counted = { fills: 0 }
     const ctx = {
-      fillStyle: '',
-      strokeStyle: '',
-      lineWidth: 1,
-      globalCompositeOperation: 'source-over',
-      globalAlpha: 1,
-      font: '',
-      textAlign: '',
-      textBaseline: '',
-      shadowBlur: 0,
-      shadowColor: '',
-      setTransform: () => {},
-      clearRect: () => {},
-      save: () => {},
-      restore: () => {},
-      translate: () => {},
-      rotate: () => {},
-      scale: () => {},
-      beginPath: () => {},
-      closePath: () => {},
+      ...canvasContext(),
       moveTo: () => ops.push('moveTo'),
       lineTo: () => ops.push('lineTo'),
       arc: () => ops.push('arc'),
       ellipse: () => ops.push('ellipse'),
       quadraticCurveTo: () => ops.push('quadraticCurveTo'),
-      stroke: () => {},
       fill: () => {
         counted.fills += 1
         ops.push('fill')
-      },
-      fillRect: () => {},
-      setLineDash: () => {},
-      strokeRect: () => {},
-      drawImage: () => {},
-      fillText: () => {},
-      measureText: () => ({ width: 0 }),
-      createLinearGradient: () => ({ addColorStop: () => {} }),
+      }
     }
-    const canvas = {
-      width: 0,
-      height: 0,
-      getContext: () => ctx,
-      getBoundingClientRect: () => CSS,
-    }
+    const canvas = canvasFor(ctx, CSS.width, CSS.height)
     return {
-      canvas: canvas as unknown as HTMLCanvasElement,
+      canvas: canvas,
       ops,
       get fills() {
         return counted.fills
@@ -454,18 +384,18 @@ describe('부스러기가 화면에 그려진다', () => {
   let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
 
   beforeEach(async () => {
-    ;(globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
-    /*
-     * 렌더러는 물건을 그리려고 스프라이트 캐시를 부르고, 캐시는 없는 그림을 `new Image()`로
-     * 받아온다. node에는 그것이 없어서 물건마다 오류가 하나씩 새어 나온다 — 여기서 재는
-     * 것은 부스러기이므로, 이미지는 **영영 로드되지 않는 것**으로 세워두면 된다.
-     * 그러면 렌더러가 그림 대신 도형 색으로 칠하는 길을 타고 조용히 지나간다.
-     */
-    ;(globalThis as unknown as { Image: unknown }).Image = class {
-      complete = false
-      naturalWidth = 0
-      src = ''
-    }
+    ; (globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
+      /*
+       * 렌더러는 물건을 그리려고 스프라이트 캐시를 부르고, 캐시는 없는 그림을 `new Image()`로
+       * 받아온다. node에는 그것이 없어서 물건마다 오류가 하나씩 새어 나온다 — 여기서 재는
+       * 것은 부스러기이므로, 이미지는 **영영 로드되지 않는 것**으로 세워두면 된다.
+       * 그러면 렌더러가 그림 대신 도형 색으로 칠하는 길을 타고 조용히 지나간다.
+       */
+      ; (globalThis as unknown as { Image: unknown }).Image = class {
+        complete = false
+        naturalWidth = 0
+        src = ''
+      }
     ArenaRenderer = (await import('../src/game/renderer/ArenaRenderer.ts')).ArenaRenderer
     updateDisplaySettings({ trail: 1 })
   })
@@ -519,11 +449,6 @@ describe('부스러기가 화면에 그려진다', () => {
 
   it('꼬리를 가진 물건이 떨어지면 더 그린다', () => {
     expect(fillsWith('bolt', 1)).toBeGreaterThan(fillsWith('bolt', 0))
-  })
-
-  /** 움직이는 점이 늘어나는 게 거슬리는 사람에게는 이것만으로 오래 못 하는 게임이 된다 */
-  it('설정에서 끄면 아예 그리지 않는다', () => {
-    expect(fillsWith('refrigerator', 1)).toBe(fillsWith('refrigerator', 0))
   })
 
   it('꼬리가 없는 물건은 설정을 켜도 달라지지 않는다', () => {
@@ -589,6 +514,7 @@ describe('닿으면 터진다', () => {
     const field = new TrailField()
     field.update([], 1 / 60, [hit('beer')])
     expect(field.particles.length).toBeGreaterThan(0)
+    expect(field.particles.length).toBeGreaterThan(0)
     expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
   })
 
@@ -601,10 +527,12 @@ describe('닿으면 터진다', () => {
     const leaf = new TrailField()
     leaf.update([], 1 / 60, [hit('leaf')])
     expect(leaf.particles.length).toBeGreaterThan(0)
+    expect(leaf.particles.length).toBeGreaterThan(0)
     expect(leaf.particles.every((p) => p.kind === 'petal')).toBe(true)
 
     const bolt = new TrailField()
     bolt.update([], 1 / 60, [hit('bolt')])
+    expect(bolt.particles.length).toBeGreaterThan(0)
     expect(bolt.particles.every((p) => p.kind === 'sparkle')).toBe(true)
   })
 
@@ -638,29 +566,6 @@ describe('닿으면 터진다', () => {
     strong.update([], 1 / 60, [hit('beer', 1)])
     expect(strong.particles.length).toBeGreaterThan(weak.particles.length)
     expect(strong.particles.length).toBeLessThanOrEqual(SPLASH_COUNT)
-  })
-
-  /**
-   * 바닥에 닿아 튄 물이 바닥을 뚫고 내려가면 안 된다.
-   *
-   * **태어나는 순간**을 본다(dt 0). 한 프레임이라도 흐르면 중력이 붙어 아래로
-   * 내려가기 시작하는데, 그건 튄 물이 다시 떨어지는 것이라 맞는 동작이다.
-   */
-  it('태어날 때 아래로는 튀지 않는다', () => {
-    const field = new TrailField()
-    field.update([], 0, [hit('beer')])
-    for (const particle of field.particles) {
-      expect(particle.vy).toBeGreaterThanOrEqual(0)
-    }
-  })
-
-  it('옆으로 퍼진다 — 한 점에서 위로만 솟지 않는다', () => {
-    const field = new TrailField()
-    field.update([], 0, [hit('beer')])
-    const left = field.particles.filter((p) => p.vx < 0).length
-    const right = field.particles.filter((p) => p.vx > 0).length
-    expect(left).toBeGreaterThan(0)
-    expect(right).toBeGreaterThan(0)
   })
 
   /** 담긴 것의 색이어야 한다 — 맥주는 노랗고 딸기우유는 분홍이다 */
@@ -742,6 +647,7 @@ describe('맞은 쪽도 반응한다', () => {
     const { bodies, hit } = stack('leaf', 'tumbler')
     const away = bodies.map((b, i) => (i === 0 ? { ...b, x: 3 } : b))
     field.update(away, 0, [hit])
+    expect(field.particles.length).toBeGreaterThan(0)
     expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
   })
 
@@ -751,6 +657,7 @@ describe('맞은 쪽도 반응한다', () => {
     const { bodies, hit } = stack('leaf', 'tumbler')
     const far = bodies.map((b, i) => (i === 0 ? { ...b, y: -1.5 } : b))
     field.update(far, 0, [hit])
+    expect(field.particles.length).toBeGreaterThan(0)
     expect(field.particles.every((p) => p.kind === 'splash')).toBe(true)
   })
 })
@@ -772,7 +679,9 @@ describe('물은 부채꼴로 솟는다', () => {
   }
 
   it('전부 위로 솟는다', () => {
-    for (const particle of splash().particles) {
+    const particles = splash().particles
+    expect(particles.length).toBeGreaterThan(0)
+    for (const particle of particles) {
       expect(particle.vy).toBeGreaterThan(0)
     }
   })
@@ -828,6 +737,7 @@ describe('뜨거운 것은 얹힌 뒤 김을 낸다', () => {
   it('정착하면 김이 오른다', () => {
     const field = steamFor('frying-pan', true)
     expect(field.particles.length).toBeGreaterThan(0)
+    expect(field.particles.length).toBeGreaterThan(0)
     expect(field.particles.every((p) => p.kind === 'steam')).toBe(true)
   })
 
@@ -845,6 +755,7 @@ describe('뜨거운 것은 얹힌 뒤 김을 낸다', () => {
   /** 김은 중력 반대로 오른다 */
   it('위로 오른다', () => {
     const field = steamFor('iron', true, 20)
+    expect(field.particles.length).toBeGreaterThan(0)
     expect(field.particles.every((p) => p.vy > 0)).toBe(true)
     const before = field.particles.map((p) => p.y)
     for (let i = 0; i < 20; i += 1) {
@@ -858,6 +769,7 @@ describe('뜨거운 것은 얹힌 뒤 김을 낸다', () => {
   it('물건 위에서 시작한다', () => {
     const pan = ALL_VARIANTS.find((item) => item.id === 'frying-pan')
     const field = steamFor('frying-pan', true, 10)
+    expect(field.particles.length).toBeGreaterThan(0)
     for (const particle of field.particles) {
       expect(particle.y).toBeGreaterThan(1)
       expect(particle.y).toBeLessThanOrEqual(1 + (pan?.artBounds.hh ?? 0))

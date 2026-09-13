@@ -1,3 +1,4 @@
+import { canvasContext, canvasFor } from '../helpers/canvas.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -29,57 +30,17 @@ const CSS_HEIGHT = 800
 function makeCanvas(): { canvas: HTMLCanvasElement; draws: DrawRecord[] } {
   const draws: DrawRecord[] = []
   const ctx = {
-    fillStyle: '',
-    strokeStyle: '',
-    lineWidth: 1,
-    globalCompositeOperation: 'source-over',
-    globalAlpha: 1,
-    font: '',
-    textAlign: '',
-    textBaseline: '',
-    shadowBlur: 0,
-    shadowColor: '',
-    setTransform: () => {},
-    clearRect: () => {},
-    save: () => {},
-    restore: () => {},
-    translate: () => {},
-    rotate: () => {},
-    scale: () => {},
-    beginPath: () => {},
-    closePath: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
-    arc: () => {},
-    ellipse: () => {},
-    roundRect: () => {},
-    stroke: () => {},
-    fill: () => {},
-    setLineDash: () => {},
-    strokeRect: () => {},
-    fillText: () => {},
+    ...canvasContext(),
     measureText: (text: string) => ({ width: text.length * 10 }),
-    createLinearGradient: () => ({ addColorStop: () => {} }),
-    /*
-     * node에는 그림이 없어 `sprite()`가 null을 돌려주고, 두 그리기 모두 **대체
-     * 사각형**으로 떨어진다. 그 사각형이 그림과 같은 자리·같은 크기라 이 시험이
-     * 보려는 것은 그대로 볼 수 있다. 그림 경로도 함께 받아 적어 둘 중 어느 쪽이든
-     * 잡히게 한다.
-     */
     fillRect(x: number, y: number, w: number, h: number) {
       draws.push({ x, y, w, h, alpha: Number(this.globalAlpha) })
     },
     drawImage(_image: unknown, x: number, y: number, w: number, h: number) {
       draws.push({ x, y, w, h, alpha: Number(this.globalAlpha) })
-    },
+    }
   }
-  const canvas = {
-    width: 0,
-    height: 0,
-    getContext: () => ctx,
-    getBoundingClientRect: () => ({ width: CSS_WIDTH, height: CSS_HEIGHT }),
-  }
-  return { canvas: canvas as unknown as HTMLCanvasElement, draws }
+  const canvas = canvasFor(ctx, CSS_WIDTH, CSS_HEIGHT)
+  return { canvas: canvas, draws }
 }
 
 const BASE_STATE = {
@@ -104,11 +65,11 @@ const BASE_STATE = {
 
 const SPOT = { x: 0.9, y: 1.4, halfWidth: 0.4 } as const
 
-let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
+let ArenaRenderer: typeof import('../../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
 
 beforeEach(async () => {
-  ;(globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
-  ArenaRenderer = (await import('../src/game/renderer/ArenaRenderer.ts')).ArenaRenderer
+  ; (globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
+  ArenaRenderer = (await import('../../src/game/renderer/ArenaRenderer.ts')).ArenaRenderer
 })
 
 afterEach(() => {

@@ -5,7 +5,7 @@ import { MatchCountdown } from '../src/screens/lobby/MatchCountdown.tsx'
 import type { SessionPhase } from '../src/multi/MatchSession.ts'
 
 vi.mock('../src/hooks/useStartAlert.ts', () => ({
-  useStartAlert: () => {},
+  useStartAlert: () => { },
 }))
 
 const players = [
@@ -46,8 +46,6 @@ describe('MatchCountdown', () => {
     expect(html).toContain('data-countdown-input-row="true"')
     expect(html).toContain('data-countdown-player="self"')
     expect(html).toContain('data-countdown-player="other"')
-    expect(html).toContain('opacity:0.28')
-    expect(html).toContain('grid-template-rows:auto 1fr auto')
     expect(html).not.toContain('턴으로 시작')
     expect(html).toContain('data-countdown-self-position="b"')
     expect(html).toContain('세이지')

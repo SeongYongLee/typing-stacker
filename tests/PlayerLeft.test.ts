@@ -155,7 +155,7 @@ describe('판 도중에 누가 사라지면', () => {
     await settle()
     await settle()
 
-    const before = seats[1]!.state().words.length
+    const before = new Set(seats[1]!.state().words.map((word) => word.id))
     await clock.advance(8)
     const after = seats[1]!.state().words.length
     expect(after).toBeGreaterThan(0)
@@ -163,7 +163,7 @@ describe('판 도중에 누가 사라지면', () => {
     expect(seats[2]!.state().words.map((w) => w.word)).toEqual(
       seats[1]!.state().words.map((w) => w.word),
     )
-    expect(before + after).toBeGreaterThan(0)
+    expect(seats[1]!.state().words.some((word) => !before.has(word.id))).toBe(true)
   })
 
   it('둘만 남았다가 하나가 더 나가면 판이 끝난다', async () => {

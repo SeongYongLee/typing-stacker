@@ -28,8 +28,8 @@ interface FakeContext {
 function fakeAudioContext(opensWithoutGesture: boolean) {
   const created: FakeContext[] = []
   const node = () => ({
-    connect: () => {},
-    gain: { value: 0, setValueAtTime: () => {}, cancelAndHoldAtTime: () => {}, linearRampToValueAtTime: () => {} },
+    connect: () => { },
+    gain: { value: 0, setValueAtTime: () => { }, cancelAndHoldAtTime: () => { }, linearRampToValueAtTime: () => { } },
     threshold: { value: 0 },
     knee: { value: 0 },
     ratio: { value: 0 },
@@ -135,25 +135,27 @@ describe('소리는 깨어 있을 때만 예약된다', () => {
    * 첫 제스처가 들어오면 그때 열린다. `tryOpen`이 실패한 브라우저에서 이쪽이 이어받는다 —
    * 둘 중 하나는 반드시 열어야 하고, 그래서 두 길이 같은 상태를 본다.
    */
-  it('첫 제스처가 tryOpen을 이어받는다', () => {
-    const { Ctx } = fakeAudioContext(false)
+  it('첫 제스처가 tryOpen을 이어받는다', async () => {
+    const { Ctx, created } = fakeAudioContext(false)
     globals['AudioContext'] = Ctx
     const bus = new AudioBus()
-    bus.tryOpen(() => {})
+    bus.tryOpen(() => { })
     expect(bus.running).toBe(false)
 
-    // unlock 안에서는 브라우저가 열어준다
-    globals['AudioContext'] = fakeAudioContext(true).Ctx
-    const opened = new AudioBus()
-    opened.unlock()
-    expect(opened.running).toBe(true)
+    await Promise.resolve()
+    expect(created).toHaveLength(1)
+    const context = created[0]!
+    context.resume = async () => { context.state = 'running' }
+    await bus.unlock()
+    expect(bus.running).toBe(true)
+    expect(created).toHaveLength(1)
   })
 
   it('배경음과 효과음을 체감 두 배에 가까운 +10dB로 버스에 건다', () => {
     const { Ctx } = fakeAudioContext(true)
     globals['AudioContext'] = Ctx
     const bus = new AudioBus()
-    bus.tryOpen(() => {})
+    bus.tryOpen(() => { })
 
     expect(bus.sfx?.gain.value).toBeCloseTo(bus.current.sfxVolume * 3.2)
     expect(bus.bgm?.gain.value).toBeCloseTo(bus.current.bgmVolume * 0.38 * 3.2)
@@ -163,7 +165,7 @@ describe('소리는 깨어 있을 때만 예약된다', () => {
     const { Ctx } = fakeAudioContext(true)
     globals['AudioContext'] = Ctx
     const bus = new AudioBus()
-    bus.tryOpen(() => {})
+    bus.tryOpen(() => { })
     expect(bus.output?.gain.value).toBe(FINAL_OUTPUT_GAIN)
     expect(FINAL_OUTPUT_GAIN).toBe(1.3)
     expect(HIDDEN_REVEAL_PRE_GAIN * FINAL_OUTPUT_GAIN).toBeCloseTo(1)

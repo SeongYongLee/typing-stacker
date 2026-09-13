@@ -24,8 +24,8 @@ import { RECIPES, type Recipe } from '../src/game/data/recipes.ts'
  */
 
 const PLAYERS: PlayerInfo[] = [
-  { id: 'host-peer', nickname: '자두', device: 'dev-host' , icon: ''},
-  { id: 'guest-peer', nickname: '세이지', device: 'dev-guest' , icon: ''},
+  { id: 'host-peer', nickname: '자두', device: 'dev-host', icon: '' },
+  { id: 'guest-peer', nickname: '세이지', device: 'dev-guest', icon: '' },
 ]
 
 interface Pair {
@@ -149,7 +149,7 @@ describe('MatchEngine — 대전', () => {
 
     const interval = OPENING.spawnInterval / DUEL_WORD_RATE_MULTIPLIER
     await pair.clock.advance(interval - 0.3)
-    expect(pair.hostState().words.every((word) => word.id === firstId)).toBe(true)
+    expect(pair.hostState().words.map((word) => word.id)).toEqual([firstId])
 
     await pair.clock.advance(0.4)
     expect(pair.hostState().words.some((word) => word.id !== firstId)).toBe(true)
@@ -172,11 +172,14 @@ describe('MatchEngine — 대전', () => {
       await pair.clock.advance(0.5)
       const target = pair.hostState().words.find((word) => word.state === 'active')
       if (target !== undefined) {
-        pair.host.submit(target.word)
+        const current = pair.hostState().current === pair.host.debugSelf() ? pair.host : pair.guest
+        current.submit(target.word)
+        await pair.clock.advance(0.2)
         break
       }
     }
 
+    expect(pair.hostLink.sent.some((message) => message.t === 'dropped')).toBe(true)
     // 갈렸다면 이 뒤에 나오는 단어부터 서로 달라진다
     await pair.clock.advance(8)
     const identify = (state: MatchViewState) =>

@@ -1,3 +1,4 @@
+import { canvasContext, canvasFor } from './helpers/canvas.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { updateDisplaySettings } from '../src/game/renderer/displayPrefs.ts'
 import { glowColor, glowStyle, glowAlpha } from '../src/game/renderer/glow.ts'
@@ -29,36 +30,7 @@ const CSS_HEIGHT = 800
 function makeCanvas(): { canvas: HTMLCanvasElement; fills: FillRecord[] } {
   const fills: FillRecord[] = []
   const ctx = {
-    fillStyle: '',
-    strokeStyle: '',
-    lineWidth: 1,
-    globalCompositeOperation: 'source-over',
-    globalAlpha: 1,
-    font: '',
-    textAlign: '',
-    textBaseline: '',
-    shadowBlur: 0,
-    shadowColor: '',
-    setTransform: () => {},
-    clearRect: () => {},
-    save: () => {},
-    restore: () => {},
-    translate: () => {},
-    rotate: () => {},
-    scale: () => {},
-    beginPath: () => {},
-    closePath: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
-    arc: () => {},
-    stroke: () => {},
-    fill: () => {},
-    setLineDash: () => {},
-    strokeRect: () => {},
-    drawImage: () => {},
-    fillText: () => {},
-    measureText: () => ({ width: 0 }),
-    createLinearGradient: () => ({ addColorStop: () => {} }),
+    ...canvasContext(),
     fillRect(x: number, y: number, w: number, h: number) {
       fills.push({
         style: String(this.fillStyle),
@@ -68,15 +40,10 @@ function makeCanvas(): { canvas: HTMLCanvasElement; fills: FillRecord[] } {
         w,
         h,
       })
-    },
+    }
   }
-  const canvas = {
-    width: 0,
-    height: 0,
-    getContext: () => ctx,
-    getBoundingClientRect: () => ({ width: CSS_WIDTH, height: CSS_HEIGHT }),
-  }
-  return { canvas: canvas as unknown as HTMLCanvasElement, fills }
+  const canvas = canvasFor(ctx, CSS_WIDTH, CSS_HEIGHT)
+  return { canvas: canvas, fills }
 }
 
 /** 화면 전체를 덮는 칠. 배경으로 깔린 색은 이것뿐이다 */
@@ -109,7 +76,7 @@ let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaR
 
 beforeEach(async () => {
   // 렌더러가 생성될 때 dpr을 읽는다. node에는 window가 없으므로 최소한만 세워준다
-  ;(globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
+  ; (globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
   ArenaRenderer = (await import('../src/game/renderer/ArenaRenderer.ts')).ArenaRenderer
   updateDisplaySettings({ glow: 1 })
 })

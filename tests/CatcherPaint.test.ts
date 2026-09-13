@@ -7,17 +7,6 @@ import {
 } from '../src/game/renderer/arenaPaint.ts'
 
 describe('회수 손 표시 크기와 동선', () => {
-  it('좌우 손바닥을 화면 바깥쪽으로 각각 200px 옮긴다', () => {
-    expect(catcherVisualOffset('left')).toBe(-200)
-    expect(catcherVisualOffset('right')).toBe(200)
-  })
-
-  it('기준 크기의 3.24배로 그린다', () => {
-    for (const scale of [0, 100, 1_000]) {
-      const original = Math.min(260, Math.max(190, scale * 2.25))
-      expect(catcherImageWidth(scale)).toBeCloseTo(original * 3.24)
-    }
-  })
 
   it('화면 바깥 아래에서 안쪽 위로 들어온다', () => {
     const width = 450

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ARENA, SOLO_OWNER } from '../src/game/config.ts'
 import { RECIPES } from '../src/game/data/recipes.ts'
 import { VARIANT_BY_ID } from '../src/game/data/words.ts'
@@ -65,6 +65,8 @@ function stackPair(world: PhysicsWorld, item: ItemVariant, second = item): void 
 }
 
 let world: PhysicsWorld
+
+afterAll(() => { world?.dispose() })
 
 beforeAll(async () => {
   world = await PhysicsWorld.create()

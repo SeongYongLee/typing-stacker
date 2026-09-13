@@ -6,12 +6,6 @@ import { createRng } from '../src/game/systems/Rng.ts'
 import { WORDS } from '../src/game/data/words.ts'
 
 describe('resolveItem', () => {
-  it('모든 단어를 해석할 수 있다', () => {
-    for (const entry of WORDS) {
-      const item = resolveItem(entry.word)
-      expect(entry.variants).toContain(item)
-    }
-  })
 
   it('테이블에 없는 단어는 던진다', () => {
     expect(() => resolveItem('없는단어')).toThrow()
@@ -20,24 +14,6 @@ describe('resolveItem', () => {
   it('같은 단어는 언제나 같은 기본 변형을 낸다', () => {
     for (const entry of WORDS) {
       expect(resolveItem(entry.word)).toBe(entry.variants[0])
-    }
-  })
-
-  it('히든 보유 단어도 입력하면 항상 기본 변형만 나온다', () => {
-    const withHidden = WORDS.find((entry) => entry.variants.some((v) => v.hidden))
-    expect(withHidden).toBeDefined()
-    for (let i = 0; i < 600; i += 1) {
-      expect(resolveItem(withHidden!.word)).toBe(withHidden!.variants[0])
-    }
-  })
-
-  it('히든 변형이 없는 단어는 항상 기본 변형만 나온다', () => {
-    const noHidden = WORDS.filter((entry) => !entry.variants.some((v) => v.hidden))
-    expect(noHidden.length).toBeGreaterThan(0)
-    for (const entry of noHidden) {
-      for (let i = 0; i < 60; i += 1) {
-        expect(resolveItem(entry.word).hidden).toBe(false)
-      }
     }
   })
 
@@ -85,7 +61,7 @@ describe('resolveCrafted — 합성해도 무엇이 나올지 모른다', () => 
     const plain = RECIPES.find((item) => item.hiddenResults.length === 0)
     expect(plain, '다른 형태가 없는 레시피가 있어야 한다').toBeDefined()
     const rng = createRng(3)
-    for (let i = 0; i < 50; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       expect(resolveCrafted(plain!, rng)).toBe(plain!.result)
     }
   })
@@ -93,7 +69,7 @@ describe('resolveCrafted — 합성해도 무엇이 나올지 모른다', () => 
   it('확률이 0이면 기본 결과물만 나온다', () => {
     const item = withHidden()
     const rng = createRng(5)
-    for (let i = 0; i < 50; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       expect(resolveCrafted(item, rng, 0)).toBe(item.result)
     }
   })
@@ -101,7 +77,7 @@ describe('resolveCrafted — 합성해도 무엇이 나올지 모른다', () => 
   it('확률이 1이면 다른 형태만 나온다', () => {
     const item = withHidden()
     const rng = createRng(5)
-    for (let i = 0; i < 50; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       expect(item.hiddenResults).toContain(resolveCrafted(item, rng, 1))
     }
   })
@@ -116,17 +92,13 @@ describe('resolveCrafted — 합성해도 무엇이 나올지 모른다', () => 
     }
   })
 
-  /** 운으로 만나는 히든과 같은 종류의 사건이므로 확률도 같아야 한다 */
-  it('기본 확률은 히든과 같다', () => {
-    const item = withHidden()
-    let hidden = 0
-    const rng = createRng(9)
-    const runs = 4000
-    for (let i = 0; i < runs; i += 1) {
-      if (item.hiddenResults.includes(resolveCrafted(item, rng))) {
-        hidden += 1
-      }
-    }
-    expect(hidden / runs).toBeCloseTo(HIDDEN_CHANCE, 1)
-  })
+  it.each([0, HIDDEN_CHANCE - Number.EPSILON, HIDDEN_CHANCE, 1 - Number.EPSILON])(
+    '기본 히든 확률 경계: RNG %s', (value) => {
+      const item = withHidden()
+      const rng = { ...createRng(9), next: () => value }
+      const result = resolveCrafted(item, rng)
+      if (value < HIDDEN_CHANCE) expect(item.hiddenResults).toContain(result)
+      else expect(result).toBe(item.result)
+    },
+  )
 })

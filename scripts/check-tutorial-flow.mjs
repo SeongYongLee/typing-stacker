@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
 const base=process.argv[2] ?? 'http://127.0.0.1:5175'
-const browser=await chromium.launch()
+const browser=await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ?? chromium.executablePath() })
 try {
   for (const mobile of [false,true]) {
     const page=await browser.newPage({viewport:mobile?{width:390,height:780}:{width:1440,height:900},hasTouch:mobile})
@@ -10,7 +10,10 @@ try {
     await page.route('**/*',route=>new URL(route.request().url()).origin===new URL(base).origin?route.continue():route.abort())
     await page.route('**/src/hooks/useGameEngine.ts*',async route=>{
       const response=await route.fetch()
-      await route.fulfill({response,body:(await response.text()).replace('instance.onStateChange(store.update);','instance.onStateChange(store.update); window.__tutorial = {engine:instance,store};')})
+      const original=await response.text()
+      const body=original.replace('instance.onStateChange(store.update);','instance.onStateChange(store.update); window.__tutorial = {engine:instance,store};')
+      assert.notEqual(body,original,'Tutorial test adapter was not installed')
+      await route.fulfill({response,body})
     })
     await page.goto(base)
     await page.getByRole('button',{name:'혼자 하기',exact:true}).click()

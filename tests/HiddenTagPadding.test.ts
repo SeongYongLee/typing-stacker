@@ -1,3 +1,4 @@
+import { canvasContext, canvasFor } from './helpers/canvas.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -44,50 +45,17 @@ function makeCanvas(): {
   const rounds: Rect[] = []
   const texts: TextRecord[] = []
   const ctx = {
-    fillStyle: '',
-    strokeStyle: '',
-    lineWidth: 1,
-    globalCompositeOperation: 'source-over',
-    globalAlpha: 1,
-    font: '',
-    textAlign: '',
-    textBaseline: '',
-    shadowBlur: 0,
-    shadowColor: '',
-    setTransform: () => {},
-    clearRect: () => {},
-    save: () => {},
-    restore: () => {},
-    translate: () => {},
-    rotate: () => {},
-    scale: () => {},
-    beginPath: () => {},
-    closePath: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
-    arc: () => {},
-    stroke: () => {},
-    fill: () => {},
-    setLineDash: () => {},
-    strokeRect: () => {},
-    fillRect: () => {},
-    drawImage: () => {},
-    createLinearGradient: () => ({ addColorStop: () => {} }),
+    ...canvasContext(),
     measureText: (text: string) => ({ width: text.length * CHAR_WIDTH }),
     roundRect(x: number, y: number, w: number, h: number) {
       rounds.push({ x, y, w, h })
     },
     fillText(text: string, x: number, y: number) {
       texts.push({ text, x, y, size: fontSize(String(this.font)) })
-    },
+    }
   }
-  const canvas = {
-    width: 0,
-    height: 0,
-    getContext: () => ctx,
-    getBoundingClientRect: () => ({ width: CSS_WIDTH, height: CSS_HEIGHT }),
-  }
-  return { canvas: canvas as unknown as HTMLCanvasElement, rounds, texts }
+  const canvas = canvasFor(ctx, CSS_WIDTH, CSS_HEIGHT)
+  return { canvas: canvas, rounds, texts }
 }
 
 const BASE_STATE = {
@@ -112,7 +80,7 @@ const BASE_STATE = {
 let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
 
 beforeEach(async () => {
-  ;(globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
+  ; (globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 2 }
   ArenaRenderer = (await import('../src/game/renderer/ArenaRenderer.ts')).ArenaRenderer
 })
 

@@ -21,6 +21,7 @@
  * 들어온 기기 id로 표를 직접 찾아 쓰므로 아무것도 믿지 않아도 된다.
  */
 
+import { QUEUE_STALE_MS } from './queuePolicy.ts'
 import { findPair, waitedSecOf, bandOf, type Waiting } from './matching.ts'
 import {
   MAX_ID,
@@ -51,15 +52,6 @@ const LADDER_TOP = 10
 
 /** 자동매칭으로 맺는 인원 */
 const QUEUE_MATCH_SIZE = 2
-
-/**
- * 이만큼 물어보지 않으면 줄에서 치운다.
- *
- * 브라우저는 창을 닫을 때 알려주지 않으므로 **멎은 것으로만 사라진 것을 안다.**
- * 물어보는 주기(1.5초)의 몇 배로 둔다 — 짧으면 잠깐 끊긴 사람이 줄에서 빠지고,
- * 길면 이미 없는 사람과 짝이 맺어져 아무도 오지 않는 방이 열린다.
- */
-const QUEUE_STALE_MS = 6000
 
 /** 방 코드. 클라이언트의 것과 같은 글자만 쓴다 — 헷갈리는 l·o·i·1·0을 뺀 것이다 */
 const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'

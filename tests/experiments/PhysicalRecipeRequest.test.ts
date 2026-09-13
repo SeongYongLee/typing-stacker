@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { RECIPES } from '../src/game/data/recipes.ts'
+import { RECIPES } from '../../src/game/data/recipes.ts'
 import { physicalRecipeRequest } from './helpers/PhysicalRecipeRequest.ts'
 
 it('does not request a result from an empty board or one copy of a two-copy ingredient',()=>{
@@ -18,14 +18,14 @@ it('does not duplicate a request that is already on the board',()=>{
 
 it('preserves ready requests and keeps a linked slot stable while leaving word supply unchanged',async()=>{
   const {installRecallExperiment}=await import('./helpers/recallFlowExperiment.ts')
-  const {VARIANT_BY_ID,WORDS}=await import('../src/game/data/words.ts')
+  const {VARIANT_BY_ID,WORDS}=await import('../../src/game/data/words.ts')
   const recipe=RECIPES.find(r=>r.result.id==='fried-egg')!
   const counts=new Map<string,number>()
   for(const id of recipe.inputs)counts.set(id,(counts.get(id)??0)+1)
   const selected=WORDS[0]!
   const book=VARIANT_BY_ID.get('study-book')!
   const game={elapsed:0,stageId:1,physics:{countsByVariant:()=>counts},whiteboardTargets:[book],whiteboardWords:[book.label],spawner:{pickEntry:()=>selected}}
-  type GameEngine=import('../src/game/core/GameEngine.ts').GameEngine
+  type GameEngine=import('../../src/game/core/GameEngine.ts').GameEngine
   installRecallExperiment(game as unknown as GameEngine,'physical-request')()
   counts.set(book.id,1)
   expect(game.spawner.pickEntry()).toBe(selected)

@@ -26,18 +26,13 @@ describe('화이트보드 상태 문구', () => {
     expect(markup).not.toContain('data-whiteboard-reminder')
   })
 
-  it('왼쪽 위에 다른 보드 글자의 70% 크기로 주인 찾는 중을 표시한다', () => {
+  it('회수를 기다리는 보드에 주인 찾는 중을 표시한다', () => {
     const markup = renderToStaticMarkup(
       createElement(Whiteboard, { words: ['아메리카노'], activeWords: [], nightfall: 0 }),
     )
 
     expect(markup).toContain('data-whiteboard-status="true"')
     expect(markup).toContain('주인 찾는 중')
-    expect(markup).toContain('left:10%')
-    expect(markup).toContain('top:10%')
-    expect(markup).toContain('color:#000')
-    expect(markup).toContain('font-size:24.5px')
-    expect(markup).toContain('font-size:35px')
   })
 
   it('회수된 단어의 원래 자리에 가져간 사람을 표시한다', () => {

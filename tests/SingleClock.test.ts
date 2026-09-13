@@ -7,7 +7,7 @@ describe('싱글 시계 연출', () => {
   beforeEach(() => clock.install())
   afterEach(() => clock.uninstall())
 
-  it('긴 주기로 낮과 밤 배경만 순환하며 점수와 무관하다', async () => {
+  it('경과 시간에 따라 낮과 밤 배경을 순환한다', async () => {
     const engine = await GameEngine.create(20260817)
     const internals = engine as unknown as {
       loop: { stop(): void }

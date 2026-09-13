@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
-import type { GameEngine } from '../src/game/core/GameEngine.ts'
-import { RECIPES } from '../src/game/data/recipes.ts'
-import { VARIANT_BY_ID, WORDS } from '../src/game/data/words.ts'
+import type { GameEngine } from '../../src/game/core/GameEngine.ts'
+import { RECIPES } from '../../src/game/data/recipes.ts'
+import { VARIANT_BY_ID, WORDS } from '../../src/game/data/words.ts'
 import { installRecallExperiment } from './helpers/recallFlowExperiment.ts'
 
 function fixture() {

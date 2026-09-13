@@ -1,17 +1,20 @@
 /// <reference types="node" />
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
-import { installRecallExperiment, installStageExperiment } from './helpers/recallFlowExperiment.ts'
-import { RECIPES } from '../src/game/data/recipes.ts'
-import { FrameClock } from './helpers/frameClock.ts'
+import { createHash } from 'node:crypto'
+import { SOLO_STAGES } from '../../src/game/data/soloStages.ts'
+import { GameEngine, type GameState } from '../../src/game/core/GameEngine.ts'
+import { installRecallExperiment, installStageExperiment } from '../experiments/helpers/recallFlowExperiment.ts'
+import { RECIPES } from '../../src/game/data/recipes.ts'
+import { FrameClock } from '../helpers/frameClock.ts'
 
 const enabled = process.env.MEASURE_FLOW === '1'
 let clock = new FrameClock()
 let restoreStage = () => {}
+const engines = new Set<GameEngine>()
 beforeEach(() => { if (enabled) clock.install() })
-afterEach(() => { restoreStage(); if (enabled) clock.uninstall() })
+afterEach(() => { for (const engine of engines) engine.dispose(); engines.clear(); restoreStage(); if (enabled) clock.uninstall() })
 
 it.skipIf(!enabled)('records comparable recall-flow runs without changing physics or granting items', {timeout:300_000}, async () => {
   restoreStage=installStageExperiment(process.env.FLOW_VARIANT??'baseline')
@@ -19,13 +22,14 @@ it.skipIf(!enabled)('records comparable recall-flow runs without changing physic
   const secondsLimit=Number(process.env.FLOW_SECONDS??180)
   const rows = []
   for (const profile of profiles) {
-    for(let index=0;index<12;index++) {
+    for(let index=0;index<Number(process.env.MEASURE_RUNS??12);index++) {
       const seed=20260913+Number(process.env.FLOW_SEED_OFFSET??0)+index*7919
       // A previous run length must not change floating-point frame deltas in this run.
       clock.uninstall()
       clock=new FrameClock()
       clock.install()
       const engine=await GameEngine.create(seed)
+      engines.add(engine)
       let snapshot:GameState|null=null
       engine.onStateChange(next=>{snapshot=next})
       let merges=0, firstMerge:number|null=null, drops=0, alarms=0
@@ -72,11 +76,12 @@ it.skipIf(!enabled)('records comparable recall-flow runs without changing physic
       }
       const end=snapshot as unknown as GameState
       rows.push({profile,seed,seconds:+elapsed.toFixed(1),active:+active.toFixed(1),blockedFraction:active?blocked/active:0,firstRecall,firstMerge,firstClear,secondClear,stages,returns:end.stage.totalReturns,craftedRecalls,firstStageSeconds,firstStageMerges,drops,uniqueWords:words.size,merges,uniqueMerges:results.size,alarms,censored:end.phase!=='over'})
+      engines.delete(engine)
       engine.dispose()
     }
   }
   expect(rows.every(row=>row.drops>0)).toBe(true)
-  const output={label:process.env.FLOW_LABEL??'current',baseCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),variant:process.env.FLOW_VARIANT??'baseline',seedOffset:Number(process.env.FLOW_SEED_OFFSET??0),secondsLimit,rows}
+  const output={...sourceMetadata(),stageSettings:SOLO_STAGES,label:process.env.FLOW_LABEL??'current',variant:process.env.FLOW_VARIANT??'baseline',seedOffset:Number(process.env.FLOW_SEED_OFFSET??0),secondsLimit,rows}
   if(process.env.FLOW_OUTPUT)writeFileSync(process.env.FLOW_OUTPUT,JSON.stringify(output,null,2)+'\n')
   for(const profile of profiles) {
     const group=rows.filter(r=>r.profile===profile)
@@ -84,3 +89,17 @@ it.skipIf(!enabled)('records comparable recall-flow runs without changing physic
     console.log(JSON.stringify({profile,returns:mean('returns'),seconds:mean('seconds'),blockedFraction:mean('blockedFraction'),uniqueWords:mean('uniqueWords'),merges:mean('merges'),noRecall:group.filter(r=>r.firstRecall===null).length,clears:group.filter(r=>r.firstClear!==null).length}))
   }
 })
+
+function sourceMetadata() {
+  const baseCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  const paths = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'src', 'tests', 'vite.config.ts', 'package.json', 'pnpm-lock.yaml'], { encoding: 'utf8' }).split('\0').filter(Boolean)
+  const hash = createHash('sha256')
+  for (const path of [...new Set(paths)].sort()) {
+    hash.update(path + '\0')
+    try { hash.update(readFileSync(path)) } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      hash.update('<deleted>')
+    }
+  }
+  return { baseCommit, sourceHash: hash.digest('hex') }
+}

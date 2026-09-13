@@ -1,12 +1,12 @@
-import { beforeAll, describe, expect, it } from 'vitest'
-import { AIM_HALF_RANGE, SOLO_OWNER } from '../src/game/config.ts'
-import { RECIPES } from '../src/game/data/recipes.ts'
-import { WORDS } from '../src/game/data/words.ts'
-import { PhysicsWorld } from '../src/game/physics/PhysicsWorld.ts'
-import { resolveItem } from '../src/game/systems/ItemResolver.ts'
-import { findMerge } from '../src/game/systems/Merger.ts'
-import { createRng, type Rng } from '../src/game/systems/Rng.ts'
-import type { ItemVariant } from '../src/game/types/game.ts'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { AIM_HALF_RANGE, SOLO_OWNER } from '../../src/game/config.ts'
+import { RECIPES, craftKeyOf, ingredientCountForRecipe } from '../../src/game/data/recipes.ts'
+import { WORDS } from '../../src/game/data/words.ts'
+import { PhysicsWorld } from '../../src/game/physics/PhysicsWorld.ts'
+import { resolveItem } from '../../src/game/systems/ItemResolver.ts'
+import { findMerge } from '../../src/game/systems/Merger.ts'
+import { createRng, type Rng } from '../../src/game/systems/Rng.ts'
+import type { ItemVariant } from '../../src/game/types/game.ts'
 
 /**
  * 합성이 막히는 두 관문을 **갈라서** 잰다.
@@ -37,12 +37,15 @@ import type { ItemVariant } from '../src/game/types/game.ts'
 
 let world: PhysicsWorld
 
+afterAll(() => world?.dispose())
+
 beforeAll(async () => {
   world = await PhysicsWorld.create()
 })
 
 /** 봇 하나가 도는 판 수 */
-const RUNS = 40
+const ENV = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+const RUNS = Number(ENV?.MEASURE_RUNS ?? 40)
 /** 한 판에 떨구는 횟수. 엔진 실측의 판당 드롭과 맞춘다 */
 const DROPS = 18
 /** 한 물건이 자리를 잡기까지 기다리는 시간(초) */
@@ -52,7 +55,8 @@ const SETTLE_SEC = 2.2
 function needed(recipe: (typeof RECIPES)[number]): Map<string, number> {
   const need = new Map<string, number>()
   for (const id of recipe.inputs) {
-    need.set(id, (need.get(id) ?? 0) + 1)
+    const key = craftKeyOf(id)
+    need.set(key, (need.get(key) ?? 0) + 1)
   }
   return need
 }
@@ -60,10 +64,15 @@ function needed(recipe: (typeof RECIPES)[number]): Map<string, number> {
 /** 지금 받침대에 살아 있는 것만으로 만들 수 있는 레시피들 */
 function satisfiedNow(counts: ReadonlyMap<string, number>): string[] {
   const ready: string[] = []
+  const craftCounts = new Map<string, number>()
+  for (const [id, count] of counts) {
+    const key = craftKeyOf(id)
+    craftCounts.set(key, (craftCounts.get(key) ?? 0) + count)
+  }
   for (const recipe of RECIPES) {
     let ok = true
     for (const [id, need] of needed(recipe)) {
-      if ((counts.get(id) ?? 0) < need) {
+      if (ingredientCountForRecipe(recipe, id, counts, craftCounts) < need) {
         ok = false
         break
       }
@@ -121,7 +130,7 @@ function pairAim(bodies: readonly { variantId: string; x: number }[]): Aim {
 interface RunResult {
   /** 이 판에서 재료가 다 모인 적 있는 레시피 수 */
   readonly gathered: number
-  /** 그중 실제로 합쳐진 횟수 */
+  /** 그중 실제로 합쳐진 고유 레시피 수 */
   readonly merged: number
   /** 재료 둘짜리만 따로. 셋 이상과 자릿수가 다르므로 섞으면 둘 다 안 보인다 */
   readonly gatheredPair: number
@@ -139,8 +148,7 @@ function runOne(seed: number, aimFor: (bodies: readonly { variantId: string; x: 
   const rng = createRng(seed)
   world.reset()
   const everGathered = new Set<string>()
-  let merged = 0
-  let mergedPair = 0
+  const everMerged = new Set<string>()
   let escaped = 0
 
   const sweep = (): void => {
@@ -151,10 +159,8 @@ function runOne(seed: number, aimFor: (bodies: readonly { variantId: string; x: 
     if (match !== null) {
       // 실제로 합쳐야 판이 이어진다 — 재료가 남아 있으면 같은 짝을 계속 세게 된다
       if (world.mergeItems(match.itemIds, match.recipe.result, SOLO_OWNER) !== null) {
-        merged += 1
-        if (match.recipe.inputs.length === 2) {
-          mergedPair += 1
-        }
+        if (!everGathered.has(match.recipe.id)) throw new Error(`갖춤 집계에서 빠진 합성: ${match.recipe.id}`)
+        everMerged.add(match.recipe.id)
       }
     }
   }
@@ -170,9 +176,9 @@ function runOne(seed: number, aimFor: (bodies: readonly { variantId: string; x: 
   }
   return {
     gathered: everGathered.size,
-    merged,
+    merged: everMerged.size,
     gatheredPair: [...everGathered].filter((id) => INPUTS_OF.get(id) === 2).length,
-    mergedPair,
+    mergedPair: [...everMerged].filter((id) => INPUTS_OF.get(id) === 2).length,
     escaped,
   }
 }
@@ -205,18 +211,18 @@ describe('합성이 막히는 두 관문', () => {
         bottom === 0 ? '—' : `${Math.round((top / bottom) * 100)}%`
       lines.push(
         `  ${label}\n` +
-          `    | 갖춤 (전체) | 판당 ${gathered.toFixed(2)}건 · 한 번도 못 갖춘 판 ${Math.round(none((r) => r.gathered) * 100)}% |\n` +
-          `    | 합쳐짐 (전체) | 판당 ${mergedMean.toFixed(2)}건 · 한 번도 못 한 판 ${Math.round(none((r) => r.merged) * 100)}% |\n` +
-          `    | **닿아서 합쳐진 비율** | **${rate(mergedMean, gathered)}** |\n` +
-          `    | 재료 둘짜리 — 갖춤 / 합쳐짐 | ${gatheredPair.toFixed(2)} / ${mergedPairMean.toFixed(2)} → ${rate(mergedPairMean, gatheredPair)} |\n` +
-          `    | 재료 셋 이상 — 갖춤 / 합쳐짐 | ${(gathered - gatheredPair).toFixed(2)} / ${(mergedMean - mergedPairMean).toFixed(2)} |\n` +
-          `    | 이탈 | 판당 ${mean((r) => r.escaped).toFixed(1)}개 |`,
+        `    | 갖춤 (전체) | 판당 ${gathered.toFixed(2)}종 · 한 번도 못 갖춘 판 ${Math.round(none((r) => r.gathered) * 100)}% |\n` +
+        `    | 합쳐짐 (전체) | 판당 ${mergedMean.toFixed(2)}종 · 한 번도 못 한 판 ${Math.round(none((r) => r.merged) * 100)}% |\n` +
+        `    | **갖춘 레시피 중 합성한 종류 비율** | **${rate(mergedMean, gathered)}** |\n` +
+        `    | 재료 둘짜리 — 갖춤 / 합쳐짐 | ${gatheredPair.toFixed(2)} / ${mergedPairMean.toFixed(2)} → ${rate(mergedPairMean, gatheredPair)} |\n` +
+        `    | 재료 셋 이상 — 갖춤 / 합쳐짐 | ${(gathered - gatheredPair).toFixed(2)} / ${(mergedMean - mergedPairMean).toFixed(2)} |\n` +
+        `    | 이탈 | 판당 ${mean((r) => r.escaped).toFixed(1)}개 |`,
       )
     }
 
     console.log(
       `\n[접촉 실측] 봇마다 ${RUNS}판 · 판당 ${DROPS}드롭 · 레시피 ${RECIPES.length}개\n` +
-        lines.join('\n'),
+      lines.join('\n'),
     )
 
     /*

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { GameEngine, type GameState } from '../src/game/core/GameEngine.ts'
-import { WORDS } from '../src/game/data/words.ts'
-import { FrameClock } from './helpers/frameClock.ts'
-import type { GameEvent } from '../src/game/types/events.ts'
+import { GameEngine, type GameState } from '../../src/game/core/GameEngine.ts'
+import { WORDS } from '../../src/game/data/words.ts'
+import { FrameClock } from '../helpers/frameClock.ts'
+import type { GameEvent } from '../../src/game/types/events.ts'
 
 /**
  * 한 판에 **특별한 것을 몇 번 만나는가**를 잰다.
@@ -29,7 +29,8 @@ import type { GameEvent } from '../src/game/types/events.ts'
  */
 
 /** 판 수. 60판이면 판당 값이 소수 둘째 자리까지 안정된다 */
-const RUNS = 60
+const ENV = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+const RUNS = Number(ENV?.MEASURE_RUNS ?? 60)
 /** 한 판에 허용하는 최대 시간(초). 봇이 잘 쌓아 판이 안 끝나는 경우를 끊는다 */
 const MAX_RUN_SEC = 180
 /** 봇이 한 번 치는 간격(초). 사람의 타자 속도보다 빠르지만 스폰 간격보다는 느리다 */
@@ -47,10 +48,12 @@ interface RunResult {
 describe('특별한 것을 만나는 빈도', () => {
   const clock = new FrameClock()
   beforeEach(() => clock.install())
-  afterEach(() => clock.uninstall())
+  const engines = new Set<GameEngine>()
+  afterEach(() => { for (const engine of engines) engine.dispose(); engines.clear(); clock.uninstall() })
 
   async function runOne(seed: number): Promise<RunResult> {
     const engine = await GameEngine.create(seed)
+    engines.add(engine)
     let state: GameState | null = null
     let drops = 0
     let hidden = 0
@@ -69,7 +72,7 @@ describe('특별한 것을 만나는 빈도', () => {
         merges += 1
       }
     })
-    engine.startRun()
+    engine.startRun(false)
 
     let seconds = 0
     let stacked = 0
@@ -85,17 +88,22 @@ describe('특별한 것을 만나는 빈도', () => {
       if (now.phase === 'over') {
         break
       }
+      if (now.activeWhiteboard[0]) {
+        engine.submit(now.activeWhiteboard[0])
+        continue
+      }
       const word = now.words.find((item) => item.state === 'active')
       if (word !== undefined) {
         engine.submit(word.word)
       }
     }
 
+    engines.delete(engine)
     engine.dispose()
     return { seconds, drops, hidden, merges, stacked, height }
   }
 
-  it('60판을 돌려 숫자를 뽑는다', { timeout: 300_000 }, async () => {
+  it('지정한 판 수의 낙하·합성 빈도를 출력한다', { timeout: 300_000 }, async () => {
     const runs: RunResult[] = []
     for (let i = 0; i < RUNS; i += 1) {
       runs.push(await runOne(20260809 + i * 7919))
@@ -127,7 +135,7 @@ describe('특별한 것을 만나는 빈도', () => {
     ]
     console.log(
       `\n[밸런스 실측] 봇 ${RUNS}판 · 단어 ${WORDS.length}개\n` +
-        rows.map(([key, value]) => `  | ${key} | ${value} |`).join('\n'),
+      rows.map(([key, value]) => `  | ${key} | ${value} |`).join('\n'),
     )
 
     /*

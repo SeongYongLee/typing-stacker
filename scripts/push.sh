@@ -58,7 +58,7 @@ echo "── 밀 상태를 검사한다 (워킹 트리가 아니라) ──"
 ( cd "$TMP" && npx tsc -b --noEmit ) && echo "  타입 통과"
 
 # 파이프로 넘기면 vitest 의 종료 코드가 tail 것으로 덮인다 — 실패해도 그냥 밀게 된다
-( cd "$TMP" && npx vitest run > "$TMP/.test.log" 2>&1 ) || {
+( cd "$TMP" && TEST_GROUP=all npx vitest run > "$TMP/.test.log" 2>&1 ) || {
   tail -20 "$TMP/.test.log"
   echo
   echo "시험이 깨졌다. 밀지 않는다."

@@ -85,7 +85,7 @@ else
   scope="--changed HEAD"
 fi
 
-if ! ./node_modules/.bin/vitest run $scope; then
+if ! TEST_GROUP=all ./node_modules/.bin/vitest run $scope; then
   echo ""
   echo "pre-commit: 테스트 실패."
   exit 1

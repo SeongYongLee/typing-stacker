@@ -1,5 +1,5 @@
-import { RECIPES, craftKeyOf } from '../../src/game/data/recipes.ts'
-import type { ItemVariant } from '../../src/game/types/game.ts'
+import { RECIPES, craftKeyOf } from '../../../src/game/data/recipes.ts'
+import type { ItemVariant } from '../../../src/game/types/game.ts'
 
 /** Experimental: only promise a primary result when every ingredient is physically present. */
 export function physicalRecipeRequest(counts:ReadonlyMap<string,number>, requests:readonly ItemVariant[]):ItemVariant|null {

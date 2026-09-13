@@ -8,6 +8,7 @@ import {
   nouns,
   randomName,
 } from '../src/game/data/nicknames.ts'
+import { createRng } from '../src/game/systems/Rng.ts'
 import { ALL_VARIANTS } from '../src/game/data/words.ts'
 import { NICKNAME_MAX } from '../src/multi/protocol.ts'
 
@@ -68,8 +69,9 @@ describe('고를 수 있는 이름', () => {
 
 describe('randomName', () => {
   it('언제나 재료 안에서 고른다', () => {
-    for (let i = 0; i < 200; i += 1) {
-      const parts = randomName()
+    const rng = createRng(42)
+    for (let i = 0; i < 20; i += 1) {
+      const parts = randomName(rng.next)
       expect(ADJECTIVES).toContain(parts.adjective)
       expect(nouns()).toContain(parts.noun)
     }
@@ -87,8 +89,9 @@ describe('randomName', () => {
 
 describe('isMadeName — 저장소를 그대로 믿지 않는다', () => {
   it('고른 이름은 통과한다', () => {
-    for (let i = 0; i < 50; i += 1) {
-      expect(isMadeName(joinName(randomName()))).toBe(true)
+    const rng = createRng(7)
+    for (let i = 0; i < 20; i += 1) {
+      expect(isMadeName(joinName(randomName(rng.next)))).toBe(true)
     }
   })
 

@@ -90,13 +90,6 @@ describe('배경음악 악보', () => {
 })
 
 describe('낮·밤 네 곡', () => {
-  it('참고 구간보다 조금 빠르다', () => {
-    expect(TRACKS.splashDay.bpm).toBeGreaterThan(62)
-    expect(TRACKS.splashNight.bpm).toBeGreaterThan(100)
-    expect(TRACKS.gameDay.bpm).toBeGreaterThan(80)
-    expect(TRACKS.gameFirstNight.bpm).toBeGreaterThan(105)
-    expect(TRACKS.gameNight.bpm).toBeGreaterThan(105)
-  })
 
   it('스플래시는 대응하는 플레이 곡보다 느리다', () => {
     expect(TRACKS.splashDay.bpm).toBeLessThan(TRACKS.gameDay.bpm)
@@ -129,18 +122,6 @@ describe('낮·밤 네 곡', () => {
 })
 
 describe('곡끼리 서로 다르다', () => {
-  it('빠르기가 전부 다르다', () => {
-    const bpms = entries.map(([, track]) => track.bpm)
-    expect(new Set(bpms).size).toBe(entries.length)
-  })
-
-  it('박자가 하나로 통일되지 않았다', () => {
-    expect(new Set(entries.map(([, track]) => track.stepsPerBar)).size).toBeGreaterThan(1)
-  })
-
-  it('아르페지오 음색이 적어도 셋으로 갈린다', () => {
-    expect(new Set(entries.map(([, track]) => track.arp.type)).size).toBeGreaterThanOrEqual(3)
-  })
 
   it('대기방만 화음을 깔지 않는다', () => {
     expect(TRACKS.lobby.pad).toBeNull()

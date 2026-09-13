@@ -45,8 +45,11 @@ try {for(const touch of [false,true]){
   }
   if(stage===1)await page.screenshot({path:`/tmp/stage-story-${touch?'mobile':'pc'}.png`})
   if(stage===2){if(touch)await dialog.getByRole('button',{name:'건너뛰기',exact:true}).click();else await page.keyboard.press('Escape')}
-  else {if(touch)await dialog.getByRole('button',{name:/다음 이야기/}).click();else {await dialog.getByRole('button',{name:/다음 이야기/}).focus();await page.keyboard.press('Enter')}await dialog.getByRole('button',{name:/다음 이야기/}).click();await dialog.getByRole('button',{name:/정리 시작/}).click()}
-  await page.locator('[data-solo-start="ready"]').waitFor()
+  else {if(touch)await dialog.getByRole('button',{name:/다음 이야기/}).click();else {await dialog.getByRole('button',{name:/다음 이야기/}).focus();await page.keyboard.press('Enter')}await dialog.getByRole('button',{name:/다음 이야기/}).click();await dialog.getByRole('button',{name:/정리 시작/}).evaluate(e=>e.click())}
+  await page.locator('[data-solo-start="ready"]').waitFor({timeout:5000}).catch(async error=>{console.log({stage,touch,errors,body:await page.locator('body').innerText()});throw error})
+  assert.equal(await dialog.locator('.stage-story-room').count(),0)
+  assert.equal(await dialog.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)')
+  if(stage===1) await page.screenshot({path:`/tmp/story-countdown-${touch?'mobile':'pc'}.png`})
   const countdownTime = await page.evaluate(()=>window.__story.store.getSnapshot().stats.durationSec)
   await page.locator('[data-solo-start="start"]').waitFor()
   assert.equal(await page.evaluate(()=>window.__story.store.getSnapshot().stats.durationSec),countdownTime)

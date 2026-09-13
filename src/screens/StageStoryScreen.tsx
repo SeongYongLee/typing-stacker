@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { SoloStart, type SoloStep } from '../components/SoloStart.tsx'
 import { SOLO_READY_MS, SOLO_START_MS } from '../game/config/time.ts'
 import { MenuButton } from '../components/MenuButton.tsx'
-import { WORDS } from '../game/data/words.ts'
+import { StageStoryScene } from './StageStoryScene.tsx'
 import type { StageStory } from './stageStories.ts'
 import './StageStoryScreen.css'
 
-export function StageStoryScreen({ story, touch, onFinish }: { story: StageStory; touch: boolean; onFinish: () => void }) {
+export function StageStoryScreen({ story, touch, onFinish, onPrepare }: { story: StageStory; touch: boolean; onFinish: () => void; onPrepare: () => void }) {
   const [preparing, setPreparing] = useState<SoloStep | 'input' | null>(null)
   const finish = useRef(onFinish)
   useEffect(() => { finish.current = onFinish }, [onFinish])
@@ -15,7 +15,6 @@ export function StageStoryScreen({ story, touch, onFinish }: { story: StageStory
   const next = useRef<HTMLButtonElement>(null)
   const current = story.lines[line]!
   const last = line === story.lines.length - 1
-  const item = WORDS.find(entry => entry.word === story.item)?.variants[0]
   useEffect(() => {
     const timer = window.setTimeout(() => setArriving(false), window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 2400)
     return () => window.clearTimeout(timer)
@@ -30,8 +29,8 @@ export function StageStoryScreen({ story, touch, onFinish }: { story: StageStory
     }, preparing === 'ready' ? SOLO_READY_MS : SOLO_START_MS)
     return () => window.clearTimeout(timer)
   }, [preparing, touch])
-  const prepare = () => setPreparing('ready')
-  return <section className="stage-story" data-arriving={arriving} data-evening={story.time.startsWith('오후 4') || story.time.startsWith('오후 5') ? 'early' : 'late'} role="dialog" aria-modal="true" aria-labelledby="stage-story-title" onKeyDown={event => {
+  const prepare = () => { onPrepare(); setPreparing('ready') }
+  return <section className="stage-story" data-preparing={preparing !== null} data-arriving={arriving} data-evening={story.time.startsWith('오후 4') || story.time.startsWith('오후 5') ? 'early' : 'late'} role="dialog" aria-modal="true" aria-labelledby="stage-story-title" onKeyDown={event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (preparing === null) prepare() }
     if ((event.key === 'Enter' || event.key === ' ') && event.repeat) event.preventDefault()
     if (event.key === 'Tab') {
@@ -40,7 +39,7 @@ export function StageStoryScreen({ story, touch, onFinish }: { story: StageStory
       event.preventDefault();buttons[(index+(event.shiftKey?-1:1)+buttons.length)%buttons.length]?.focus()
     }
   }}>
-    <div className="stage-story-scene" aria-hidden="true"><div className="stage-story-window"><div className="stage-story-rain" /></div><div className="stage-story-lamp" /><div className="stage-story-light" /><div className="stage-story-sign">분실물 보관소<small>돌아갈 곳이 있는 물건들</small></div><div className="stage-story-counter" />{item && <img src={item.sprite} alt="" />}</div>
+    {preparing === null && <StageStoryScene story={story} />}
     {preparing !== null ? <div className="stage-story-start" aria-live="polite">
       <h1 id="stage-story-title" className="sr-only">정리를 시작합니다</h1>
       {preparing === 'input'

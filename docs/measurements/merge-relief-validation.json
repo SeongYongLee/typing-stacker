@@ -1,0 +1,71 @@
+[
+  {
+    "control": "merge-relief-holdout-control",
+    "candidate": "merge-relief-holdout-candidate",
+    "profile": "pressure",
+    "baseline": {
+      "alarms": 0.9790131097732515,
+      "merges": 3.3421482023293763,
+      "returns": 2.903280256568953,
+      "seconds": 152.79999999999998
+    },
+    "variant": {
+      "alarms": 0.6880733944954129,
+      "merges": 2.8247223563495893,
+      "returns": 2.6798647996137133,
+      "seconds": 142.15
+    },
+    "ratios": {
+      "alarms": 0.7028234735843089,
+      "merges": 0.8451816572289772,
+      "returns": 0.9230472303010567,
+      "seconds": 0.930301047120419
+    }
+  },
+  {
+    "control": "physical-control",
+    "candidate": "merge-relief-normal",
+    "profile": "slow",
+    "baseline": {
+      "alarms": 0.0,
+      "merges": 3.153745072273324,
+      "returns": 3.095342385749744,
+      "seconds": 175.24166666666665
+    },
+    "variant": {
+      "alarms": 0.0,
+      "merges": 3.153745072273324,
+      "returns": 3.095342385749744,
+      "seconds": 175.24166666666665
+    },
+    "ratios": {
+      "alarms": null,
+      "merges": 1.0,
+      "returns": 1.0,
+      "seconds": 1.0
+    }
+  },
+  {
+    "control": "physical-control",
+    "candidate": "merge-relief-normal",
+    "profile": "steady",
+    "baseline": {
+      "alarms": 0.0,
+      "merges": 2.6556776556776556,
+      "returns": 3.907203907203907,
+      "seconds": 168.61666666666665
+    },
+    "variant": {
+      "alarms": 0.0,
+      "merges": 2.6556776556776556,
+      "returns": 3.907203907203907,
+      "seconds": 168.61666666666665
+    },
+    "ratios": {
+      "alarms": null,
+      "merges": 1.0,
+      "returns": 1.0,
+      "seconds": 1.0
+    }
+  }
+]

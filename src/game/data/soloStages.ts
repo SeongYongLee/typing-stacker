@@ -45,7 +45,8 @@ const SOLO_STAGES: readonly SoloStage[] = [
     id: 1,
     title: '교실 분실물',
     endless: false,
-    returnTarget: 20,
+    // First completion arrives earlier; validated against held-out bot seeds.
+    returnTarget: 10,
     // 첫 보관함에서는 단어 입력 뒤 조준·합성·회수를 살펴볼 여유를 준다.
     difficulty: { spawnInterval: 3, fallDuration: 12, aimSpeed: 0.38, maxConcurrent: 10 },
     congestionDrops: 10,

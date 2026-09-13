@@ -314,7 +314,7 @@ describe('화이트보드 상자 회수', () => {
     internals.phase = 'playing'
     expect((state as unknown as GameState).stage).toMatchObject({
       returns: 0,
-      target: 20,
+      target: 10,
     })
     // One acknowledgement after an assisted merge leads directly to recall.
     internals.tutorialStep = 4
@@ -322,7 +322,7 @@ describe('화이트보드 상자 회수', () => {
     engine.submit('')
     expect((state as unknown as GameState).stage).toMatchObject({
       tutorialStep: 7,
-      target: 20,
+      target: 10,
       returns: 0,
       tutorialText: expect.stringContaining('계란 프라이를 입력'),
     })
@@ -336,7 +336,7 @@ describe('화이트보드 상자 회수', () => {
     expect((state as unknown as GameState).stage).toMatchObject({
       congestionDemo: 'ready',
       returns: 1,
-      target: 20,
+      target: 10,
       tutorialStep: 7,
       tutorialTotal: 8,
       tutorialText: expect.stringContaining('1개 줄었습니다'),

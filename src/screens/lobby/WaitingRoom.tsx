@@ -1,5 +1,6 @@
+import { MenuButton } from '../../components/MenuButton.tsx'
 import { useState } from 'react'
-import { buttonStyle, ghostButtonStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
+import { panelStyle, rootStyle } from './lobbyStyle.ts'
 import { Blurb } from '../../components/SidePanel.tsx'
 import { panelBoxStyle } from '../../components/sidePanelStyle.ts'
 import { ACTIVE_MATCH_MODE, type MatchModeChoice } from '../../multi/matchModes.ts'
@@ -52,9 +53,9 @@ function WaitingRoom({
           >
             {roomCode}
           </div>
-          <button type="button" style={buttonStyle} onClick={copy}>
+          <MenuButton primary onClick={copy}>
             {copied ? '복사했습니다' : '코드 복사'}
-          </button>
+          </MenuButton>
           <p
             data-fixed-match-mode="duel"
             style={{ color: 'var(--text-strong)', margin: 0, fontSize: 17, fontWeight: 700 }}
@@ -64,9 +65,9 @@ function WaitingRoom({
           <p style={{ color: 'var(--ink)', margin: 0, fontSize: 14 }}>
             한 명이라도 들어오면 준비 화면으로 넘어갑니다. 더 기다렸다 시작해도 됩니다
           </p>
-          <button type="button" style={ghostButtonStyle} onClick={onBack}>
+          <MenuButton onClick={onBack}>
             취소
-          </button>
+          </MenuButton>
         </div>
         <aside style={{ ...panelBoxStyle, width: '100%' }} aria-label="게임 설명">
           <Blurb

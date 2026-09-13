@@ -1,6 +1,7 @@
+import { MenuButton } from '../../components/MenuButton.tsx'
 import { useMenuKeys } from '../../hooks/useMenuKeys.ts'
 import type { QueueStatus } from '../../rank/queue.ts'
-import { ghostButtonStyle, panelStyle, rootStyle } from './lobbyStyle.ts'
+import { panelStyle, rootStyle } from './lobbyStyle.ts'
 
 /**
  * 랭크 게임 줄에 서서 상대를 기다리는 동안.
@@ -69,9 +70,9 @@ function Searching({
           </>
         )}
 
-        <button type="button" style={ghostButtonStyle} onClick={onCancel}>
+        <MenuButton onClick={onCancel}>
           취소 (Esc)
-        </button>
+        </MenuButton>
       </div>
     </div>
   )

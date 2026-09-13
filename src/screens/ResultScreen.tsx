@@ -125,7 +125,7 @@ function ResultScreen({
   // 튜토리얼 데모는 실제 기록이 아니다. 완료 UI만 보여주고 순위 서버에는 보내지 않는다.
   const ranking = useRunRanking(stats, !tutorialEnd)
   const verdict = verdictOf(stats, ranking)
-  // 정확도가 깎아간 몫. 원점수를 그대로 보여주면 왜 깎였는지는 여전히 모른다
+  // 현행 점수 보정으로 빠진 실제 점수. 입력 정확도와 혼동하지 않게 감점만 표시한다
   const lost = Math.max(0, stats.rawScore - stats.score)
 
   if (tutorialEnd) {
@@ -200,34 +200,37 @@ function ResultScreen({
               </p>
             )}
             {(ranking.status === 'offline' || ranking.status === 'rejected') && (
-              <button type="button" onClick={ranking.retry} style={retryRankStyle}>
+              <MenuButton onClick={ranking.retry}>
                 기록 다시 보내기
-              </button>
+              </MenuButton>
             )}
           </div>
 
           <div className="result-details">
-            {totalReturns === 0 && (
-              <section
-                aria-label="회수 안내"
-                style={{
-                  marginBottom: 16,
-                  padding: '10px 12px',
-                  border: '1px solid var(--rule)',
-                  borderRadius: 2,
-                  background: 'var(--paper-shade)',
-                  color: 'var(--ink)',
-                  fontSize: 14,
-                  lineHeight: 1.45,
-                }}
-              >
-                화이트보드에 표시된 물건을 회수하면 다음 스테이지로 진행할 수 있습니다.
-              </section>
-            )}
+            <section
+              aria-label="다음 판 안내"
+              style={{
+                marginBottom: 16,
+                padding: '10px 12px',
+                border: '1px solid var(--rule)',
+                borderRadius: 2,
+                background: 'var(--paper-shade)',
+                color: 'var(--ink)',
+                fontSize: 14,
+                lineHeight: 1.45,
+                wordBreak: 'keep-all',
+              }}
+            >
+              {totalReturns === 0
+                ? '화이트보드의 물건이 상자에 있으면 이름을 입력해 회수하세요.'
+                : stats.missedWords > 0
+                  ? '놓친 단어는 경보를 채워요. 재료를 합성하면 경보를 최대 15 낮출 수 있어요.'
+                  : '물건이 높이 쌓이기 전에 회수해 자리를 만들어보세요.'}
+            </section>
 
-            {/* 이 게임의 성취. 쌓기·높이·콤보가 판을 요약한다 */}
+            {/* 진행 목표인 회수를 먼저 보여준다 */}
             <div style={rowStyle}>
-              <Stat label="쌓은 물건" value={`${stats.stackCount}개`} />
+              <Stat label="회수한 물건" value={`${totalReturns}개`} />
               <Stat label="최고 높이" value={`${stats.maxHeight.toFixed(2)}m`} />
               <Stat label="최고 콤보" value={`x${stats.maxCombo}`} />
             </div>
@@ -237,12 +240,8 @@ function ResultScreen({
               <Stat label="타수" value={`${stats.kpm}타/분`} small />
               <Stat label="놓친 단어" value={`${stats.missedWords}개`} small />
               <Stat
-                label="정확도"
-                value={
-                  lost > 0
-                    ? `${Math.round(stats.accuracy * 100)}% (−${lost.toLocaleString('ko-KR')})`
-                    : `${Math.round(stats.accuracy * 100)}%`
-                }
+                label="놓침 감점"
+                value={lost > 0 ? `−${lost.toLocaleString('ko-KR')}점` : '없음'}
                 small
               />
             </div>
@@ -338,17 +337,6 @@ const rowStyle: CSSProperties = {
   justifyContent: 'center',
   gap: 20,
   flexWrap: 'wrap',
-}
-
-const retryRankStyle: CSSProperties = {
-  margin: '-10px 0 18px',
-  padding: 0,
-  border: 0,
-  background: 'transparent',
-  color: 'var(--ink)',
-  font: '600 13px var(--sans)',
-  textDecoration: 'underline',
-  cursor: 'pointer',
 }
 
 /**

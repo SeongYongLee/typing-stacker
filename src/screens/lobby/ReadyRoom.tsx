@@ -198,7 +198,6 @@ function ReadyRoom({
       onClick={onReady}
       disabled={!interactive || iAmReady}
       primary
-      style={{ fontSize: READY_TEXT_SIZE }}
     >
       {iAmReady ? `상대를 기다립니다… (${waitingFor}명)` : '준비 (Enter)'}
     </MenuButton>
@@ -208,7 +207,6 @@ function ReadyRoom({
       selected={false}
       onClick={onBack}
       disabled={!interactive}
-      style={{ fontSize: READY_TEXT_SIZE }}
     >
       나가기 (Esc)
     </MenuButton>

@@ -10,7 +10,7 @@ import { soundBoard } from '../audio/SoundBoard.ts'
  */
 interface MenuButtonProps {
   children: ReactNode
-  selected: boolean
+  selected?: boolean
   onClick: () => void
   onHover?: () => void
   /** 가장 중요한 선택지. 골라지지 않았을 때도 눈에 띈다 */
@@ -21,7 +21,7 @@ interface MenuButtonProps {
 
 function MenuButton({
   children,
-  selected,
+  selected = false,
   onClick,
   onHover,
   primary = false,
@@ -46,7 +46,7 @@ function MenuButton({
       data-primary={primary ? 'yes' : 'no'}
       style={{ fontSize: 15, ...style }}
     >
-      {children}
+      <span className="menu-label">{children}</span>
       <span className="menu-arrow" aria-hidden="true">→</span>
     </button>
   )

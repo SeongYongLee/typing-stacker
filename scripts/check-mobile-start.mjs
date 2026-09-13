@@ -45,6 +45,17 @@ try {
   assert(await input.evaluate(element=>element===document.activeElement))
   assert.equal(await page.locator('[data-pause]').count(),0)
   assert(!(await page.locator('.mp-tutorial').textContent()).includes('Enter'))
+  assert.equal(await input.getAttribute('autocomplete'), 'off')
+  assert.equal(await page.locator('.mp-input').getAttribute('autocomplete'), 'off')
+  const stableArena = await page.locator('.mp-arena').boundingBox()
+  for (const height of [498,450,498,450]) {
+    await input.fill(height === 498 ? '책' : '')
+    await page.setViewportSize({width:390,height})
+    await page.waitForTimeout(100)
+    assert.equal((await page.locator('.mp-arena').boundingBox()).height, stableArena.height,
+      'Suggestion row changes must not resize the arena while typing')
+  }
+  await input.fill('책')
   for (const height of [450,350,320]) {
     await page.setViewportSize({width:390,height})
     await page.waitForTimeout(100)

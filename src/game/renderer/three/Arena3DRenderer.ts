@@ -32,6 +32,7 @@ interface ThreeOptions {
 class Arena3DRenderer implements ArenaRendererPort {
   private readonly renderer: WebGLRenderer
   private readonly scene = new Scene()
+  private readonly mergeScene = new Scene()
   private readonly world = new Group()
   private readonly camera = new OrthographicCamera(-4, 4, 5, -5, 0.1, 100)
   private readonly sky = new HemisphereLight('#fff4d6', '#6b5039', 2.3)
@@ -81,7 +82,9 @@ class Arena3DRenderer implements ArenaRendererPort {
     this.sun.shadow.bias = -0.001
     this.sun.shadow.normalBias = 0.015
     this.world.add(this.alarm.group, this.effects.group, this.sky, this.sun, this.sun.target, this.platform)
-    this.scene.add(this.windowLight.group, this.world, this.effects.mergeGroup)
+    this.scene.add(this.windowLight.group, this.world)
+    this.mergeScene.add(this.effects.mergeGroup)
+    this.renderer.info.autoReset = false
     // Hands sit behind WebGL artwork; the HUD remains on the front overlay.
     this.handCanvas = document.createElement('canvas')
     this.handCanvas.className = 'three-canvas three-hands'
@@ -227,7 +230,16 @@ class Arena3DRenderer implements ArenaRendererPort {
     })
     this.effects.update(state, scale, !this.reducedMotion.matches, yaw, this.options.compact)
     this.windowLight.update(this.width, this.height, state.cameraY, yaw, this.roomLayout, night, state.time, this.reducedMotion.matches, this.dpr, scale)
+    this.renderer.info.reset()
     this.renderer.render(this.scene, this.camera)
+    if (state.hiddenReveal != null) {
+      // Presentation is screen information: world depth must not hide its artwork.
+      // Keep depth within the presentation so its sources and result still overlap naturally.
+      this.renderer.autoClear = false
+      this.renderer.clearDepth()
+      this.renderer.render(this.mergeScene, this.camera)
+      this.renderer.autoClear = true
+    }
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
     this.ctx.clearRect(0, 0, this.width, this.height)
     this.overlay.drawMergeLabel({

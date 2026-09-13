@@ -142,9 +142,9 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true, are
     <div className="mp-feedback" role="status" data-ok={feedback?.ok}>{awaitingStart ? openingKeyboard ? '키보드 준비 중…' : '아래 입력창을 누르면 시작합니다' : feedback === null ? '일반 단어는 쌓기 · 화이트보드는 회수' : feedback.seq === recallFeedbackSeq ? `${feedback.text} 회수 완료 ✓` : `${feedback.text} ${feedback.ok ? '✓' : '✗'}${feedback.hidden ? ` → ${feedback.itemLabel}` : ''}`}</div>
     {onHome !== undefined && !awaitingStart && state.phase === 'paused' && !options && <PauseOverlay onResume={start} onRestart={onRestart ?? start} onHome={onHome} onOptions={() => setOptions(true)} />}
     {onHome !== undefined && state.phase === 'paused' && options && <div className="mp-options"><OptionsScreen onBack={() => setOptions(false)} /></div>}
-    <form className="mp-input" data-tutorial-action={showTutorialAction} onSubmit={(event) => { event.preventDefault(); submit() }}>
+    <form autoComplete="off" className="mp-input" data-tutorial-action={showTutorialAction} onSubmit={(event) => { event.preventDefault(); submit() }}>
       {showTutorialAction && <button className="mp-tutorial-next" type="button" data-tutorial-next onPointerDown={(event) => event.preventDefault()} onClick={advanceTutorial}>{guide?.action}</button>}
-      <input ref={input} tabIndex={showTutorialAction ? -1 : undefined} onBeforeInput={(event) => { if (showTutorialAction || guide?.waiting) event.preventDefault() }} aria-label="단어 입력" name="word" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="enter" placeholder={awaitingStart ? '눌러서 시작' : guide?.waiting ? '시연을 보고 있어요…' : !touch && guide?.action ? `Enter · ${guide.action}` : '단어 입력…'}
+      <input ref={input} tabIndex={showTutorialAction ? -1 : undefined} onBeforeInput={(event) => { if (showTutorialAction || guide?.waiting) event.preventDefault() }} aria-label="단어 입력" data-game-word-input name="stacker-play-entry" type="text" inputMode="text" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="enter" placeholder={awaitingStart ? '눌러서 시작' : guide?.waiting ? '시연을 보고 있어요…' : !touch && guide?.action ? `Enter · ${guide.action}` : '단어 입력…'}
         onFocus={() => { if (awaitingStart) setOpeningKeyboard(true) }}
         onBlur={(event) => { if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.matches('[data-tutorial-next]')) return; setOpeningKeyboard(false); engine.pause() }}
         onCompositionStart={() => { composing.current = true; submittedComposition.current = null }}
@@ -169,16 +169,34 @@ export function MobileGame({ engine, store, onHome, onRestart, touch = true, are
 export function MobileViewport({ engine, children, touch = true }: { engine: GameEngine; children: ReactNode; touch?: boolean }) {
   const [viewport, setViewport] = useState(() => ({ height: window.visualViewport?.height ?? window.innerHeight, top: window.visualViewport?.offsetTop ?? 0 }))
   useEffect(() => {
-    const update = () => setViewport({ height: window.visualViewport?.height ?? window.innerHeight, top: window.visualViewport?.offsetTop ?? 0 })
+    let minimumHeight: number | null = null
+    let width = window.innerWidth
+    const update = () => {
+      const height = window.visualViewport?.height ?? window.innerHeight
+      const top = window.visualViewport?.offsetTop ?? 0
+      const focused = touch && document.activeElement?.matches('[data-game-word-input]') === true
+      // Suggestion rows can appear/disappear after every submission. Keep the arena
+      // at the smallest usable height during this focus session, without clipping input.
+      if (!focused || width !== window.innerWidth) minimumHeight = null
+      width = window.innerWidth
+      minimumHeight = focused ? Math.min(minimumHeight ?? height, height) : null
+      const stableHeight = minimumHeight ?? height
+      setViewport(before => before.height === stableHeight && before.top === top
+        ? before : { height: stableHeight, top })
+    }
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
     window.visualViewport?.addEventListener('resize', update)
     window.visualViewport?.addEventListener('scroll', update)
     window.addEventListener('resize', update)
     return () => {
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update)
       window.visualViewport?.removeEventListener('resize', update)
       window.visualViewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
     }
-  }, [])
+  }, [touch])
   useEffect(() => { if (viewport.height < 320) engine.pause() }, [engine, viewport.height])
   return <main className="mp-page" data-controls={touch ? 'mobile' : 'pc'} style={{ top: viewport.top, height: viewport.height }}>
     {children}

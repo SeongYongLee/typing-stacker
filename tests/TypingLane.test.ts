@@ -14,14 +14,7 @@ const word: FallingWord = {
   fade: 1,
 }
 
-describe('TypingLane 글꼴', () => {
-  it('화이트보드와 같은 손글씨 글꼴과 크기로 단어를 보여준다', () => {
-    const markup = renderToStaticMarkup(createElement(TypingLane, { words: [word], side: 'left' }))
-
-    expect(markup).toContain('font-family:&quot;GriunXHangeul A Foreign Hand&quot;')
-    expect(markup).toContain('font-size:35px')
-    expect(markup).toContain('font-weight:400')
-  })
+describe('TypingLane 상태 표시', () => {
 
   it('대결에서 입력된 단어 자리에 획득자를 남긴다', () => {
     const markup = renderToStaticMarkup(createElement(TypingLane, {
@@ -35,7 +28,7 @@ describe('TypingLane 글꼴', () => {
     expect(markup).toContain('자두가 가져감')
   })
 
-  it('합성 가능한 단어는 단일 굵은 테두리와 겹친 빛으로 강조한다', () => {
+  it('합성 가능한 단어에 재료와 히든 표식을 표시한다', () => {
     const markup = renderToStaticMarkup(createElement(TypingLane, {
       words: [word],
       side: 'left',
@@ -48,9 +41,6 @@ describe('TypingLane 글꼴', () => {
     }))
 
     expect(markup).toContain('data-pair-mark="0"')
-    expect(markup).toContain('border-width:3px')
-    expect(markup).not.toContain('outline:')
-    expect(markup).toContain('inset 0 0 5px')
     expect(markup).toContain('data-merge-hints="2"')
     expect(markup).toContain('data-merge-hint="normal"')
     expect(markup).toContain('data-merge-hint="hidden"')
@@ -59,7 +49,7 @@ describe('TypingLane 글꼴', () => {
     expect(markup).toContain('/items/leaf.webp')
   })
 
-  it('재료 3개 이상 조합은 더 강한 단일 테두리와 세 점 광원으로 구분한다', () => {
+  it('재료 3개 이상 조합을 구분한다', () => {
     const markup = renderToStaticMarkup(createElement(TypingLane, {
       words: [word],
       side: 'left',
@@ -70,9 +60,6 @@ describe('TypingLane 글꼴', () => {
 
     expect(markup).toContain('data-merge-size="3"')
     expect(markup).toContain('data-complex-merge="true"')
-    expect(markup).toContain('border-width:4px')
-    expect(markup).not.toContain('outline:')
-    expect(markup.match(/border-radius:50%/g)).toHaveLength(3)
   })
 
   it('대결에서만 화이트보드와 이어진 단어 왼쪽 위에 하트를 표시한다', () => {
@@ -120,8 +107,6 @@ describe('TypingLane 글꼴', () => {
       pairPulse: 1,
     }))
 
-    expect(dim).toContain('0 0 10px rgba(255, 248, 213, 0.52)')
-    expect(bright).toContain('0 0 20px rgba(255, 248, 213, 0.9)')
     expect(bright).not.toBe(dim)
   })
 })

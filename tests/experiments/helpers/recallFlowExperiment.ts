@@ -1,8 +1,8 @@
-import { craftKeyOf, type Recipe } from '../../src/game/data/recipes.ts'
-import type { GameEngine } from '../../src/game/core/GameEngine.ts'
-import type { ItemVariant, WordEntry } from '../../src/game/types/game.ts'
-import type { Rng } from '../../src/game/systems/Rng.ts'
-import { featuredEntries, soloStage, type SoloStageId } from '../../src/game/data/soloStages.ts'
+import { craftKeyOf, type Recipe } from '../../../src/game/data/recipes.ts'
+import type { GameEngine } from '../../../src/game/core/GameEngine.ts'
+import type { ItemVariant, WordEntry } from '../../../src/game/types/game.ts'
+import type { Rng } from '../../../src/game/systems/Rng.ts'
+import { featuredEntries, soloStage, type SoloStageId } from '../../../src/game/data/soloStages.ts'
 import { recallIngredient, reachableRecallIds } from './RecallSupply.ts'
 import { physicalRecipeRequest } from './PhysicalRecipeRequest.ts'
 

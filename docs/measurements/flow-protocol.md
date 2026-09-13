@@ -11,7 +11,7 @@
 
 조건이 실패하면 원인을 분석한다. 추가 조정은 탐색 실험으로 명시하고 새로운 시드에서도 확인한다. 개선되지 않으면 채택하지 않는다. 이후 난이도·보상은 공급 변경을 확정한 뒤 각각 별도 비교하며, 검증하지 않은 단계는 보류로 판단한다.
 
-실행: `MEASURE=1 MEASURE_FLOW=1 FLOW_LABEL=baseline FLOW_OUTPUT=docs/measurements/flow-baseline.json pnpm exec vitest run tests/whiteboard-flow.measure.test.ts`
+실행: `MEASURE=1 MEASURE_FLOW=1 FLOW_LABEL=baseline FLOW_OUTPUT=docs/measurements/flow-baseline.json pnpm exec vitest run tests/measure/whiteboard-flow.measure.test.ts`
 
 ## 후속 탐색 실험
 

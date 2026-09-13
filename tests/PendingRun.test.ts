@@ -1,3 +1,4 @@
+import { MemoryStorage } from './helpers/storage.ts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RunStats } from '../src/game/types/game.ts'
 import { flushPendingRun, submitRun } from '../src/rank/client.ts'
@@ -9,21 +10,6 @@ import {
   type PendingRun,
 } from '../src/storage/pendingRun.ts'
 
-class MemoryStorage {
-  private readonly values = new Map<string, string>()
-
-  getItem(key: string): string | null {
-    return this.values.get(key) ?? null
-  }
-
-  setItem(key: string, value: string): void {
-    this.values.set(key, value)
-  }
-
-  removeItem(key: string): void {
-    this.values.delete(key)
-  }
-}
 
 const lower: PendingRun = {
   id: 'player', name: '말랑한 연필', icon: '', score: 50_000,

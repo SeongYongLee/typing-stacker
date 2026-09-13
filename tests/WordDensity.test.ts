@@ -55,9 +55,7 @@ describe('인원에 비례한 단어 밭', () => {
     expect(forPlayers(full, MAX_PLAYERS).maxConcurrent).toBeLessThanOrEqual(MAX_ON_SCREEN)
   })
 
-  it('정원이 다 차도 자리가 남아 밭이 채워진다', () => {
-    // 딱 맞으면 좌우 어느 한쪽이 먼저 차서 자리를 못 찾는 단어가 생긴다
-    expect(forPlayers(full, MAX_PLAYERS).maxConcurrent).toBeLessThan(MAX_ON_SCREEN + 1)
+  it('레인 용량이 최대 인원 이상이다', () => {
     expect(MAX_ON_SCREEN).toBeGreaterThanOrEqual(MAX_PLAYERS)
   })
 

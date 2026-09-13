@@ -1,3 +1,4 @@
+import { canvasContext, canvasFor } from './helpers/canvas.ts'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ARENA } from '../src/game/config.ts'
 
@@ -14,59 +15,23 @@ function makeCanvas(): {
   const dashes: number[][] = []
   const strokeRects: number[] = []
   const ctx = {
-    fillStyle: '',
-    strokeStyle: '',
-    lineWidth: 1,
-    lineCap: '',
-    globalCompositeOperation: 'source-over',
-    globalAlpha: 1,
-    font: '',
-    textAlign: '',
-    textBaseline: '',
-    shadowBlur: 0,
-    shadowColor: '',
-    setTransform: () => {},
-    clearRect: () => {},
-    save: () => {},
-    restore: () => {},
-    translate: () => {},
-    rotate: () => {},
-    scale: () => {},
-    beginPath: () => {},
-    closePath: () => {},
-    rect: () => {},
-    clip: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
-    arc: () => {},
-    stroke: () => {},
-    fill: () => {},
+    ...canvasContext(),
     strokeRect: () => strokeRects.push(1),
-    fillRect: () => {},
-    drawImage: () => {},
-    roundRect: () => {},
-    measureText: () => ({ width: 0 }),
-    createLinearGradient: () => ({ addColorStop: () => {} }),
     setLineDash(value: number[]) {
       dashes.push([...value])
     },
     fillText(text: string) {
       texts.push(text)
-    },
+    }
   }
-  const canvas = {
-    width: 0,
-    height: 0,
-    getContext: () => ctx,
-    getBoundingClientRect: () => ({ width: CSS_WIDTH, height: CSS_HEIGHT }),
-  }
-  return { canvas: canvas as unknown as HTMLCanvasElement, texts, dashes, strokeRects }
+  const canvas = canvasFor(ctx, CSS_WIDTH, CSS_HEIGHT)
+  return { canvas: canvas, texts, dashes, strokeRects }
 }
 
 let ArenaRenderer: typeof import('../src/game/renderer/ArenaRenderer.ts').ArenaRenderer
 
 beforeEach(async () => {
-  ;(globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 1 }
+  ; (globalThis as unknown as { window: unknown }).window = { devicePixelRatio: 1 }
   ArenaRenderer = (await import('../src/game/renderer/ArenaRenderer.ts')).ArenaRenderer
 })
 

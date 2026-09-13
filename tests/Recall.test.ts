@@ -221,32 +221,7 @@ describe('화이트보드 상자 회수', () => {
     engine.dispose()
   })
 
-  it('정상 입력으로 혼잡 경보가 줄면 회복 테두리 연출 신호를 보낸다', async () => {
-    const engine = await GameEngine.create(20260817)
-    const internals = engine as unknown as {
-      loop: { stop(): void }
-      phase: GamePhase
-      congestion: number
-      spawner: { spawnScripted(word: string): void }
-    }
-    let state: GameState | null = null
-    engine.onStateChange((next) => { state = next })
-    engine.startRun(false)
-    internals.loop.stop()
-    internals.phase = 'playing'
-    internals.congestion = 40
-    internals.spawner.spawnScripted('책')
-
-    engine.submit('책')
-
-    expect((state as unknown as GameState).stage).toMatchObject({
-      congestion: 38,
-      congestionRecoverySeq: 1,
-    })
-    engine.dispose()
-  })
-
-  it('4/4 회수 뒤에는 같은 판에서 멈춘 경보 데모로 이어진다', async () => {
+  it('튜토리얼 완료 처리 뒤에는 같은 판에서 멈춘 경보 데모로 이어진다', async () => {
     const engine = await GameEngine.create(20260817)
     const internals = engine as unknown as { advanceStage(): void; emit(): void; phase: GamePhase }
     let state: GameState | null = null

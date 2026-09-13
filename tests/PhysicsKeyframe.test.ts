@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ARENA } from '../src/game/config.ts'
 import { PhysicsWorld } from '../src/game/physics/PhysicsWorld.ts'
 import { VARIANT_BY_ID, WORDS } from '../src/game/data/words.ts'
@@ -33,6 +33,8 @@ function anyVariant(): ItemVariant {
 
 let host: PhysicsWorld
 let guest: PhysicsWorld
+
+afterEach(() => { host?.dispose(); guest?.dispose() })
 
 beforeEach(async () => {
   host = await PhysicsWorld.create()
@@ -190,5 +192,53 @@ describe('권위 키프레임', () => {
 
     guest.applyFrames(host.frames(), (id) => VARIANT_BY_ID.get(id), host.weldPairs())
     expect(guest.debugWeldPairs()).toEqual(host.debugWeldPairs())
+  })
+})
+
+function run(world: PhysicsWorld, seconds: number): void { for (let t = 0; t < seconds; t += 1 / 60) world.step(1 / 60) }
+function lookup(id: string) { return VARIANT_BY_ID.get(id) }
+describe('키프레임 멱등성과 위치 보정', () => {
+  it('두 번 맞춰도 물건이 늘어나지 않는다 — 같은 핸들은 같은 물건이다', () => {
+    host.reset()
+    guest.reset()
+    host.spawnItem(anyVariant(), 0, 'plum', 1)
+    run(host, 2)
+
+    guest.applyFrames(host.frames(), lookup)
+    run(host, 2)
+    guest.applyFrames(host.frames(), lookup)
+
+    expect(guest.itemCount).toBe(1)
+  })
+
+  it('어긋난 상태를 키프레임이 되돌린다', () => {
+    host.reset()
+    guest.reset()
+    const item = anyVariant()
+    host.spawnItem(item, 0.4, 'plum', 1)
+    guest.spawnItem(item, -0.4, 'plum', 1)
+    run(host, 2)
+    run(guest, 2)
+
+    const before = guest.snapshots()[0]!
+    expect(Math.abs(before.x - host.snapshots()[0]!.x)).toBeGreaterThan(0.1)
+
+    guest.applyFrames(host.frames(), lookup)
+
+    // 같은 itemId이므로 새로 만들지 않고 그 물건을 제자리로 옮긴다
+    expect(guest.itemCount).toBe(1)
+    expect(guest.snapshots()[0]!.x).toBeCloseTo(host.snapshots()[0]!.x, 5)
+  })
+
+  it('모르는 물건 id는 조용히 건너뛴다', () => {
+    host.reset()
+    guest.reset()
+    guest.applyFrames(
+      [{
+        itemId: 1, variantId: '없는물건', owner: 'plum', x: 0, y: 1, rotation: 0,
+      }],
+      lookup,
+    )
+    expect(guest.itemCount).toBe(0)
   })
 })

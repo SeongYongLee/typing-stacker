@@ -1,10 +1,10 @@
 import {afterEach,beforeEach,expect,it} from 'vitest'
-import {GameEngine,type GameState} from '../src/game/core/GameEngine.ts'
-import type {PhysicsWorld} from '../src/game/physics/PhysicsWorld.ts'
-import {RECIPES} from '../src/game/data/recipes.ts'
-import {VARIANT_BY_ID} from '../src/game/data/words.ts'
-import {ARENA} from '../src/game/config.ts'
-import {FrameClock} from './helpers/frameClock.ts'
+import {GameEngine,type GameState} from '../../src/game/core/GameEngine.ts'
+import type {PhysicsWorld} from '../../src/game/physics/PhysicsWorld.ts'
+import {RECIPES} from '../../src/game/data/recipes.ts'
+import {VARIANT_BY_ID} from '../../src/game/data/words.ts'
+import {ARENA} from '../../src/game/config.ts'
+import {FrameClock} from '../helpers/frameClock.ts'
 import {installRecallExperiment} from './helpers/recallFlowExperiment.ts'
 const clock=new FrameClock()
 let engine:GameEngine,state:GameState

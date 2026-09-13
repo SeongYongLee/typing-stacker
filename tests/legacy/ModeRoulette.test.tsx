@@ -1,8 +1,8 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { SessionPhase } from '../src/multi/MatchSession.ts'
-import { ModeRoulette } from '../src/screens/lobby/ModeRoulette.tsx'
+import type { SessionPhase } from '../../src/multi/MatchSession.ts'
+import { ModeRoulette } from '../../src/screens/lobby/ModeRoulette.tsx'
 
 type RoulettePhase = Extract<SessionPhase, { kind: 'roulette' }>
 

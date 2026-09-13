@@ -29,7 +29,7 @@
 
 실행:
 ```
-MEASURE=1 MEASURE_FLOW=1 FLOW_VARIANT=goal-10 FLOW_SECONDS=360 FLOW_OUTPUT=docs/measurements/stage2-control.json pnpm exec vitest run tests/whiteboard-flow.measure.test.ts
-MEASURE=1 MEASURE_FLOW=1 FLOW_VARIANT=stage2-18 FLOW_SECONDS=360 FLOW_OUTPUT=docs/measurements/stage2-18.json pnpm exec vitest run tests/whiteboard-flow.measure.test.ts
+MEASURE=1 MEASURE_FLOW=1 FLOW_VARIANT=goal-10 FLOW_SECONDS=360 FLOW_OUTPUT=docs/measurements/stage2-control.json pnpm exec vitest run tests/measure/whiteboard-flow.measure.test.ts
+MEASURE=1 MEASURE_FLOW=1 FLOW_VARIANT=stage2-18 FLOW_SECONDS=360 FLOW_OUTPUT=docs/measurements/stage2-18.json pnpm exec vitest run tests/measure/whiteboard-flow.measure.test.ts
 node scripts/summarize-stage2.mjs docs/measurements/stage2-control.json docs/measurements/stage2-18.json docs/measurements/stage2-summary.json
 ```

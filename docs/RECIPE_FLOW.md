@@ -12,7 +12,7 @@
 - `tests/RecipeFlow.test.ts`
 - `tests/SingleClock.test.ts`
 - `tests/Recall.test.ts`
-- `tests/zz-recipe-flow.measure.test.ts`
+- `tests/measure/zz-recipe-flow.measure.test.ts`
 
 ## 지켜야 하는 규칙
 
@@ -228,7 +228,7 @@ pnpm build
 밸런스 측정:
 
 ```zsh
-MEASURE=1 pnpm exec vitest run tests/zz-recipe-flow.measure.test.ts --disableConsoleIntercept
+MEASURE=1 pnpm exec vitest run tests/measure/zz-recipe-flow.measure.test.ts --disableConsoleIntercept
 ```
 
 측정 테스트는 고정 물리 스텝 비용 때문에 기본 10판·판당 180초 상한을 사용한다. 레시피, 물건, 물리, 히든 확률이나 화이트보드 규칙이 바뀌면 다시 실행한다.

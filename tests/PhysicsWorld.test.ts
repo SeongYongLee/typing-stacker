@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PhysicsWorld, type SettleEvent } from '../src/game/physics/PhysicsWorld.ts'
 import { isEscaped } from '../src/game/physics/collapseDetector.ts'
 import { halfExtentY, shapeBounds } from '../src/game/shapes.ts'
@@ -63,6 +63,8 @@ function simulate(
 
 describe('PhysicsWorld', () => {
   let world: PhysicsWorld
+
+  afterAll(() => { world?.dispose() })
 
   beforeAll(async () => {
     world = await PhysicsWorld.create()
@@ -311,5 +313,26 @@ describe('halfExtentY', () => {
         ],
       }),
     ).toBeCloseTo(0.35)
+  })
+})
+
+describe('isQuiet', () => {
+  let world: PhysicsWorld
+  beforeAll(async () => { world = await PhysicsWorld.create() })
+  afterAll(() => world?.dispose())
+  it('빈 아레나는 조용하다', () => {
+    world.reset()
+    expect(world.isQuiet()).toBe(true)
+  })
+
+  it('떨어지는 중에는 조용하지 않고, 자리를 잡으면 조용해진다', () => {
+    world.reset()
+    world.spawnItem(anyVariant(), 0, SOLO_OWNER, 1)
+    world.step(1 / 60)
+    simulate(world, 0.4)
+    expect(world.isQuiet()).toBe(false)
+
+    simulate(world, 5)
+    expect(world.isQuiet()).toBe(true)
   })
 })

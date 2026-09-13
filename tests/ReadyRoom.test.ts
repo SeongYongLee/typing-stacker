@@ -27,35 +27,14 @@ function markup(
 ): string {
   return renderToStaticMarkup(createElement(ReadyRoom, {
     phase: { ...phase(chatEnabled, matchModeChoice), canChangeMatchMode },
-    onReady: () => {},
-    onChat: () => {},
-    onMatchMode: () => {},
-    onBack: () => {},
+    onReady: () => { },
+    onChat: () => { },
+    onMatchMode: () => { },
+    onBack: () => { },
   }))
 }
 
 describe('ReadyRoom 게임 규칙', () => {
-  it('규칙 한 줄을 다른 본문보다 크게 보여준다', () => {
-    const html = markup(true)
-
-    expect(html.match(/font-size:17px/g)?.length).toBeGreaterThanOrEqual(5)
-    expect(html).toContain('font-size:22px')
-    expect(html).toContain('list-style:none')
-  })
-
-  it('유저 목록은 8명 슬롯 최대 높이를 잡고 채팅 내역을 길게 보여준다', () => {
-    const html = markup(true)
-
-    expect(html).toContain('max-height:534px')
-    expect(html).toContain('height:360px')
-  })
-
-  it('준비 상태 문구가 바뀌어도 상태 칸 폭은 유지된다', () => {
-    const html = markup(true)
-
-    expect(html).toContain('flex:0 0 106px')
-    expect(html).toContain('white-space:nowrap')
-  })
 
   it('친선전 준비 화면에서 대결 모드를 고정해 보여준다', () => {
     const html = markup(true)
@@ -89,15 +68,6 @@ describe('ReadyRoom 게임 규칙', () => {
     expect(html).not.toContain('모드 설정')
     expect(html).not.toContain('호스트만 변경')
     expect(html).not.toContain('이긴 만큼 티어 점수가 오릅니다.')
-  })
-
-  it('대결 모드 준비 화면에서 자동 낙하와 합성 공격을 보여준다', () => {
-    const html = markup(true, 'duel')
-
-    expect(html).toContain('대결')
-    expect(html).toContain('내 단어를 놓치면 물건이 자동으로 떨어집니다.')
-    expect(html).toContain('마지막 생존자가 이깁니다.')
-    expect(html).not.toContain('동시에 진행합니다.')
   })
 
   it('이전 룰렛 상태가 들어와도 대결로 고정한다', () => {

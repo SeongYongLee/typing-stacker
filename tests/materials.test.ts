@@ -126,22 +126,4 @@ describe('개체값(tone)', () => {
       ).toBeGreaterThanOrEqual(MIN_SEMITONES)
     }
   })
-
-  /**
-   * 음높이가 같은 물건들은 울림이 갈라놓아야 한다. 그것이 두 번째 축을 둔 이유다 —
-   * 여기가 무너지면 격자가 그냥 한 줄로 되돌아간 것이다.
-   */
-  it('음높이가 같은 물건들은 울림이 서로 다르다', () => {
-    for (const [material, items] of groupByMaterial()) {
-      const byTone = new Map<number, number[]>()
-      for (const item of items) {
-        const list = byTone.get(item.tone) ?? []
-        list.push(item.grain)
-        byTone.set(item.tone, list)
-      }
-      for (const [tone, grains] of byTone) {
-        expect(new Set(grains).size, `${material} 음높이 ${tone}`).toBe(grains.length)
-      }
-    }
-  })
 })

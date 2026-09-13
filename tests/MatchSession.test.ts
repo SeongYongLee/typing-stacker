@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { INVULNERABLE_SEC, LIVES } from '../src/game/config.ts'
 import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
 import type { MatchEngine, MatchViewState } from '../src/multi/MatchEngine.ts'
-import { MatchSession, type SessionPhase } from '../src/multi/MatchSession.ts'
+import { attachSession, type SessionSeat as Side } from './helpers/session.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 
 /**
@@ -12,10 +12,6 @@ import { FrameClock } from './helpers/frameClock.ts'
  * 없다 — 첫 단어가 이미 내려오고 있다. **양쪽이 다 준비를 눌러야** 열린다.
  */
 
-interface Side {
-  session: MatchSession
-  phase: () => SessionPhase | null
-}
 
 /** 루프백은 마이크로태스크로 배달한다 — 눌렀다고 바로 상대에게 닿아 있지 않다 */
 function tick(): Promise<void> {
@@ -39,32 +35,9 @@ function pair(): { host: Side; guest: Side } {
   clock.install()
   const [hostLink, guestLink] = LoopbackTransport.pair()
 
-  let hostPhase: SessionPhase | null = null
-  let guestPhase: SessionPhase | null = null
-
-  const hostSession = MatchSession.attach(hostLink, (on) => hostLink.listen(on), {
-    nickname: '자두',
-    deviceId: 'dev-host',
-    icon: '',
-    // 셈은 따로 시험한다 — 판이 열리는지 보려는 여기서는 건너뛴다
-    countdownSec: 0,
-    onPhase: (phase) => {
-      hostPhase = phase
-    },
-  })
-  const guestSession = MatchSession.attach(guestLink, (on) => guestLink.listen(on), {
-    nickname: '세이지',
-    deviceId: 'dev-guest',
-    icon: '',
-    countdownSec: 0,
-    onPhase: (phase) => {
-      guestPhase = phase
-    },
-  })
-
   return {
-    host: { session: hostSession, phase: () => hostPhase },
-    guest: { session: guestSession, phase: () => guestPhase },
+    host: attachSession(hostLink, '자두', 'dev-host'),
+    guest: attachSession(guestLink, '세이지', 'dev-guest'),
   }
 }
 
@@ -137,6 +110,11 @@ describe('MatchSession — 준비하고 시작한다', () => {
 
     expect(open.host.phase()?.kind).toBe('playing')
     expect(open.guest.phase()?.kind).toBe('playing')
+    for (const side of [open.host, open.guest]) {
+      const phase = side.phase()
+      if (phase?.kind !== 'playing') throw new Error('세션이 시작되지 않았다')
+      expect(stateOf(phase.engine).ranked).toBe(false)
+    }
   })
 
   it('다음 판 엔진을 만드는 동안 온 첫 메시지를 잃지 않는다', async () => {
@@ -148,7 +126,7 @@ describe('MatchSession — 준비하고 시작한다', () => {
 
     const firstHost = open.host.phase()
     const firstGuest = open.guest.phase()
-    if (firstHost?.kind !== 'playing' || firstGuest?.kind !== 'playing') return
+    if (firstHost?.kind !== 'playing' || firstGuest?.kind !== 'playing') throw new Error('양쪽 세션이 시작되지 않았다')
     const firstState = stateOf(firstHost.engine)
     const firstMatch = firstState.matchId
     const authority = firstState.matchMode === 'duel' ? firstGuest.engine : firstHost.engine
@@ -185,7 +163,7 @@ describe('MatchSession — 준비하고 시작한다', () => {
 
     const host = open.host.phase()
     const guest = open.guest.phase()
-    if (host?.kind !== 'playing' || guest?.kind !== 'playing') return
+    if (host?.kind !== 'playing' || guest?.kind !== 'playing') throw new Error('양쪽 세션이 시작되지 않았다')
     for (let round = 0; round < LIVES; round += 1) {
       guest.engine.debugEscape(guest.engine.debugSelf(), 1)
       await clock.advance(INVULNERABLE_SEC + 0.4)

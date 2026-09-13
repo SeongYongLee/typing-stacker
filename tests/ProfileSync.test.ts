@@ -1,22 +1,8 @@
+import { MemoryStorage } from './helpers/storage.ts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchRank, flushPendingRun, syncProfile } from '../src/rank/client.ts'
 import { queuePendingRun } from '../src/storage/pendingRun.ts'
 
-class MemoryStorage {
-  private readonly values = new Map<string, string>()
-
-  getItem(key: string): string | null {
-    return this.values.get(key) ?? null
-  }
-
-  setItem(key: string, value: string): void {
-    this.values.set(key, value)
-  }
-
-  removeItem(key: string): void {
-    this.values.delete(key)
-  }
-}
 
 const profile = { id: 'player', name: '반짝이는 샴푸통', icon: 'pencil-set' }
 const view = {

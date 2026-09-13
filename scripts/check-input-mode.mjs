@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {chromium} from 'playwright-core'
 const base=process.argv[2]??'http://127.0.0.1:5175'
-const browser=await chromium.launch()
+const browser=await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ?? chromium.executablePath() })
 try {
   for (const scenario of [
     {name:'narrow PC',width:1000,touch:false,mode:'auto',expected:'pc'},

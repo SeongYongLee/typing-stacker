@@ -9,13 +9,13 @@ const input: HangulInput = {
   value: '아메리카노',
   composing: false,
   tapSeq: 0,
-  onChange: () => {},
-  onKeyDown: () => {},
-  onCompositionStart: () => {},
-  onCompositionEnd: () => {},
-  clear: () => {},
-  focus: () => {},
-  keepFocus: () => {},
+  onChange: () => { },
+  onKeyDown: () => { },
+  onCompositionStart: () => { },
+  onCompositionEnd: () => { },
+  clear: () => { },
+  focus: () => { },
+  keepFocus: () => { },
 }
 
 describe('MemoInput 글꼴', () => {
@@ -24,8 +24,10 @@ describe('MemoInput 글꼴', () => {
       createElement(MemoInput, { input, nightfall: 0, ariaLabel: '단어 입력' }),
     )
 
-    const matches = markup.match(/GriunXHangeul A Foreign Hand/g) ?? []
-    expect(matches).toHaveLength(2)
-    expect(markup).toContain('font:400 28px/1.2')
+    const inputTag = markup.match(/<input\b[^>]*>/)?.[0]
+    const rulerTag = markup.match(/<span\b[^>]*aria-hidden="true"[^>]*>/)?.[0]
+    const font = (tag: string | undefined) => tag?.match(/(?:style="|;)font:([^;"]+)/)?.[1]
+    expect(font(inputTag)).toBeTruthy()
+    expect(font(rulerTag)).toBe(font(inputTag))
   })
 })

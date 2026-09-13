@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { MatchEngine, TURN_LIMIT_SEC, type MatchViewState } from '../src/multi/MatchEngine.ts'
-import { ChatLog } from '../src/multi/ChatLog.ts'
-import { LoopbackTransport } from '../src/multi/LoopbackTransport.ts'
-import type { PlayerInfo } from '../src/multi/protocol.ts'
-import { FrameClock } from './helpers/frameClock.ts'
+import { MatchEngine, TURN_LIMIT_SEC, type MatchViewState } from '../../src/multi/MatchEngine.ts'
+import { ChatLog } from '../../src/multi/ChatLog.ts'
+import { LoopbackTransport } from '../../src/multi/LoopbackTransport.ts'
+import type { PlayerInfo } from '../../src/multi/protocol.ts'
+import { FrameClock } from '../helpers/frameClock.ts'
 
 /**
  * 차례에 걸린 시한.
@@ -94,42 +94,20 @@ describe('차례 시한', () => {
   /*
    * 이 파일의 핵심. 손을 놓아도 판이 멎지 않아야 한다.
    */
-  it('시한이 지나면 대신 떨궈진다', async () => {
+  it('시한 뒤 한 물건을 양쪽에 떨구고 차례와 시계를 넘긴다', async () => {
     pair = await makePair()
     // 단어가 깔릴 시간을 준다
     await pair.clock.advance(4)
     expect(stacked(pair.host)).toBe(0)
+    const first = pair.hostState().current
 
     // 이미 4초를 썼으므로 시한까지 남은 만큼만 더 흘린다
     await pair.clock.advance(TURN_LIMIT_SEC - 4 + 0.6)
-    expect(stacked(pair.host)).toBeGreaterThan(0)
-  })
-
-  it('대신 떨군 뒤에는 차례가 넘어가고 시계도 처음부터다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(4)
-    const first = pair.hostState().current
-    await pair.clock.advance(TURN_LIMIT_SEC - 4 + 0.6)
-
     expect(pair.hostState().current).not.toBe(first)
-    // 갓 시작한 차례라 남은 시간이 거의 그대로다
     expect(pair.hostState().turnLeft!).toBeGreaterThan(TURN_LIMIT_SEC - 2)
-  })
-
-  /*
-   * 양쪽이 각자 재서 각자 떨구면 같은 순간에 두 개가 떨어진다. 참가자는 숫자를
-   * 그리기만 하고, 실제로 떨어지는 것은 방장이 보낸 하나다.
-   */
-  it('참가자는 스스로 떨구지 않는다', async () => {
-    pair = await makePair()
-    await pair.clock.advance(4)
-    await pair.clock.advance(TURN_LIMIT_SEC - 4 + 0.6)
-    // 전달은 마이크로태스크로 미뤄진다 — 한 프레임 더 흘려 받게 한다
     await pair.clock.advance(0.4)
-
-    // 방장이 보낸 한 개가 양쪽에 똑같이 있다
-    expect(stacked(pair.guest)).toBe(stacked(pair.host))
     expect(stacked(pair.host)).toBe(1)
+    expect(stacked(pair.guest)).toBe(1)
   })
 
   it('시간 안에 치면 대신 떨구지 않는다', async () => {

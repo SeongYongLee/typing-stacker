@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { QUEUE_STALE_MS } from '../worker/src/queuePolicy.ts'
 import { POLL_MS, pollDelay } from '../src/rank/queue.ts'
 
 /**
@@ -11,8 +12,6 @@ import { POLL_MS, pollDelay } from '../src/rank/queue.ts'
  * 넘기면 멀쩡히 기다리는 사람이 줄에서 빠지고, 본인은 여전히 기다리는 줄 안다.
  */
 
-/** 서버가 줄에서 치우는 기준(`worker/src/board.ts`의 `QUEUE_STALE_MS`) */
-const SERVER_STALE_MS = 6000
 
 describe('묻는 주기', () => {
   it('처음에는 자주 묻는다', () => {
@@ -30,7 +29,7 @@ describe('묻는 주기', () => {
    */
   it('서버가 치우는 기준을 넘지 않는다', () => {
     for (const waited of [0, 14, 15, 44, 45, 120, 600, 36000]) {
-      expect(pollDelay(waited)).toBeLessThan(SERVER_STALE_MS)
+      expect(pollDelay(waited)).toBeLessThan(QUEUE_STALE_MS)
     }
   })
 
@@ -41,7 +40,7 @@ describe('묻는 주기', () => {
   it('이상한 값이 와도 기준을 넘지 않는다', () => {
     // 서버 응답이 깨졌거나 시계가 뒤로 갔을 때
     for (const odd of [-1, -1000, Number.NaN]) {
-      expect(pollDelay(odd)).toBeLessThan(SERVER_STALE_MS)
+      expect(pollDelay(odd)).toBeLessThan(QUEUE_STALE_MS)
       expect(pollDelay(odd)).toBeGreaterThan(0)
     }
   })

@@ -14,14 +14,19 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:measure": "MEASURE=1 vitest run tests/*.measure.test.ts",
+    "test:measure": "MEASURE=1 vitest run",
     "assets:catalog": "node scripts/prepare-item-catalog.cjs",
     "assets:splash": "node scripts/prepare-splash.cjs",
     "assets:font": "node scripts/prepare-font.cjs",
     "preview": "vite preview",
     "relay:dev": "pnpm dlx wrangler dev --config worker/wrangler.toml --port 8787",
     "relay:deploy": "pnpm dlx wrangler deploy --config worker/wrangler.toml",
-    "push": "bash scripts/push.sh"
+    "push": "bash scripts/push.sh",
+    "test:all": "TEST_GROUP=all vitest run",
+    "test:legacy": "TEST_GROUP=legacy vitest run",
+    "test:experiments": "TEST_GROUP=experiments vitest run",
+    "test:measure:flow": "MEASURE=1 MEASURE_FLOW=1 vitest run tests/measure/whiteboard-flow.measure.test.ts",
+    "test:browser": "node scripts/check-browser.mjs"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.19.3",

@@ -1,6 +1,6 @@
-import { RECIPES, craftKeyOf } from '../../src/game/data/recipes.ts'
-import { WORDS } from '../../src/game/data/words.ts'
-import type { ItemVariant, WordEntry } from '../../src/game/types/game.ts'
+import { RECIPES, craftKeyOf } from '../../../src/game/data/recipes.ts'
+import { WORDS } from '../../../src/game/data/words.ts'
+import type { ItemVariant, WordEntry } from '../../../src/game/types/game.ts'
 
 const baseEntries = new Map(WORDS.flatMap(entry => entry.variants.filter(v => !v.hidden).map(v => [craftKeyOf(v.id), entry] as const)))
 const recipes = new Map(RECIPES.map(recipe => [recipe.result.id, recipe]))

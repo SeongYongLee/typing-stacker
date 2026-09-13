@@ -3,7 +3,7 @@ import { ITEM_CATALOG } from '../src/game/data/itemCatalog.generated.ts'
 import { ALL_VARIANTS } from '../src/game/data/words.ts'
 
 describe('lightweight item catalog', () => {
-  it('matches every game variant without loading shape metadata in the title bundle', () => {
+  it('matches the ids, labels and sprite names of every game variant', () => {
     expect(ITEM_CATALOG.map(({ id, label, sprite }) => ({ id, label, sprite }))).toEqual(
       ALL_VARIANTS.map(({ id, label, sprite }) => ({
         id,

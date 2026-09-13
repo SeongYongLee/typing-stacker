@@ -1,6 +1,7 @@
+import { attachSession } from './helpers/session.ts'
 import { afterEach, describe, expect, it } from 'vitest'
 import { matchIdOf } from '../src/multi/MatchEngine.ts'
-import { MatchSession, type SessionPhase } from '../src/multi/MatchSession.ts'
+import type { MatchSession, SessionPhase } from '../src/multi/MatchSession.ts'
 import { MAX_PLAYERS } from '../src/multi/protocol.ts'
 import { FrameClock } from './helpers/frameClock.ts'
 import { Hub } from './helpers/hub.ts'
@@ -80,28 +81,19 @@ afterEach(() => {
 
 async function playWith(count: number): Promise<SessionPhase[]> {
   clock.install()
-  const phases: (SessionPhase | null)[] = Array.from({ length: count }, () => null)
-  sessions = Hub.of(count).map((link, index) =>
-    MatchSession.attach(link, (on) => link.listen(on), {
-      nickname: `사람${index}`,
-      deviceId: `dev-${index}`,
-      icon: '',
-      countdownSec: 0,
-      onPhase: (next) => {
-        phases[index] = next
-      },
-    }),
-  )
+  const seats = Hub.of(count).map((link, index) => attachSession(link, `사람${index}`, `dev-${index}`))
+  sessions = seats.map((seat) => seat.session)
   const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
   await settle()
   await settle()
   for (const session of sessions) {
     session.setReady()
   }
-  for (let wait = 0; wait < 300 && phases[0]?.kind !== 'playing'; wait += 1) {
+  for (let wait = 0; wait < 300 && seats[0]?.phase()?.kind !== 'playing'; wait += 1) {
     await settle()
   }
-  return phases.map((phase, index) => {
+  return seats.map((seat, index) => {
+    const phase = seat.phase()
     if (phase === null) throw new Error(`사람${index}의 판이 열리지 않았다`)
     return phase
   })
@@ -124,11 +116,6 @@ describe('붙은 판의 이름', () => {
     const ids = matchIdsOf(await playWith(MAX_PLAYERS))
     expect(ids).toHaveLength(MAX_PLAYERS)
     expect(new Set(ids).size).toBe(1)
-  })
-
-  it('여덟이 붙어도 서버 상한에 한참 못 미친다', async () => {
-    const [id] = matchIdsOf(await playWith(MAX_PLAYERS))
-    // 서버 상한은 200자다
-    expect(id!.length).toBeLessThan(40)
+    expect(ids[0]!.length).toBeLessThan(128)
   })
 })

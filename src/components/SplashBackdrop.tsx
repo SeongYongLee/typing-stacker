@@ -11,6 +11,7 @@ const SPLASH_BACKGROUNDS: Record<TitleTheme, string> = {
 
 interface SplashBackdropProps {
   children: ReactNode
+  doorway?: boolean
   /** 타이틀은 로고까지 받은 뒤 함께 열기 위해 진입 시각을 직접 넘긴다. */
   theme?: TitleTheme
   /** false면 배경과 자식의 진입 연출을 아직 시작하지 않는다. */

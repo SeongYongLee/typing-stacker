@@ -106,6 +106,7 @@ function useGameEngine(enabled: boolean): UseGameEngine {
           instance.dispose()
           return
         }
+        instance.setStageStoriesEnabled(true)
         created = instance
         const store = new EngineStateStore()
         instance.onStateChange(store.update)

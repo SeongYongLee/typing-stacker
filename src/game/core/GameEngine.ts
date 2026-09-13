@@ -486,6 +486,11 @@ class GameEngine {
     this.storiesEnabled = enabled
   }
 
+  /** Draw the frozen board once behind READY/START without advancing the story gate. */
+  previewStageStoryArena(): void {
+    if (this.storyOpen) this.render(true)
+  }
+
   finishStageStory(waitForInput = false): void {
     if (!this.storyOpen) return
     this.storyOpen = false
@@ -1666,9 +1671,9 @@ class GameEngine {
     return congestionLevel(this.stageId > 0 ? this.congestion : 0, rush)
   }
 
-  private readonly render = (): void => {
+  private readonly render = (previewStory = false): void => {
     // The opaque story scene hides the arena; do not build snapshots or draw WebGL behind it.
-    if (this.storyOpen) return
+    if (this.storyOpen && !previewStory) return
     const time = this.timeView()
     const reveal = this.hiddenReveal
     const renderBounds = renderVerticalBounds(0, RENDER_VERTICAL_MARGIN)

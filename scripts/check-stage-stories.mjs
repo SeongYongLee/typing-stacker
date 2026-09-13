@@ -7,10 +7,19 @@ try {for(const touch of [false,true]){
  const errors=[];page.on('pageerror',e=>errors.push(e.message))
  await page.route('**/*',r=>new URL(r.request().url()).origin===new URL(base).origin?r.continue():r.abort())
  await page.route('**/src/hooks/useGameEngine.ts*',async r=>{const response=await r.fetch();await r.fulfill({response,body:(await response.text()).replace('instance.onStateChange(store.update);','instance.onStateChange(store.update); window.__story = {engine:instance,store};')})})
- await page.goto(base);await page.getByRole('button',{name:'혼자 하기',exact:true}).click()
+ await page.goto(base)
+ await page.evaluate(async()=>{
+   const {updateDisplaySettings}=await import('/src/game/renderer/displayPrefs.ts')
+   updateDisplaySettings({soloTutorial:'disabled'})
+   window.__earlyStart=false
+   const observer=new MutationObserver(()=>{if(document.querySelector('[data-solo-start]'))window.__earlyStart=true})
+   observer.observe(document.body,{childList:true,subtree:true});window.__startObserver=observer
+ })
+ await page.getByRole('button',{name:'혼자 하기',exact:true}).click()
  await page.waitForFunction(()=>window.__story)
  await page.waitForSelector('[data-game-screen]')
- await page.evaluate(()=>window.__story.engine.startRun(false))
+ await page.getByRole('dialog').waitFor()
+ assert.equal(await page.evaluate(()=>{window.__startObserver.disconnect();return window.__earlyStart}),false)
  for(const stage of [1,2,3,4,5]){
   if(stage>1)await page.evaluate(id=>{window.__story.engine.enterStage(id);window.__story.engine.emit()},stage)
   const dialog=page.getByRole('dialog');await dialog.waitFor({timeout:5000}).catch(async e=>{console.log({stage,touch,errors,snapshot:await page.evaluate(()=>({phase:window.__story.store.getSnapshot().phase,stage:window.__story.store.getSnapshot().stage,body:document.body.innerText.slice(0,800)}))});throw e})
@@ -36,7 +45,16 @@ try {for(const touch of [false,true]){
   }
   if(stage===1)await page.screenshot({path:`/tmp/stage-story-${touch?'mobile':'pc'}.png`})
   if(stage===2){if(touch)await dialog.getByRole('button',{name:'건너뛰기',exact:true}).click();else await page.keyboard.press('Escape')}
-  else {if(touch)await dialog.getByRole('button',{name:/다음 이야기/}).click();else {await dialog.getByRole('button',{name:/다음 이야기/}).focus();await page.keyboard.press('Enter')}await dialog.getByRole('button',{name:/다음 이야기/}).click();await dialog.getByRole('button',{name:/정리 시작/}).click()}
+  else {if(touch)await dialog.getByRole('button',{name:/다음 이야기/}).click();else {await dialog.getByRole('button',{name:/다음 이야기/}).focus();await page.keyboard.press('Enter')}await dialog.getByRole('button',{name:/다음 이야기/}).click();await dialog.getByRole('button',{name:/정리 시작/}).evaluate(e=>e.click())}
+  await page.locator('[data-solo-start="ready"]').waitFor({timeout:5000}).catch(async error=>{console.log({stage,touch,errors,body:await page.locator('body').innerText()});throw error})
+  assert.equal(await dialog.locator('.stage-story-room').count(),0)
+  assert.equal(await dialog.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)')
+  if(stage===1) await page.screenshot({path:`/tmp/story-countdown-${touch?'mobile':'pc'}.png`})
+  const countdownTime = await page.evaluate(()=>window.__story.store.getSnapshot().stats.durationSec)
+  await page.locator('[data-solo-start="start"]').waitFor()
+  assert.equal(await page.evaluate(()=>window.__story.store.getSnapshot().stats.durationSec),countdownTime)
+  assert.equal(await page.evaluate(()=>window.__story.store.getSnapshot().stage.storyOpen),true)
+  if(touch) await page.getByRole('button',{name:'입력하고 시작',exact:true}).click()
   await page.waitForFunction(()=>window.__story.store.getSnapshot().phase==='playing')
   assert.equal(await page.evaluate(()=>window.__story.store.getSnapshot().stage.storyOpen),false)
   assert.equal(await page.locator('input[aria-label="단어 입력"]').evaluate(e=>e===document.activeElement),true)

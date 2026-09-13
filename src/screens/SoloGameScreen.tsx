@@ -65,7 +65,7 @@ function SoloGameScreen({
   const arena = <GameArena engine={engine} compact={narrow || touch} onThreeChange={setThree} />
   const overlays = (
     <>
-      {state.stage.storyOpen && story && (<StageStoryScreen key={`${state.runSeq}-${state.stage.id}`} story={story} touch={touch} onFinish={() => {
+      {state.stage.storyOpen && story && (<StageStoryScreen key={`${state.runSeq}-${state.stage.id}`} story={story} touch={touch} onPrepare={() => engine.previewStageStoryArena()} onFinish={() => {
         flushSync(() => engine.finishStageStory(touch))
         document.querySelector<HTMLInputElement>('[data-game-word-input], input[aria-label="단어 입력"]')?.focus()
       }} />)}

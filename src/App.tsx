@@ -164,6 +164,14 @@ function App() {
     if (soloStage === null || soloStage === 'rules' || soloStage === 'entrance' || engine === null) {
       return
     }
+    // Normal stages hold the engine at the story gate; their start signal follows the dialogue.
+    if (!showSoloTutorial) {
+      if (LoadedSoloGameScreen === null) return
+      engine.reseed(Date.now() >>> 0)
+      engine.startRun(false)
+      setSoloStage(null)
+      return
+    }
     // START 뒤에 지연 청크의 fallback이 잠깐 끼면 StartBackdrop이 다시 어두워져 깜빡인다.
     // 화면이 준비될 때까지 START를 그대로 유지하면 판도 그 뒤에 정확히 시작한다.
     if (soloStage === 'start' && LoadedSoloGameScreen === null) {
@@ -311,7 +319,7 @@ function App() {
             <SoloRulesScreen onStart={beginSolo} onHideAndStart={hideRulesAndBeginSolo} />
           </Suspense>
         ) : (
-          <SoloStart step={soloStage} />
+          showSoloTutorial ? <SoloStart step={soloStage} /> : null
         )}
       </StartBackdrop>
     )

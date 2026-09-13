@@ -12,6 +12,8 @@ try {
     await page.getByRole('button', {name:'혼자 하기',exact:true}).click()
     await page.locator('.door-entrance').waitFor()
     assert.equal(await page.locator('[data-game-screen]').count(),0)
+    assert.equal(await page.locator('.door-entrance__room .stage-story-room').count(),1)
+    assert.equal(await page.locator('.door-entrance__room [data-arena-room]').count(),0)
     await page.waitForTimeout(650)
     await page.screenshot({path:`/tmp/door-entrance-${touch?'mobile':'pc'}.png`})
     const skip = page.getByRole('button',{name:'바로 들어가기'})

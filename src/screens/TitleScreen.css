@@ -277,12 +277,7 @@
   .title-splash__menu { padding: 18px; }
 }
 
-/* Keep the entrance in the same room and cover alignment as gameplay. */
-.title-splash__background { object-position: center bottom; transform: none; }
-.title-splash[data-ready='yes'] .title-splash__background { animation-name: splash-fade-in; }
-.title-splash__room-light { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; opacity: 0; transition: opacity .4s; }
-.title-splash[data-ready='yes'] .title-splash__room-light[data-ready='true'] { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .title-splash__room-light { transition: none; } }
+
 .ranking-dialog { width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 20px; color: var(--ink); }
 .ranking-dialog[open] { display: flex; flex-direction: column; gap: 20px; }
 .ranking-dialog::backdrop { background: #171d23b8; }

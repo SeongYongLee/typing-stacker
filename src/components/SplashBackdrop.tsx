@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { RoomLight } from './RoomLight.tsx'
+import backgroundDay from '../assets/splash/background-day.webp'
+import backgroundNight from '../assets/splash/background-night.webp'
 import { titleThemeForHour, type TitleTheme } from '../screens/titleTheme.ts'
 import '../screens/TitleScreen.css'
 
 const SPLASH_BACKGROUNDS: Record<TitleTheme, string> = {
-  day: `${import.meta.env.BASE_URL}arena/background-day.webp`,
-  night: `${import.meta.env.BASE_URL}arena/background-night.webp`,
+  day: backgroundDay,
+  night: backgroundNight,
 }
 
 interface SplashBackdropProps {
@@ -50,7 +51,6 @@ function SplashBackdrop({
         onLoad={onBackgroundSettled}
         onError={onBackgroundSettled}
       />
-      <RoomLight night={resolvedTheme === 'night'} />
       <div className="title-splash__veil" aria-hidden="true" />
       {children}
     </div>

@@ -1,3 +1,4 @@
+import { RoomLight } from './RoomLight.tsx'
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ARENA_ART } from '../game/renderer/arenaArt.generated.ts'
 import { ArenaClock } from './ArenaClock.tsx'
@@ -89,9 +90,9 @@ function BackdropLayers({
     <div ref={rootRef} data-arena-room aria-hidden style={rootStyle}>
       <div style={layerStyle('background-day', 1)} />
       <div style={layerStyle('background-night', nightfall)} />
+      {windowLight && <RoomLight className="arena-room-light" nightfall={nightfall} />}
       {wall !== null && (
         <div style={wall}>
-          {windowLight && <WindowLight nightfall={nightfall} />}
           <Whiteboard
             words={whiteboard}
             activeWords={activeWhiteboard}
@@ -123,13 +124,13 @@ function SoloArenaBackdrop({
     <div ref={rootRef} data-arena-room style={rootStyle}>
       <div aria-hidden style={layerStyle('background-day', 1)} />
       <div aria-hidden style={layerStyle('background-night', time.nightfall)} />
+      {windowLight && <RoomLight className="arena-room-light" nightfall={time.nightfall} />}
       {/*
         벽에 거는 것들은 **그림에 붙어야** 한다. 화면이 아니라 방의 좌표다 —
         창문 옆 그 자리에 걸린 것이지 화면 오른쪽 위에 떠 있는 것이 아니다.
       */}
       {wall !== null && (
         <div style={wall}>
-          {windowLight && <WindowLight nightfall={time.nightfall} />}
           <Whiteboard
             words={whiteboard}
             activeWords={activeWhiteboard}
@@ -139,26 +140,6 @@ function SoloArenaBackdrop({
           <ArenaClock time={time} />
         </div>
       )}
-    </div>
-  )
-}
-
-/** 왼쪽 창문에서 들어오는 햇빛/밤빛. 배경 그림의 방 좌표에 붙여 화면비가 바뀌어도 밀리지 않는다. */
-function WindowLight({ nightfall }: { nightfall: number }) {
-  const dayAlpha = 1 - nightfall
-  return (
-    <div aria-hidden style={windowLightRootStyle}>
-      <style>{windowLightAnimationCss}</style>
-      <div style={windowBeamStyle('day', dayAlpha)} />
-      <div data-window-wash style={windowWashStyle(dayAlpha)} />
-      <div data-window-ray style={windowRayStyle(0, dayAlpha)} />
-      <div data-window-ray style={windowRayStyle(1, dayAlpha)} />
-      <div data-window-ray style={windowRayStyle(2, dayAlpha)} />
-      <div data-window-motes style={windowMotesStyle(dayAlpha)} />
-      <div data-window-glow style={windowGlowStyle(dayAlpha)} />
-      <div style={windowBeamStyle('night', nightfall)} />
-      <div style={windowPoolStyle('day', dayAlpha)} />
-      <div style={windowPoolStyle('night', nightfall)} />
     </div>
   )
 }
@@ -407,150 +388,6 @@ const BOARD_CENTER_X = 50.5
 const BOARD_CENTER_Y = 31.7
 /** 글자는 아래의 vw 크기를 유지하고 배경 보드만 줄인다. */
 const BOARD_WIDTH = 33.9 * WHITEBOARD_SCALE
-
-const windowLightRootStyle: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  pointerEvents: 'none',
-  overflow: 'hidden',
-}
-
-const windowLightAnimationCss = `
-@keyframes window-sunbeam-drift {
-  0% { transform: rotate(18deg) translate3d(-1.2%, -0.4%, 0); }
-  50% { transform: rotate(18deg) translate3d(1.4%, 0.8%, 0); }
-  100% { transform: rotate(18deg) translate3d(-1.2%, -0.4%, 0); }
-}
-
-@keyframes window-motes-float {
-  0% { background-position: 0% 0%, 35% 70%, 78% 28%; transform: translate3d(-0.6%, 1.2%, 0); }
-  50% { background-position: 28% 36%, 62% 48%, 94% 62%; transform: translate3d(1%, -0.8%, 0); }
-  100% { background-position: 0% 0%, 35% 70%, 78% 28%; transform: translate3d(-0.6%, 1.2%, 0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-window-ray],
-  [data-window-wash],
-  [data-window-motes],
-  [data-window-glow] {
-    animation: none !important;
-  }
-}
-`
-
-function windowBeamStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
-  const day = tone === 'day'
-  return {
-    position: 'absolute',
-    left: '17.5%',
-    top: day ? '31%' : '30%',
-    width: day ? '31%' : '28%',
-    height: day ? '45%' : '40%',
-    transform: 'skewX(-18deg) rotate(7deg)',
-    transformOrigin: '0 0',
-    background: day
-      ? 'radial-gradient(ellipse at 0% 18%, rgba(255, 236, 142, 0.32), rgba(255, 218, 111, 0.12) 38%, rgba(255, 207, 99, 0) 72%)'
-      : 'linear-gradient(104deg, rgba(141, 185, 255, 0.28) 0%, rgba(129, 136, 255, 0.16) 42%, rgba(107, 105, 228, 0.05) 76%, rgba(107, 105, 228, 0) 100%)',
-    filter: day ? 'blur(12px)' : 'blur(8px)',
-    opacity: day ? alpha * 0.68 : alpha * 0.58,
-    mixBlendMode: 'screen',
-  }
-}
-
-function windowWashStyle(alpha: number): CSSProperties {
-  return {
-    position: 'absolute',
-    left: '7.5%',
-    top: '22%',
-    width: '48%',
-    height: '55%',
-    background:
-      'radial-gradient(ellipse at 0% 18%, rgba(255, 244, 173, 0.42), rgba(255, 230, 137, 0.2) 34%, rgba(255, 221, 115, 0.08) 58%, rgba(255, 221, 115, 0) 78%)',
-    filter: 'blur(14px)',
-    opacity: alpha * 0.74,
-    mixBlendMode: 'screen',
-    transform: 'rotate(18deg)',
-    transformOrigin: 'left center',
-  }
-}
-
-function windowRayStyle(index: 0 | 1 | 2, alpha: number): CSSProperties {
-  const rays = [
-    { left: '12%', top: '28%', width: '43%', height: '4.6%', rotate: 18, opacity: 0.86, delay: '0s' },
-    { left: '11%', top: '36%', width: '49%', height: '3.8%', rotate: 21, opacity: 0.68, delay: '-2.2s' },
-    { left: '14%', top: '45%', width: '38%', height: '3.1%', rotate: 24, opacity: 0.52, delay: '-4.1s' },
-  ] as const
-  const ray = rays[index]
-  return {
-    position: 'absolute',
-    left: ray.left,
-    top: ray.top,
-    width: ray.width,
-    height: ray.height,
-    transform: `rotate(${ray.rotate}deg)`,
-    transformOrigin: 'left center',
-    background:
-      'linear-gradient(90deg, rgba(255, 252, 210, 0.82), rgba(255, 235, 153, 0.42) 46%, rgba(255, 231, 145, 0.12) 72%, rgba(255, 231, 145, 0))',
-    borderRadius: '999px',
-    filter: 'blur(4px)',
-    opacity: alpha * ray.opacity,
-    mixBlendMode: 'screen',
-    animation: 'window-sunbeam-drift 8.5s ease-in-out infinite',
-    animationDelay: ray.delay,
-  }
-}
-
-function windowGlowStyle(alpha: number): CSSProperties {
-  return {
-    position: 'absolute',
-    left: '5.2%',
-    top: '14.5%',
-    width: '26%',
-    height: '39%',
-    background:
-      'radial-gradient(ellipse at 46% 42%, rgba(255, 251, 197, 0.34), rgba(255, 232, 136, 0.18) 42%, rgba(255, 211, 97, 0.04) 74%, rgba(255, 211, 97, 0) 100%)',
-    filter: 'blur(3px)',
-    opacity: alpha * 0.86,
-    mixBlendMode: 'screen',
-    animation: 'window-sunbeam-drift 10s ease-in-out infinite',
-  }
-}
-
-function windowMotesStyle(alpha: number): CSSProperties {
-  return {
-    position: 'absolute',
-    left: '18%',
-    top: '36%',
-    width: '34%',
-    height: '43%',
-    background:
-      'radial-gradient(circle at 16% 20%, rgba(255, 252, 211, 0.72) 0 1.4px, transparent 2.8px), radial-gradient(circle at 48% 68%, rgba(255, 238, 170, 0.58) 0 1.2px, transparent 2.7px), radial-gradient(circle at 76% 34%, rgba(255, 249, 218, 0.5) 0 1.1px, transparent 2.6px)',
-    backgroundSize: '76px 68px, 104px 88px, 132px 112px',
-    clipPath: 'polygon(0 0, 100% 36%, 84% 100%, 0 66%)',
-    filter: 'blur(0.4px)',
-    opacity: alpha * 0.88,
-    mixBlendMode: 'screen',
-    animation: 'window-motes-float 12s ease-in-out infinite',
-  }
-}
-
-function windowPoolStyle(tone: 'day' | 'night', alpha: number): CSSProperties {
-  const day = tone === 'day'
-  return {
-    position: 'absolute',
-    left: day ? '22%' : '24%',
-    top: day ? '75%' : '76%',
-    width: day ? '32%' : '28%',
-    height: day ? '12%' : '10%',
-    transform: 'skewX(-18deg) rotate(-2deg)',
-    background: day
-      ? 'radial-gradient(ellipse at 36% 50%, rgba(255, 232, 150, 0.46), rgba(255, 201, 92, 0.16) 48%, rgba(255, 201, 92, 0) 76%)'
-      : 'radial-gradient(ellipse at 36% 50%, rgba(157, 191, 255, 0.26), rgba(128, 122, 255, 0.1) 50%, rgba(128, 122, 255, 0) 78%)',
-    filter: day ? 'blur(5px)' : 'blur(7px)',
-    opacity: day ? alpha : alpha * 0.52,
-    mixBlendMode: 'screen',
-  }
-}
 
 const boardStyle: CSSProperties = {
   position: 'absolute',
